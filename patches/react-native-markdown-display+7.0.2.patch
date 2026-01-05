@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-markdown-display/src/lib/renderRules.js b/node_modules/react-native-markdown-display/src/lib/renderRules.js
+index 6f2ed8d..8a276ad 100644
+--- a/node_modules/react-native-markdown-display/src/lib/renderRules.js
++++ b/node_modules/react-native-markdown-display/src/lib/renderRules.js
+@@ -284,7 +284,6 @@ const renderRules = {
+ 
+     const imageProps = {
+       indicator: true,
+-      key: node.key,
+       style: styles._VIEW_SAFE_image,
+       source: {
+         uri: show === true ? src : `${defaultImageHandler}${src}`,
+@@ -296,7 +295,7 @@ const renderRules = {
+       imageProps.accessibilityLabel = alt;
+     }
+ 
+-    return <FitImage {...imageProps} />;
++    return <FitImage key={node.key} {...imageProps} />;
+   },
+ 
+   // Text Output
