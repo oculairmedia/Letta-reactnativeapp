@@ -93,14 +93,14 @@ const AppStack = () => {
         </Stack.Group>
       ) : (
         <Stack.Group>
-          <Stack.Screen name="Welcome" component={Screens.WelcomeScreen} />
+          <Stack.Screen name="Welcome" component={Screens.DeveloperScreen} />
         </Stack.Group>
       )}
     </Stack.Navigator>
   )
 }
 
-export interface NavigationProps extends Partial<ComponentProps<typeof NavigationContainer>> {}
+export interface NavigationProps extends Partial<ComponentProps<typeof NavigationContainer>> { }
 
 export const AppNavigator = (props: NavigationProps) => {
   const { appTheme, setAppTheme } = useAppSettingsStore()

@@ -6,7 +6,7 @@ import type { ThemedStyle } from "@/theme"
 import { colors, spacing } from "@/theme"
 import defaultAgent from "@/utils/default-agent.json"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { CreateAgentRequest } from "@letta-ai/letta-client/api"
+import { AgentCreateParams } from "@letta-ai/letta-client/resources/agents"
 import { Eraser, Undo2 } from "lucide-react-native"
 import { Fragment, useMemo, useState } from "react"
 import type { TextStyle, ViewStyle } from "react-native"
@@ -15,7 +15,7 @@ import RNPickerSelect from "react-native-picker-select"
 import { useLettaHeader } from "../useLettaHeader"
 
 interface StudioAgentFormProps {
-  onSubmit?: (agentData: CreateAgentRequest) => void
+  onSubmit?: (agentData: AgentCreateParams) => void
   isPending?: boolean
 }
 
@@ -97,13 +97,13 @@ export const StudioAgentForm: FC<StudioAgentFormProps> = ({ onSubmit, isPending 
       if (model.model.includes("letta")) {
         return "letta/letta-free"
       }
-      return `${model.modelEndpointType}/${model.model}`
+      return `${model.model_endpoint_type}/${model.model}`
     }
 
     return models.map((model) => ({
       label: getModelLabel(model),
       value: getModelValue(model),
-      contextWindow: model.contextWindow,
+      contextWindow: model.context_window,
     }))
   }, [models])
 
@@ -120,15 +120,15 @@ export const StudioAgentForm: FC<StudioAgentFormProps> = ({ onSubmit, isPending 
 
   const embeddingOptions = useMemo(() => {
     const getEmbeddingLabel = (model: (typeof embeddingModels)[number]) => {
-      if (model.embeddingModel.includes("letta")) {
+      if (model.embedding_model.includes("letta")) {
         return "letta/letta-free"
       }
-      return `${model.embeddingEndpointType}/${model.embeddingModel}`
+      return `${model.embedding_endpoint_type}/${model.embedding_model}`
     }
     return embeddingModels.map((model) => ({
       label: getEmbeddingLabel(model),
       value: getEmbeddingLabel(model),
-      embeddingChunkSize: model.embeddingChunkSize,
+      embeddingChunkSize: model.embedding_chunk_size,
     }))
   }, [embeddingModels])
 
@@ -141,7 +141,7 @@ export const StudioAgentForm: FC<StudioAgentFormProps> = ({ onSubmit, isPending 
   }
 
   const handleSubmit = () => {
-    const agentData: CreateAgentRequest = {
+    const agentData: AgentCreateParams = {
       name,
       description,
       tags: tags
@@ -150,31 +150,31 @@ export const StudioAgentForm: FC<StudioAgentFormProps> = ({ onSubmit, isPending 
         .filter(Boolean),
       model,
       embedding,
-      contextWindowLimit: contextWindowLimit ? parseInt(contextWindowLimit) : undefined,
-      embeddingChunkSize: embeddingChunkSize ? parseInt(embeddingChunkSize) : undefined,
-      includeBaseTools,
-      includeMultiAgentTools,
-      includeBaseToolRules,
-      messageBufferAutoclear,
-    } satisfies CreateAgentRequest
+      embedding_chunk_size: embeddingChunkSize ? parseInt(embeddingChunkSize) : undefined,
+      include_base_tools: includeBaseTools,
+      include_multi_agent_tools: includeMultiAgentTools,
+      include_base_tool_rules: includeBaseToolRules,
+      message_buffer_autoclear: messageBufferAutoclear,
+      context_window_limit: contextWindowLimit ? parseInt(contextWindowLimit) : undefined,
+    } satisfies AgentCreateParams
 
-    const memoryBlocks: CreateAgentRequest["memoryBlocks"] = []
+    const memory_blocks: AgentCreateParams["memory_blocks"] = []
     if (persona) {
-      memoryBlocks.push({
+      memory_blocks.push({
         label: "persona",
         value: persona,
       })
     }
 
     if (human) {
-      memoryBlocks.push({
+      memory_blocks.push({
         label: "human",
         value: human,
       })
     }
 
-    if (memoryBlocks.length > 0) {
-      agentData.memoryBlocks = memoryBlocks
+    if (memory_blocks.length > 0) {
+      agentData.memory_blocks = memory_blocks
     }
 
     onSubmit?.(agentData)

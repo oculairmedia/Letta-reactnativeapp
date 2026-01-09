@@ -1,4 +1,4 @@
-import type { Letta } from "@letta-ai/letta-client"
+import { Message } from "@letta-ai/letta-client/resources/agents/messages"
 
 export interface BaseAppMessage {
   id: string
@@ -21,44 +21,43 @@ export interface AppUserMessage extends BaseAppMessage {
   content: string
 }
 
-export interface AppToolCallMessage extends BaseAppMessage {
-  messageType: MESSAGE_TYPE.TOOL_CALL_MESSAGE
-  content: string
-  toolName?: string
-  toolCallId?: string
-}
-
-export interface AppToolReturnMessage extends BaseAppMessage {
-  messageType: MESSAGE_TYPE.TOOL_RETURN_MESSAGE
-  content: string
-  toolCallId?: string
-  status?: "success" | "error"
-  stdout?: string[]
-  stderr?: string[]
-}
 
 export interface AppReasoningMessage extends BaseAppMessage {
   messageType: MESSAGE_TYPE.REASONING_MESSAGE
   content: string
 }
 
+export interface AppToolCallInfo {
+  id: string
+  toolName: string
+  args: string
+  status: "pending" | "success" | "error"
+  output?: string
+  stdout?: string[]
+  stderr?: string[]
+}
+
+export interface AppToolMessage extends BaseAppMessage {
+  messageType: MESSAGE_TYPE.TOOL_MESSAGE
+  content: string
+  toolCalls: AppToolCallInfo[]
+}
+
 export type AppMessage =
   | AppSystemMessage
   | AppAssistantMessage
   | AppUserMessage
-  | AppToolCallMessage
-  | AppToolReturnMessage
+  | AppToolMessage
   | AppReasoningMessage
 
-export type LettaMessageUnion = Letta.LettaMessageUnion
+export type LettaMessageUnion = Message
 
 export enum MESSAGE_TYPE {
   SYSTEM_MESSAGE = "system_message",
   ASSISTANT_MESSAGE = "assistant_message",
   USER_MESSAGE = "user_message",
-  TOOL_CALL_MESSAGE = "tool_call_message",
+  TOOL_MESSAGE = "tool_message",
   REASONING_MESSAGE = "reasoning_message",
-  TOOL_RETURN_MESSAGE = "tool_return_message",
 }
 
 export enum ROLE_TYPE {
@@ -67,4 +66,4 @@ export enum ROLE_TYPE {
 
 export type Context<T> = { params: Promise<T> }
 
-export const useAssistantMessage = true
+export const use_assistant_message = true

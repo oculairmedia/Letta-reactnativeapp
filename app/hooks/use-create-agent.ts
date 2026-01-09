@@ -1,17 +1,17 @@
 import { useLettaClient } from "@/providers/LettaProvider"
 import defaultAgent from "@/utils/default-agent.json"
-import { Letta } from "@letta-ai/letta-client"
+import { AgentCreateParams, AgentState } from "@letta-ai/letta-client/resources/agents"
 import { useMutation, UseMutationOptions, useQueryClient } from "@tanstack/react-query"
 import { getAgentsQueryKey } from "./use-agents"
 import { foramtToSlug } from "@/utils/agent-name-prompt"
 
 export function useCreateAgent(
-  mutationOptions: UseMutationOptions<Letta.AgentState, Error, Letta.CreateAgentRequest> = {},
+  mutationOptions: UseMutationOptions<AgentState, Error, AgentCreateParams> = {},
 ) {
   const queryClient = useQueryClient()
   const { lettaClient } = useLettaClient()
-  return useMutation<Letta.AgentState, Error, Letta.CreateAgentRequest>({
-    mutationFn: async (data: Letta.CreateAgentRequest = {}) => {
+  return useMutation<AgentState, Error, AgentCreateParams>({
+    mutationFn: async (data: AgentCreateParams = {}) => {
       if (data.tags) {
         data.tags = data.tags.map(foramtToSlug)
       }
@@ -21,11 +21,11 @@ export function useCreateAgent(
       }
 
       return await lettaClient.agents.create({
-        memoryBlocks: defaultAgent.DEFAULT_MEMORY_BLOCKS,
+        memory_blocks: defaultAgent.DEFAULT_MEMORY_BLOCKS,
         model: defaultAgent.DEFAULT_LLM,
         embedding: defaultAgent.DEFAULT_EMBEDDING,
         description: defaultAgent.DEFAULT_DESCRIPTION,
-        contextWindowLimit: defaultAgent.DEFAULT_CONTEXT_WINDOW_LIMIT,
+        context_window_limit: defaultAgent.DEFAULT_CONTEXT_WINDOW_LIMIT,
         ...data,
         name: data.name,
       })
@@ -36,7 +36,7 @@ export function useCreateAgent(
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })
       // reset chat messages
       await lettaClient.agents.messages.reset(args[0].id, {
-        addDefaultInitialMessages: false,
+        add_default_initial_messages: false,
       })
       mutationOptions?.onSuccess?.(...args)
     },
@@ -48,28 +48,28 @@ export function useCreateAgent(
 }
 
 export function useCreateAgentFromTemplate(
-  mutationOptions: UseMutationOptions<Letta.AgentState, Error, (typeof STARTER_KITS)[number]> = {},
+  mutationOptions: UseMutationOptions<AgentState, Error, (typeof STARTER_KITS)[number]> = {},
 ) {
   const queryClient = useQueryClient()
   const { lettaClient } = useLettaClient()
-  return useMutation<Letta.AgentState, Error, (typeof STARTER_KITS)[number]>({
+  return useMutation<AgentState, Error, (typeof STARTER_KITS)[number]>({
     mutationFn: async (data: (typeof STARTER_KITS)[number]) => {
       // upsert tools
-      const tools = await lettaClient.tools.list()
+      const tools = await lettaClient.tools.list().then((page) => page.getPaginatedItems())
       const toolIds = tools.map((tool) => tool.name)
       const newTools = data.tools?.filter((tool) => !toolIds.includes(tool.name))
       if (newTools) {
         await Promise.all(
           newTools.map((tool) =>
             lettaClient.tools.create({
-              sourceCode: tool.code,
+              source_code: tool.code,
             }),
           ),
         )
       }
 
       return lettaClient.agents.create({
-        memoryBlocks: data.agentState.memory_blocks,
+        memory_blocks: data.agentState.memory_blocks,
         model: defaultAgent.DEFAULT_LLM,
         embedding: defaultAgent.DEFAULT_EMBEDDING,
         tools: data.tools?.map((tool) => tool.name),

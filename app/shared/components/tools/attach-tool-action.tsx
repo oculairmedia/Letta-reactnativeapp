@@ -2,7 +2,7 @@ import { Button } from "@/components/Button"
 import { Icon } from "@/components/Icon"
 import { useAgentId } from "@/hooks/use-agentId-param"
 import { useAttachToolToAgent } from "@/hooks/use-letta-tools"
-import { Tool } from "@letta-ai/letta-client/api"
+import { Tool } from "@letta-ai/letta-client/resources/tools"
 
 export const AttachToolAction = ({ tool, onSuccess }: { tool: Tool; onSuccess?: () => void }) => {
   const [agentId] = useAgentId()

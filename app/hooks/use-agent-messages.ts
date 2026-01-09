@@ -1,6 +1,6 @@
 import { useLettaClient } from "@/providers/LettaProvider"
 import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query"
-import { AppMessage, useAssistantMessage } from "./types"
+import { AppMessage, use_assistant_message } from "./types"
 import { filterMessages } from "./utils"
 
 export const getAgentMessagesQueryKey = (agentId: string) => ["agentMessages", agentId]
@@ -10,7 +10,9 @@ export function useAgentMessages(agentId: string, queryOptions?: UseQueryOptions
   return useQuery<AppMessage[]>({
     queryKey: getAgentMessagesQueryKey(agentId),
     queryFn: () =>
-      lettaClient.agents.messages.list(agentId, { useAssistantMessage }).then(filterMessages),
+      lettaClient.agents.messages
+        .list(agentId, { use_assistant_message })
+        .then((response) => filterMessages(response.getPaginatedItems())),
     enabled: !!agentId && !!lettaClient,
     initialData: [],
     ...queryOptions,
@@ -23,11 +25,11 @@ export function useResetChatMessages() {
   return useMutation({
     mutationFn: ({
       agentId,
-      addDefaultInitialMessages,
+      add_default_initial_messages,
     }: {
       agentId: string
-      addDefaultInitialMessages?: boolean
-    }) => lettaClient.agents.messages.reset(agentId, { addDefaultInitialMessages }),
+      add_default_initial_messages?: boolean
+    }) => lettaClient.agents.messages.reset(agentId, { add_default_initial_messages }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getAgentMessagesQueryKey(variables.agentId) })
     },

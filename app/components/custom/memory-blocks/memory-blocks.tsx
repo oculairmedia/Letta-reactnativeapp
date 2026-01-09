@@ -2,7 +2,7 @@ import { View, ViewStyle } from "react-native"
 import { Text } from "@/components/Text"
 import { spacing } from "@/theme"
 import { getUseAgentStateKey, useAgent } from "@/hooks/use-agent"
-import { useModifyBlock } from "@/hooks/use-blocks"
+import { useUpdateBlock } from "@/hooks/use-blocks"
 import { MemoryBlockItem } from "./memory-block"
 import { MemoryBlockProps } from "./types"
 import { useMemo } from "react"
@@ -11,21 +11,21 @@ import { useQueryClient } from "@tanstack/react-query"
 export function MemoryBlocks({ agentId }: MemoryBlockProps) {
   const { data: agent, isLoading: isAgentLoading } = useAgent(agentId)
   const queryClient = useQueryClient()
-  const { mutate: modifyBlock } = useModifyBlock({
+  const { mutate: updateBlock } = useUpdateBlock({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getUseAgentStateKey(agentId) })
     },
   })
 
   const { personaBlock, humanBlock } = useMemo(() => {
-    const blocks = agent?.memory?.blocks || []
+    const blocks = agent?.blocks || []
     const personaBlock = blocks.find((block) => block.label === "persona")
     const humanBlock = blocks.find((block) => block.label === "human")
     return { personaBlock, humanBlock }
   }, [agent])
 
   const handleModifyBlock = (blockId: string, value: string) => {
-    modifyBlock({
+    updateBlock({
       id: blockId,
       block: { value },
     })

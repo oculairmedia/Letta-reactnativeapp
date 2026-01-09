@@ -35,8 +35,8 @@ const StarterKits = () => {
             onPress={() => {
               const defaultOptions: Parameters<typeof createAgentFromTemplate>["0"] = {
                 name: kit.agentState.title,
-                templateId: kit.id,
-                memoryBlocks: kit.agentState.memory_blocks,
+                template_id: kit.id,
+                memory_blocks: kit.agentState.memory_blocks,
               }
               Alert.prompt(
                 "Agent name",
@@ -57,8 +57,8 @@ const StarterKits = () => {
                         onSubmit: (name) => {
                           createAgentFromTemplate({
                             name,
-                            templateId: kit.id,
-                            memoryBlocks: kit.agentState.memory_blocks,
+                            template_id: kit.id,
+                            memory_blocks: kit.agentState.memory_blocks,
                           })
                         },
                       })

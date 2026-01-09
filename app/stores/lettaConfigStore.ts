@@ -2,7 +2,7 @@ import { z } from "zod"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { zustandStorage } from "./store.storage"
-import { LettaClient } from "@letta-ai/letta-client"
+import { Letta } from "@letta-ai/letta-client"
 
 type LettaMode = "cloud" | "selfhosted"
 
@@ -22,7 +22,6 @@ interface LettaConfigState {
   setActiveConfig: (id: string | null) => void
   getActiveConfig: () => LettaConfig | null
   deleteConfig: (id: string) => void
-  get client(): LettaClient | null
 }
 
 const configSchema = z.object({
@@ -34,11 +33,10 @@ const configSchema = z.object({
     .optional(),
   accessToken: z
     .string()
-    .min(1)
     .transform((val) => val.trim()),
 })
 
-const isValidConfig = (mode: LettaMode, serverUrl: string, accessToken: string) => {
+export const isValidConfig = (mode: LettaMode, serverUrl: string, accessToken: string) => {
   const result = configSchema.safeParse({ mode, serverUrl, accessToken })
   if (!result.success) return false
 
@@ -106,27 +104,6 @@ export const useLettaConfigStore = create<LettaConfigState>()(
         if (configs.length > 0) {
           set({ activeConfigId: configs[0]?.id })
         }
-      },
-
-      get client() {
-        const state = get()
-        const activeConfig = state.getActiveConfig()
-        if (
-          !activeConfig ||
-          !isValidConfig(activeConfig.mode, activeConfig.serverUrl, activeConfig.accessToken)
-        ) {
-          return null
-        }
-
-        const config: { baseUrl?: string; token: string } = {
-          token: activeConfig.accessToken,
-        }
-
-        if (activeConfig.mode === "selfhosted") {
-          config.baseUrl = activeConfig.serverUrl
-        }
-
-        return new LettaClient(config)
       },
     }),
     {

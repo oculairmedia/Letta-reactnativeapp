@@ -44,7 +44,7 @@ const AgentCard: FC<AgentCardProps> = ({ agent }) => {
   const deleteAgent = useDeleteAgent()
 
   const customTools = useMemo(() => {
-    return agent.tools.filter((t) => t.toolType === "custom")
+    return agent.tools.filter((t) => t.tool_type === "custom")
   }, [agent.tools])
 
   return (
@@ -81,7 +81,7 @@ const AgentCard: FC<AgentCardProps> = ({ agent }) => {
                   day: "numeric",
                   hour: "numeric",
                   minute: "numeric",
-                }).format(agent.updatedAt)}
+                }).format(new Date(agent.updated_at || ""))}
               </Text>
             </View>
             <View style={$agentMetadataContainer}>
@@ -95,13 +95,12 @@ const AgentCard: FC<AgentCardProps> = ({ agent }) => {
               <View style={$statsContainer}>
                 <View style={$toolBadgesContainer}>
                   {customTools.map((t) => (
-                    <Badge key={t.name} text={normalizeName(t.name)} />
+                    <Badge key={t.name} text={normalizeName(t.name || "")} />
                   ))}
                 </View>
                 <View style={$statsRow}>
-                  <Text size="xxs">{agent.llmConfig.model}</Text>
-                  <Text size="xxs">{agent.memory.blocks.length} blocks</Text>
-                  <Text size="xxs">{agent.sources.length} sources</Text>
+                  <Text size="xxs">{agent.model}</Text>
+                  <Text size="xxs">{agent.blocks.length} blocks</Text>
                 </View>
               </View>
             </View>
@@ -139,8 +138,8 @@ const StarterKits = () => {
             onPress={() => {
               const defaultOptions: Parameters<typeof createAgentFromTemplate>["0"] = {
                 name: kit.agentState.title,
-                templateId: kit.id,
-                memoryBlocks: kit.agentState.memory_blocks,
+                template_id: kit.id,
+                memory_blocks: kit.agentState.memory_blocks,
               }
               Alert.prompt(
                 "Agent name",
@@ -161,8 +160,8 @@ const StarterKits = () => {
                         onSubmit: (name) => {
                           createAgentFromTemplate({
                             name,
-                            templateId: kit.id,
-                            memoryBlocks: kit.agentState.memory_blocks,
+                            template_id: kit.id,
+                            memory_blocks: kit.agentState.memory_blocks,
                           })
                         },
                       })
@@ -218,7 +217,10 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
 
   const agents = useMemo(() => {
     return _agents?.sort((a, b) => {
-      return (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)
+      return (
+        (new Date(b.updated_at || "").getTime() ?? 0) -
+        (new Date(a.updated_at || "").getTime() ?? 0)
+      )
     })
   }, [_agents])
 

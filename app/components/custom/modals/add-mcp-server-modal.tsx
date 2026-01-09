@@ -1,16 +1,15 @@
 import { Screen } from "@/components"
-import { MCPServerForm } from "@/components/custom/forms/mcp-server-form"
+import { MCPServerForm, MCPServerFormData } from "@/components/custom/forms/mcp-server-form"
 import { ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { Letta } from "@letta-ai/letta-client"
-import type { FC } from "react"
+import { FC } from "react"
 import { Modal, ViewStyle } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 interface AddMCPServerModalProps {
   visible: boolean
   onDismiss: () => void
-  onSubmit: (serverData: Letta.SseServerConfig | Letta.StdioServerConfig) => void
+  onSubmit: (serverData: MCPServerFormData) => void
   isPending?: boolean
 }
 

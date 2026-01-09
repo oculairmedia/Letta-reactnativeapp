@@ -3,7 +3,7 @@ import { Icon } from "@/components/Icon"
 import { useAgentId } from "@/hooks/use-agentId-param"
 import { useDetachToolFromAgent } from "@/hooks/use-letta-tools"
 import { colors } from "@/theme"
-import { Tool } from "@letta-ai/letta-client/api"
+import { Tool } from "@letta-ai/letta-client/resources/tools"
 import { Alert } from "react-native"
 
 export const DetachToolAction = ({ tool }: { tool: Tool }) => {

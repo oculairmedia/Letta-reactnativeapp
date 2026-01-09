@@ -5,11 +5,11 @@ import { useAgentId } from "@/hooks/use-agentId-param"
 import { useSendMessageAsync } from "@/hooks/use-send-message"
 
 import { Card } from "@/components/Card"
-import { AppMessage, AppToolCallMessage, AppToolReturnMessage, MESSAGE_TYPE } from "@/hooks/types"
+import { AppMessage, MESSAGE_TYPE } from "@/hooks/types"
 import { AssistantMessage } from "@/shared/components/messages/assistant-message"
 import { MessageSkeleton } from "@/shared/components/messages/message-skeleton"
 import { ReasoningMessage } from "@/shared/components/messages/reasoning-message"
-import { ToolCallMessage } from "@/shared/components/messages/tool-call-message"
+import { ToolInteraction } from "@/shared/components/messages/tool-interaction"
 import { UserMessage } from "@/shared/components/messages/user-message"
 import { colors, spacing } from "@/theme"
 import { Brain, HelpCircle, Lightbulb, Loader, Sparkles } from "lucide-react-native"
@@ -92,30 +92,8 @@ const renderInteractiveItem = (item: AppMessage, data: AppMessage[]) => {
   if (item.messageType === MESSAGE_TYPE.ASSISTANT_MESSAGE) {
     return <AssistantMessage key={item.id} content={item.content} footer={item.messageType} />
   }
-  if (item.messageType === MESSAGE_TYPE.TOOL_CALL_MESSAGE) {
-    const toolCallMessage = item as AppToolCallMessage
-    const toolReturnMessage = data.find((msg) => {
-      if (msg.messageType === MESSAGE_TYPE.TOOL_RETURN_MESSAGE) {
-        const toolReturn = msg as AppToolReturnMessage
-        return toolReturn.toolCallId === toolCallMessage.toolCallId
-      }
-      return false
-    }) as AppToolReturnMessage | undefined
-    return (
-      <ToolCallMessage
-        key={item.id}
-        content={item.content}
-        toolName={toolCallMessage.toolName}
-        toolReturn={toolReturnMessage?.content}
-        stdout={toolReturnMessage?.stdout}
-        stderr={toolReturnMessage?.stderr}
-        status={toolReturnMessage?.status}
-      />
-    )
-  }
-  // Skip rendering tool return messages since they are handled by tool call messages
-  if (item.messageType === MESSAGE_TYPE.TOOL_RETURN_MESSAGE) {
-    return null
+  if (item.messageType === MESSAGE_TYPE.TOOL_MESSAGE) {
+    return <ToolInteraction key={item.id} message={item} />
   }
   return null
 }

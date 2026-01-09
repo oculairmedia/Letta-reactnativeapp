@@ -5,12 +5,12 @@ import { useCreateAgent } from "@/hooks/use-create-agent"
 import { AppStackScreenProps, navigate } from "@/navigators"
 import { useAgentStore } from "@/providers/AgentProvider"
 import { spacing } from "@/theme"
-import { CreateAgentRequest } from "@letta-ai/letta-client/api"
+import { AgentCreateParams } from "@letta-ai/letta-client/resources/agents"
 import { FC } from "react"
 import { View, ViewStyle } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-interface StudioScreenProps extends AppStackScreenProps<"Studio"> {}
+interface StudioScreenProps extends AppStackScreenProps<"Studio"> { }
 
 const chatWithAgent = (agentId: string) => {
   useAgentStore.getState().setAgentId(agentId)
@@ -25,7 +25,7 @@ export const StudioScreen: FC<StudioScreenProps> = () => {
     },
   })
 
-  const handleSubmit = (agentData: CreateAgentRequest) => {
+  const handleSubmit = (agentData: AgentCreateParams) => {
     createAgent(agentData)
   }
 

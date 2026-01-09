@@ -4,12 +4,12 @@ import { useLettaHeader } from "@/components/custom/useLettaHeader"
 import { useEditAgent } from "@/hooks/use-edit-agent"
 import { AppStackScreenProps, navigate } from "@/navigators"
 import { spacing } from "@/theme"
-import { UpdateAgent } from "@letta-ai/letta-client/api"
+import { AgentUpdateParams } from "@letta-ai/letta-client/resources/agents"
 import { FC } from "react"
 import { View, ViewStyle } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-interface EditAgentScreenProps extends AppStackScreenProps<"EditAgent"> {}
+interface EditAgentScreenProps extends AppStackScreenProps<"EditAgent"> { }
 
 export const EditAgentScreen: FC<EditAgentScreenProps> = ({ route }) => {
   useLettaHeader()
@@ -19,7 +19,7 @@ export const EditAgentScreen: FC<EditAgentScreenProps> = ({ route }) => {
     },
   })
 
-  const handleSubmit = (agentData: UpdateAgent & { id: string }) => {
+  const handleSubmit = (agentData: AgentUpdateParams & { id: string }) => {
     editAgent(agentData)
   }
 

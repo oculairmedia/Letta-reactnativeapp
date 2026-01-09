@@ -20,7 +20,7 @@ import { useAppTheme } from "@/utils/useAppTheme"
 import { FC } from "react"
 import { Alert, View, ViewStyle } from "react-native"
 
-interface AgentSettingsScreenProps extends AgentTabScreenProps<"Settings"> {}
+interface AgentSettingsScreenProps extends AgentTabScreenProps<"Settings"> { }
 
 export const AgentSettingsScreen: FC<AgentSettingsScreenProps> = () => {
   const [agentId] = useAgentId()

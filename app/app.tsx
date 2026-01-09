@@ -32,6 +32,7 @@ import { customFontsToLoad } from "./theme"
 import { loadDateFnsLocale } from "./utils/formatDate"
 import "./utils/gestureHandler"
 import "./utils/ignoreWarnings"
+import { useLettaConfigStore } from "@/stores/lettaConfigStore"
 import * as storage from "./utils/storage"
 
 export const NAVIGATION_PERSISTENCE_KEY = "NAVIGATION_STATE"
@@ -82,13 +83,20 @@ export function App() {
     setTimeout(SplashScreen.hideAsync, 500)
   }, [])
 
+  const isStoreHydrated = useLettaConfigStore.persist.hasHydrated()
+
   // Before we show the app, we have to wait for our state to be ready.
   // In the meantime, don't render anything. This will be the background
   // color set in native by rootView's background color.
   // In iOS: application:didFinishLaunchingWithOptions:
   // In Android: https://stackoverflow.com/a/45838109/204044
   // You can replace with your own loading component if you wish.
-  if (!isNavigationStateRestored || !isI18nInitialized || (!areFontsLoaded && !fontLoadError)) {
+  if (
+    !isNavigationStateRestored ||
+    !isI18nInitialized ||
+    (!areFontsLoaded && !fontLoadError) ||
+    !isStoreHydrated
+  ) {
     return null
   }
 

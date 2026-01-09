@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { AppMessage, MESSAGE_TYPE, ROLE_TYPE, useAssistantMessage } from "./types"
+import { AppMessage, MESSAGE_TYPE, ROLE_TYPE, use_assistant_message } from "./types"
 import { getAgentMessagesQueryKey } from "./use-agent-messages"
 import { extractMessage, getMessageId } from "./utils"
 
 import { useLettaClient } from "@/providers/LettaProvider"
-import type { Letta } from "@letta-ai/letta-client"
+import { Message } from "@letta-ai/letta-client/resources/agents/messages"
 import uuid from "react-native-uuid"
 const uuidv4 = uuid.v4
 
@@ -16,7 +16,7 @@ export interface UseSendMessageType {
 function updateMessageInQueryData(
   queryClient: ReturnType<typeof useQueryClient>,
   agentId: string,
-  response: Letta.LettaMessageUnion,
+  response: Message,
   responseMessageId: string,
 ) {
   queryClient.setQueriesData<AppMessage[] | undefined>(
@@ -97,7 +97,7 @@ export function useSendMessageAsync() {
       .create(
         agentId,
         {
-          useAssistantMessage,
+          use_assistant_message,
           messages: [
             {
               role: ROLE_TYPE.USER,
@@ -106,8 +106,8 @@ export function useSendMessageAsync() {
           ],
         },
         {
-          timeoutInSeconds: 120,
-        },
+          timeout: 120 * 1000
+        }
       )
       .catch((error) => {
         console.warn("Error sending message:", error)

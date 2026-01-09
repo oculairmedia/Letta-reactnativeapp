@@ -56,7 +56,7 @@ export const CustomToolsModal: FC<CustomToolsModalProps> = ({ visible, onDismiss
                 tool={{
                   id: item.id,
                   name: item.name || "",
-                  description: item.description,
+                  description: item.description || "",
                 }}
                 RightComponent={
                   <AttachToolAction

@@ -8,19 +8,24 @@ import { useAddMCPServer, useDeleteMCPServer, useMCPList } from "@/hooks/use-mcp
 import { AppStackScreenProps } from "@/navigators"
 import { spacing, ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { Letta } from "@letta-ai/letta-client"
+import { CreateSseMcpServer, CreateStdioMcpServer, SseMcpServer, StdioMcpServer, StreamableHTTPMcpServer } from "@letta-ai/letta-client/resources/mcp-servers"
 import { FC, Fragment, useState } from "react"
 import { Alert, FlatList, RefreshControl, TextStyle, View, ViewStyle } from "react-native"
 
 interface MCPServerCardProps {
-  server: Letta.SseServerConfig | Letta.StdioServerConfig
+  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer
   onDelete: () => void
 }
 
 const isSseServer = (
-  server: Letta.SseServerConfig | Letta.StdioServerConfig,
-): server is Letta.SseServerConfig => {
-  return server.type === "sse"
+  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer,
+): server is SseMcpServer => {
+  return (server as SseMcpServer).mcp_server_type === "sse"
+}
+const isStreamableHTTPServer = (
+  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer,
+): server is StreamableHTTPMcpServer => {
+  return (server as StreamableHTTPMcpServer).mcp_server_type === "streamable_http"
 }
 
 const MCPServerCard: FC<MCPServerCardProps> = ({ server, onDelete }) => {
@@ -39,11 +44,11 @@ const MCPServerCard: FC<MCPServerCardProps> = ({ server, onDelete }) => {
       ]}
     >
       <Card
-        heading={server.serverName || "Unnamed MCP Server"}
+        heading={server.server_name || "Unnamed MCP Server"}
         ContentComponent={
           <View style={$serverContentContainer}>
-            {isSseServer(server) ? (
-              <Text style={themed($serverContentTextStyle)}>URL: {server.serverUrl}</Text>
+            {isSseServer(server) || isStreamableHTTPServer(server) ? (
+              <Text style={themed($serverContentTextStyle)}>URL: {server.server_url}</Text>
             ) : (
               <Fragment>
                 <Text style={themed($serverContentTextStyle)}>Command: {server.command}</Text>
@@ -52,7 +57,7 @@ const MCPServerCard: FC<MCPServerCardProps> = ({ server, onDelete }) => {
             )}
           </View>
         }
-        RightComponent={<Badge text={server.type!} />}
+        RightComponent={<Badge text={server.mcp_server_type!} />}
       />
     </SimpleContextMenu>
   )
@@ -70,7 +75,7 @@ export const MCPScreen: FC<AppStackScreenProps<"MCP">> = () => {
     theme: { colors },
   } = useAppTheme()
 
-  const handleAddServer = (serverData: Letta.SseServerConfig | Letta.StdioServerConfig) => {
+  const handleAddServer = (serverData: CreateSseMcpServer | CreateStdioMcpServer) => {
     addServerMutation.mutate(serverData)
     setIsAddModalVisible(false)
   }
@@ -106,17 +111,14 @@ export const MCPScreen: FC<AppStackScreenProps<"MCP">> = () => {
       </View>
 
       <FlatList
-        data={Object.entries(servers || {}).map(([name, server]) => ({
-          ...server,
-          serverName: name,
-        }))}
-        bounces={!!servers && Object.keys(servers).length > 0}
-        keyExtractor={(item) => item.serverName}
+        data={servers || []}
+        bounces={!!servers && servers.length > 0}
+        keyExtractor={(item) => item.server_name}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
         refreshing={isFetching}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         renderItem={({ item }) => (
-          <MCPServerCard server={item} onDelete={() => handleDeleteServer(item.serverName)} />
+          <MCPServerCard server={item} onDelete={() => handleDeleteServer(item.server_name)} />
         )}
         ListEmptyComponent={<Text>No MCP Servers</Text>}
         contentContainerStyle={{ padding: spacing.sm }}

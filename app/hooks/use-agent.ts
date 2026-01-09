@@ -1,7 +1,7 @@
 "use client"
 
 import { useLettaClient } from "@/providers/LettaProvider"
-import { Letta } from "@letta-ai/letta-client"
+import { AgentState, AgentUpdateParams } from "@letta-ai/letta-client/resources/agents/agents"
 import {
   useMutation,
   UseMutationOptions,
@@ -15,10 +15,10 @@ export const getUseAgentStateKey = (agentId: string) => ["agentState", agentId]
 
 export function useAgent(
   agentId: string,
-  queryOptions?: Omit<UseQueryOptions<Letta.AgentState>, "queryKey" | "queryFn">,
+  queryOptions?: Omit<UseQueryOptions<AgentState>, "queryKey" | "queryFn">,
 ) {
   const { lettaClient } = useLettaClient()
-  return useQuery<Letta.AgentState>({
+  return useQuery<AgentState>({
     queryKey: getUseAgentStateKey(agentId),
     queryFn: () => lettaClient.agents.retrieve(agentId),
     enabled: !!lettaClient && !!agentId,
@@ -29,12 +29,12 @@ export function useAgent(
 
 export function useModifyAgent(
   agentId: string,
-  mutationOptions?: UseMutationOptions<Letta.AgentState, Error, Letta.UpdateAgent>,
+  mutationOptions?: UseMutationOptions<AgentState, Error, AgentUpdateParams>,
 ) {
   const { lettaClient } = useLettaClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (state: Letta.UpdateAgent) => lettaClient.agents.modify(agentId, state),
+    mutationFn: (state: AgentUpdateParams) => lettaClient.agents.update(agentId, state),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: getUseAgentStateKey(agentId) })
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })

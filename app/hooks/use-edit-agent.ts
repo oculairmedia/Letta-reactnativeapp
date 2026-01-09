@@ -1,33 +1,27 @@
 import { useLettaClient } from "@/providers/LettaProvider"
 import { foramtToSlug } from "@/utils/agent-name-prompt"
-import { Letta } from "@letta-ai/letta-client"
+import { AgentState, AgentUpdateParams } from "@letta-ai/letta-client/resources/agents/agents"
 import { useMutation, UseMutationOptions, useQueryClient } from "@tanstack/react-query"
 import { getUseAgentStateKey } from "./use-agent"
 import { getAgentsQueryKey } from "./use-agents"
+
 export function useEditAgent(
-  mutationOptions: UseMutationOptions<
-    Letta.AgentState,
-    Error,
-    Letta.UpdateAgent & { id: string }
-  > = {},
+  mutationOptions?: UseMutationOptions<AgentState, Error, AgentUpdateParams & { id: string }>
 ) {
   const queryClient = useQueryClient()
   const { lettaClient } = useLettaClient()
-  return useMutation<Letta.AgentState, Error, Letta.UpdateAgent & { id: string }>({
-    mutationFn: async (data: Letta.UpdateAgent & { id: string }) => {
-      if (data.tags) {
-        data.tags = data.tags.map(foramtToSlug)
-      }
 
-      if (data.name) {
-        data.name = foramtToSlug(data.name)
+  return useMutation<AgentState, Error, AgentUpdateParams & { id: string }>({
+    mutationFn: async (data: AgentUpdateParams & { id: string }) => {
+      const { id, ...updateData } = data
+      if (updateData.tags) {
+        updateData.tags = updateData.tags.map(foramtToSlug)
       }
-
-      return await lettaClient.agents.modify(data.id, {
-        ...data,
-      })
+      if (updateData.name) {
+        updateData.name = foramtToSlug(updateData.name)
+      }
+      return await lettaClient.agents.update(id, updateData)
     },
-
     ...mutationOptions,
     onSuccess: async (...args) => {
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })

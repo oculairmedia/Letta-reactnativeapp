@@ -16,6 +16,6 @@ export const useGetLettaEmbeddingModels = () => {
   const { lettaClient } = useLettaClient()
   return useQuery({
     queryKey: getLettaEmbeddingModelsQueryKey(),
-    queryFn: () => lettaClient.embeddingModels.list(),
+    queryFn: () => lettaClient.models.embeddings.list(),
   })
 }

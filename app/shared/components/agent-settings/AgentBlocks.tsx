@@ -16,8 +16,8 @@ export const AgentBlocks: FC<AgentBlocksProps> = ({ style }) => {
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({})
 
   const blocks = useMemo(() => {
-    if (!agent?.memory?.blocks) return []
-    return agent.memory.blocks
+    if (!agent?.blocks) return []
+    return agent.blocks
   }, [agent])
 
   const toggleBlock = useCallback((blockId: string) => {
@@ -34,7 +34,7 @@ export const AgentBlocks: FC<AgentBlocksProps> = ({ style }) => {
           key={block.id}
           isExpanded={expandedBlocks[block.id ?? ""] ?? false}
           onToggle={() => block.id && toggleBlock(block.id)}
-          text={block.label || block.name || "Unnamed Block"}
+          text={block.label || "Unnamed Block"}
           preset="reversed"
         >
           <View style={$blockContent}>

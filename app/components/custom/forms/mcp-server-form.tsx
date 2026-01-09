@@ -3,16 +3,18 @@ import { Switch } from "@/components/Toggle/Switch"
 import type { ThemedStyle } from "@/theme"
 import { spacing } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { Letta } from "@letta-ai/letta-client"
+import { McpServerCreateParams } from "@letta-ai/letta-client/resources/index.mjs"
 import { FC, Fragment, useMemo, useState } from "react"
 import type { TextStyle, ViewStyle } from "react-native"
 import { View } from "react-native"
+export type MCPServerFormData = McpServerCreateParams
 
 interface MCPServerFormProps {
-  onSubmit?: (serverData: Letta.SseServerConfig | Letta.StdioServerConfig) => void
+  onSubmit?: (serverData: MCPServerFormData) => void
   onCancel?: () => void
   isPending?: boolean
 }
+
 export const MCPServerForm: FC<MCPServerFormProps> = ({ onSubmit, onCancel, isPending }) => {
   const { themed } = useAppTheme()
 
@@ -35,37 +37,29 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({ onSubmit, onCancel, isPe
       if (!serverUrl.trim()) return
 
       onSubmit?.({
-        serverName: serverName.trim(),
-        type: "sse",
-        serverUrl: serverUrl.trim(),
+        server_name: serverName.trim(),
+        config: {
+          mcp_server_type: "sse",
+          server_url: serverUrl.trim(),
+        }
       })
     } else {
       if (!command.trim()) return
 
       onSubmit?.({
-        serverName: serverName.trim(),
-        type: "stdio",
-        command: command.trim(),
-        args: args
-          .split(",")
-          .map((arg) => arg.trim())
-          .filter(Boolean),
-        ...(env.trim() && {
-          env: env
-            .split(",")
-            .map((e) => e.trim())
-            .filter(Boolean)
-            .reduce(
-              (acc, curr) => {
-                const [key, value] = curr.split("=").map((s) => s.trim())
-                if (key && value) {
-                  acc[key] = value
-                }
-                return acc
-              },
-              {} as Record<string, string | undefined>,
-            ),
-        }),
+        server_name: serverName.trim(),
+        config: {
+          mcp_server_type: "stdio",
+          command: command.trim(),
+          args: args.trim().split(",").map((arg) => arg.trim()).filter(Boolean),
+          env: env.trim().split(",").map((e) => e.trim()).filter(Boolean).reduce((acc, curr) => {
+            const [key, value] = curr.split("=").map((s) => s.trim())
+            if (key && typeof value !== "undefined") {
+              acc[key] = value
+            }
+            return acc
+          }, {} as Record<string, string>),
+        }
       })
     }
   }

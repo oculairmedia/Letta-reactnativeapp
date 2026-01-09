@@ -1,24 +1,27 @@
 import { useLettaClient } from "@/providers/LettaProvider"
-import { SourceCreate } from "@letta-ai/letta-client/api"
+import { FolderCreateParams } from "@letta-ai/letta-client/resources/folders/folders"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Uploadable } from "@letta-ai/letta-client/core/uploads"
+
 const getSourcesQueryKey = () => ["sources"]
+const getSourceQueryKey = (sourceId: string) => ["source", sourceId]
+const getSourceFilesQueryKey = (sourceId: string) => ["source", sourceId, "files"]
+export const getAgentSourcesQueryKey = (agentId: string) => ["agent", agentId, "sources"]
 
 export const useGetSources = () => {
   const { lettaClient } = useLettaClient()
 
   return useQuery({
     queryKey: getSourcesQueryKey(),
-    queryFn: () => lettaClient.sources.list(),
+    queryFn: () => lettaClient.folders.list(),
   })
 }
-
-const getSourceQueryKey = (sourceId: string) => ["source", sourceId]
 
 export const useGetSource = (sourceId: string) => {
   const { lettaClient } = useLettaClient()
   return useQuery({
     queryKey: getSourceQueryKey(sourceId),
-    queryFn: () => lettaClient.sources.retrieve(sourceId),
+    queryFn: () => lettaClient.folders.retrieve(sourceId),
   })
 }
 
@@ -27,7 +30,7 @@ export const useAddSource = () => {
   const { lettaClient } = useLettaClient()
 
   return useMutation({
-    mutationFn: (source: SourceCreate) => lettaClient.sources.create(source),
+    mutationFn: (source: FolderCreateParams) => lettaClient.folders.create(source),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getSourcesQueryKey() })
     },
@@ -38,7 +41,7 @@ export const useDeleteSource = () => {
   const queryClient = useQueryClient()
   const { lettaClient } = useLettaClient()
   return useMutation({
-    mutationFn: (sourceId: string) => lettaClient.sources.delete(sourceId),
+    mutationFn: (sourceId: string) => lettaClient.folders.delete(sourceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getSourcesQueryKey() })
     },
@@ -50,8 +53,8 @@ export const useAddFileToSource = () => {
   const { lettaClient } = useLettaClient()
 
   return useMutation({
-    mutationFn: ({ sourceId, file }: { sourceId: string; file: File }) =>
-      lettaClient.sources.files.upload(file, sourceId),
+    mutationFn: ({ sourceId, file }: { sourceId: string; file: Uploadable }) =>
+      lettaClient.folders.files.upload(sourceId, { file }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getSourcesQueryKey() })
       queryClient.invalidateQueries({ queryKey: getSourceFilesQueryKey(variables.sourceId) })
@@ -64,7 +67,7 @@ export const useDeleteFileFromSource = () => {
   const { lettaClient } = useLettaClient()
   return useMutation({
     mutationFn: ({ sourceId, fileId }: { sourceId: string; fileId: string }) =>
-      lettaClient.sources.files.delete(sourceId, fileId),
+      lettaClient.folders.files.delete(fileId, { folder_id: sourceId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getSourcesQueryKey() })
       queryClient.invalidateQueries({ queryKey: getSourceFilesQueryKey(variables.sourceId) })
@@ -72,23 +75,19 @@ export const useDeleteFileFromSource = () => {
   })
 }
 
-export const getSourceFilesQueryKey = (sourceId: string) => ["source", sourceId, "files"]
-
 export const useGetSourceFiles = (sourceId: string) => {
   const { lettaClient } = useLettaClient()
   return useQuery({
     queryKey: getSourceFilesQueryKey(sourceId),
-    queryFn: () => lettaClient.sources.files.list(sourceId),
+    queryFn: () => lettaClient.folders.files.list(sourceId),
   })
 }
-
-export const getAgentSourcesQueryKey = (agentId: string) => ["agent", agentId, "sources"]
 
 export const useGetAgentSources = (agentId: string) => {
   const { lettaClient } = useLettaClient()
   return useQuery({
     queryKey: getAgentSourcesQueryKey(agentId),
-    queryFn: () => lettaClient.agents.sources.list(agentId),
+    queryFn: () => lettaClient.agents.folders.list(agentId),
   })
 }
 
@@ -97,7 +96,7 @@ export const useAttachSourceToAgent = () => {
   const { lettaClient } = useLettaClient()
   return useMutation({
     mutationFn: ({ agentId, sourceId }: { agentId: string; sourceId: string }) =>
-      lettaClient.agents.sources.attach(agentId, sourceId),
+      lettaClient.agents.folders.attach(sourceId, { agent_id: agentId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getAgentSourcesQueryKey(variables.agentId) })
     },
@@ -109,7 +108,7 @@ export const useDetachSourceFromAgent = () => {
   const { lettaClient } = useLettaClient()
   return useMutation({
     mutationFn: ({ agentId, sourceId }: { agentId: string; sourceId: string }) =>
-      lettaClient.agents.sources.detach(agentId, sourceId),
+      lettaClient.agents.folders.detach(sourceId, { agent_id: agentId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getAgentSourcesQueryKey(variables.agentId) })
     },

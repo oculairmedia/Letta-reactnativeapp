@@ -3,6 +3,7 @@ import { Icon } from "@/components/Icon"
 import { useAgentId } from "@/hooks/use-agentId-param"
 import { useAttachToolToAgent } from "@/hooks/use-letta-tools"
 import { useFetchMCPToolByMCPServer } from "@/hooks/use-mcp"
+import { Tool } from "@letta-ai/letta-client/resources/tools"
 
 export const AttachMCPToolAction = ({
   tool,
@@ -21,7 +22,7 @@ export const AttachMCPToolAction = ({
       preset="icon"
       onPress={() =>
         addMCPTool([tool.serverName, tool.name], {
-          onSuccess: (tool) => {
+          onSuccess: (tool: Tool) => {
             attachTool({ agentId, toolId: tool.id! })
           },
         })

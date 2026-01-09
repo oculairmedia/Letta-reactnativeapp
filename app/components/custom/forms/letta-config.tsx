@@ -6,7 +6,7 @@ import { FC, useEffect, useState } from "react"
 import { View, ViewStyle } from "react-native"
 
 interface LettaConfigsFormProps {
-  onSubmit: (config: {
+  onSubmit?: (config: {
     id?: string
     mode: "cloud" | "selfhosted"
     serverUrl?: string
@@ -40,7 +40,7 @@ export const LettaConfigsForm: FC<LettaConfigsFormProps> = ({
   }, [initialValues])
 
   const handleSubmit = () => {
-    onSubmit({
+    onSubmit?.({
       id: initialValues?.id,
       mode,
       serverUrl: mode === "selfhosted" ? serverUrl : undefined,

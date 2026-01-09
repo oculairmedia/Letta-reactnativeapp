@@ -4,7 +4,7 @@ import { useAgent } from "@/hooks/use-agent"
 import type { ThemedStyle } from "@/theme"
 import { colors, spacing } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { UpdateAgent } from "@letta-ai/letta-client/api"
+import { AgentUpdateParams } from "@letta-ai/letta-client/resources/agents"
 import { Eraser, Undo2 } from "lucide-react-native"
 import { Fragment, useEffect, useMemo, useState } from "react"
 import type { TextStyle, ViewStyle } from "react-native"
@@ -13,7 +13,7 @@ import { useLettaHeader } from "../useLettaHeader"
 
 interface EditAgentFormProps {
   agentId: string
-  onSubmit?: (agentData: UpdateAgent & { id: string }) => void
+  onSubmit?: (agentData: AgentUpdateParams & { id: string }) => void
   isPending?: boolean
 }
 
@@ -60,7 +60,7 @@ export const EditAgentForm = function EditAgentForm({
       name: agent?.name || "",
       description: agent?.description || "",
       tags: agent?.tags.join(", ") || "",
-      messageBufferAutoclear: agent?.messageBufferAutoclear ?? false,
+      messageBufferAutoclear: agent?.message_buffer_autoclear ?? false,
     }
   }, [agent])
 
@@ -84,7 +84,7 @@ export const EditAgentForm = function EditAgentForm({
   )
 
   const handleSubmit = () => {
-    const agentData: UpdateAgent & { id: string } = {
+    const agentData: AgentUpdateParams & { id: string } = {
       id: agentId,
       name,
       description,
@@ -92,7 +92,7 @@ export const EditAgentForm = function EditAgentForm({
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean),
-      messageBufferAutoclear,
+      message_buffer_autoclear: messageBufferAutoclear,
     }
 
     onSubmit?.(agentData)
