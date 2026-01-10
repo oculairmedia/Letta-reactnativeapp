@@ -12,8 +12,7 @@ import {
   AgentEnvVars,
   AgentName,
   AgentSystemPrompt,
-  AgentTags,
-  AgentTools,
+  AgentTags
 } from "@/shared/components/agent-settings"
 import { spacing } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
@@ -57,15 +56,6 @@ export const AgentSettingsScreen: FC<AgentSettingsScreenProps> = () => {
           <AgentDescription />
         </View>
 
-        {/* <View style={$sectionContainer}>
-          <Text preset="heading" text="Agent Sources" style={$sectionTitle} />
-          <AgentSources agentId={agentId} />
-        </View> */}
-
-        <View style={$sectionContainer}>
-          <Text preset="heading" text="Tools" style={$sectionTitle} />
-          <AgentTools />
-        </View>
 
         <View style={$sectionContainer}>
           <Text preset="heading" text="Memory Blocks" style={$sectionTitle} />

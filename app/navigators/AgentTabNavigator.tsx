@@ -1,21 +1,21 @@
 import { AgentSettingsScreen, ChatScreen } from "@/screens"
-import { SourceManagerScreen } from "@/screens/SourceManagerScreen"
+import { FolderManagerScreen } from "@/screens/FolderManagerScreen"
 import { ToolsScreen } from "@/screens/ToolsScreen"
 import type { ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
 import { BottomTabScreenProps, createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { CompositeScreenProps } from "@react-navigation/native"
+import { FC } from "react"
 import { TextStyle, ViewStyle } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Icon } from "../components"
 import { AppStackParamList, AppStackScreenProps } from "./AppNavigator"
 import { useResetAgentTab } from "./useResetAgentTab"
-import { FC } from "react"
 
 export type AgentTabParamList = {
   Chat: undefined
   Settings: undefined
-  SourceManager: undefined
+  FolderManager: undefined
   Tools: undefined
 }
 
@@ -71,12 +71,12 @@ export const AgentTabNavigator: FC<AgentTabNavigatorProps> = ({ initialRouteName
         }}
       />
       <Tab.Screen
-        name="SourceManager"
-        component={SourceManagerScreen}
+        name="FolderManager"
+        component={FolderManagerScreen}
         options={{
-          tabBarLabel: "Source Manager",
+          tabBarLabel: "Folders",
           tabBarIcon: ({ focused }) => (
-            <Icon icon="FileStack" color={focused ? colors.tint : colors.tintInactive} size={26} />
+            <Icon icon="Folder" color={focused ? colors.tint : colors.tintInactive} size={26} />
           ),
         }}
       />

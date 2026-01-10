@@ -37,34 +37,27 @@ export const extractMessageText = (
   return ""
 }
 
-const isHeartbeatMessage = (message: string) => {
+
+const isInternalMessage = (content: any) => {
   try {
-    const parsed = JSON.parse(message)
-    if (parsed.type === "heartbeat") {
-      return true
-    }
-    return null
+    if (typeof content !== 'string') return false
+    const parsed = JSON.parse(content)
+    return ["login", "system_alert", "heartbeat"].includes(parsed.type)
   } catch {
-    return null
+    return false
   }
 }
 
 export function extractMessage(item: Message): AppMessage | null {
+  // We prefer filterMessages logic, but if used individually:
   const { message_type } = item
 
-  if (message_type === MESSAGE_TYPE.USER_MESSAGE) {
+  if (message_type === "user_message") {
     const userItem = item as UserMessage
-    if (!userItem.content) {
-      return null
-    }
-
+    if (!userItem.content) return null
     const message = extractMessageText(userItem.content)
-    if (!message) {
-      return null
-    }
-    if (isHeartbeatMessage(message)) {
-      return null
-    }
+    if (!message || isInternalMessage(message)) return null
+
     return {
       id: getMessageId(item),
       date: new Date(item.date),
@@ -73,19 +66,9 @@ export function extractMessage(item: Message): AppMessage | null {
     }
   }
 
-  if (message_type === "tool_call_message") {
-    return null
-  }
-
-  if (message_type === "tool_return_message") {
-    return null
-  }
-
-  if (message_type === MESSAGE_TYPE.ASSISTANT_MESSAGE) {
+  if (message_type === "assistant_message") {
     const assistantItem = item as AssistantMessage
-    if (!assistantItem.content) {
-      return null
-    }
+    if (!assistantItem.content) return null
     return {
       id: getMessageId(item),
       date: new Date(item.date),
@@ -94,18 +77,31 @@ export function extractMessage(item: Message): AppMessage | null {
     }
   }
 
-  if (message_type === MESSAGE_TYPE.REASONING_MESSAGE) {
-    const reasoningItem = item as ReasoningMessage
-    if (!reasoningItem.reasoning) {
-      return null
+  if (message_type === "system_message") {
+    // System messages are typically internal but can be shown if needed.
+    // Docs say "system messages are never streamed back in responses; they’re only visible when paginating".
+    // We can map them if we want to show them, or ignore. Let's map for completeness but UI might hide.
+    return {
+      id: getMessageId(item),
+      date: new Date(item.date),
+      content: item.content || "",
+      messageType: MESSAGE_TYPE.SYSTEM_MESSAGE,
     }
+  }
 
+  if (message_type === "reasoning_message") {
+    const reasoningItem = item as ReasoningMessage
+    if (!reasoningItem.reasoning) return null
     return {
       id: getMessageId(item),
       date: new Date(item.date),
       content: reasoningItem.reasoning,
       messageType: MESSAGE_TYPE.REASONING_MESSAGE,
     }
+  }
+
+  if (message_type === "hidden_reasoning_message" || message_type === "tool_call_message" || message_type === "tool_return_message") {
+    return null
   }
 
   return null
@@ -115,7 +111,6 @@ export function filterMessages(data: Message[]): AppMessage[] {
   const sortedData = data.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   return sortedData.reduce((acc, item) => {
-
     const { message_type } = item
 
     if (message_type === "tool_call_message") {
@@ -125,20 +120,10 @@ export function filterMessages(data: Message[]): AppMessage[] {
       }
 
       const toolCalls = toolCallItem.tool_calls.map((tc) => {
-        let toolCallId = ""
-        let toolName = ""
-        let content = ""
-
-
-        toolCallId = tc.tool_call_id || ""
-        toolName = tc.name || ""
-        content = tc.arguments || ""
-
-
         return {
-          id: toolCallId,
-          toolName,
-          args: content,
+          id: tc.tool_call_id || "",
+          toolName: tc.name || "",
+          args: tc.arguments || "",
           status: "pending" as const,
           output: undefined,
           stdout: undefined,

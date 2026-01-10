@@ -10,35 +10,35 @@ import type { IconTypes } from "../Icon"
 type LeftProps =
   | Pick<HeaderProps, "LeftActionComponent">
   | Pick<
-      HeaderProps,
-      | "leftIcon"
-      | "leftIconColor"
-      | "onLeftPress"
-      | "leftText"
-      | "leftTx"
-      | "leftTxOptions"
-      | "leftDisabled"
-    >
+    HeaderProps,
+    | "leftIcon"
+    | "leftIconColor"
+    | "onLeftPress"
+    | "leftText"
+    | "leftTx"
+    | "leftTxOptions"
+    | "leftDisabled"
+  >
 
 type RightProps =
   | Pick<HeaderProps, "RightActionComponent">
   | Pick<
-      HeaderProps,
-      | "rightIcon"
-      | "rightIconColor"
-      | "onRightPress"
-      | "rightText"
-      | "rightTx"
-      | "rightTxOptions"
-      | "rightDisabled"
-    >
+    HeaderProps,
+    | "rightIcon"
+    | "rightIconColor"
+    | "onRightPress"
+    | "rightText"
+    | "rightTx"
+    | "rightTxOptions"
+    | "rightDisabled"
+  >
 
 type TitleProps =
   | Pick<HeaderProps, "titleComponent">
   | Pick<
-      HeaderProps,
-      "title" | "titleTx" | "titleTxOptions" | "titleContainerStyle" | "titleStyle" | "titleMode"
-    >
+    HeaderProps,
+    "title" | "titleTx" | "titleTxOptions" | "titleContainerStyle" | "titleStyle" | "titleMode"
+  >
 
 type RouteProps = {
   leftProps: LeftProps
@@ -160,6 +160,17 @@ export function useLettaHeader(headerProps: HeaderProps = {}, deps: any[] = defa
             onRightPress: () => navigation.navigate("Developer" as never),
           },
           titleProps: { title: "Providers" },
+        })
+      case "FolderManager":
+        return createHeaderProps({
+          leftProps: {
+            leftIcon: "back" satisfies IconTypes,
+            onLeftPress: () => navigation.goBack(),
+          },
+          rightProps: {},
+          titleProps: {
+            title: "Folders",
+          },
         })
       case "Welcome":
         return createHeaderProps({

@@ -7,7 +7,6 @@ export const foramtToSlug = (text: string) => {
 interface AgentNamePromptOptions {
   defaultName?: string
   onSubmit: (name: string) => void
-  onCancel?: () => void
 }
 
 /**
@@ -15,7 +14,7 @@ interface AgentNamePromptOptions {
  * @param options Configuration options for the prompt
  */
 export function showAgentNamePrompt(options: AgentNamePromptOptions) {
-  const { defaultName = "New Agent", onSubmit, onCancel } = options
+  const { defaultName = "New Agent", onSubmit } = options
 
   Alert.prompt(
     "Agent name",
@@ -26,6 +25,5 @@ export function showAgentNamePrompt(options: AgentNamePromptOptions) {
     },
     "plain-text",
     defaultName,
-    undefined,
   )
 }
