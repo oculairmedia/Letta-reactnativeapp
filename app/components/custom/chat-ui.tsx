@@ -35,6 +35,8 @@ import Animated, {
 import { EmptyState } from "../EmptyState"
 import { IconTypes } from "../Icon"
 import { ChatModeControl } from "./chat-mode-control"
+import { AgentToolsButton } from "./agent-tools-panel"
+import { ConversationSelector } from "./conversation-selector"
 
 const useScrollToBottom = (ref: React.RefObject<FlatList>) => {
   const scrollToBottom = useCallback(() => {
@@ -219,11 +221,30 @@ export function ChatUI({ mode: initialMode = "interactive" }: { mode?: ChatUIMod
   const [mode, setMode] = useState<ChatUIMode>(initialMode)
   return (
     <ChatUIContainer>
-      <ChatModeControl mode={mode} setMode={setMode} MODES={MODES} MODE_ICONS={MODE_ICONS} />
+      <View style={$chatHeader}>
+        <View style={$chatHeaderLeft}>
+          <ConversationSelector />
+          <AgentToolsButton />
+        </View>
+        <ChatModeControl mode={mode} setMode={setMode} MODES={MODES} MODE_ICONS={MODE_ICONS} />
+      </View>
       <MessagesScrollView mode={mode} />
       <ChatToolbar />
     </ChatUIContainer>
   )
+}
+
+const $chatHeader: ViewStyle = {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+}
+
+const $chatHeaderLeft: ViewStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xs,
+  flex: 1,
 }
 
 const ChatUIContainer = ({ children }: { children: React.ReactNode }) => {
