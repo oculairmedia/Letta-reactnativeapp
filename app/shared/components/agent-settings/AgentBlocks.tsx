@@ -3,14 +3,16 @@ import { useAgent } from "@/hooks/use-agent"
 import { useAgentId } from "@/hooks/use-agentId-param"
 import { Accordion } from "@/shared/components/animated/Accordion"
 import { FC, useCallback, useMemo, useState } from "react"
-import { View, ViewStyle } from "react-native"
-import { spacing } from "@/theme"
+import { TextStyle, View, ViewStyle } from "react-native"
+import { spacing, ThemedStyle } from "@/theme"
+import { useAppTheme } from "@/utils/useAppTheme"
 
 interface AgentBlocksProps {
   style?: ViewStyle
 }
 
 export const AgentBlocks: FC<AgentBlocksProps> = ({ style }) => {
+  const { themed } = useAppTheme()
   const [agentId] = useAgentId()
   const { data: agent } = useAgent(agentId)
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({})
@@ -26,6 +28,14 @@ export const AgentBlocks: FC<AgentBlocksProps> = ({ style }) => {
       [blockId]: !prev[blockId],
     }))
   }, [])
+
+  if (!blocks.length) {
+    return (
+      <View style={[$blocksContainer, style]}>
+        <Text preset="formHelper" text="No memory blocks configured" style={themed($emptyText)} />
+      </View>
+    )
+  }
 
   return (
     <View style={[$blocksContainer, style]}>
@@ -62,3 +72,7 @@ const $blockContent: ViewStyle = {
 const $blockDescription: ViewStyle = {
   marginTop: spacing.xs,
 }
+
+const $emptyText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
+})

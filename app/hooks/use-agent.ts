@@ -20,7 +20,10 @@ export function useAgent(
   const { lettaClient } = useLettaClient()
   return useQuery<AgentState>({
     queryKey: getUseAgentStateKey(agentId),
-    queryFn: () => lettaClient.agents.retrieve(agentId),
+    queryFn: () =>
+      lettaClient.agents.retrieve(agentId, {
+        include: ["agent.blocks", "agent.tools", "agent.tags"],
+      }),
     enabled: !!lettaClient && !!agentId,
     refetchInterval: 3000,
     ...queryOptions,

@@ -3,7 +3,7 @@ import { useAgent } from "@/hooks/use-agent"
 import { useAgentId } from "@/hooks/use-agentId-param"
 import { Accordion } from "@/shared/components/animated/Accordion"
 import { FC, useState } from "react"
-import { View, ViewStyle } from "react-native"
+import { TextStyle, View, ViewStyle } from "react-native"
 import { spacing, ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
 
@@ -17,7 +17,9 @@ export const AgentTags: FC<AgentTagsProps> = ({ style }) => {
   const { data: agent } = useAgent(agentId)
   const [isExpanded, setIsExpanded] = useState(false)
 
-  if (!agent?.tags?.length) return null
+  if (!agent?.tags?.length) {
+    return <Text preset="formHelper" text="No tags configured" style={themed($emptyText)} />
+  }
 
   return (
     <Accordion
@@ -57,4 +59,8 @@ const $tagContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
   paddingVertical: spacing.xs,
   backgroundColor: colors.transparent50,
   borderRadius: spacing.xs,
+})
+
+const $emptyText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
 })

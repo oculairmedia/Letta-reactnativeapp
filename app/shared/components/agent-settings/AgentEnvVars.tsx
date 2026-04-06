@@ -4,7 +4,7 @@ import { useAgentId } from "@/hooks/use-agentId-param"
 import { Accordion } from "@/shared/components/animated/Accordion"
 import { AgentEnvironmentVariable } from "@letta-ai/letta-client/resources/agents"
 import { FC, useState } from "react"
-import { View, ViewStyle } from "react-native"
+import { TextStyle, View, ViewStyle } from "react-native"
 import { spacing, ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
 
@@ -18,7 +18,11 @@ export const AgentEnvVars: FC<AgentEnvVarsProps> = ({ style }) => {
   const { data: agent } = useAgent(agentId)
   const [isExpanded, setIsExpanded] = useState(false)
 
-  if (!agent?.secrets?.length) return null
+  if (!agent?.secrets?.length) {
+    return (
+      <Text preset="formHelper" text="No environment variables configured" style={themed($emptyText)} />
+    )
+  }
 
   return (
     <Accordion
@@ -51,4 +55,8 @@ const $envVarContainer: ThemedStyle<ViewStyle> = ({ colors }) => ({
   backgroundColor: colors.transparent50,
   borderRadius: spacing.xs,
   marginBottom: spacing.xs,
+})
+
+const $emptyText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
 })
