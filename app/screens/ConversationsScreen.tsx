@@ -17,7 +17,14 @@ import { spacing, ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
 import { Conversation } from "@letta-ai/letta-client/resources/conversations/conversations"
 import { Letta } from "@letta-ai/letta-client"
+
+// Extend Conversation type for fields available in client >= 1.10.2
+// Remove this once @letta-ai/letta-client is upgraded
+interface ConversationExtended extends Conversation {
+  is_archived?: boolean
+}
 import Fuse from "fuse.js"
+import { TextInputModal } from "@/components/custom/modals/text-input-modal"
 import { FC, useMemo, useState } from "react"
 import {
   ActivityIndicator,
@@ -60,7 +67,7 @@ const ConversationCard: FC<ConversationCardProps> = ({
 
   const displayTitle = conversation.summary || `Chat with ${agentName}`
   const timeAgo = formatRelativeTime(conversation.last_message_at || conversation.created_at)
-  const isArchived = (conversation as any).is_archived ?? false
+  const isArchived = (conversation as ConversationExtended).is_archived ?? false
 
   return (
     <SimpleContextMenu
@@ -201,6 +208,7 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
   const [showAgentPicker, setShowAgentPicker] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [showArchived, setShowArchived] = useState(false)
+  const [editingConversation, setEditingConversation] = useState<Conversation | null>(null)
 
   const {
     data: _conversations,
@@ -241,7 +249,9 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
       })) || []
 
     // Filter by archive status
-    const filtered = showArchived ? enriched : enriched.filter((c) => !(c as any).is_archived)
+    const filtered = showArchived
+      ? enriched
+      : enriched.filter((c) => !(c as ConversationExtended).is_archived)
 
     // Sort by most recent first
     const sorted = filtered.sort((a, b) => {
@@ -288,32 +298,22 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
   }
 
   const handleEditConversation = (conversation: Conversation) => {
-    const currentSummary = conversation.summary || ""
-    Alert.prompt(
-      "Edit Summary",
-      "Enter a new summary for this conversation",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: (newSummary) => {
-            if (newSummary && newSummary !== currentSummary) {
-              updateConversation({
-                conversationId: conversation.id,
-                agentId: conversation.agent_id,
-                summary: newSummary,
-              })
-            }
-          },
-        },
-      ],
-      "plain-text",
-      currentSummary,
-    )
+    setEditingConversation(conversation)
+  }
+
+  const handleEditSubmit = (newSummary: string) => {
+    if (editingConversation && newSummary !== (editingConversation.summary || "")) {
+      updateConversation({
+        conversationId: editingConversation.id,
+        agentId: editingConversation.agent_id,
+        summary: newSummary,
+      })
+    }
+    setEditingConversation(null)
   }
 
   const handleArchiveConversation = (conversation: Conversation) => {
-    const isArchived = (conversation as any).is_archived ?? false
+    const isArchived = (conversation as ConversationExtended).is_archived ?? false
     archiveConversation({
       conversationId: conversation.id,
       agentId: conversation.agent_id,
@@ -454,6 +454,16 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
         onSelect={handleAgentSelect}
         onDismiss={() => setShowAgentPicker(false)}
         isCreating={isCreating}
+      />
+
+      <TextInputModal
+        visible={!!editingConversation}
+        title="Edit Summary"
+        message="Enter a new summary for this conversation"
+        defaultValue={editingConversation?.summary || ""}
+        placeholder="Conversation summary..."
+        onSubmit={handleEditSubmit}
+        onDismiss={() => setEditingConversation(null)}
       />
     </Screen>
   )

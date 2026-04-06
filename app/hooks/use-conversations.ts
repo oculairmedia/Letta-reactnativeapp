@@ -1,6 +1,7 @@
 import { useLettaClient } from "@/providers/LettaProvider"
 import { Conversation } from "@letta-ai/letta-client/resources/conversations/conversations"
 import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query"
+import { Alert } from "react-native"
 
 export const getConversationsQueryKey = (agentId: string) => ["conversations", agentId]
 
@@ -63,6 +64,9 @@ export function useDeleteConversation() {
         queryKey: getConversationsQueryKey(variables.agentId),
       })
     },
+    onError: (error: Error) => {
+      Alert.alert("Error", `Failed to delete conversation: ${error.message}`)
+    },
   })
 }
 
@@ -92,6 +96,9 @@ export function useUpdateConversation() {
         queryKey: ["allConversations"],
       })
     },
+    onError: (error: Error) => {
+      Alert.alert("Error", `Failed to update conversation: ${error.message}`)
+    },
   })
 }
 
@@ -120,6 +127,9 @@ export function useArchiveConversation() {
         queryKey: ["allConversations"],
       })
     },
+    onError: (error: Error) => {
+      Alert.alert("Error", `Failed to archive conversation: ${error.message}`)
+    },
   })
 }
 
@@ -146,6 +156,9 @@ export function useForkConversation() {
       queryClient.invalidateQueries({
         queryKey: ["allConversations"],
       })
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", `Failed to fork conversation: ${error.message}`)
     },
   })
 }

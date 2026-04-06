@@ -1,5 +1,5 @@
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLettaClient } from "@/providers/LettaProvider"
 
 export interface ConnectivityState {
@@ -9,6 +9,8 @@ export interface ConnectivityState {
   isChecking: boolean
 }
 
+const HEALTH_CHECK_DEBOUNCE_MS = 15000 // 15 seconds between checks
+
 export function useConnectivity() {
   const { lettaClient } = useLettaClient()
   const [state, setState] = useState<ConnectivityState>({
@@ -17,6 +19,8 @@ export function useConnectivity() {
     isServerReachable: true,
     isChecking: false,
   })
+  const lastCheckRef = useRef<number>(0)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     // Subscribe to network state updates
@@ -32,7 +36,7 @@ export function useConnectivity() {
   }, [])
 
   useEffect(() => {
-    // Check server reachability when network changes
+    // Check server reachability when network changes (debounced)
     const checkServer = async () => {
       if (!lettaClient || !state.isConnected) {
         setState((prev) => ({ ...prev, isServerReachable: false }))
@@ -47,11 +51,34 @@ export function useConnectivity() {
       } catch {
         setState((prev) => ({ ...prev, isServerReachable: false, isChecking: false }))
       }
+      lastCheckRef.current = Date.now()
     }
 
     // Only check if we have internet connectivity
     if (state.isConnected && state.isInternetReachable !== false) {
-      checkServer()
+      const timeSinceLastCheck = Date.now() - lastCheckRef.current
+
+      // Clear any pending debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+
+      if (timeSinceLastCheck >= HEALTH_CHECK_DEBOUNCE_MS) {
+        // Enough time has passed, check immediately
+        checkServer()
+      } else {
+        // Schedule a check after the debounce period
+        debounceTimerRef.current = setTimeout(
+          checkServer,
+          HEALTH_CHECK_DEBOUNCE_MS - timeSinceLastCheck,
+        )
+      }
+    }
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
     }
   }, [lettaClient, state.isConnected, state.isInternetReachable])
 
