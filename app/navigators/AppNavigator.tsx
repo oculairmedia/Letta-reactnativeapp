@@ -36,11 +36,12 @@ export type AppStackParamList = {
 
   Login: undefined
   LettaConfig: undefined
+  Conversations: undefined
   AgentList: undefined
   AgentDrawer: NavigatorScreenParams<AgentDrawerParamList>
   Studio: undefined
   Templates: undefined
-  MCP: undefined
+  Tools: undefined
   EditAgent: { agentId: string }
   ConfigList: undefined
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
@@ -76,16 +77,17 @@ const AppStack = () => {
         navigationBarColor: colors.background,
         contentStyle: { backgroundColor: colors.background },
       }}
-      initialRouteName="AgentList"
+      initialRouteName="Conversations"
     >
       {canAccess ? (
         <Stack.Group>
+          <Stack.Screen name="Conversations" component={Screens.ConversationsScreen} />
           <Stack.Screen name="AgentList" component={Screens.AgentListScreen} />
           <Stack.Screen name="Developer" component={Screens.DeveloperScreen} />
           <Stack.Screen name="AgentDrawer" component={AgentDrawerNavigator} />
           <Stack.Screen name="Studio" component={Screens.StudioScreen} />
           <Stack.Screen name="Templates" component={Screens.TemplatesScreen} />
-          <Stack.Screen name="MCP" component={Screens.MCPScreen} />
+          <Stack.Screen name="Tools" component={Screens.MCPScreen} />
           <Stack.Screen name="EditAgent" component={Screens.EditAgentScreen} />
           <Stack.Screen name="ConfigList" component={Screens.ConfigListScreen} />
           {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
