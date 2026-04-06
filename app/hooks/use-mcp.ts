@@ -15,16 +15,29 @@ export function useMCPList() {
   })
 }
 
+export interface MCPToolWithServer {
+  name?: string | null
+  description?: string | null
+  serverName: string
+  serverType?: string
+}
+
+export interface MCPToolsResult {
+  tools: MCPToolWithServer[]
+  failedServers: string[]
+}
+
 export function useMCPTools() {
   const { lettaClient } = useLettaClient()
   const { data: mcpServers, isLoading: isLoadingServers } = useMCPList()
   const serverList = useMemo(() => mcpServers || [], [mcpServers])
 
-  return useQuery({
+  return useQuery<MCPToolsResult>({
     queryKey: getUseMCPToolsKey(),
     queryFn: async () => {
-      if (!serverList.length) return []
+      if (!serverList.length) return { tools: [], failedServers: [] }
 
+      const failedServers: string[] = []
       const tools = await Promise.all(
         serverList.map(async (server) => {
           try {
@@ -47,11 +60,12 @@ export function useMCPTools() {
               `Failed to fetch tools for server ${server.server_name} (ID: ${server.id}):`,
               error,
             )
+            failedServers.push(server.server_name)
             return []
           }
         }),
       )
-      return tools.flat()
+      return { tools: tools.flat(), failedServers }
     },
     enabled: !isLoadingServers && serverList.length > 0,
   })

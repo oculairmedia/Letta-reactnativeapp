@@ -2,6 +2,7 @@ import { useAppTheme } from "@/utils/useAppTheme"
 import { useScrollToTop } from "@react-navigation/native"
 import { StatusBar, StatusBarProps, StatusBarStyle } from "expo-status-bar"
 import { ReactNode, useRef, useState } from "react"
+import { OfflineBanner } from "./OfflineBanner"
 import {
   KeyboardAvoidingView,
   KeyboardAvoidingViewProps,
@@ -265,6 +266,8 @@ export function Screen(props: ScreenProps) {
         style={statusBarStyle || (themeContext === "dark" ? "light" : "dark")}
         {...StatusBarProps}
       />
+
+      <OfflineBanner />
 
       <KeyboardAvoidingView
         behavior={isIos ? "padding" : "height"}

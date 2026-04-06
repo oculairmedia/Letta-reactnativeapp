@@ -65,3 +65,87 @@ export function useDeleteConversation() {
     },
   })
 }
+
+export function useUpdateConversation() {
+  const { lettaClient } = useLettaClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      agentId,
+      summary,
+    }: {
+      conversationId: string
+      agentId: string
+      summary: string
+    }) => {
+      await lettaClient.conversations.update(conversationId, { summary })
+      return { conversationId, agentId }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: getConversationsQueryKey(variables.agentId),
+      })
+      // Also invalidate the all conversations query
+      queryClient.invalidateQueries({
+        queryKey: ["allConversations"],
+      })
+    },
+  })
+}
+
+export function useArchiveConversation() {
+  const { lettaClient } = useLettaClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      agentId,
+      isArchived,
+    }: {
+      conversationId: string
+      agentId: string
+      isArchived: boolean
+    }) => {
+      await lettaClient.conversations.update(conversationId, { is_archived: isArchived })
+      return { conversationId, agentId }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: getConversationsQueryKey(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: ["allConversations"],
+      })
+    },
+  })
+}
+
+export function useForkConversation() {
+  const { lettaClient } = useLettaClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      agentId,
+    }: {
+      conversationId: string
+      agentId: string
+    }) => {
+      // Fork creates a new conversation with the same history
+      const forked = await lettaClient.conversations.fork(conversationId)
+      return { forked, agentId }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: getConversationsQueryKey(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: ["allConversations"],
+      })
+    },
+  })
+}

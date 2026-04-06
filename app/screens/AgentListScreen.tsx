@@ -20,6 +20,7 @@ import {
   FlatList,
   ImageStyle,
   RefreshControl,
+  SectionList,
   TextInput,
   TextStyle,
   TouchableOpacity,
@@ -189,6 +190,7 @@ const StarterKits = () => {
 export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
   useLettaHeader()
   const [searchQuery, setSearchQuery] = useState("")
+  const [isGrouped, setIsGrouped] = useState(false)
 
   const { data: _agents, refetch, isFetching } = useAgents()
 
@@ -228,6 +230,29 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
 
     return sorted.filter((agent) => intersection.has(agent.id))
   }, [_agents, searchQuery])
+
+  // Group agents by their first tag
+  const groupedAgents = useMemo(() => {
+    if (!agents?.length) return []
+
+    const groups: Record<string, Letta.AgentState[]> = {}
+    for (const agent of agents) {
+      const tag = agent.tags?.[0] || "Ungrouped"
+      if (!groups[tag]) {
+        groups[tag] = []
+      }
+      groups[tag].push(agent)
+    }
+
+    // Convert to section format, sorted alphabetically with Ungrouped at end
+    return Object.entries(groups)
+      .sort(([a], [b]) => {
+        if (a === "Ungrouped") return 1
+        if (b === "Ungrouped") return -1
+        return a.localeCompare(b)
+      })
+      .map(([title, data]) => ({ title, data }))
+  }, [agents])
 
   const { mutate: createAgent, isPending: isCreatingAgent } = useCreateAgent({
     onSuccess: (data) => {
@@ -277,35 +302,75 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
               <Icon icon="Wrench" size={20} color={colors.elementColors.card.default.content} />
             )}
           />
+          <TouchableOpacity style={themed($groupToggle)} onPress={() => setIsGrouped(!isGrouped)}>
+            <Icon icon={isGrouped ? "List" : "LayoutGrid"} size={20} color={colors.textDim} />
+          </TouchableOpacity>
         </View>
       </View>
-      <FlatList
-        data={agents}
-        bounces={!!agents?.length}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-        refreshing={isFetching}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
-        renderItem={({ item }) => (
-          <AgentCard
-            agent={item}
-            onPress={() => {
-              chatWithAgent(item.id)
-            }}
-          />
-        )}
-        contentContainerStyle={{ padding: spacing.sm }}
-        ListEmptyComponent={
-          searchQuery.trim() ? (
-            <View style={$noResultsContainer}>
-              <Icon icon="Search" size={48} color={colors.textDim} />
-              <Text style={$noResultsText}>No agents found for &quot;{searchQuery}&quot;</Text>
+      {isGrouped ? (
+        <SectionList
+          sections={groupedAgents}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={themed($sectionHeader)}>
+              <Icon icon="Tag" size={14} color={colors.textDim} />
+              <Text preset="bold" size="sm" style={themed($sectionTitle)}>
+                {title}
+              </Text>
             </View>
-          ) : (
-            <StarterKits />
-          )
-        }
-      />
+          )}
+          renderItem={({ item }) => (
+            <AgentCard
+              agent={item}
+              onPress={() => {
+                chatWithAgent(item.id)
+              }}
+            />
+          )}
+          contentContainerStyle={{ padding: spacing.sm }}
+          ListEmptyComponent={
+            searchQuery.trim() ? (
+              <View style={$noResultsContainer}>
+                <Icon icon="Search" size={48} color={colors.textDim} />
+                <Text style={$noResultsText}>No agents found for &quot;{searchQuery}&quot;</Text>
+              </View>
+            ) : (
+              <StarterKits />
+            )
+          }
+          stickySectionHeadersEnabled={false}
+        />
+      ) : (
+        <FlatList
+          data={agents}
+          bounces={!!agents?.length}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
+          refreshing={isFetching}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
+          renderItem={({ item }) => (
+            <AgentCard
+              agent={item}
+              onPress={() => {
+                chatWithAgent(item.id)
+              }}
+            />
+          )}
+          contentContainerStyle={{ padding: spacing.sm }}
+          ListEmptyComponent={
+            searchQuery.trim() ? (
+              <View style={$noResultsContainer}>
+                <Icon icon="Search" size={48} color={colors.textDim} />
+                <Text style={$noResultsText}>No agents found for &quot;{searchQuery}&quot;</Text>
+              </View>
+            ) : (
+              <StarterKits />
+            )
+          }
+        />
+      )}
 
       <TouchableOpacity
         style={themed($fab)}
@@ -474,3 +539,24 @@ const $noResultsText: TextStyle = {
   opacity: 0.6,
   textAlign: "center",
 }
+
+const $groupToggle: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  padding: spacing.xs,
+  backgroundColor: colors.palette.overlay20,
+  borderRadius: 8,
+})
+
+const $sectionHeader: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xs,
+  paddingVertical: spacing.sm,
+  paddingHorizontal: spacing.xs,
+  marginTop: spacing.sm,
+  borderBottomWidth: 1,
+  borderBottomColor: colors.palette.overlay20,
+})
+
+const $sectionTitle: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
+})

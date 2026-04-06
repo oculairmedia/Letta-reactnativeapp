@@ -2,9 +2,16 @@ import { Text } from "@/components"
 import { normalizeName } from "@/shared/utils/normalizers"
 import { spacing, Theme } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
-import { CheckCircle2, Wrench, XCircle } from "lucide-react-native"
-import { useMemo, useState } from "react"
+import { CheckCircle2, Loader, XCircle } from "lucide-react-native"
+import { useEffect, useMemo, useState } from "react"
 import { TextStyle, View, ViewStyle } from "react-native"
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+} from "react-native-reanimated"
 import { BareAccordion } from "../animated/BareAccordion"
 import { MemoizedCodeEditor } from "../letta-code-editor"
 
@@ -46,7 +53,7 @@ export function ToolCallMessage({
   const { themed } = useAppTheme()
 
   const iconColor = useMemo(() => {
-    if (!status) return themed($toolIcon).color
+    if (!status) return themed($pendingIcon).color // Yellow/orange for pending
     return status === "success" ? themed($toolIcon).color : themed($errorIcon).color
   }, [status, themed])
 
@@ -59,9 +66,27 @@ export function ToolCallMessage({
   }, [content, toolReturn])
 
   const StatusIcon = useMemo(() => {
-    if (!status) return Wrench
+    if (!status) return Loader // Show loader when pending
     return status === "success" ? CheckCircle2 : XCircle
   }, [status])
+
+  const isPending = !status
+
+  // Animation for pending state
+  const rotation = useSharedValue(0)
+
+  useEffect(() => {
+    if (isPending) {
+      rotation.value = withRepeat(withTiming(360, { duration: 1000 }), -1, false)
+    } else {
+      cancelAnimation(rotation)
+      rotation.value = 0
+    }
+  }, [isPending, rotation])
+
+  const animatedIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }))
 
   if (!content) return null
 
@@ -78,7 +103,13 @@ export function ToolCallMessage({
           <View style={$toolCallFooter}>
             <View style={$toolCallHeader}>
               <View style={$toolInfoInner}>
-                <StatusIcon size={16} color={iconColor} style={$toolIconBase} />
+                {isPending ? (
+                  <Animated.View style={animatedIconStyle}>
+                    <StatusIcon size={16} color={iconColor} />
+                  </Animated.View>
+                ) : (
+                  <StatusIcon size={16} color={iconColor} style={$toolIconBase} />
+                )}
                 <View style={$toolInfoContainer}>
                   <Text text={normalizeName(toolName)} style={themed($toolName)} />
                 </View>
@@ -195,6 +226,10 @@ const $toolIcon = ({ colors }: { colors: Theme["colors"] }) => ({
 
 const $errorIcon = ({ colors }: { colors: Theme["colors"] }) => ({
   color: colors.error,
+})
+
+const $pendingIcon = ({ colors }: { colors: Theme["colors"] }) => ({
+  color: colors.tint,
 })
 
 const $accordion = ({ colors }: Theme): ViewStyle => ({

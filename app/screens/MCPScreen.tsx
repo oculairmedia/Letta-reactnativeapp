@@ -40,6 +40,7 @@ interface MCPServerCardProps {
   server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer
   tools: MCPTool[]
   isLoadingTools: boolean
+  hasError: boolean
   onDelete: () => void
 }
 
@@ -97,14 +98,32 @@ const ToolCard: FC<{ tool: Tool }> = ({ tool }) => {
 }
 
 // MCP Server card component
-const MCPServerCard: FC<MCPServerCardProps> = ({ server, tools, isLoadingTools, onDelete }) => {
-  const { themed } = useAppTheme()
+const MCPServerCard: FC<MCPServerCardProps> = ({
+  server,
+  tools,
+  isLoadingTools,
+  hasError,
+  onDelete,
+}) => {
+  const {
+    themed,
+    theme: { colors },
+  } = useAppTheme()
   const [isExpanded, setIsExpanded] = useState(false)
 
   const toolCount = tools.length
   const toolCountText = isLoadingTools
     ? "Loading tools..."
-    : `${toolCount} tool${toolCount === 1 ? "" : "s"}`
+    : hasError
+      ? "Failed to load"
+      : `${toolCount} tool${toolCount === 1 ? "" : "s"}`
+
+  // Health status indicator colors
+  const healthColor = isLoadingTools
+    ? colors.palette.neutral400 // Gray for loading
+    : hasError
+      ? colors.error // Red for error
+      : colors.palette.primary500 // Green for success
 
   return (
     <SimpleContextMenu
@@ -119,7 +138,14 @@ const MCPServerCard: FC<MCPServerCardProps> = ({ server, tools, isLoadingTools, 
       ]}
     >
       <Card
-        heading={server.server_name || "Unnamed MCP Server"}
+        HeadingComponent={
+          <View style={$serverHeading}>
+            <View style={[$healthDot, { backgroundColor: healthColor }]} />
+            <Text preset="bold" numberOfLines={1} style={$serverName}>
+              {server.server_name || "Unnamed MCP Server"}
+            </Text>
+          </View>
+        }
         ContentComponent={
           <View style={$serverContentContainer}>
             {isSseServer(server) || isStreamableHTTPServer(server) ? (
@@ -138,7 +164,16 @@ const MCPServerCard: FC<MCPServerCardProps> = ({ server, tools, isLoadingTools, 
             )}
 
             <View style={$toolCountContainer}>
-              <Badge text={toolCountText} />
+              {hasError ? (
+                <View style={$errorBadge}>
+                  <Icon icon="AlertCircle" size={12} color={colors.error} />
+                  <Text size="xxs" style={{ color: colors.error }}>
+                    {toolCountText}
+                  </Text>
+                </View>
+              ) : (
+                <Badge text={toolCountText} />
+              )}
             </View>
 
             {toolCount > 0 && (
@@ -199,16 +234,26 @@ export const MCPScreen: FC<AppStackScreenProps<"Tools">> = () => {
 
   // MCP servers and tools
   const { data: servers, refetch: refetchServers, isFetching: isFetchingServers } = useMCPList()
-  const { data: mcpTools, isLoading: isLoadingMCPTools, refetch: refetchMCPTools } = useMCPTools()
+  const {
+    data: mcpToolsData,
+    isLoading: isLoadingMCPTools,
+    refetch: refetchMCPTools,
+  } = useMCPTools()
   const addServerMutation = useAddMCPServer()
   const deleteServerMutation = useDeleteMCPServer()
+
+  // Extract failed servers from the result
+  const failedServers = useMemo(
+    () => new Set(mcpToolsData?.failedServers || []),
+    [mcpToolsData?.failedServers],
+  )
 
   // Group MCP tools by server name
   const toolsByServer = useMemo(() => {
     const grouped: Record<string, MCPTool[]> = {}
-    if (!mcpTools) return grouped
+    const tools = mcpToolsData?.tools || []
 
-    for (const tool of mcpTools) {
+    for (const tool of tools) {
       const serverName = tool.serverName || "Unknown"
       if (!grouped[serverName]) {
         grouped[serverName] = []
@@ -220,7 +265,7 @@ export const MCPScreen: FC<AppStackScreenProps<"Tools">> = () => {
       })
     }
     return grouped
-  }, [mcpTools])
+  }, [mcpToolsData?.tools])
 
   const handleAddServer = (serverData: McpServerCreateParams) => {
     addServerMutation.mutate(serverData)
@@ -329,6 +374,7 @@ export const MCPScreen: FC<AppStackScreenProps<"Tools">> = () => {
                     server={server}
                     tools={toolsByServer[server.server_name] || []}
                     isLoadingTools={isLoadingMCPTools}
+                    hasError={failedServers.has(server.server_name)}
                     onDelete={() => handleDeleteServer(server.server_name)}
                   />
                 ))}
@@ -474,3 +520,25 @@ const $toolItem: ThemedStyle<ViewStyle> = ({ colors }) => ({
 const $toolDescription: ThemedStyle<TextStyle> = () => ({
   opacity: 0.7,
 })
+
+const $errorBadge: ViewStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xxs,
+}
+
+const $serverHeading: ViewStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xs,
+}
+
+const $healthDot: ViewStyle = {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+}
+
+const $serverName: TextStyle = {
+  flex: 1,
+}
