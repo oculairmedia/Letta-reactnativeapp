@@ -17,7 +17,8 @@ export function useDeleteAgent(
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args) => {
+      const [, variables] = args
       queryClient.removeQueries({
         queryKey: getUseAgentStateKey(variables.agentId),
         exact: true,
@@ -25,7 +26,7 @@ export function useDeleteAgent(
       if (useAgentStore.getState().agentId === variables.agentId) {
         useAgentStore.getState().setAgentId()
       }
-      mutationOptions?.onSuccess?.(data, variables, context)
+      mutationOptions?.onSuccess?.(...args)
     },
     ...mutationOptions,
   })

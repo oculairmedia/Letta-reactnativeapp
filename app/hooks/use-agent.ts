@@ -35,10 +35,10 @@ export function useModifyAgent(
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (state: AgentUpdateParams) => lettaClient.agents.update(agentId, state),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: getUseAgentStateKey(agentId) })
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })
-      mutationOptions?.onSuccess?.(data, variables, context)
+      mutationOptions?.onSuccess?.(...args)
     },
     ...mutationOptions,
   })

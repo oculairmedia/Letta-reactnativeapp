@@ -38,9 +38,9 @@ export function useCreateAgent(
       await lettaClient.agents.messages.reset(args[0].id, {})
       mutationOptions?.onSuccess?.(...args)
     },
-    onError: (error, variables, context) => {
-      console.error(error)
-      mutationOptions?.onError?.(error, variables, context)
+    onError: (...args) => {
+      console.error(args[0])
+      mutationOptions?.onError?.(...args)
     },
   })
 }
@@ -79,9 +79,9 @@ export function useCreateAgentFromTemplate(
       queryClient.invalidateQueries({ queryKey: getAgentsQueryKey() })
       mutationOptions?.onSuccess?.(...args)
     },
-    onError: (error, variables, context) => {
-      console.error(error)
-      mutationOptions?.onError?.(error, variables, context)
+    onError: (...args) => {
+      console.error(args[0])
+      mutationOptions?.onError?.(...args)
     },
   })
 }
