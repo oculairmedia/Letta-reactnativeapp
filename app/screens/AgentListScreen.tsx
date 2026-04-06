@@ -14,6 +14,7 @@ import { spacing, ThemedStyle } from "@/theme"
 import { showAgentNamePrompt } from "@/utils/agent-name-prompt"
 import { useAppTheme } from "@/utils/useAppTheme"
 import { Letta } from "@letta-ai/letta-client"
+import Fuse from "fuse.js"
 import { FC, Fragment, useMemo, useState } from "react"
 import {
   Alert,
@@ -225,15 +226,16 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
       )
     })
 
-    if (!searchQuery.trim()) return sorted
+    if (!searchQuery.trim() || !sorted?.length) return sorted
 
-    const query = searchQuery.toLowerCase().trim()
-    return sorted?.filter((agent) => {
-      const nameMatch = agent.name?.toLowerCase().includes(query)
-      const descMatch = agent.description?.toLowerCase().includes(query)
-      const tagMatch = agent.tags?.some((tag) => tag.toLowerCase().includes(query))
-      return nameMatch || descMatch || tagMatch
+    const fuse = new Fuse(sorted, {
+      keys: ["name", "description", "tags"],
+      threshold: 0.4, // 0 = exact match, 1 = match anything
+      ignoreLocation: true,
+      minMatchCharLength: 2,
     })
+
+    return fuse.search(searchQuery.trim()).map((result) => result.item)
   }, [_agents, searchQuery])
 
   const { mutate: createAgent, isPending: isCreatingAgent } = useCreateAgent({
