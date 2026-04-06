@@ -2385,10 +2385,10 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@letta-ai/letta-client@1.10.2":
-  version "1.10.2"
-  resolved "https://registry.yarnpkg.com/@letta-ai/letta-client/-/letta-client-1.10.2.tgz#f497456429b7c688388d5601cd3b786a2cc4bc1d"
-  integrity sha512-BYAPkIl6wHYORJ+zHmlWaPSrlsMbN5YkoSnHnEUvaIJBOpa5kLwldNjzHIALcSAV19Qc0ktRoIQy0i0Vqb21yQ==
+"@letta-ai/letta-client@1.6.8":
+  version "1.6.8"
+  resolved "https://registry.yarnpkg.com/@letta-ai/letta-client/-/letta-client-1.6.8.tgz#723f06c630f0d40baa2f1af7b6a72dc80802d0af"
+  integrity sha512-FscN1/c03uGByxD2nnnQ6/DMch234UQVlZJcoamU7ElFqv0ESNXb/3zpjL/SreTEUqk7IzrAp2bw5u/ILMt0UA==
 
 "@napi-rs/wasm-runtime@^0.2.7":
   version "0.2.7"
