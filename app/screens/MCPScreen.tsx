@@ -5,8 +5,10 @@ import { AddMCPServerModal } from "@/components/custom/modals/add-mcp-server-mod
 import { useLettaHeader } from "@/components/custom/useLettaHeader"
 import { SimpleContextMenu } from "@/components/simple-context-menu"
 import { useAddMCPServer, useDeleteMCPServer, useMCPList, useMCPTools } from "@/hooks/use-mcp"
+import { useTools } from "@/hooks/use-tools"
 import { AppStackScreenProps } from "@/navigators"
 import { BareAccordion } from "@/shared/components/animated/BareAccordion"
+import { normalizeName } from "@/shared/utils/normalizers"
 import { spacing, ThemedStyle } from "@/theme"
 import { useAppTheme } from "@/utils/useAppTheme"
 import {
@@ -15,8 +17,19 @@ import {
   StdioMcpServer,
   StreamableHTTPMcpServer,
 } from "@letta-ai/letta-client/resources/mcp-servers"
+import { Tool } from "@letta-ai/letta-client/resources/tools"
 import { FC, Fragment, useMemo, useState } from "react"
-import { Alert, FlatList, RefreshControl, TextStyle, View, ViewStyle } from "react-native"
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  TextStyle,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native"
+
+type TabType = "tools" | "mcp"
 
 interface MCPTool {
   name: string
@@ -32,16 +45,59 @@ interface MCPServerCardProps {
 }
 
 const isSseServer = (
-  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer,
+  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer
 ): server is SseMcpServer => {
   return (server as SseMcpServer).mcp_server_type === "sse"
 }
+
 const isStreamableHTTPServer = (
-  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer,
+  server: SseMcpServer | StdioMcpServer | StreamableHTTPMcpServer
 ): server is StreamableHTTPMcpServer => {
   return (server as StreamableHTTPMcpServer).mcp_server_type === "streamable_http"
 }
 
+const getToolTypeLabel = (toolType: string | undefined): string => {
+  switch (toolType) {
+    case "custom":
+      return "Custom"
+    case "letta_core":
+    case "letta_memory_core":
+    case "letta_multi_agent_core":
+    case "letta_sleeptime_core":
+    case "letta_voice_sleeptime_core":
+    case "letta_files_core":
+      return "Core"
+    case "letta_builtin":
+      return "Built-in"
+    case "external_langchain":
+      return "LangChain"
+    case "external_composio":
+      return "Composio"
+    default:
+      return "Tool"
+  }
+}
+
+// Regular tool card component
+const ToolCard: FC<{ tool: Tool }> = ({ tool }) => {
+  const { themed } = useAppTheme()
+
+  return (
+    <Card
+      heading={normalizeName(tool.name || "Unnamed Tool")}
+      ContentComponent={
+        tool.description ? (
+          <Text style={themed($toolDescriptionText)} size="xs" numberOfLines={2}>
+            {tool.description}
+          </Text>
+        ) : undefined
+      }
+      RightComponent={<Badge text={getToolTypeLabel(tool.tool_type)} />}
+    />
+  )
+}
+
+// MCP Server card component
 const MCPServerCard: FC<MCPServerCardProps> = ({ server, tools, isLoadingTools, onDelete }) => {
   const { themed } = useAppTheme()
   const [isExpanded, setIsExpanded] = useState(false)
@@ -124,25 +180,40 @@ const MCPServerCard: FC<MCPServerCardProps> = ({ server, tools, isLoadingTools, 
   )
 }
 
-export const MCPScreen: FC<AppStackScreenProps<"MCP">> = () => {
+export const MCPScreen: FC<AppStackScreenProps<"Tools">> = () => {
   useLettaHeader()
 
+  const [activeTab, setActiveTab] = useState<TabType>("tools")
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
-  const { data: servers, refetch, isFetching } = useMCPList()
-  const { data: allTools, isLoading: isLoadingTools, refetch: refetchTools } = useMCPTools()
-  const addServerMutation = useAddMCPServer()
-  const deleteServerMutation = useDeleteMCPServer()
 
   const {
     theme: { colors },
+    themed,
   } = useAppTheme()
 
-  // Group tools by server name
+  // Regular tools (non-MCP)
+  const { data: allServerTools, refetch: refetchTools, isFetching: isFetchingTools } = useTools()
+  const regularTools = useMemo(() => {
+    if (!allServerTools) return []
+    return allServerTools.filter((t) => t.tool_type !== "external_mcp")
+  }, [allServerTools])
+
+  // MCP servers and tools
+  const { data: servers, refetch: refetchServers, isFetching: isFetchingServers } = useMCPList()
+  const {
+    data: mcpTools,
+    isLoading: isLoadingMCPTools,
+    refetch: refetchMCPTools,
+  } = useMCPTools()
+  const addServerMutation = useAddMCPServer()
+  const deleteServerMutation = useDeleteMCPServer()
+
+  // Group MCP tools by server name
   const toolsByServer = useMemo(() => {
     const grouped: Record<string, MCPTool[]> = {}
-    if (!allTools) return grouped
+    if (!mcpTools) return grouped
 
-    for (const tool of allTools) {
+    for (const tool of mcpTools) {
       const serverName = tool.serverName || "Unknown"
       if (!grouped[serverName]) {
         grouped[serverName] = []
@@ -154,7 +225,7 @@ export const MCPScreen: FC<AppStackScreenProps<"MCP">> = () => {
       })
     }
     return grouped
-  }, [allTools])
+  }, [mcpTools])
 
   const handleAddServer = (serverData: McpServerCreateParams) => {
     addServerMutation.mutate(serverData)
@@ -163,57 +234,123 @@ export const MCPScreen: FC<AppStackScreenProps<"MCP">> = () => {
 
   const handleDeleteServer = (serverName: string) => {
     Alert.alert("Delete MCP Server", "Are you sure you want to delete this server?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
+      { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
-          deleteServerMutation.mutate(serverName)
-        },
+        onPress: () => deleteServerMutation.mutate(serverName),
       },
     ])
   }
 
   const handleRefresh = () => {
-    refetch()
     refetchTools()
+    refetchServers()
+    refetchMCPTools()
   }
+
+  const isFetching = isFetchingTools || isFetchingServers
 
   return (
     <Screen style={$root} preset="fixed" contentContainerStyle={$contentContainer}>
-      <View style={$header}>
-        <Button
-          onPress={() => setIsAddModalVisible(true)}
-          text="Add MCP Server"
-          loading={addServerMutation.isPending}
-          disabled={addServerMutation.isPending}
-          LeftAccessory={() => (
-            <Icon icon="Plus" size={20} color={colors.elementColors.card.default.content} />
-          )}
-        />
+      {/* Tab bar */}
+      <View style={themed($tabBar)}>
+        <TouchableOpacity
+          style={[themed($tab), activeTab === "tools" && themed($tabActive)]}
+          onPress={() => setActiveTab("tools")}
+        >
+          <Icon
+            icon="Wrench"
+            size={16}
+            color={activeTab === "tools" ? colors.tint : colors.textDim}
+          />
+          <Text
+            size="sm"
+            preset={activeTab === "tools" ? "bold" : "default"}
+            style={activeTab === "tools" ? { color: colors.tint } : themed($tabText)}
+          >
+            Tools ({regularTools.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[themed($tab), activeTab === "mcp" && themed($tabActive)]}
+          onPress={() => setActiveTab("mcp")}
+        >
+          <Icon
+            icon="Server"
+            size={16}
+            color={activeTab === "mcp" ? colors.tint : colors.textDim}
+          />
+          <Text
+            size="sm"
+            preset={activeTab === "mcp" ? "bold" : "default"}
+            style={activeTab === "mcp" ? { color: colors.tint } : themed($tabText)}
+          >
+            MCP ({servers?.length || 0})
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={servers || []}
-        bounces={!!servers && servers.length > 0}
-        keyExtractor={(item) => item.server_name}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={handleRefresh} />}
-        refreshing={isFetching}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        renderItem={({ item }) => (
-          <MCPServerCard
-            server={item}
-            tools={toolsByServer[item.server_name] || []}
-            isLoadingTools={isLoadingTools}
-            onDelete={() => handleDeleteServer(item.server_name)}
-          />
-        )}
-        ListEmptyComponent={<Text>No MCP Servers</Text>}
-        contentContainerStyle={{ padding: spacing.sm }}
-      />
+      {/* Tools tab content */}
+      {activeTab === "tools" && (
+        <ScrollView
+          style={$scrollView}
+          contentContainerStyle={$scrollContent}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={handleRefresh} />}
+        >
+          {regularTools.length === 0 ? (
+            <View style={$emptyState}>
+              <Icon icon="Wrench" size={48} color={colors.textDim} />
+              <Text style={themed($emptyText)}>No tools available</Text>
+            </View>
+          ) : (
+            <View style={$listContainer}>
+              {regularTools.map((tool) => (
+                <ToolCard key={tool.id} tool={tool} />
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* MCP tab content */}
+      {activeTab === "mcp" && (
+        <>
+          <ScrollView
+            style={$scrollView}
+            contentContainerStyle={$scrollContent}
+            refreshControl={<RefreshControl refreshing={isFetching} onRefresh={handleRefresh} />}
+          >
+            {!servers || servers.length === 0 ? (
+              <View style={$emptyState}>
+                <Icon icon="Server" size={48} color={colors.textDim} />
+                <Text style={themed($emptyText)}>No MCP servers configured</Text>
+              </View>
+            ) : (
+              <View style={$listContainer}>
+                {servers.map((server) => (
+                  <MCPServerCard
+                    key={server.server_name}
+                    server={server}
+                    tools={toolsByServer[server.server_name] || []}
+                    isLoadingTools={isLoadingMCPTools}
+                    onDelete={() => handleDeleteServer(server.server_name)}
+                  />
+                ))}
+              </View>
+            )}
+          </ScrollView>
+
+          <TouchableOpacity
+            style={themed($fab)}
+            onPress={() => setIsAddModalVisible(true)}
+            disabled={addServerMutation.isPending}
+            activeOpacity={0.8}
+          >
+            <Icon icon="Plus" size={24} color="#fff" />
+          </TouchableOpacity>
+        </>
+      )}
 
       <AddMCPServerModal
         visible={isAddModalVisible}
@@ -234,13 +371,73 @@ const $contentContainer: ViewStyle = {
   paddingBottom: spacing.lg,
 }
 
-const $header: ViewStyle = {
+const $tabBar: ThemedStyle<ViewStyle> = ({ colors }) => ({
   flexDirection: "row",
-  justifyContent: "flex-end",
+  borderBottomWidth: 1,
+  borderBottomColor: colors.palette.overlay20,
+})
+
+const $tab: ThemedStyle<ViewStyle> = () => ({
+  flex: 1,
+  flexDirection: "row",
   alignItems: "center",
+  justifyContent: "center",
+  gap: spacing.xs,
+  paddingVertical: spacing.sm,
+})
+
+const $tabActive: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  borderBottomWidth: 2,
+  borderBottomColor: colors.tint,
+})
+
+const $tabText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
+})
+
+const $fab: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  position: "absolute",
+  bottom: spacing.lg,
+  right: spacing.md,
+  width: 56,
+  height: 56,
+  borderRadius: 28,
+  backgroundColor: colors.tint,
+  alignItems: "center",
+  justifyContent: "center",
+  elevation: 4,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+})
+
+const $scrollView: ViewStyle = {
+  flex: 1,
+}
+
+const $scrollContent: ViewStyle = {
   padding: spacing.sm,
+}
+
+const $listContainer: ViewStyle = {
   gap: spacing.sm,
 }
+
+const $emptyState: ViewStyle = {
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: spacing.xxl,
+  gap: spacing.sm,
+}
+
+const $emptyText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.textDim,
+})
+
+const $toolDescriptionText: ThemedStyle<TextStyle> = () => ({
+  opacity: 0.8,
+})
 
 const $serverContentContainer: ViewStyle = {
   flex: 1,
