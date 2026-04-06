@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react-native"
+import { NavigationContainer } from "@react-navigation/native"
 import { Text } from "./Text"
 
 /* This is an example component test using react-native-testing-library. For more
@@ -8,7 +9,11 @@ const testText = "Test string"
 
 describe("Text", () => {
   it("should render the component", () => {
-    render(<Text text={testText} />)
+    render(
+      <NavigationContainer>
+        <Text text={testText} />
+      </NavigationContainer>,
+    )
     expect(screen.getByText(testText)).toBeDefined()
   })
 })
