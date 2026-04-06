@@ -17,7 +17,10 @@ export function useAgents(queryOptions?: UseQueryOptions<AgentState[]>) {
   const { lettaClient } = useLettaClient()
   return useQuery({
     queryKey: getAgentsQueryKey(),
-    queryFn: () => lettaClient.agents.list().then((page) => page.getPaginatedItems()),
+    queryFn: () =>
+      lettaClient.agents
+        .list({ include: ["agent.blocks", "agent.tools", "agent.tags"] })
+        .then((page) => page.getPaginatedItems()),
     select: sortByLastCreated,
     enabled: !!lettaClient,
     ...queryOptions,
