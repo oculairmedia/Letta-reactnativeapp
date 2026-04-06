@@ -3,12 +3,16 @@ import { create } from "zustand"
 
 interface AgentState {
   agentId: string
+  conversationId: string | null
   setAgentId: (id?: string) => void
+  setConversationId: (id: string | null) => void
 }
 
 export const useAgentStore = create<AgentState>((set) => ({
   agentId: "",
-  setAgentId: (id?: string) => set({ agentId: id ?? "" }),
+  conversationId: null,
+  setAgentId: (id?: string) => set({ agentId: id ?? "", conversationId: null }),
+  setConversationId: (id: string | null) => set({ conversationId: id }),
 }))
 
 // Create a React Context
