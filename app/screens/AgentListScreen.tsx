@@ -230,12 +230,29 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
 
     const fuse = new Fuse(sorted, {
       keys: ["name", "description", "tags"],
-      threshold: 0.4, // 0 = exact match, 1 = match anything
+      threshold: 0.4,
       ignoreLocation: true,
-      minMatchCharLength: 2,
+      minMatchCharLength: 1,
     })
 
-    return fuse.search(searchQuery.trim()).map((result) => result.item)
+    // Token-based search: split query into words, find agents matching ALL tokens
+    const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
+
+    if (tokens.length <= 1) {
+      return fuse.search(searchQuery.trim()).map((result) => result.item)
+    }
+
+    // For multi-word queries, find agents that match all tokens
+    const matchingSets = tokens.map((token) =>
+      new Set(fuse.search(token).map((result) => result.item.id))
+    )
+
+    // Intersect all sets to get agents matching ALL tokens
+    const intersection = matchingSets.reduce((acc, set) =>
+      new Set([...acc].filter((id) => set.has(id)))
+    )
+
+    return sorted.filter((agent) => intersection.has(agent.id))
   }, [_agents, searchQuery])
 
   const { mutate: createAgent, isPending: isCreatingAgent } = useCreateAgent({
