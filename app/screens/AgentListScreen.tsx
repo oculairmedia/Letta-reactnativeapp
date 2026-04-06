@@ -336,7 +336,16 @@ export const AgentListScreen: FC<AppStackScreenProps<"AgentList">> = () => {
           />
         )}
         contentContainerStyle={{ padding: spacing.sm }}
-        ListEmptyComponent={<StarterKits />}
+        ListEmptyComponent={
+          searchQuery.trim() ? (
+            <View style={$noResultsContainer}>
+              <Icon icon="Search" size={48} color={colors.textDim} />
+              <Text style={$noResultsText}>No agents found for "{searchQuery}"</Text>
+            </View>
+          ) : (
+            <StarterKits />
+          )
+        }
       />
     </Screen>
   )
@@ -472,3 +481,15 @@ const $searchInput: ThemedStyle<TextStyle> = ({ colors }) => ({
   color: colors.text,
   paddingVertical: spacing.xxs,
 })
+
+const $noResultsContainer: ViewStyle = {
+  alignItems: "center",
+  justifyContent: "center",
+  paddingVertical: spacing.xxl,
+  gap: spacing.sm,
+}
+
+const $noResultsText: TextStyle = {
+  opacity: 0.6,
+  textAlign: "center",
+}
