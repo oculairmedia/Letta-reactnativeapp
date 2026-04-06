@@ -36,7 +36,9 @@ describe("useAgents", () => {
 
   it("should call agents.list with include parameter for blocks, tools, and tags", async () => {
     const mockList = jest.fn().mockResolvedValue({
-      getPaginatedItems: () => [],
+      [Symbol.asyncIterator]: async function* () {
+        // yields nothing
+      },
     })
 
     mockUseLettaClient.mockReturnValue({
@@ -52,6 +54,7 @@ describe("useAgents", () => {
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledWith({
         include: ["agent.blocks", "agent.tools", "agent.tags"],
+        limit: 100,
       })
     })
   })
@@ -64,7 +67,11 @@ describe("useAgents", () => {
     ]
 
     const mockList = jest.fn().mockResolvedValue({
-      getPaginatedItems: () => mockAgents,
+      [Symbol.asyncIterator]: async function* () {
+        for (const agent of mockAgents) {
+          yield agent
+        }
+      },
     })
 
     mockUseLettaClient.mockReturnValue({
@@ -79,6 +86,7 @@ describe("useAgents", () => {
 
     await waitFor(() => {
       expect(result.current.data).toBeDefined()
+      expect(result.current.data?.length).toBe(3)
     })
 
     // Should be sorted newest first

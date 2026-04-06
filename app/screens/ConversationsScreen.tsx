@@ -255,8 +255,8 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
 
     // Sort by most recent first
     const sorted = filtered.sort((a, b) => {
-      const aDate = new Date(a.last_message_at || a.created_at || "").getTime()
-      const bDate = new Date(b.last_message_at || b.created_at || "").getTime()
+      const aDate = new Date(a.last_message_at || a.created_at || 0).getTime() || 0
+      const bDate = new Date(b.last_message_at || b.created_at || 0).getTime() || 0
       return bDate - aDate
     })
 
@@ -396,7 +396,6 @@ export const ConversationsScreen: FC<AppStackScreenProps<"Conversations">> = () 
         bounces={!!conversations?.length}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
-        refreshing={isFetching}
         ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
         renderItem={({ item }) => (
           <ConversationCard

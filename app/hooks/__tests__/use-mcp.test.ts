@@ -119,15 +119,16 @@ describe("use-mcp hooks", () => {
 
       await waitFor(
         () => {
-          expect(result.current.data).toBeDefined()
+          expect(result.current.data?.tools).toBeDefined()
         },
         { timeout: 5000 },
       )
 
       // Should have tools from both servers with serverName attached
-      expect(result.current.data?.length).toBe(3)
-      expect(result.current.data?.find((t) => t.name === "tool1")?.serverName).toBe("Server 1")
-      expect(result.current.data?.find((t) => t.name === "tool3")?.serverName).toBe("Server 2")
+      expect(result.current.data?.tools?.length).toBe(3)
+      expect(result.current.data?.tools?.find((t) => t.name === "tool1")?.serverName).toBe("Server 1")
+      expect(result.current.data?.tools?.find((t) => t.name === "tool3")?.serverName).toBe("Server 2")
+      expect(result.current.data?.failedServers).toEqual([])
     })
 
     it("should handle server errors gracefully", async () => {
@@ -156,9 +157,9 @@ describe("use-mcp hooks", () => {
         { timeout: 5000 },
       )
 
-      // Should return empty array on error (caught in the try/catch), not throw
-      // The hook catches errors per-server and returns [] for that server
-      expect(result.current.data).toEqual([])
+      // Should return empty tools array and track failed servers
+      expect(result.current.data?.tools).toEqual([])
+      expect(result.current.data?.failedServers).toContain("Server 1")
       expect(consoleSpy).toHaveBeenCalled()
 
       consoleSpy.mockRestore()

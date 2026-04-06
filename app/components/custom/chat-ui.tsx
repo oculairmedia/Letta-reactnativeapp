@@ -18,6 +18,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import {
   FlatList,
   ImageStyle,
+  RefreshControl,
   ScrollView,
   Text,
   TextStyle,
@@ -177,7 +178,12 @@ const EmptyChatState = () => {
 function MessagesScrollView({ mode }: { mode: ChatUIMode }) {
   const [agentId] = useAgentId()
   const conversationId = useAgentStore((s) => s.conversationId)
-  const { data: messages, isLoading: isLoadingMessages } = useAgentMessages(agentId, conversationId)
+  const {
+    data: messages,
+    isLoading: isLoadingMessages,
+    refetch,
+    isFetching,
+  } = useAgentMessages(agentId, conversationId)
   const flatListRef = useRef<FlatList>(null!)
   const scrollToBottom = useScrollToBottom(flatListRef)
   useEffect(() => {
@@ -198,6 +204,7 @@ function MessagesScrollView({ mode }: { mode: ChatUIMode }) {
       data={messages}
       renderItem={({ item }) => renderItem({ item, data: messages || [], mode })}
       keyExtractor={(item) => item.id}
+      refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} />}
       ListEmptyComponent={
         isLoadingMessages ? (
           <Fragment>
