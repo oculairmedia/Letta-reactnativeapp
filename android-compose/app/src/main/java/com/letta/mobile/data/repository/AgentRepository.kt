@@ -75,6 +75,10 @@ class AgentRepository @Inject constructor(
         refreshAgents()
     }
 
+    suspend fun exportAgent(id: String): String {
+        return agentApi.exportAgent(id)
+    }
+
     private fun updateAgentInCache(agent: Agent) {
         val updatedList = _agents.value.toMutableList()
         val index = updatedList.indexOfFirst { it.id == agent.id }

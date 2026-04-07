@@ -23,7 +23,9 @@ data class AgentSettingsUiState(
     val parallelToolCalls: Boolean = true,
     val personaBlock: String = "",
     val humanBlock: String = "",
-    val systemPrompt: String = ""
+    val systemPrompt: String = "",
+    val enableSleeptime: Boolean = false,
+    val secrets: Map<String, String> = emptyMap(),
 )
 
 @HiltViewModel
@@ -62,7 +64,8 @@ class AgentSettingsViewModel @Inject constructor(
                         parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,
                         personaBlock = persona,
                         humanBlock = human,
-                        systemPrompt = agent.system ?: ""
+                        systemPrompt = agent.system ?: "",
+                        enableSleeptime = agent.enableSleeptime ?: false,
                     )
                 )
             } catch (e: Exception) {
@@ -113,13 +116,34 @@ class AgentSettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateSleeptime(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(enableSleeptime = value))
+        }
+    }
+
+    fun exportAgent(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val data = agentRepository.exportAgent(agentId)
+                onResult(data)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Failed to export agent")
+            }
+        }
+    }
+
     fun saveSettings() {
         viewModelScope.launch {
             try {
                 val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 agentRepository.updateAgent(
                     agentId,
-                    AgentUpdateParams(system = state.systemPrompt)
+                    AgentUpdateParams(
+                        system = state.systemPrompt,
+                        enableSleeptime = state.enableSleeptime,
+                    )
                 )
                 if (state.personaBlock != originalPersonaBlock) {
                     blockRepository.updateBlock(agentId, "persona", state.personaBlock)
