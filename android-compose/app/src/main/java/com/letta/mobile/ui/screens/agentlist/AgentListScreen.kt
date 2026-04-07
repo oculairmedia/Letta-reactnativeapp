@@ -96,10 +96,10 @@ fun AgentListScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.agents)) },
+                    title = { Text(stringResource(R.string.common_agents)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
+                            Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                         }
                     }
                 )
@@ -118,12 +118,12 @@ fun AgentListScreen(
                                 onSearch = { searchActive = false },
                                 expanded = searchActive,
                                 onExpandedChange = { searchActive = it },
-                                placeholder = { Text(stringResource(R.string.search_agents)) },
+                                placeholder = { Text(stringResource(R.string.screen_agents_search_hint)) },
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                            Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.cancel))
+                                            Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.action_cancel))
                                         }
                                     }
                                 }
@@ -376,8 +376,8 @@ private fun AgentCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_agent)) },
-            text = { Text(stringResource(R.string.confirm_delete_agent, agent.name)) },
+            title = { Text(stringResource(R.string.screen_agents_dialog_delete_title)) },
+            text = { Text(stringResource(R.string.screen_agents_dialog_delete_confirm, )) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -385,12 +385,12 @@ private fun AgentCard(
                         onDelete()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -420,7 +420,7 @@ private fun ErrorContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }
@@ -434,12 +434,12 @@ private fun CreateAgentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.create_agent)) },
+        title = { Text(stringResource(R.string.screen_agents_dialog_create_title)) },
         text = {
             OutlinedTextField(
                 value = agentName,
                 onValueChange = { agentName = it },
-                label = { Text(stringResource(R.string.agent_name)) },
+                label = { Text(stringResource(R.string.screen_agents_dialog_name_label)) },
                 singleLine = true
             )
         },
@@ -452,12 +452,12 @@ private fun CreateAgentDialog(
                 },
                 enabled = agentName.isNotBlank()
             ) {
-                Text(stringResource(R.string.create))
+                Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )

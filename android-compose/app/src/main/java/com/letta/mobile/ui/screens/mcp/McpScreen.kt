@@ -33,10 +33,10 @@ fun McpScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.mcp_management)) },
+                title = { Text(stringResource(R.string.screen_mcp_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -89,12 +89,12 @@ private fun McpContent(
             Tab(
                 selected = state.selectedTab == 0,
                 onClick = { onTabSelected(0) },
-                text = { Text(stringResource(R.string.tools)) }
+                text = { Text(stringResource(R.string.common_tools)) }
             )
             Tab(
                 selected = state.selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                text = { Text(stringResource(R.string.mcp_servers)) }
+                text = { Text(stringResource(R.string.screen_mcp_servers_tab)) }
             )
         }
 
@@ -141,7 +141,7 @@ private fun ServersTab(
     if (servers.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Storage,
-            message = stringResource(R.string.no_mcp_servers),
+            message = stringResource(R.string.screen_mcp_empty),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -288,8 +288,8 @@ private fun ServerCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_server)) },
-            text = { Text(stringResource(R.string.confirm_delete_server, server.name)) },
+            title = { Text(stringResource(R.string.screen_mcp_dialog_delete_title)) },
+            text = { Text(stringResource(R.string.screen_mcp_dialog_delete_confirm, server.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -297,12 +297,12 @@ private fun ServerCard(
                         onDelete()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -319,20 +319,20 @@ private fun AddServerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_mcp_server)) },
+        title = { Text(stringResource(R.string.screen_mcp_dialog_add_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = serverName,
                     onValueChange = { serverName = it },
-                    label = { Text(stringResource(R.string.server_name)) },
+                    label = { Text(stringResource(R.string.screen_mcp_server_name_label)) },
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = serverUrl,
                     onValueChange = { serverUrl = it },
-                    label = { Text(stringResource(R.string.server_url)) },
+                    label = { Text(stringResource(R.string.common_server_url)) },
                     singleLine = true
                 )
             }
@@ -346,12 +346,12 @@ private fun AddServerDialog(
                 },
                 enabled = serverName.isNotBlank() && serverUrl.isNotBlank()
             ) {
-                Text(stringResource(R.string.add))
+                Text(stringResource(R.string.action_add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -377,7 +377,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

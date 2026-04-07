@@ -140,7 +140,7 @@ private fun ChatContent(
         if (state.messages.isEmpty() && !state.isStreaming) {
             EmptyState(
                 icon = Icons.Default.ChatBubbleOutline,
-                message = stringResource(R.string.start_conversation),
+                message = stringResource(R.string.screen_chat_empty),
                 modifier = Modifier.weight(1f)
             )
         } else {
@@ -331,7 +331,7 @@ private fun MessageInputBar(
                 value = text,
                 onValueChange = onTextChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.type_message_hint)) },
+                placeholder = { Text(stringResource(R.string.screen_chat_input_hint)) },
                 enabled = !isStreaming,
                 maxLines = 4
             )
@@ -346,7 +346,7 @@ private fun MessageInputBar(
                 },
                 enabled = text.isNotBlank() && !isStreaming
             ) {
-                Icon(Icons.Default.Send, contentDescription = stringResource(R.string.send_message))
+                Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send_message))
             }
         }
     }
@@ -373,7 +373,7 @@ private fun ErrorContent(
         Text(text = message, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

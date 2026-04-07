@@ -45,10 +45,10 @@ fun AgentScaffold(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.agent_chat)) },
+                    title = { Text(stringResource(R.string.screen_chat_title)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
+                            Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                         }
                     },
                     actions = {
@@ -67,20 +67,20 @@ fun AgentScaffold(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Chat, stringResource(R.string.chat)) },
-                        label = { Text(stringResource(R.string.chat)) }
+                        icon = { Icon(Icons.Default.Chat, stringResource(R.string.common_chat)) },
+                        label = { Text(stringResource(R.string.common_chat)) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.Build, stringResource(R.string.tools)) },
-                        label = { Text(stringResource(R.string.tools)) }
+                        icon = { Icon(Icons.Default.Build, stringResource(R.string.common_tools)) },
+                        label = { Text(stringResource(R.string.common_tools)) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Settings, stringResource(R.string.settings)) },
-                        label = { Text(stringResource(R.string.settings)) }
+                        icon = { Icon(Icons.Default.Settings, stringResource(R.string.common_settings)) },
+                        label = { Text(stringResource(R.string.common_settings)) }
                     )
                 }
             }
@@ -108,13 +108,13 @@ private fun DrawerContent(
             .padding(16.dp)
     ) {
         Text(
-            text = stringResource(R.string.agent_configuration),
+            text = stringResource(R.string.screen_chat_config_section),
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = stringResource(R.string.model_config),
+            text = stringResource(R.string.screen_chat_model_config_section),
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -122,7 +122,7 @@ private fun DrawerContent(
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            label = { Text(stringResource(R.string.model)) },
+            label = { Text(stringResource(R.string.common_model)) },
             readOnly = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -130,7 +130,7 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = stringResource(R.string.context_window),
+            text = stringResource(R.string.common_context_window),
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -146,7 +146,7 @@ private fun DrawerContent(
             onClick = onClose,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.close))
+            Text(stringResource(R.string.action_close))
         }
     }
 }

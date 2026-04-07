@@ -69,27 +69,27 @@ private fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = stringResource(R.string.model_settings),
+            text = stringResource(R.string.screen_settings_model_section),
             style = MaterialTheme.typography.titleMedium
         )
         
         OutlinedTextField(
-            value = state.agent?.model ?: stringResource(R.string.no_model),
+            value = state.agent?.model ?: stringResource(R.string.screen_settings_no_model),
             onValueChange = {},
-            label = { Text(stringResource(R.string.model)) },
+            label = { Text(stringResource(R.string.common_model)) },
             readOnly = true,
             modifier = Modifier.fillMaxWidth()
         )
 
         Text(
-            text = stringResource(R.string.context_window_limit, state.agent?.contextWindowLimit ?: 0),
+            text = stringResource(R.string.screen_settings_context_window_limit, state.agent?.contextWindowLimit ?: 0),
             style = MaterialTheme.typography.bodyMedium
         )
 
         Divider()
 
         Text(
-            text = stringResource(R.string.temperature_value, state.temperature),
+            text = stringResource(R.string.screen_settings_temperature_value, state.temperature),
             style = MaterialTheme.typography.bodyMedium
         )
         Slider(
@@ -104,7 +104,7 @@ private fun SettingsContent(
             onValueChange = { 
                 it.toIntOrNull()?.let { value -> onMaxTokensChange(value) }
             },
-            label = { Text(stringResource(R.string.max_output_tokens)) },
+            label = { Text(stringResource(R.string.common_max_output_tokens)) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -113,7 +113,7 @@ private fun SettingsContent(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = stringResource(R.string.parallel_tool_calls),
+                text = stringResource(R.string.common_parallel_tool_calls),
                 style = MaterialTheme.typography.bodyMedium
             )
             Switch(
@@ -125,14 +125,14 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = stringResource(R.string.memory_blocks),
+            text = stringResource(R.string.screen_agent_memory_blocks_section),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.personaBlock,
             onValueChange = onPersonaChange,
-            label = { Text(stringResource(R.string.persona)) },
+            label = { Text(stringResource(R.string.common_persona)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -140,7 +140,7 @@ private fun SettingsContent(
         OutlinedTextField(
             value = state.humanBlock,
             onValueChange = onHumanChange,
-            label = { Text(stringResource(R.string.human)) },
+            label = { Text(stringResource(R.string.common_human)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -148,14 +148,14 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = stringResource(R.string.system_prompt),
+            text = stringResource(R.string.common_system_prompt),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.systemPrompt,
             onValueChange = onSystemPromptChange,
-            label = { Text(stringResource(R.string.system_prompt)) },
+            label = { Text(stringResource(R.string.common_system_prompt)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5
         )
@@ -163,7 +163,7 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = stringResource(R.string.tags),
+            text = stringResource(R.string.common_tags),
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -185,7 +185,7 @@ private fun SettingsContent(
             onClick = onSave,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.save_settings))
+            Text(stringResource(R.string.action_save_settings))
         }
 
         OutlinedButton(
@@ -197,15 +197,15 @@ private fun SettingsContent(
         ) {
             Icon(Icons.Default.Delete, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.delete_agent))
+            Text(stringResource(R.string.screen_agents_dialog_delete_title))
         }
     }
 
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_agent)) },
-            text = { Text(stringResource(R.string.confirm_delete_agent_permanent)) },
+            title = { Text(stringResource(R.string.screen_agents_dialog_delete_title)) },
+            text = { Text(stringResource(R.string.screen_agents_dialog_delete_confirm_permanent)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -213,12 +213,12 @@ private fun SettingsContent(
                         onDelete()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -244,7 +244,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

@@ -52,7 +52,7 @@ private fun ToolsContent(
     if (state.tools.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Build,
-            message = stringResource(R.string.no_tools_attached),
+            message = stringResource(R.string.screen_tools_empty_attached),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -144,8 +144,8 @@ private fun ToolCard(
     if (showRemoveDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveDialog = false },
-            title = { Text(stringResource(R.string.remove_tool)) },
-            text = { Text(stringResource(R.string.confirm_remove_tool, tool.name)) },
+            title = { Text(stringResource(R.string.screen_tools_dialog_remove_title)) },
+            text = { Text(stringResource(R.string.screen_tools_dialog_remove_confirm, )) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -153,12 +153,12 @@ private fun ToolCard(
                         onRemove()
                     }
                 ) {
-                    Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -185,7 +185,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

@@ -17,7 +17,7 @@ fun ErrorDialog(
     message: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = stringResource(R.string.error),
+    title: String = stringResource(R.string.common_error),
     onRetry: (() -> Unit)? = null,
 ) {
     AlertDialog(
@@ -26,7 +26,7 @@ fun ErrorDialog(
         icon = {
             Icon(
                 imageVector = Icons.Default.Error,
-                contentDescription = stringResource(R.string.error),
+                contentDescription = stringResource(R.string.common_error),
                 tint = MaterialTheme.colorScheme.error
             )
         },
@@ -35,13 +35,13 @@ fun ErrorDialog(
         confirmButton = {
             if (onRetry != null) {
                 TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.retry))
+                    Text(stringResource(R.string.action_retry))
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dismiss))
+                Text(stringResource(R.string.action_dismiss))
             }
         }
     )

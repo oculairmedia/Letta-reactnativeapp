@@ -31,10 +31,10 @@ fun ConfigListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.saved_configurations)) },
+                title = { Text(stringResource(R.string.screen_config_list_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -67,7 +67,7 @@ private fun ConfigListContent(
     if (state.configs.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Settings,
-            message = stringResource(R.string.no_saved_configurations),
+            message = stringResource(R.string.screen_config_list_empty),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -128,7 +128,7 @@ private fun ConfigCard(
                             onClick = {},
                             label = { 
                                 Text(
-                                    text = stringResource(R.string.active),
+                                    text = stringResource(R.string.common_active),
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             },
@@ -142,7 +142,7 @@ private fun ConfigCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = if (config.mode == ServerMode.CLOUD) stringResource(R.string.letta_cloud) 
+                    text = if (config.mode == ServerMode.CLOUD) stringResource(R.string.common_letta_cloud) 
                            else config.url,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
@@ -153,13 +153,13 @@ private fun ConfigCard(
             Row {
                 if (!config.isActive) {
                     FilledTonalButton(onClick = onSetActive) {
-                        Text(stringResource(R.string.set_active))
+                        Text(stringResource(R.string.action_set_active))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, stringResource(R.string.delete))
+                    Icon(Icons.Default.Delete, stringResource(R.string.action_delete))
                 }
             }
         }
@@ -168,8 +168,8 @@ private fun ConfigCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_configuration)) },
-            text = { Text(stringResource(R.string.confirm_delete_configuration)) },
+            title = { Text(stringResource(R.string.screen_config_dialog_delete_title)) },
+            text = { Text(stringResource(R.string.screen_config_dialog_delete_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -177,12 +177,12 @@ private fun ConfigCard(
                         onDelete()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -209,7 +209,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

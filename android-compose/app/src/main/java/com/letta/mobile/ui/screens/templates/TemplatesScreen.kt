@@ -34,10 +34,10 @@ fun TemplatesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.agent_templates)) },
+                title = { Text(stringResource(R.string.screen_templates_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -72,7 +72,7 @@ private fun TemplatesContent(
     if (state.templates.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Apps,
-            message = stringResource(R.string.no_templates),
+            message = stringResource(R.string.screen_templates_empty),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -168,7 +168,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }

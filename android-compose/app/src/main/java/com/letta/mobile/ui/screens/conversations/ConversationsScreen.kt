@@ -38,20 +38,20 @@ fun ConversationsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.conversations)) },
+                title = { Text(stringResource(R.string.common_conversations)) },
                 actions = {
                     IconButton(onClick = onNavigateToAgentList) {
-                        Icon(Icons.Default.AccountCircle, stringResource(R.string.agents))
+                        Icon(Icons.Default.AccountCircle, stringResource(R.string.common_agents))
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, stringResource(R.string.settings))
+                        Icon(Icons.Default.Settings, stringResource(R.string.common_settings))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAgentPickerDialog = true }) {
-                Icon(Icons.Default.Add, stringResource(R.string.new_conversation))
+                Icon(Icons.Default.Add, stringResource(R.string.screen_conversations_new_action))
             }
         }
     ) { paddingValues ->
@@ -164,8 +164,8 @@ private fun ConversationCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_conversation)) },
-            text = { Text(stringResource(R.string.confirm_delete_conversation)) },
+            title = { Text(stringResource(R.string.screen_conversations_dialog_delete_title)) },
+            text = { Text(stringResource(R.string.screen_conversations_dialog_delete_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -173,12 +173,12 @@ private fun ConversationCard(
                         onDelete()
                     }
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -209,7 +209,7 @@ private fun ErrorContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
+            Text(stringResource(R.string.action_retry))
         }
     }
 }
@@ -221,11 +221,11 @@ private fun AgentPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.select_agent)) },
-        text = { Text(stringResource(R.string.agent_picker_not_implemented)) },
+        title = { Text(stringResource(R.string.screen_conversations_dialog_select_agent_title)) },
+        text = { Text(stringResource(R.string.screen_conversations_agent_picker_not_implemented)) },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
