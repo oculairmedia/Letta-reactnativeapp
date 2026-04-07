@@ -213,11 +213,10 @@ private fun ErrorContent(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Error,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "Error",
+                    $$$
+                )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = message,

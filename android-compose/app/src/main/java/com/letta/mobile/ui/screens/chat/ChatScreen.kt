@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,7 +35,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +89,25 @@ private fun ChatContent(
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(WindowInsets.ime.getBottom(density)) {
+        if (state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    val isAtBottom by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
+            lastVisible <= 1
+        }
+    }
+
+    LaunchedEffect(state.isStreaming) {
+        if (state.isStreaming && isAtBottom) {
             listState.animateScrollToItem(0)
         }
     }

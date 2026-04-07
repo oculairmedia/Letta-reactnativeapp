@@ -117,7 +117,7 @@ private fun TemplateCard(
         ) {
             Icon(
                 imageVector = Icons.Default.SmartToy,
-                contentDescription = null,
+                contentDescription = "Template",
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -158,11 +158,10 @@ private fun ErrorContent(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Error,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "Error",
+                    $$$
+                )
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))

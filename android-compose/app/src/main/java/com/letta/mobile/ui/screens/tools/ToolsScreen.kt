@@ -96,7 +96,7 @@ private fun ToolCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Build,
-                        contentDescription = null,
+                        contentDescription = "Tool",
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -175,11 +175,10 @@ private fun ErrorContent(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Error,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
+                    imageVector = Icons.Default.Error,
+                    contentDescription = "Error",
+                    $$$
+                )
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
