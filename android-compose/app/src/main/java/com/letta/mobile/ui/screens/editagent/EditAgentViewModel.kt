@@ -21,13 +21,24 @@ import javax.inject.Inject
 @androidx.compose.runtime.Immutable
 data class EditAgentUiState(
     val agent: Agent? = null,
+    val agentId: String = "",
     val name: String = "",
     val description: String = "",
     val model: String = "",
+    val embedding: String = "",
     val personaBlock: String = "",
     val humanBlock: String = "",
     val systemPrompt: String = "",
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val temperature: Float = 1.0f,
+    val maxOutputTokens: Int = 4096,
+    val enableMaxOutputTokens: Boolean = false,
+    val parallelToolCalls: Boolean = true,
+    val contextWindow: Int = 0,
+    val enableSleeptime: Boolean = false,
+    val agentType: String = "",
+    val embeddingDim: Int? = null,
+    val embeddingChunkSize: Int? = null,
 )
 
 @HiltViewModel
@@ -44,6 +55,7 @@ class EditAgentViewModel @Inject constructor(
     val uiState: StateFlow<UiState<EditAgentUiState>> = _uiState.asStateFlow()
 
     val llmModels: StateFlow<List<LlmModel>> = modelRepository.llmModels
+    val embeddingModels: StateFlow<List<com.letta.mobile.data.model.EmbeddingModel>> = modelRepository.embeddingModels
 
     @Volatile private var originalPersonaBlock: String = ""
     @Volatile private var originalHumanBlock: String = ""
@@ -57,7 +69,10 @@ class EditAgentViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 modelRepository.refreshLlmModels()
-            } catch (_: Exception) { }
+                modelRepository.refreshEmbeddingModels()
+            } catch (e: Exception) {
+                android.util.Log.w("EditAgentVM", "Failed to load models", e)
+            }
         }
     }
 
@@ -73,13 +88,22 @@ class EditAgentViewModel @Inject constructor(
                 _uiState.value = UiState.Success(
                     EditAgentUiState(
                         agent = agent,
+                        agentId = agent.id,
                         name = agent.name,
                         description = agent.description ?: "",
                         model = agent.model ?: "",
+                        embedding = agent.embedding ?: "",
                         personaBlock = persona,
                         humanBlock = human,
                         systemPrompt = agent.system ?: "",
-                        tags = agent.tags ?: emptyList()
+                        tags = agent.tags ?: emptyList(),
+                        temperature = agent.modelSettings?.temperature?.toFloat() ?: 1.0f,
+                        maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: 4096,
+                        enableMaxOutputTokens = agent.modelSettings?.maxOutputTokens != null,
+                        parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,
+                        contextWindow = agent.contextWindowLimit ?: agent.llmConfig?.contextWindow ?: 0,
+                        enableSleeptime = agent.enableSleeptime ?: false,
+                        agentType = agent.agentType ?: "",
                     )
                 )
             } catch (e: Exception) {
@@ -130,6 +154,41 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun updateEmbedding(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(embedding = value))
+        }
+    }
+
+    fun updateTemperature(value: Float) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(temperature = value.coerceIn(0f, 2f)))
+        }
+    }
+
+    fun updateMaxOutputTokens(value: Int) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(maxOutputTokens = value.coerceAtLeast(1)))
+        }
+    }
+
+    fun updateParallelToolCalls(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(parallelToolCalls = value))
+        }
+    }
+
+    fun updateEnableSleeptime(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(enableSleeptime = value))
+        }
+    }
+
     fun saveAgent(onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -140,8 +199,15 @@ class EditAgentViewModel @Inject constructor(
                         name = state.name,
                         description = state.description,
                         model = state.model,
+                        embedding = state.embedding.ifBlank { null },
                         system = state.systemPrompt,
-                        tags = state.tags
+                        tags = state.tags,
+                        enableSleeptime = state.enableSleeptime,
+                        modelSettings = com.letta.mobile.data.model.ModelSettings(
+                            temperature = state.temperature.toDouble(),
+                            maxOutputTokens = if (state.enableMaxOutputTokens) state.maxOutputTokens else null,
+                            parallelToolCalls = state.parallelToolCalls,
+                        ),
                     )
                 )
                 if (state.personaBlock != originalPersonaBlock) {

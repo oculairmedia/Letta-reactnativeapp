@@ -5,12 +5,26 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class LlmModel(
-    val id: String,
-    val name: String,
-    @SerialName("provider_type") val providerType: String,
+    val id: String = "",
+    val name: String = "",
+    val handle: String? = null,
+    @SerialName("provider_type") val providerType: String = "",
     @SerialName("context_window") val contextWindow: Int? = null,
     @SerialName("max_output_tokens") val maxOutputTokens: Int? = null,
-)
+) {
+    val displayName: String get() = handle ?: name.ifBlank { id }
+}
+
+@Serializable
+data class EmbeddingModel(
+    val id: String = "",
+    val name: String = "",
+    val handle: String? = null,
+    @SerialName("provider_type") val providerType: String = "",
+    @SerialName("embedding_dim") val embeddingDim: Int? = null,
+) {
+    val displayName: String get() = handle ?: name.ifBlank { id }
+}
 
 @Serializable
 data class EmbeddingModel(
