@@ -113,7 +113,7 @@ class MessageProcessor @Inject constructor(
                                 messageType = MessageType.TOOL_CALL,
                                 content = lettaMessage.toolCall.arguments,
                                 toolName = lettaMessage.toolCall.name,
-                                toolCallId = lettaMessage.toolCall.id
+                                toolCallId = lettaMessage.toolCall.effectiveId
                             )
                             messages.add(appMessage)
                             onEmit(appMessage)
@@ -139,12 +139,20 @@ class MessageProcessor @Inject constructor(
                             }
                         }
 
+                        is ApprovalResponseMessage -> {
+                            // Skip approval response messages for now
+                        }
+
                         is EventMessage -> {
                             if (lettaMessage.eventType != "ping") {
                             }
                         }
 
                         is HiddenReasoningMessage -> {
+                        }
+
+                        is UnknownMessage -> {
+                            // Skip unknown message types
                         }
                     }
                 }

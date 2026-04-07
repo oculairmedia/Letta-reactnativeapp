@@ -63,6 +63,24 @@ class MessageApi @Inject constructor(
         return response.body()
     }
 
+    suspend fun listConversationMessages(
+        conversationId: String,
+        limit: Int? = null,
+        after: String? = null
+    ): List<LettaMessage> {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/conversations/$conversationId/messages") {
+            parameter("limit", limit)
+            parameter("after", after)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
     suspend fun resetMessages(agentId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()

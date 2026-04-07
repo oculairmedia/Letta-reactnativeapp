@@ -2,8 +2,12 @@ package com.letta.mobile.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -24,7 +28,7 @@ sealed interface LettaMessage {
 @Serializable
 data class UserMessage(
     override val id: String,
-    val content: String,
+    @SerialName("content") val contentRaw: JsonElement? = null,
     override val date: String? = null,
     val name: String? = null,
     override val runId: String? = null,
@@ -32,12 +36,15 @@ data class UserMessage(
     override val otid: String? = null,
     @SerialName("sender_id") val senderId: String? = null,
     @SerialName("message_type") override val messageType: String = "user_message",
-) : LettaMessage
+) : LettaMessage {
+    val content: String
+        get() = extractContent(contentRaw)
+}
 
 @Serializable
 data class AssistantMessage(
     override val id: String,
-    val content: String,
+    @SerialName("content") val contentRaw: JsonElement? = null,
     override val date: String? = null,
     val name: String? = null,
     override val runId: String? = null,
@@ -45,7 +52,27 @@ data class AssistantMessage(
     override val otid: String? = null,
     @SerialName("sender_id") val senderId: String? = null,
     @SerialName("message_type") override val messageType: String = "assistant_message",
-) : LettaMessage
+) : LettaMessage {
+    val content: String
+        get() = extractContent(contentRaw)
+}
+
+private fun extractContent(raw: JsonElement?): String {
+    return when {
+        raw == null -> ""
+        raw is JsonPrimitive && raw.isString -> raw.content
+        raw is kotlinx.serialization.json.JsonArray -> {
+            raw.mapNotNull { element ->
+                if (element is JsonObject) {
+                    element["text"]?.jsonPrimitive?.content
+                } else if (element is JsonPrimitive) {
+                    element.content
+                } else null
+            }.joinToString("\n")
+        }
+        else -> raw.toString()
+    }
+}
 
 @Serializable
 data class ReasoningMessage(
@@ -76,7 +103,7 @@ data class ToolCallMessage(
 @Serializable
 data class ToolReturnMessage(
     override val id: String,
-    @SerialName("tool_return") val toolReturn: ToolReturn,
+    @SerialName("tool_return") val toolReturnRaw: JsonElement? = null,
     override val date: String? = null,
     val name: String? = null,
     override val runId: String? = null,
@@ -84,7 +111,18 @@ data class ToolReturnMessage(
     override val otid: String? = null,
     @SerialName("sender_id") val senderId: String? = null,
     @SerialName("message_type") override val messageType: String = "tool_return_message",
-) : LettaMessage
+) : LettaMessage {
+    val toolReturn: ToolReturn
+        get() = when {
+            toolReturnRaw is JsonPrimitive && toolReturnRaw.isString -> ToolReturn(
+                toolCallId = "",
+                status = "success",
+                funcResponse = toolReturnRaw.content
+            )
+            toolReturnRaw is JsonObject -> Json.decodeFromJsonElement(ToolReturn.serializer(), toolReturnRaw)
+            else -> ToolReturn(toolCallId = "", status = "unknown", funcResponse = null)
+        }
+}
 
 @Serializable
 data class ApprovalRequestMessage(
@@ -128,12 +166,46 @@ data class EventMessage(
 ) : LettaMessage
 
 @Serializable
+data class ApprovalResponseMessage(
+    override val id: String,
+    val approvals: List<ApprovalResult>? = null,
+    override val date: String? = null,
+    val name: String? = null,
+    override val runId: String? = null,
+    override val stepId: String? = null,
+    override val otid: String? = null,
+    @SerialName("sender_id") val senderId: String? = null,
+    @SerialName("message_type") override val messageType: String = "approval_response_message",
+) : LettaMessage
+
+@Serializable
+data class ApprovalResult(
+    @SerialName("tool_call_id") val toolCallId: String? = null,
+    @SerialName("tool_return") val toolReturn: String? = null,
+    val status: String? = null,
+    val type: String? = null,
+)
+
+@Serializable
+data class UnknownMessage(
+    override val id: String,
+    override val date: String? = null,
+    override val runId: String? = null,
+    override val stepId: String? = null,
+    override val otid: String? = null,
+    @SerialName("message_type") override val messageType: String = "unknown",
+) : LettaMessage
+
+@Serializable
 data class ToolCall(
-    val id: String,
+    val id: String? = null,
+    @SerialName("tool_call_id") val toolCallId: String? = null,
     val name: String,
     val arguments: String,
     val type: String = "function",
-)
+) {
+    val effectiveId: String get() = id ?: toolCallId ?: ""
+}
 
 @Serializable
 data class ToolReturn(
@@ -202,8 +274,9 @@ object LettaMessageSerializer : JsonContentPolymorphicSerializer<LettaMessage>(L
         "tool_call_message" -> ToolCallMessage.serializer()
         "tool_return_message" -> ToolReturnMessage.serializer()
         "approval_request_message" -> ApprovalRequestMessage.serializer()
+        "approval_response_message" -> ApprovalResponseMessage.serializer()
         "hidden_reasoning_message" -> HiddenReasoningMessage.serializer()
         "event_message" -> EventMessage.serializer()
-        else -> UserMessage.serializer() // fallback
+        else -> UnknownMessage.serializer() // fallback for unknown types
     }
 }
