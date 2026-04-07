@@ -19,13 +19,13 @@ class ToolRepository @Inject constructor(
     private val _tools = MutableStateFlow<List<Tool>>(emptyList())
     private val _toolsByAgent = MutableStateFlow<Map<String, List<Tool>>>(emptyMap())
 
-    fun getTools(): Flow<List<Tool>> = _tools
+    override fun getTools(): Flow<List<Tool>> = _tools
 
-    fun getAgentTools(agentId: String): Flow<List<Tool>> {
+    override fun getAgentTools(agentId: String): Flow<List<Tool>> {
         return _toolsByAgent.map { it[agentId] ?: emptyList() }
     }
 
-    suspend fun refreshTools() {
+    override suspend fun refreshTools() {
         _tools.value = toolApi.listTools()
     }
 
@@ -35,7 +35,7 @@ class ToolRepository @Inject constructor(
         }
     }
 
-    suspend fun attachTool(agentId: String, toolId: String) {
+    override suspend fun attachTool(agentId: String, toolId: String) {
         toolApi.attachTool(agentId, toolId)
         val tool = _tools.value.find { it.id == toolId }
         if (tool != null) {
@@ -46,7 +46,7 @@ class ToolRepository @Inject constructor(
         }
     }
 
-    suspend fun detachTool(agentId: String, toolId: String) {
+    override suspend fun detachTool(agentId: String, toolId: String) {
         toolApi.detachTool(agentId, toolId)
         _toolsByAgent.value = _toolsByAgent.value.toMutableMap().apply {
             val existing = get(agentId) ?: emptyList()
@@ -54,7 +54,7 @@ class ToolRepository @Inject constructor(
         }
     }
 
-    suspend fun upsertTool(params: ToolCreateParams): Tool {
+    override suspend fun upsertTool(params: ToolCreateParams): Tool {
         val tool = toolApi.upsertTool(params)
         refreshTools()
         return tool

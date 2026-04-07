@@ -23,7 +23,7 @@ class AgentRepository @Inject constructor(
     private val agentApi: AgentApi,
 ) : IAgentRepository {
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
-    val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
+    override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
 
     fun getAgentsPaged(tags: List<String>? = null): Flow<PagingData<Agent>> {
         return Pager(
@@ -36,11 +36,11 @@ class AgentRepository @Inject constructor(
         ).flow
     }
 
-    suspend fun refreshAgents() {
+    override suspend fun refreshAgents() {
         _agents.value = agentApi.listAgents()
     }
 
-    fun getAgent(id: String): Flow<Agent> = flow {
+    override fun getAgent(id: String): Flow<Agent> = flow {
         val cached = _agents.value.find { it.id == id }
         if (cached != null) {
             emit(cached)
@@ -59,24 +59,24 @@ class AgentRepository @Inject constructor(
         }
     }
 
-    suspend fun createAgent(params: AgentCreateParams): Agent {
+    override suspend fun createAgent(params: AgentCreateParams): Agent {
         val agent = agentApi.createAgent(params)
         refreshAgents()
         return agent
     }
 
-    suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent {
+    override suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent {
         val agent = agentApi.updateAgent(id, params)
         refreshAgents()
         return agent
     }
 
-    suspend fun deleteAgent(id: String) {
+    override suspend fun deleteAgent(id: String) {
         agentApi.deleteAgent(id)
         refreshAgents()
     }
 
-    suspend fun exportAgent(id: String): String {
+    override suspend fun exportAgent(id: String): String {
         return agentApi.exportAgent(id)
     }
 

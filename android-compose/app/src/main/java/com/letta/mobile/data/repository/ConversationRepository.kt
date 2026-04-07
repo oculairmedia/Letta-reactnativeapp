@@ -19,27 +19,27 @@ class ConversationRepository @Inject constructor(
 ) : IConversationRepository {
     private val _conversationsByAgent = MutableStateFlow<Map<String, List<Conversation>>>(emptyMap())
 
-    fun getConversations(agentId: String): Flow<List<Conversation>> {
+    override fun getConversations(agentId: String): Flow<List<Conversation>> {
         return _conversationsByAgent.map { it[agentId] ?: emptyList() }
     }
 
-    suspend fun refreshConversations(agentId: String) {
+    override suspend fun refreshConversations(agentId: String) {
         val conversations = conversationApi.listConversations(agentId = agentId)
         _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
             put(agentId, conversations)
         }
     }
 
-    suspend fun createConversation(agentId: String, summary: String? = null): Conversation {
+    override suspend fun createConversation(agentId: String, summary: String?): Conversation {
         val params = ConversationCreateParams(agentId = agentId, summary = summary)
         val conversation = conversationApi.createConversation(params)
         refreshConversations(agentId)
         return conversation
     }
 
-    suspend fun deleteConversation(id: String, agentId: String) {
+    override suspend fun deleteConversation(id: String, agentId: String) {
         val snapshot = _conversationsByAgent.value[agentId] ?: emptyList()
-        
+
         _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
             put(agentId, snapshot.filter { it.id != id })
         }
@@ -56,14 +56,14 @@ class ConversationRepository @Inject constructor(
         refreshConversations(agentId)
     }
 
-    suspend fun updateConversation(id: String, agentId: String, summary: String) {
+    override suspend fun updateConversation(id: String, agentId: String, summary: String) {
         val snapshot = _conversationsByAgent.value[agentId] ?: emptyList()
         val conversationIndex = snapshot.indexOfFirst { it.id == id }
         if (conversationIndex < 0) return
 
         val optimisticList = snapshot.toMutableList()
         optimisticList[conversationIndex] = snapshot[conversationIndex].copy(summary = summary)
-        
+
         _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
             put(agentId, optimisticList)
         }
@@ -81,7 +81,7 @@ class ConversationRepository @Inject constructor(
         refreshConversations(agentId)
     }
 
-    suspend fun forkConversation(id: String, agentId: String): Conversation {
+    override suspend fun forkConversation(id: String, agentId: String): Conversation {
         val conversation = conversationApi.forkConversation(id, agentId)
         refreshConversations(agentId)
         return conversation
