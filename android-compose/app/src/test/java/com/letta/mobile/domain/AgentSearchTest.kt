@@ -1,88 +1,60 @@
 package com.letta.mobile.domain
 
 import com.letta.mobile.testutil.TestData
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldBeEmpty
 
-class AgentSearchTest {
-
-    private lateinit var search: AgentSearch
-    private val agents = listOf(
+class AgentSearchTest : WordSpec({
+    val search = AgentSearch()
+    val agents = listOf(
         TestData.agent(id = "1", name = "General Assistant", model = "letta/letta-free", tags = listOf("default", "chat"), description = "A general purpose agent"),
         TestData.agent(id = "2", name = "Code Helper", model = "openai/gpt-4o", tags = listOf("code", "programming"), description = "Helps with code"),
         TestData.agent(id = "3", name = "Research Bot", model = "anthropic/claude-3.5-sonnet", tags = listOf("research"), description = "Does research"),
         TestData.agent(id = "4", name = "Writer", model = "openai/gpt-4o", tags = listOf("writing"), description = "Creative writing assistant"),
     )
 
-    @Before
-    fun setup() {
-        search = AgentSearch()
-    }
+    "search" should {
+        "return all agents for empty query" {
+            search.search(agents, "") shouldHaveSize agents.size
+        }
 
-    @Test
-    fun `empty query returns all agents`() {
-        val result = search.search(agents, "")
-        assertEquals(agents.size, result.size)
-    }
+        "return all agents for blank query" {
+            search.search(agents, "   ") shouldHaveSize agents.size
+        }
 
-    @Test
-    fun `blank query returns all agents`() {
-        val result = search.search(agents, "   ")
-        assertEquals(agents.size, result.size)
-    }
+        "return exact name match first" {
+            search.search(agents, "Code Helper").first().name shouldBe "Code Helper"
+        }
 
-    @Test
-    fun `exact name match returns agent`() {
-        val result = search.search(agents, "Code Helper")
-        assertTrue(result.isNotEmpty())
-        assertEquals("Code Helper", result.first().name)
-    }
+        "return partial name match" {
+            search.search(agents, "General").first().name shouldBe "General Assistant"
+        }
 
-    @Test
-    fun `partial name match returns agent`() {
-        val result = search.search(agents, "General")
-        assertTrue(result.isNotEmpty())
-        assertEquals("General Assistant", result.first().name)
-    }
+        "be case insensitive" {
+            search.search(agents, "code helper").first().name shouldBe "Code Helper"
+        }
 
-    @Test
-    fun `case insensitive search`() {
-        val result = search.search(agents, "code helper")
-        assertTrue(result.isNotEmpty())
-        assertEquals("Code Helper", result.first().name)
-    }
+        "match tags" {
+            search.search(agents, "programming").any { it.name == "Code Helper" } shouldBe true
+        }
 
-    @Test
-    fun `tag matching returns agent`() {
-        val result = search.search(agents, "programming")
-        assertTrue(result.isNotEmpty())
-        assertTrue(result.any { it.name == "Code Helper" })
-    }
+        "match model names" {
+            search.search(agents, "gpt-4o").size shouldBe 2
+        }
 
-    @Test
-    fun `model matching returns agents`() {
-        val result = search.search(agents, "gpt-4o")
-        assertTrue(result.size >= 2)
-    }
+        "return empty when nothing matches" {
+            search.search(agents, "zzzznonexistent").shouldBeEmpty()
+        }
 
-    @Test
-    fun `no match returns empty`() {
-        val result = search.search(agents, "zzzznonexistent")
-        assertTrue(result.isEmpty())
-    }
+        "return empty for empty agent list" {
+            search.search(emptyList(), "test").shouldBeEmpty()
+        }
 
-    @Test
-    fun `empty agent list returns empty`() {
-        val result = search.search(emptyList(), "test")
-        assertTrue(result.isEmpty())
+        "sort results by relevance" {
+            search.search(agents, "Code").first().name shouldBe "Code Helper"
+        }
     }
-
-    @Test
-    fun `results sorted by relevance`() {
-        val result = search.search(agents, "Code")
-        assertTrue(result.isNotEmpty())
-        assertEquals("Code Helper", result.first().name)
-    }
-}
+})

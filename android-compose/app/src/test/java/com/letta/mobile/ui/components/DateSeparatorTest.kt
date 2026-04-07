@@ -1,37 +1,35 @@
 package com.letta.mobile.ui.components
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import java.time.LocalDate
 
-class DateSeparatorTest {
+class DateSeparatorTest : WordSpec({
+    "formatRelativeDate" should {
+        "return Today for the current date" {
+            formatRelativeDate(LocalDate.now()) shouldBe "Today"
+        }
 
-    @Test
-    fun `today returns Today`() {
-        assertEquals("Today", formatRelativeDate(LocalDate.now()))
-    }
+        "return Yesterday for the previous date" {
+            formatRelativeDate(LocalDate.now().minusDays(1)) shouldBe "Yesterday"
+        }
 
-    @Test
-    fun `yesterday returns Yesterday`() {
-        assertEquals("Yesterday", formatRelativeDate(LocalDate.now().minusDays(1)))
-    }
+        "show month and day for same-year dates" {
+            val today = LocalDate.now()
+            val date = today.minusDays(10)
+            if (date.year == today.year) {
+                val result = formatRelativeDate(date)
+                result shouldNotContain date.year.toString()
+                result shouldContain date.dayOfMonth.toString()
+            }
+        }
 
-    @Test
-    fun `same year shows month and day`() {
-        val today = LocalDate.now()
-        val date = today.minusDays(10)
-        if (date.year == today.year) {
-            val result = formatRelativeDate(date)
-            assert(!result.contains(date.year.toString())) { "Same-year date should not contain year: $result" }
-            assert(result.contains(date.dayOfMonth.toString())) { "Should contain day: $result" }
+        "show full date for different-year dates" {
+            val result = formatRelativeDate(LocalDate.of(2023, 3, 15))
+            result shouldContain "2023"
+            result shouldContain "15"
         }
     }
-
-    @Test
-    fun `different year shows full date`() {
-        val date = LocalDate.of(2023, 3, 15)
-        val result = formatRelativeDate(date)
-        assert(result.contains("2023")) { "Different-year date should contain year: $result" }
-        assert(result.contains("15")) { "Should contain day: $result" }
-    }
-}
+})

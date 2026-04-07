@@ -1,41 +1,45 @@
 package com.letta.mobile.ui.common
 
+import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
 
-class SnackbarDispatcherTest {
+class SnackbarDispatcherTest : WordSpec({
+    "SnackbarDispatcher" should {
+        "dispatch a plain string message" {
+            runTest {
+                val dispatcher = SnackbarDispatcher()
+                dispatcher.dispatch("Hello")
+                val msg = dispatcher.messages.first()
+                msg.message shouldBe "Hello"
+                msg.actionLabel.shouldBeNull()
+                msg.onAction.shouldBeNull()
+            }
+        }
 
-    @Test
-    fun `dispatch string message`() = runTest {
-        val dispatcher = SnackbarDispatcher()
-        dispatcher.dispatch("Hello")
-        val msg = dispatcher.messages.first()
-        assertEquals("Hello", msg.message)
-        assertNull(msg.actionLabel)
-        assertNull(msg.onAction)
+        "dispatch a full message with action" {
+            runTest {
+                val dispatcher = SnackbarDispatcher()
+                var actionCalled = false
+                dispatcher.dispatch(SnackbarMessage("Deleted", "Undo") { actionCalled = true })
+                val msg = dispatcher.messages.first()
+                msg.message shouldBe "Deleted"
+                msg.actionLabel shouldBe "Undo"
+                msg.onAction?.invoke()
+                actionCalled shouldBe true
+            }
+        }
+
+        "queue multiple dispatches in order" {
+            runTest {
+                val dispatcher = SnackbarDispatcher()
+                dispatcher.dispatch("First")
+                dispatcher.dispatch("Second")
+                dispatcher.messages.first().message shouldBe "First"
+                dispatcher.messages.first().message shouldBe "Second"
+            }
+        }
     }
-
-    @Test
-    fun `dispatch full message with action`() = runTest {
-        val dispatcher = SnackbarDispatcher()
-        var actionCalled = false
-        dispatcher.dispatch(SnackbarMessage("Deleted", "Undo") { actionCalled = true })
-        val msg = dispatcher.messages.first()
-        assertEquals("Deleted", msg.message)
-        assertEquals("Undo", msg.actionLabel)
-        msg.onAction?.invoke()
-        assertEquals(true, actionCalled)
-    }
-
-    @Test
-    fun `multiple dispatches queued`() = runTest {
-        val dispatcher = SnackbarDispatcher()
-        dispatcher.dispatch("First")
-        dispatcher.dispatch("Second")
-        assertEquals("First", dispatcher.messages.first().message)
-        assertEquals("Second", dispatcher.messages.first().message)
-    }
-}
+})

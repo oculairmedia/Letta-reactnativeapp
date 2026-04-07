@@ -1,64 +1,56 @@
 package com.letta.mobile.util
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 
-class EmojiDetectorTest {
+class EmojiDetectorTest : WordSpec({
+    "isEmojiOnly" should {
+        "return true for a single emoji" {
+            isEmojiOnly("😀").shouldBeTrue()
+        }
 
-    @Test
-    fun `single emoji is emoji only`() {
-        assertTrue(isEmojiOnly("😀"))
+        "return true for multiple emoji" {
+            isEmojiOnly("😀😂🎉").shouldBeTrue()
+        }
+
+        "return true for emoji with spaces" {
+            isEmojiOnly("😀 😂").shouldBeTrue()
+        }
+
+        "return false for text" {
+            isEmojiOnly("hello").shouldBeFalse()
+        }
+
+        "return false for emoji mixed with text" {
+            isEmojiOnly("hello 😀").shouldBeFalse()
+        }
+
+        "return false for empty string" {
+            isEmojiOnly("").shouldBeFalse()
+        }
+
+        "return false for whitespace only" {
+            isEmojiOnly("   ").shouldBeFalse()
+        }
     }
 
-    @Test
-    fun `multiple emoji is emoji only`() {
-        assertTrue(isEmojiOnly("😀😂🎉"))
-    }
+    "emojiCount" should {
+        "count a single emoji" {
+            emojiCount("😀") shouldBe 1
+        }
 
-    @Test
-    fun `emoji with spaces is emoji only`() {
-        assertTrue(isEmojiOnly("😀 😂"))
-    }
+        "count three emoji" {
+            emojiCount("😀😂🎉") shouldBe 3
+        }
 
-    @Test
-    fun `text is not emoji only`() {
-        assertFalse(isEmojiOnly("hello"))
-    }
+        "return zero for text" {
+            emojiCount("hello") shouldBe 0
+        }
 
-    @Test
-    fun `emoji with text is not emoji only`() {
-        assertFalse(isEmojiOnly("hello 😀"))
+        "return zero for empty string" {
+            emojiCount("") shouldBe 0
+        }
     }
-
-    @Test
-    fun `empty string is not emoji only`() {
-        assertFalse(isEmojiOnly(""))
-    }
-
-    @Test
-    fun `whitespace only is not emoji only`() {
-        assertFalse(isEmojiOnly("   "))
-    }
-
-    @Test
-    fun `emojiCount for single emoji`() {
-        assertEquals(1, emojiCount("😀"))
-    }
-
-    @Test
-    fun `emojiCount for three emoji`() {
-        assertEquals(3, emojiCount("😀😂🎉"))
-    }
-
-    @Test
-    fun `emojiCount for text returns zero`() {
-        assertEquals(0, emojiCount("hello"))
-    }
-
-    @Test
-    fun `emojiCount for empty returns zero`() {
-        assertEquals(0, emojiCount(""))
-    }
-}
+})

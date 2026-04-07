@@ -1,101 +1,80 @@
 package com.letta.mobile.data.api
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 
-class ApiResultTest {
+class ApiResultTest : WordSpec({
+    "ApiException" should {
+        "store code and message" {
+            val exception = ApiException(404, "Not Found")
+            exception.code shouldBe 404
+            exception.message shouldBe "Not Found"
+        }
 
-    @Test
-    fun apiException_storesCodeAndMessage() {
-        val exception = ApiException(404, "Not Found")
-
-        assertEquals(404, exception.code)
-        assertEquals("Not Found", exception.message)
+        "extend Exception" {
+            ApiException(403, "Forbidden").shouldBeInstanceOf<Exception>()
+        }
     }
 
-    @Test
-    fun apiResultSuccess_wrapsDataCorrectly() {
-        val data = "test data"
-        val result = ApiResult.Success(data)
+    "ApiResult.Success" should {
+        "wrap simple data" {
+            val result = ApiResult.Success("test data")
+            result.data shouldBe "test data"
+        }
 
-        assertEquals(data, result.data)
+        "wrap complex data" {
+            data class TestData(val id: String, val value: Int)
+            val payload = TestData("abc", 123)
+            val result = ApiResult.Success(payload)
+            result.data shouldBe payload
+            result.data.id shouldBe "abc"
+            result.data.value shouldBe 123
+        }
+
+        "be of correct type" {
+            val result: ApiResult<String> = ApiResult.Success("test")
+            result.shouldBeInstanceOf<ApiResult.Success<String>>()
+        }
     }
 
-    @Test
-    fun apiResultSuccess_wrapsComplexDataCorrectly() {
-        data class TestData(val id: String, val value: Int)
-        val testData = TestData("abc", 123)
-        val result = ApiResult.Success(testData)
+    "ApiResult.ApiError" should {
+        "hold code and message" {
+            val result = ApiResult.ApiError(500, "Internal Server Error")
+            result.code shouldBe 500
+            result.message shouldBe "Internal Server Error"
+        }
 
-        assertEquals(testData, result.data)
-        assertEquals("abc", result.data.id)
-        assertEquals(123, result.data.value)
+        "support empty message" {
+            val result = ApiResult.ApiError(204, "")
+            result.code shouldBe 204
+            result.message shouldBe ""
+        }
+
+        "be of correct type" {
+            val result: ApiResult<Nothing> = ApiResult.ApiError(400, "Bad Request")
+            result.shouldBeInstanceOf<ApiResult.ApiError>()
+        }
     }
 
-    @Test
-    fun apiResultApiError_holdsCodeAndMessage() {
-        val result = ApiResult.ApiError(500, "Internal Server Error")
+    "ApiResult.NetworkError" should {
+        "hold runtime exception" {
+            val exception = RuntimeException("Connection failed")
+            val result = ApiResult.NetworkError(exception)
+            result.exception shouldBe exception
+            result.exception.message shouldBe "Connection failed"
+        }
 
-        assertEquals(500, result.code)
-        assertEquals("Internal Server Error", result.message)
+        "support different exception types" {
+            val ioResult = ApiResult.NetworkError(java.io.IOException("IO failed"))
+            val runtimeResult = ApiResult.NetworkError(RuntimeException("Runtime error"))
+            ioResult.exception.shouldBeInstanceOf<java.io.IOException>()
+            runtimeResult.exception.shouldBeInstanceOf<RuntimeException>()
+        }
+
+        "be of correct type" {
+            val result: ApiResult<Nothing> = ApiResult.NetworkError(java.io.IOException("Network timeout"))
+            result.shouldBeInstanceOf<ApiResult.NetworkError>()
+        }
     }
-
-    @Test
-    fun apiResultNetworkError_holdsException() {
-        val exception = RuntimeException("Connection failed")
-        val result = ApiResult.NetworkError(exception)
-
-        assertEquals(exception, result.exception)
-        assertEquals("Connection failed", result.exception.message)
-    }
-
-    @Test
-    fun apiResult_successIsOfCorrectType() {
-        val result: ApiResult<String> = ApiResult.Success("test")
-
-        assertTrue(result is ApiResult.Success)
-    }
-
-    @Test
-    fun apiResult_apiErrorIsOfCorrectType() {
-        val result: ApiResult<Nothing> = ApiResult.ApiError(400, "Bad Request")
-
-        assertTrue(result is ApiResult.ApiError)
-    }
-
-    @Test
-    fun apiResult_networkErrorIsOfCorrectType() {
-        val exception = java.io.IOException("Network timeout")
-        val result: ApiResult<Nothing> = ApiResult.NetworkError(exception)
-
-        assertTrue(result is ApiResult.NetworkError)
-    }
-
-    @Test
-    fun apiException_extendsException() {
-        val exception = ApiException(403, "Forbidden")
-
-        assertTrue(exception is Exception)
-    }
-
-    @Test
-    fun apiResultApiError_withEmptyMessage() {
-        val result = ApiResult.ApiError(204, "")
-
-        assertEquals(204, result.code)
-        assertEquals("", result.message)
-    }
-
-    @Test
-    fun apiResultNetworkError_withDifferentExceptionTypes() {
-        val ioException = java.io.IOException("IO failed")
-        val result1 = ApiResult.NetworkError(ioException)
-
-        val runtimeException = RuntimeException("Runtime error")
-        val result2 = ApiResult.NetworkError(runtimeException)
-
-        assertTrue(result1.exception is java.io.IOException)
-        assertTrue(result2.exception is RuntimeException)
-    }
-}
+})
