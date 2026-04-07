@@ -162,7 +162,7 @@ private fun ChatContent(
                         val currentDate = message.timestamp.take(10)
                         val showDate = prevDate != null && prevDate != currentDate
 
-                        item(key = message.id) {
+                        item(key = "${message.id}-$index") {
                             val spacing = when (position) {
                                 GroupPosition.Middle, GroupPosition.Last -> 2.dp
                                 else -> 6.dp
