@@ -77,14 +77,14 @@ class AgentSettingsViewModel @Inject constructor(
     fun updateTemperature(value: Float) {
         val currentState = (_uiState.value as? UiState.Success)?.data
         if (currentState != null) {
-            _uiState.value = UiState.Success(currentState.copy(temperature = value))
+            _uiState.value = UiState.Success(currentState.copy(temperature = value.coerceIn(0f, 2f)))
         }
     }
 
     fun updateMaxTokens(value: Int) {
         val currentState = (_uiState.value as? UiState.Success)?.data
         if (currentState != null) {
-            _uiState.value = UiState.Success(currentState.copy(maxTokens = value))
+            _uiState.value = UiState.Success(currentState.copy(maxTokens = value.coerceAtLeast(1)))
         }
     }
 

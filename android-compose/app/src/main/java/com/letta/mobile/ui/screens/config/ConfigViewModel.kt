@@ -85,15 +85,24 @@ class ConfigViewModel @Inject constructor(
         }
     }
 
-    fun saveConfig(onSuccess: () -> Unit) {
+    fun saveConfig(onSuccess: () -> Unit, onError: ((String) -> Unit)? = null) {
         viewModelScope.launch {
             try {
                 val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
+                val url = state.serverUrl.trim()
+                if (url.isBlank()) {
+                    onError?.invoke("Server URL is required")
+                    return@launch
+                }
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    onError?.invoke("Server URL must start with http:// or https://")
+                    return@launch
+                }
                 val existingConfig = settingsRepository.activeConfig.value
                 val config = LettaConfig(
                     id = existingConfig?.id ?: UUID.randomUUID().toString(),
                     mode = if (state.mode == ServerMode.CLOUD) LettaConfig.Mode.CLOUD else LettaConfig.Mode.SELF_HOSTED,
-                    serverUrl = state.serverUrl.trim(),
+                    serverUrl = url,
                     accessToken = state.apiToken.trim().ifBlank { null }
                 )
                 settingsRepository.saveConfig(config)

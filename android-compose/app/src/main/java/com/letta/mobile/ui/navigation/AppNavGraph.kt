@@ -54,7 +54,13 @@ fun AppNavGraph() {
                 },
                 onNavigateToAgentList = {
                     navController.navigate("agentList")
-                }
+                },
+                onNavigateToTemplates = {
+                    navController.navigate("templates")
+                },
+                onNavigateToMcp = {
+                    navController.navigate("mcp")
+                },
             )
         }
 

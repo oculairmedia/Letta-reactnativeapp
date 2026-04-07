@@ -2,6 +2,8 @@ package com.letta.mobile.ui.screens.conversations
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +22,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -67,10 +72,13 @@ fun ConversationsScreen(
     onNavigateToChat: (agentId: String, conversationId: String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToAgentList: () -> Unit,
+    onNavigateToTemplates: () -> Unit = {},
+    onNavigateToMcp: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAgentPickerDialog by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -82,6 +90,24 @@ fun ConversationsScreen(
                     }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, stringResource(R.string.common_settings))
+                    }
+                    IconButton(onClick = { showOverflowMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Templates") },
+                            onClick = { showOverflowMenu = false; onNavigateToTemplates() },
+                            leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("MCP Servers") },
+                            onClick = { showOverflowMenu = false; onNavigateToMcp() },
+                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
+                        )
                     }
                 }
             )
@@ -145,21 +171,27 @@ private fun ConversationsContent(
             modifier = modifier.fillMaxSize()
         )
     } else {
-        LazyColumn(
+        @OptIn(ExperimentalMaterial3Api::class)
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = onRefresh,
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(
-                items = state.conversations,
-                key = { it.conversation.id }
-            ) { display ->
-                ConversationCard(
-                    display = display,
-                    onClick = { onConversationClick(display) },
-                    onDelete = { onDeleteConversation(display) },
-                    onRename = { newName -> onRenameConversation(display, newName) },
-                )
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = state.conversations,
+                    key = { it.conversation.id }
+                ) { display ->
+                    ConversationCard(
+                        display = display,
+                        onClick = { onConversationClick(display) },
+                        onDelete = { onDeleteConversation(display) },
+                        onRename = { newName -> onRenameConversation(display, newName) },
+                    )
+                }
             }
         }
     }
