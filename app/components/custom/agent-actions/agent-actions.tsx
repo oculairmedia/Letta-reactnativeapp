@@ -3,7 +3,7 @@ import { View, ViewStyle } from "react-native"
 import { ResetChat } from "./reset-chat"
 import { AgentActionsProps } from "./types"
 
-export function AgentActions({ agentId, conversationId }: AgentActionsProps) {
+export function AgentActions({ agentId }: AgentActionsProps) {
   return (
     <View style={$container}>
       <ResetChat agentId={agentId} />
