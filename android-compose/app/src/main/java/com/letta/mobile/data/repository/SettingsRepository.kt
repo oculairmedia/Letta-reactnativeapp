@@ -73,7 +73,7 @@ class SettingsRepository @Inject constructor(
     suspend fun saveConfig(config: LettaConfig) {
         val updatedConfigs = _configs.value.toMutableList()
         val existingIndex = updatedConfigs.indexOfFirst { it.id == config.id }
-        
+
         if (existingIndex >= 0) {
             updatedConfigs[existingIndex] = config
         } else {
@@ -83,9 +83,9 @@ class SettingsRepository @Inject constructor(
         _configs.value = updatedConfigs
         persistConfigs(updatedConfigs)
 
-        if (_activeConfig.value == null) {
-            setActiveConfigId(config.id)
-        }
+        // Always set this config as active (either new or updated)
+        _activeConfig.value = config
+        encryptedPrefs.edit().putString(Keys.ACTIVE_CONFIG_ID.name, config.id).apply()
     }
 
     suspend fun setActiveConfigId(id: String) {

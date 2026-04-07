@@ -93,8 +93,8 @@ class ConfigViewModel @Inject constructor(
                 val config = LettaConfig(
                     id = existingConfig?.id ?: UUID.randomUUID().toString(),
                     mode = if (state.mode == ServerMode.CLOUD) LettaConfig.Mode.CLOUD else LettaConfig.Mode.SELF_HOSTED,
-                    serverUrl = state.serverUrl,
-                    accessToken = state.apiToken.ifBlank { null }
+                    serverUrl = state.serverUrl.trim(),
+                    accessToken = state.apiToken.trim().ifBlank { null }
                 )
                 settingsRepository.saveConfig(config)
                 onSuccess()

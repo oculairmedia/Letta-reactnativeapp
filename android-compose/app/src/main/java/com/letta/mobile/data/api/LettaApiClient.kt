@@ -27,8 +27,12 @@ class LettaApiClient @Inject constructor(
 
     suspend fun getClient(): HttpClient {
         val config = settingsRepository.activeConfig.first()
-        val baseUrl = config?.serverUrl ?: "https://api.letta.com"
-        return createClient(config?.accessToken, baseUrl)
+        var baseUrl = config?.serverUrl?.trim() ?: "https://api.letta.com"
+        // Ensure URL ends with slash for proper path resolution
+        if (!baseUrl.endsWith("/")) {
+            baseUrl = "$baseUrl/"
+        }
+        return createClient(config?.accessToken?.trim(), baseUrl)
     }
 
     suspend fun getBaseUrl(): String {
@@ -38,6 +42,13 @@ class LettaApiClient @Inject constructor(
 
     private fun createClient(apiKey: String?, baseUrl: String): HttpClient {
         return HttpClient(OkHttp) {
+            engine {
+                config {
+                    followRedirects(true)
+                    followSslRedirects(true)
+                }
+            }
+
             install(ContentNegotiation) {
                 json(json)
             }
@@ -48,7 +59,7 @@ class LettaApiClient @Inject constructor(
                         Log.d("LettaApiClient", message)
                     }
                 }
-                level = LogLevel.INFO
+                level = LogLevel.ALL
             }
 
             if (apiKey != null) {
