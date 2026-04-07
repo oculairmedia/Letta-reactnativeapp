@@ -357,12 +357,12 @@ private fun AgentCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (!agent.tags.isNullOrEmpty()) {
+                agent.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        agent.tags.take(3).forEach { tag ->
+                        tags.take(3).forEach { tag ->
                             SuggestionChip(
                                 onClick = { },
                                 label = { Text(tag, style = MaterialTheme.typography.labelSmall) }

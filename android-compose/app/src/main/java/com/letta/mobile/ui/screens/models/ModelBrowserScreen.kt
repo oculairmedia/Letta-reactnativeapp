@@ -167,10 +167,10 @@ private fun ModelCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (model.contextWindow != null) {
+                model.contextWindow?.let { contextWindow ->
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "${model.contextWindow / 1000}K context",
+                        text = "${contextWindow / 1000}K context",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

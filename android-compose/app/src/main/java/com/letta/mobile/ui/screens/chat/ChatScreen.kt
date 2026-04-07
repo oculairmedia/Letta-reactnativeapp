@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -261,9 +267,9 @@ private fun MessageBubble(
                     )
                 }
 
-                if (!message.toolCalls.isNullOrEmpty()) {
+                message.toolCalls?.takeIf { it.isNotEmpty() }?.let { toolCalls ->
                     Spacer(modifier = Modifier.height(8.dp))
-                    message.toolCalls.forEach { toolCall ->
+                    toolCalls.forEach { toolCall ->
                         ToolCallCard(toolCall = toolCall)
                     }
                 }
@@ -297,10 +303,10 @@ private fun ToolCallCard(
                 )
             }
 
-            if (toolCall.result != null) {
+            toolCall.result?.let { result ->
                 Spacer(modifier = Modifier.height(4.dp))
                 MarkdownText(
-                    text = toolCall.result,
+                    text = result,
                     textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
             }

@@ -124,9 +124,9 @@ class ChatViewModel @Inject constructor(
             MessageType.TOOL_CALL -> "tool"
             MessageType.TOOL_RETURN -> "tool"
         }
-        val toolCalls = if (messageType == MessageType.TOOL_CALL && toolName != null) {
-            listOf(UiToolCall(name = toolName, arguments = content, result = null))
-        } else null
+        val toolCalls = toolName?.takeIf { messageType == MessageType.TOOL_CALL }?.let { name ->
+            listOf(UiToolCall(name = name, arguments = content, result = null))
+        }
 
         return UiMessage(
             id = id,

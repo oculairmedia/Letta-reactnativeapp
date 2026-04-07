@@ -185,10 +185,10 @@ private fun ToolCard(
                 )
             }
             
-            if (tool.description != null) {
+            tool.description?.let { description ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = tool.description,
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -196,11 +196,11 @@ private fun ToolCard(
                 )
             }
 
-            if (tool.toolType != null) {
+            tool.toolType?.let { toolType ->
                 Spacer(modifier = Modifier.height(8.dp))
                 AssistChip(
                     onClick = {},
-                    label = { Text(tool.toolType, style = MaterialTheme.typography.labelSmall) }
+                    label = { Text(toolType, style = MaterialTheme.typography.labelSmall) }
                 )
             }
         }

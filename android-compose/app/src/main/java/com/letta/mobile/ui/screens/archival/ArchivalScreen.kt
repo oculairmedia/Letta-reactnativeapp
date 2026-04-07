@@ -160,10 +160,10 @@ private fun PassageCard(
                     Icon(Icons.Default.Delete, contentDescription = "Delete passage")
                 }
             }
-            if (passage.createdAt != null) {
+            passage.createdAt?.let { createdAt ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = passage.createdAt,
+                    text = createdAt,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
