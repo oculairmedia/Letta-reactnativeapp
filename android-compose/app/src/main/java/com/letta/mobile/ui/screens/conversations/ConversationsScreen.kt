@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
@@ -74,6 +75,7 @@ fun ConversationsScreen(
     onNavigateToAgentList: () -> Unit,
     onNavigateToTemplates: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -107,6 +109,11 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_mcp_servers)) },
                             onClick = { showOverflowMenu = false; onNavigateToMcp() },
                             leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("About") },
+                            onClick = { showOverflowMenu = false; onNavigateToAbout() },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                         )
                     }
                 }

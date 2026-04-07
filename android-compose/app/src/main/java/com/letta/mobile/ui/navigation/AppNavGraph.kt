@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.ui.screens.about.AboutScreen
 import com.letta.mobile.ui.screens.agentlist.AgentListScreen
 import com.letta.mobile.ui.screens.archival.ArchivalScreen
 import com.letta.mobile.ui.screens.chat.AgentScaffold
@@ -60,6 +61,9 @@ fun AppNavGraph() {
                 },
                 onNavigateToMcp = {
                     navController.navigate("mcp")
+                },
+                onNavigateToAbout = {
+                    navController.navigate("about")
                 },
             )
         }
@@ -138,6 +142,17 @@ fun AppNavGraph() {
         ) {
             EditAgentScreen(
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("about") {
+            AboutScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onLogout = {
+                    navController.navigate("config") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
             )
         }
 
