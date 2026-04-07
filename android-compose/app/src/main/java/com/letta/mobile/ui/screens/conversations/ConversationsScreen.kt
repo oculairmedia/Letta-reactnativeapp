@@ -289,9 +289,9 @@ private fun AgentPickerDialog(
                                     text = agent.name,
                                     style = MaterialTheme.typography.titleSmall,
                                 )
-                                if (agent.model != null) {
+                                agent.model?.let { model ->
                                     Text(
-                                        text = agent.model,
+                                        text = model,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
