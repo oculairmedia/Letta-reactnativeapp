@@ -10,6 +10,7 @@ import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.model.ConversationUpdateParams
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -45,6 +46,8 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState<ChatUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<ChatUiState>> = _uiState.asStateFlow()
 
+    private var hasSummary = false
+
     init {
         loadMessages()
     }
@@ -56,6 +59,7 @@ class ChatViewModel @Inject constructor(
                 val agent = agentRepository.getAgent(agentId).first()
                 val appMessages = messageRepository.getMessages(agentId, conversationId).first()
                 val messages = appMessages.map { it.toUiMessage() }
+                if (messages.isNotEmpty()) hasSummary = true
                 _uiState.value = UiState.Success(
                     ChatUiState(messages = messages, agentName = agent.name)
                 )
@@ -74,6 +78,13 @@ class ChatViewModel @Inject constructor(
                 isAgentTyping = true
             ))
             try {
+                if (!hasSummary && conversationId != null) {
+                    try {
+                        val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
+                        conversationRepository.updateConversation(conversationId, agentId, summary)
+                        hasSummary = true
+                    } catch (_: Exception) { }
+                }
                 messageRepository.sendMessage(agentId, text, conversationId).collect { state ->
                     when (state) {
                         is StreamState.Sending -> {
