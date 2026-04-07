@@ -3,6 +3,8 @@ package com.letta.mobile.ui.screens.agentlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.AgentCreateParams
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +20,10 @@ data class AgentListUiState(
 )
 
 @HiltViewModel
-class AgentListViewModel @Inject constructor() : ViewModel() {
-    
+class AgentListViewModel @Inject constructor(
+    private val agentRepository: AgentRepository,
+) : ViewModel() {
+
     private val _uiState = MutableStateFlow<UiState<AgentListUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<AgentListUiState>> = _uiState.asStateFlow()
 
@@ -31,7 +35,10 @@ class AgentListViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                TODO("Wire to repository")
+                agentRepository.refreshAgents()
+                _uiState.value = UiState.Success(
+                    AgentListUiState(agents = agentRepository.agents.value)
+                )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load agents")
             }
@@ -45,7 +52,10 @@ class AgentListViewModel @Inject constructor() : ViewModel() {
                 _uiState.value = UiState.Success(currentState.copy(isRefreshing = true))
             }
             try {
-                TODO("Wire to repository")
+                agentRepository.refreshAgents()
+                _uiState.value = UiState.Success(
+                    AgentListUiState(agents = agentRepository.agents.value, isRefreshing = false)
+                )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to refresh")
             }
@@ -55,7 +65,8 @@ class AgentListViewModel @Inject constructor() : ViewModel() {
     fun deleteAgent(agentId: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                agentRepository.deleteAgent(agentId)
+                loadAgents()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to delete agent")
             }
@@ -72,7 +83,9 @@ class AgentListViewModel @Inject constructor() : ViewModel() {
     fun createAgent(name: String, onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                val agent = agentRepository.createAgent(AgentCreateParams(name = name))
+                onSuccess(agent.id)
+                loadAgents()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to create agent")
             }

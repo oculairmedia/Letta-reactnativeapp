@@ -3,6 +3,8 @@ package com.letta.mobile.ui.screens.conversations
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Conversation
+import com.letta.mobile.data.repository.AllConversationsRepository
+import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +20,10 @@ data class ConversationsUiState(
 )
 
 @HiltViewModel
-class ConversationsViewModel @Inject constructor() : ViewModel() {
+class ConversationsViewModel @Inject constructor(
+    private val allConversationsRepository: AllConversationsRepository,
+    private val conversationRepository: ConversationRepository,
+) : ViewModel() {
     
     private val _uiState = MutableStateFlow<UiState<ConversationsUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<ConversationsUiState>> = _uiState.asStateFlow()
@@ -31,7 +36,8 @@ class ConversationsViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                TODO("Wire to repository")
+                allConversationsRepository.refresh()
+                _uiState.value = UiState.Success(ConversationsUiState(conversations = allConversationsRepository.conversations.value))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load conversations")
             }
@@ -45,7 +51,8 @@ class ConversationsViewModel @Inject constructor() : ViewModel() {
                 _uiState.value = UiState.Success(currentState.copy(isRefreshing = true))
             }
             try {
-                TODO("Wire to repository")
+                allConversationsRepository.refresh()
+                _uiState.value = UiState.Success(ConversationsUiState(conversations = allConversationsRepository.conversations.value, isRefreshing = false))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to refresh")
             }
@@ -55,7 +62,11 @@ class ConversationsViewModel @Inject constructor() : ViewModel() {
     fun deleteConversation(conversationId: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                allConversationsRepository.handleOptimisticDelete(conversationId)
+                val currentState = (_uiState.value as? UiState.Success)?.data
+                if (currentState != null) {
+                    _uiState.value = UiState.Success(currentState.copy(conversations = allConversationsRepository.conversations.value))
+                }
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to delete conversation")
             }
@@ -72,7 +83,9 @@ class ConversationsViewModel @Inject constructor() : ViewModel() {
     fun createConversation(agentId: String, onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                val conversation = conversationRepository.createConversation(agentId)
+                onSuccess(conversation.id)
+                allConversationsRepository.handleOptimisticUpdate(conversation)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to create conversation")
             }

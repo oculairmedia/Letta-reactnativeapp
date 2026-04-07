@@ -2,6 +2,8 @@ package com.letta.mobile.ui.screens.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.model.LettaConfig
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,8 +24,10 @@ data class ConfigListUiState(
 )
 
 @HiltViewModel
-class ConfigListViewModel @Inject constructor() : ViewModel() {
-    
+class ConfigListViewModel @Inject constructor(
+    private val settingsRepository: SettingsRepository,
+) : ViewModel() {
+
     private val _uiState = MutableStateFlow<UiState<ConfigListUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<ConfigListUiState>> = _uiState.asStateFlow()
 
@@ -35,7 +39,17 @@ class ConfigListViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                TODO("Wire to repository")
+                val configs = settingsRepository.configs.value
+                val activeId = settingsRepository.activeConfig.value?.id
+                val serverConfigs = configs.map {
+                    ServerConfig(
+                        id = it.id,
+                        mode = if (it.mode == LettaConfig.Mode.CLOUD) ServerMode.CLOUD else ServerMode.SELF_HOSTED,
+                        url = it.serverUrl,
+                        isActive = it.id == activeId
+                    )
+                }
+                _uiState.value = UiState.Success(ConfigListUiState(configs = serverConfigs))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load configs")
             }
@@ -45,7 +59,8 @@ class ConfigListViewModel @Inject constructor() : ViewModel() {
     fun setActiveConfig(configId: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                settingsRepository.setActiveConfigId(configId)
+                loadConfigs()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to set active config")
             }
@@ -55,7 +70,8 @@ class ConfigListViewModel @Inject constructor() : ViewModel() {
     fun deleteConfig(configId: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                settingsRepository.deleteConfig(configId)
+                loadConfigs()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to delete config")
             }

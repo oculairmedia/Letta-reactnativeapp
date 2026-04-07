@@ -2,12 +2,18 @@ package com.letta.mobile.ui.screens.mcp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.model.McpServerCreateParams
+import com.letta.mobile.data.repository.McpServerRepository
+import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import javax.inject.Inject
 
 data class McpServer(
@@ -25,8 +31,11 @@ data class McpUiState(
 )
 
 @HiltViewModel
-class McpViewModel @Inject constructor() : ViewModel() {
-    
+class McpViewModel @Inject constructor(
+    private val mcpServerRepository: McpServerRepository,
+    private val toolRepository: ToolRepository,
+) : ViewModel() {
+
     private val _uiState = MutableStateFlow<UiState<McpUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<McpUiState>> = _uiState.asStateFlow()
 
@@ -38,7 +47,19 @@ class McpViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                TODO("Wire to repository")
+                mcpServerRepository.refreshServers()
+                toolRepository.refreshTools()
+                val servers = mcpServerRepository.servers.value.map {
+                    McpServer(
+                        id = it.id,
+                        name = it.serverName,
+                        url = it.serverUrl ?: "",
+                        isHealthy = true,
+                        tools = emptyList()
+                    )
+                }
+                val tools = toolRepository.getTools().first()
+                _uiState.value = UiState.Success(McpUiState(servers = servers, allTools = tools))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load MCP data")
             }
@@ -55,7 +76,8 @@ class McpViewModel @Inject constructor() : ViewModel() {
     fun deleteServer(serverId: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                mcpServerRepository.deleteServer(serverId)
+                loadData()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to delete server")
             }
@@ -65,7 +87,12 @@ class McpViewModel @Inject constructor() : ViewModel() {
     fun addServer(name: String, url: String) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                val params = McpServerCreateParams(
+                    serverName = name,
+                    config = buildJsonObject { put("url", JsonPrimitive(url)) }
+                )
+                mcpServerRepository.createServer(params)
+                loadData()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to add server")
             }

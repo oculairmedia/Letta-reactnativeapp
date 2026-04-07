@@ -4,11 +4,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,13 +28,18 @@ data class AgentSettingsUiState(
 
 @HiltViewModel
 class AgentSettingsViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val agentRepository: AgentRepository,
+    private val blockRepository: BlockRepository,
 ) : ViewModel() {
-    
+
     private val agentId: String = savedStateHandle.get<String>("agentId") ?: ""
-    
+
     private val _uiState = MutableStateFlow<UiState<AgentSettingsUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<AgentSettingsUiState>> = _uiState.asStateFlow()
+
+    private var originalPersonaBlock: String = ""
+    private var originalHumanBlock: String = ""
 
     init {
         loadSettings()
@@ -40,7 +49,22 @@ class AgentSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                TODO("Wire to repository")
+                val agent = agentRepository.getAgent(agentId).first()
+                val persona = agent.blocks?.find { it.label == "persona" }?.value ?: ""
+                val human = agent.blocks?.find { it.label == "human" }?.value ?: ""
+                originalPersonaBlock = persona
+                originalHumanBlock = human
+                _uiState.value = UiState.Success(
+                    AgentSettingsUiState(
+                        agent = agent,
+                        temperature = agent.modelSettings?.temperature?.toFloat() ?: 0.7f,
+                        maxTokens = agent.modelSettings?.maxOutputTokens ?: 2000,
+                        parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,
+                        personaBlock = persona,
+                        humanBlock = human,
+                        systemPrompt = agent.system ?: ""
+                    )
+                )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load settings")
             }
@@ -92,7 +116,17 @@ class AgentSettingsViewModel @Inject constructor(
     fun saveSettings() {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
+                agentRepository.updateAgent(
+                    agentId,
+                    AgentUpdateParams(system = state.systemPrompt)
+                )
+                if (state.personaBlock != originalPersonaBlock) {
+                    blockRepository.updateBlock(agentId, "persona", state.personaBlock)
+                }
+                if (state.humanBlock != originalHumanBlock) {
+                    blockRepository.updateBlock(agentId, "human", state.humanBlock)
+                }
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to save settings")
             }
@@ -102,7 +136,8 @@ class AgentSettingsViewModel @Inject constructor(
     fun deleteAgent(onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
-                TODO("Wire to repository")
+                agentRepository.deleteAgent(agentId)
+                onSuccess()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to delete agent")
             }
