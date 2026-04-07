@@ -40,8 +40,8 @@ class EditAgentViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState<EditAgentUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<EditAgentUiState>> = _uiState.asStateFlow()
 
-    private var originalPersonaBlock: String = ""
-    private var originalHumanBlock: String = ""
+    @Volatile private var originalPersonaBlock: String = ""
+    @Volatile private var originalHumanBlock: String = ""
 
     init {
         loadAgent()

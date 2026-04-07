@@ -50,7 +50,11 @@ class ChatViewModel @Inject constructor(
     private var hasSummary = false
 
     init {
-        loadMessages()
+        if (agentId.isBlank()) {
+            _uiState.value = UiState.Error("No agent selected")
+        } else {
+            loadMessages()
+        }
     }
 
     fun loadMessages() {
@@ -84,7 +88,9 @@ class ChatViewModel @Inject constructor(
                         val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
                         conversationRepository.updateConversation(conversationId, agentId, summary)
                         hasSummary = true
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) {
+                        android.util.Log.w("ChatViewModel", "Failed to set conversation summary", e)
+                    }
                 }
                 messageRepository.sendMessage(agentId, text, conversationId).collect { state ->
                     when (state) {

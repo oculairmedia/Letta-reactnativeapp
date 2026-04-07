@@ -41,8 +41,8 @@ class AgentSettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState<AgentSettingsUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<AgentSettingsUiState>> = _uiState.asStateFlow()
 
-    private var originalPersonaBlock: String = ""
-    private var originalHumanBlock: String = ""
+    @Volatile private var originalPersonaBlock: String = ""
+    @Volatile private var originalHumanBlock: String = ""
 
     init {
         loadSettings()

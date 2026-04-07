@@ -50,8 +50,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.ConnectionState
+import com.letta.mobile.ui.components.ConnectionStatusBanner
 import com.letta.mobile.ui.screens.settings.AgentSettingsScreen
 import com.letta.mobile.ui.screens.tools.ToolsScreen
+import com.letta.mobile.util.ConnectivityMonitor
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +72,8 @@ fun AgentScaffold(
 
     val agentName = (uiState as? UiState.Success)?.data?.agentName ?: ""
     val agentId = viewModel.agentId
+    val connectivityMonitorAvailable = false
+    val connectionState = ConnectionState.Online
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -142,13 +147,18 @@ fun AgentScaffold(
                 }
             }
         ) { paddingValues ->
-            when (selectedTab) {
-                0 -> ChatScreen(modifier = Modifier.padding(paddingValues))
-                1 -> ToolsScreen(modifier = Modifier.padding(paddingValues))
-                2 -> AgentSettingsScreen(
-                    onNavigateBack = { selectedTab = 0 },
-                    modifier = Modifier.padding(paddingValues)
+            Column(modifier = Modifier.padding(paddingValues)) {
+                ConnectionStatusBanner(
+                    state = if (connectivityMonitorAvailable) connectionState else ConnectionState.Online,
                 )
+                when (selectedTab) {
+                    0 -> ChatScreen(modifier = Modifier.weight(1f))
+                    1 -> ToolsScreen(modifier = Modifier.weight(1f))
+                    2 -> AgentSettingsScreen(
+                        onNavigateBack = { selectedTab = 0 },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

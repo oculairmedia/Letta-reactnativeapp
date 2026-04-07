@@ -160,7 +160,8 @@ class MessageRepository @Inject constructor(
             )
 
             if (conversationId == null) {
-                throw NotImplementedError("Agent-level streaming not yet implemented in MessageApi")
+                emit(StreamState.Error("Please select or create a conversation first"))
+                return@flow
             }
 
             val streamChannel = messageApi.sendConversationMessage(conversationId, request)
