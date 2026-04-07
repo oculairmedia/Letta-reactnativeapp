@@ -172,10 +172,8 @@ export function useSendMessageAsync() {
       },
     )
 
-    let messagesResponse
     try {
       if (conversationId) {
-        // Send to specific conversation
         const stream = await lettaClient.conversations.messages.create(
           conversationId,
           {
@@ -192,15 +190,78 @@ export function useSendMessageAsync() {
             timeout: 120 * 1000,
           },
         )
-        // The conversations.messages.create returns a stream by default, we need to collect it
-        const messages: any[] = []
+
         for await (const chunk of stream) {
-          messages.push(chunk)
+          if (chunk.message_type === "ping") {
+            continue
+          }
+
+          if (!("id" in chunk)) {
+            continue
+          }
+
+          const responseMessageId = getMessageId(chunk as Message)
+          updateMessageInQueryData(
+            queryClient,
+            agentId,
+            conversationId,
+            chunk as Message,
+            responseMessageId,
+          )
+
+          if (chunk.message_type === "approval_request_message") {
+            const toolCall = (chunk as any).tool_call
+            const clientToolFunc = clientTools[toolCall?.name]
+
+            if (clientToolFunc) {
+              console.log(`[ClientTool] Intercepting tool call: ${toolCall.name}`)
+
+              let toolReturn = ""
+              let status = "success"
+
+              try {
+                toolReturn = await clientToolFunc(toolCall.arguments)
+              } catch (e: any) {
+                console.error(`[ClientTool] Execution failed:`, e)
+                toolReturn = `Error executing client tool: ${e.message}`
+                status = "error"
+              }
+
+              const nextResponse = await lettaClient.agents.messages
+                .create(agentId, {
+                  messages: [
+                    {
+                      type: "approval",
+                      approvals: [
+                        {
+                          type: "tool",
+                          tool_call_id: toolCall.tool_call_id,
+                          tool_return: toolReturn,
+                          status: status === "success" ? "success" : "error",
+                        },
+                      ],
+                    },
+                  ],
+                })
+                .catch((err) => {
+                  console.error("[ClientTool] Failed to send approval response:", err)
+                  return null
+                })
+
+              if (nextResponse && nextResponse.messages) {
+                await processMessageStream({
+                  messages: nextResponse.messages,
+                  agentId,
+                  conversationId,
+                  lettaClient,
+                  queryClient,
+                })
+              }
+            }
+          }
         }
-        messagesResponse = { messages }
       } else {
-        // Use agent direct endpoint for default conversation
-        messagesResponse = await lettaClient.agents.messages.create(
+        const messagesResponse = await lettaClient.agents.messages.create(
           agentId,
           {
             use_assistant_message,
@@ -215,23 +276,21 @@ export function useSendMessageAsync() {
             timeout: 120 * 1000,
           },
         )
+
+        if (messagesResponse && messagesResponse.messages) {
+          await processMessageStream({
+            messages: messagesResponse.messages,
+            agentId,
+            conversationId,
+            lettaClient,
+            queryClient,
+          })
+        }
       }
     } catch (error) {
       console.warn("Error sending message:", error)
       return
     }
-
-    if (!messagesResponse) {
-      return
-    }
-
-    await processMessageStream({
-      messages: messagesResponse.messages,
-      agentId,
-      conversationId,
-      lettaClient,
-      queryClient,
-    })
   }
 
   return useMutation<void, undefined, UseSendMessageType>({

@@ -60,13 +60,71 @@ export function useDeleteConversation() {
       await lettaClient.conversations.delete(conversationId)
       return { conversationId, agentId }
     },
-    onSuccess: (_, variables) => {
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: getConversationsQueryKey(variables.agentId),
+      })
+      await queryClient.cancelQueries({
+        queryKey: getAllConversationsQueryKey(),
+      })
+
+      // Snapshot current data
+      const previousConversations = queryClient.getQueryData<Conversation[]>(
+        getConversationsQueryKey(variables.agentId),
+      )
+      const previousAllConversations = queryClient.getQueryData<{
+        pages: Array<{ items: Conversation[]; nextCursor: string | null }>
+        pageParams: unknown[]
+      }>(getAllConversationsQueryKey())
+
+      // Optimistically remove from per-agent cache
+      if (previousConversations) {
+        queryClient.setQueryData<Conversation[]>(
+          getConversationsQueryKey(variables.agentId),
+          previousConversations.filter((c) => c.id !== variables.conversationId),
+        )
+      }
+
+      // Optimistically remove from all conversations infinite query cache
+      if (previousAllConversations) {
+        queryClient.setQueryData<{
+          pages: Array<{ items: Conversation[]; nextCursor: string | null }>
+          pageParams: unknown[]
+        }>(getAllConversationsQueryKey(), {
+          ...previousAllConversations,
+          pages: previousAllConversations.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((c) => c.id !== variables.conversationId),
+          })),
+        })
+      }
+
+      // Return context with snapshots for rollback
+      return { previousConversations, previousAllConversations }
+    },
+    onError: (error: Error, variables, context) => {
+      // Rollback to previous state
+      if (context?.previousConversations) {
+        queryClient.setQueryData<Conversation[]>(
+          getConversationsQueryKey(variables.agentId),
+          context.previousConversations,
+        )
+      }
+      if (context?.previousAllConversations) {
+        queryClient.setQueryData(getAllConversationsQueryKey(), context.previousAllConversations)
+      }
+
+      Alert.alert("Error", `Failed to delete conversation: ${error.message}`)
+    },
+    onSettled: (_, __, variables) => {
+      // Invalidate to resync with server
       queryClient.invalidateQueries({
         queryKey: getConversationsQueryKey(variables.agentId),
       })
-    },
-    onError: (error: Error) => {
-      Alert.alert("Error", `Failed to delete conversation: ${error.message}`)
+      queryClient.invalidateQueries({
+        queryKey: getAllConversationsQueryKey(),
+      })
     },
   })
 }
@@ -88,17 +146,68 @@ export function useUpdateConversation() {
       await lettaClient.conversations.update(conversationId, { summary })
       return { conversationId, agentId }
     },
-    onSuccess: (_, variables) => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({
+        queryKey: getConversationsQueryKey(variables.agentId),
+      })
+      await queryClient.cancelQueries({
+        queryKey: getAllConversationsQueryKey(),
+      })
+
+      const previousConversations = queryClient.getQueryData<Conversation[]>(
+        getConversationsQueryKey(variables.agentId),
+      )
+      const previousAllConversations = queryClient.getQueryData<{
+        pages: Array<{ items: Conversation[]; nextCursor: string | null }>
+        pageParams: unknown[]
+      }>(getAllConversationsQueryKey())
+
+      if (previousConversations) {
+        queryClient.setQueryData<Conversation[]>(
+          getConversationsQueryKey(variables.agentId),
+          previousConversations.map((c) =>
+            c.id === variables.conversationId ? { ...c, summary: variables.summary } : c,
+          ),
+        )
+      }
+
+      if (previousAllConversations) {
+        queryClient.setQueryData<{
+          pages: Array<{ items: Conversation[]; nextCursor: string | null }>
+          pageParams: unknown[]
+        }>(getAllConversationsQueryKey(), {
+          ...previousAllConversations,
+          pages: previousAllConversations.pages.map((page) => ({
+            ...page,
+            items: page.items.map((c) =>
+              c.id === variables.conversationId ? { ...c, summary: variables.summary } : c,
+            ),
+          })),
+        })
+      }
+
+      return { previousConversations, previousAllConversations }
+    },
+    onError: (error: Error, variables, context) => {
+      if (context?.previousConversations) {
+        queryClient.setQueryData<Conversation[]>(
+          getConversationsQueryKey(variables.agentId),
+          context.previousConversations,
+        )
+      }
+      if (context?.previousAllConversations) {
+        queryClient.setQueryData(getAllConversationsQueryKey(), context.previousAllConversations)
+      }
+
+      Alert.alert("Error", `Failed to update conversation: ${error.message}`)
+    },
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({
         queryKey: getConversationsQueryKey(variables.agentId),
       })
-      // Also invalidate the all conversations query
       queryClient.invalidateQueries({
         queryKey: getAllConversationsQueryKey(),
       })
-    },
-    onError: (error: Error) => {
-      Alert.alert("Error", `Failed to update conversation: ${error.message}`)
     },
   })
 }
