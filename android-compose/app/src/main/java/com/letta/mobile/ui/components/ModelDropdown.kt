@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.letta.mobile.R
 import com.letta.mobile.data.model.LlmModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +73,7 @@ fun ModelDropdown(
         ) {
             if (grouped.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No models available", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    text = { Text(stringResource(R.string.screen_models_no_models), color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = {},
                     enabled = false,
                 )

@@ -111,7 +111,7 @@ fun ConversationsScreen(
                             leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
                         )
                         DropdownMenuItem(
-                            text = { Text("About") },
+                            text = { Text(stringResource(R.string.screen_about_title)) },
                             onClick = { showOverflowMenu = false; onNavigateToAbout() },
                             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                         )

@@ -117,4 +117,12 @@
     <string name="screen_archival_passage_label">Passage text</string>
     <string name="screen_drawer_edit_agent">Edit Agent</string>
     <string name="screen_drawer_archival">Archival Memory</string>
+    <string name="screen_about_title">About</string>
+    <string name="screen_about_clear_data_button">Clear Data &amp; Logout</string>
+    <string name="screen_about_clear_data_dialog_title">Clear Data?</string>
+    <string name="screen_about_clear_data_dialog_message">This will remove all server configurations and cached data. You will need to set up the app again.</string>
+    <string name="screen_about_clear_data_confirm">Clear Data</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_regenerate">Regenerate</string>
+    <string name="screen_models_no_models">No models available</string>
 </resources>

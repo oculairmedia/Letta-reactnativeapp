@@ -45,7 +45,7 @@ fun AboutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About") },
+                title = { Text(stringResource(R.string.screen_about_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -91,7 +91,7 @@ fun AboutScreen(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
             ) {
-                Text("Clear Data & Logout")
+                Text(stringResource(R.string.screen_about_clear_data_button))
             }
         }
     }
@@ -99,11 +99,11 @@ fun AboutScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Clear Data?") },
-            text = { Text("This will remove all server configurations and cached data. You will need to set up the app again.") },
+            title = { Text(stringResource(R.string.screen_about_clear_data_dialog_title)) },
+            text = { Text(stringResource(R.string.screen_about_clear_data_dialog_message)) },
             confirmButton = {
                 TextButton(onClick = { showLogoutDialog = false; onLogout() }) {
-                    Text("Clear Data", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.screen_about_clear_data_confirm), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
