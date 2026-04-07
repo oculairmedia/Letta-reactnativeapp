@@ -36,8 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.letta.mobile.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.data.model.Passage
 import com.letta.mobile.ui.common.UiState
@@ -56,7 +58,7 @@ fun ArchivalScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Archival Memory") },
+                title = { Text(stringResource(R.string.screen_archival_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -109,7 +111,7 @@ private fun ArchivalContent(
             value = state.searchQuery,
             onValueChange = onSearchChange,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text("Search archival memory\u2026") },
+            placeholder = { Text(stringResource(R.string.screen_archival_search_hint)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
             singleLine = true,
         )
@@ -181,23 +183,23 @@ private fun AddPassageDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Passage") },
+        title = { Text(stringResource(R.string.screen_archival_add_title)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Passage text") },
+                label = { Text(stringResource(R.string.screen_archival_passage_label)) },
                 minLines = 3,
                 maxLines = 6,
             )
         },
         confirmButton = {
             TextButton(onClick = { onAdd(text) }, enabled = text.isNotBlank()) {
-                Text("Add")
+                Text(stringResource(R.string.action_add))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

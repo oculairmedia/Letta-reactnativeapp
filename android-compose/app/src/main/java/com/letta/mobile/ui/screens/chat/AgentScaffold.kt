@@ -198,14 +198,14 @@ private fun DrawerContent(
 
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Edit, contentDescription = "Edit") },
-            label = { Text("Edit Agent") },
+            label = { Text(stringResource(R.string.screen_drawer_edit_agent)) },
             selected = false,
             onClick = onEditAgent,
         )
 
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Inventory2, contentDescription = "Archival") },
-            label = { Text("Archival Memory") },
+            label = { Text(stringResource(R.string.screen_drawer_archival)) },
             selected = false,
             onClick = onArchivalMemory,
         )

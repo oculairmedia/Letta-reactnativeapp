@@ -99,12 +99,12 @@ fun ConversationsScreen(
                         onDismissRequest = { showOverflowMenu = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Templates") },
+                            text = { Text(stringResource(R.string.screen_nav_templates)) },
                             onClick = { showOverflowMenu = false; onNavigateToTemplates() },
                             leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
                         )
                         DropdownMenuItem(
-                            text = { Text("MCP Servers") },
+                            text = { Text(stringResource(R.string.screen_nav_mcp_servers)) },
                             onClick = { showOverflowMenu = false; onNavigateToMcp() },
                             leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
                         )
@@ -271,14 +271,14 @@ private fun ConversationCard(
             onDismissRequest = { showContextMenu = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Rename") },
+                text = { Text(stringResource(R.string.action_rename)) },
                 onClick = {
                     showContextMenu = false
                     showRenameDialog = true
                 },
             )
             DropdownMenuItem(
-                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                text = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 onClick = {
                     showContextMenu = false
                     showDeleteDialog = true
@@ -309,12 +309,12 @@ private fun ConversationCard(
         var renameText by remember { mutableStateOf(conversation.summary ?: "") }
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("Rename Conversation") },
+            title = { Text(stringResource(R.string.screen_conversations_dialog_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = renameText,
                     onValueChange = { renameText = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.common_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -324,7 +324,7 @@ private fun ConversationCard(
                     onClick = { showRenameDialog = false; onRename(renameText) },
                     enabled = renameText.isNotBlank(),
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.action_save))
                 }
             },
             dismissButton = {
@@ -369,10 +369,10 @@ private fun AgentPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select an Agent") },
+        title = { Text(stringResource(R.string.screen_conversations_dialog_select_agent_title)) },
         text = {
             if (agents.isEmpty()) {
-                Text("No agents available. Create one first.")
+                Text(stringResource(R.string.screen_conversations_dialog_no_agents))
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(4.dp),

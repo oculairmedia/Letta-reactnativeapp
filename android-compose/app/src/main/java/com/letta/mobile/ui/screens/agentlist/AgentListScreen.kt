@@ -315,7 +315,7 @@ private fun AgentListContent(
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(onClick = onRetry) {
-                                        Text("Retry")
+                                        Text(stringResource(R.string.action_retry))
                                     }
                                 }
                             }
@@ -389,11 +389,11 @@ private fun AgentCard(
             onDismissRequest = { showContextMenu = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Edit") },
+                text = { Text(stringResource(R.string.action_edit)) },
                 onClick = { showContextMenu = false; onLongPress() },
             )
             DropdownMenuItem(
-                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                text = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
                 onClick = { showContextMenu = false; showDeleteDialog = true },
             )
         }

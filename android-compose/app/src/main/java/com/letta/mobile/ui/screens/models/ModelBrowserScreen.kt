@@ -32,7 +32,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.data.model.LlmModel
@@ -52,7 +54,7 @@ fun ModelBrowserScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Models") },
+                title = { Text(stringResource(R.string.screen_models_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -96,7 +98,7 @@ private fun ModelBrowserContent(
             value = state.searchQuery,
             onValueChange = onSearchChange,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text("Search models\u2026") },
+            placeholder = { Text(stringResource(R.string.screen_models_search_hint)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
             singleLine = true,
         )
@@ -109,7 +111,7 @@ private fun ModelBrowserContent(
                 FilterChip(
                     selected = state.selectedProvider == null,
                     onClick = { onProviderSelect(null) },
-                    label = { Text("All") },
+                    label = { Text(stringResource(R.string.screen_models_filter_all)) },
                 )
             }
             items(providers, key = { it }) { provider ->
