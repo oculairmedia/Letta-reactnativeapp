@@ -247,7 +247,7 @@ private fun AgentListContent(
                     // When searching, use filtered list
                     items(
                         count = displayAgents.size,
-                        key = { displayAgents[it].id }
+                        key = { "${displayAgents[it].id}-$it" }
                     ) { index ->
                         val agent = displayAgents[index]
                         AgentCard(
@@ -261,7 +261,7 @@ private fun AgentListContent(
                     // When not searching, use paged data for infinite scroll
                     items(
                         count = agentsPaged.itemCount,
-                        key = { agentsPaged[it]?.id ?: it }
+                        key = { "${agentsPaged[it]?.id ?: "loading"}-$it" }
                     ) { index ->
                         val agent = agentsPaged[index]
                         if (agent != null) {
