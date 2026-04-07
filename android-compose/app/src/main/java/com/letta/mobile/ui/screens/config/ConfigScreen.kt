@@ -175,7 +175,7 @@ private fun ErrorContent(
         Icon(
                     imageVector = Icons.Default.Error,
                     contentDescription = "Error",
-                    $$$
+                    tint = MaterialTheme.colorScheme.error
                 )
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = message)
