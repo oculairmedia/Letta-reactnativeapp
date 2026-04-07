@@ -11,11 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -32,10 +34,10 @@ fun TemplatesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agent Templates") },
+                title = { Text(stringResource(R.string.agent_templates)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 }
             )
@@ -70,7 +72,7 @@ private fun TemplatesContent(
     if (state.templates.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Apps,
-            message = "No templates available",
+            message = stringResource(R.string.no_templates),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -166,7 +168,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

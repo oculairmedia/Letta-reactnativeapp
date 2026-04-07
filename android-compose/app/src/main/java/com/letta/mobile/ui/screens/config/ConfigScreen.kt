@@ -8,10 +8,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
 
@@ -27,15 +29,15 @@ fun ConfigScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToConfigList) {
-                        Icon(Icons.Default.List, "Saved Configs")
+                        Icon(Icons.Default.List, stringResource(R.string.saved_configurations))
                     }
                 }
             )
@@ -79,7 +81,7 @@ private fun ConfigContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Server Configuration",
+            text = stringResource(R.string.server_configuration),
             style = MaterialTheme.typography.titleLarge
         )
 
@@ -90,13 +92,13 @@ private fun ConfigContent(
             FilterChip(
                 selected = state.mode == ServerMode.CLOUD,
                 onClick = { onModeChange(ServerMode.CLOUD) },
-                label = { Text("Cloud") },
+                label = { Text(stringResource(R.string.cloud)) },
                 modifier = Modifier.weight(1f)
             )
             FilterChip(
                 selected = state.mode == ServerMode.SELF_HOSTED,
                 onClick = { onModeChange(ServerMode.SELF_HOSTED) },
-                label = { Text("Self-hosted") },
+                label = { Text(stringResource(R.string.self_hosted)) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -105,8 +107,8 @@ private fun ConfigContent(
             OutlinedTextField(
                 value = state.serverUrl,
                 onValueChange = onServerUrlChange,
-                label = { Text("Server URL") },
-                placeholder = { Text("https://your-server.com") },
+                label = { Text(stringResource(R.string.server_url)) },
+                placeholder = { Text(stringResource(R.string.server_url_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = {
                     Icon(Icons.Default.Link, null)
@@ -117,7 +119,7 @@ private fun ConfigContent(
         OutlinedTextField(
             value = state.apiToken,
             onValueChange = onApiTokenChange,
-            label = { Text("API Token") },
+            label = { Text(stringResource(R.string.api_token)) },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = {
@@ -128,7 +130,7 @@ private fun ConfigContent(
         Divider()
 
         Text(
-            text = "Appearance",
+            text = stringResource(R.string.appearance),
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -137,7 +139,7 @@ private fun ConfigContent(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Dark Theme",
+                text = stringResource(R.string.dark_theme),
                 style = MaterialTheme.typography.bodyMedium
             )
             Switch(
@@ -154,7 +156,7 @@ private fun ConfigContent(
         ) {
             Icon(Icons.Default.Save, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Save Configuration")
+            Text(stringResource(R.string.save_configuration))
         }
     }
 }
@@ -179,7 +181,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

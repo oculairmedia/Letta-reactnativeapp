@@ -10,10 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
@@ -50,7 +52,7 @@ private fun ToolsContent(
     if (state.tools.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Build,
-            message = "No tools attached",
+            message = stringResource(R.string.no_tools_attached),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -142,8 +144,8 @@ private fun ToolCard(
     if (showRemoveDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveDialog = false },
-            title = { Text("Remove Tool") },
-            text = { Text("Remove ${tool.name} from this agent?") },
+            title = { Text(stringResource(R.string.remove_tool)) },
+            text = { Text(stringResource(R.string.confirm_remove_tool, tool.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -151,12 +153,12 @@ private fun ToolCard(
                         onRemove()
                     }
                 ) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -183,7 +185,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

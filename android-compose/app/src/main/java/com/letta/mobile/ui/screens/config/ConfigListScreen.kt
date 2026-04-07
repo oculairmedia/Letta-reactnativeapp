@@ -10,10 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -29,10 +31,10 @@ fun ConfigListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Saved Configurations") },
+                title = { Text(stringResource(R.string.saved_configurations)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 }
             )
@@ -65,7 +67,7 @@ private fun ConfigListContent(
     if (state.configs.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Settings,
-            message = "No saved configurations",
+            message = stringResource(R.string.no_saved_configurations),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -126,7 +128,7 @@ private fun ConfigCard(
                             onClick = {},
                             label = { 
                                 Text(
-                                    text = "ACTIVE",
+                                    text = stringResource(R.string.active),
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             },
@@ -140,7 +142,7 @@ private fun ConfigCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = if (config.mode == ServerMode.CLOUD) "Letta Cloud" 
+                    text = if (config.mode == ServerMode.CLOUD) stringResource(R.string.letta_cloud) 
                            else config.url,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
@@ -151,13 +153,13 @@ private fun ConfigCard(
             Row {
                 if (!config.isActive) {
                     FilledTonalButton(onClick = onSetActive) {
-                        Text("Set Active")
+                        Text(stringResource(R.string.set_active))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, "Delete")
+                    Icon(Icons.Default.Delete, stringResource(R.string.delete))
                 }
             }
         }
@@ -166,8 +168,8 @@ private fun ConfigCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Configuration") },
-            text = { Text("Are you sure you want to delete this configuration?") },
+            title = { Text(stringResource(R.string.delete_configuration)) },
+            text = { Text(stringResource(R.string.confirm_delete_configuration)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -175,12 +177,12 @@ private fun ConfigCard(
                         onDelete()
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -207,7 +209,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

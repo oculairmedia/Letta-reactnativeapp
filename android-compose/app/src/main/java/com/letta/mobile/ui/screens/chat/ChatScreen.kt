@@ -43,9 +43,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -116,7 +118,7 @@ private fun ChatContent(
         if (state.messages.isEmpty()) {
             EmptyState(
                 icon = Icons.Default.ChatBubbleOutline,
-                message = "Start a conversation",
+                message = stringResource(R.string.start_conversation),
                 modifier = Modifier.weight(1f)
             )
         } else {
@@ -266,7 +268,7 @@ private fun MessageInputBar(
                 value = text,
                 onValueChange = onTextChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Type a message\u2026") },
+                placeholder = { Text(stringResource(R.string.type_message_hint)) },
                 enabled = !isStreaming,
                 maxLines = 4
             )
@@ -281,7 +283,7 @@ private fun MessageInputBar(
                 },
                 enabled = text.isNotBlank() && !isStreaming
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send message")
+                Icon(Icons.Default.Send, contentDescription = stringResource(R.string.send_message))
             }
         }
     }
@@ -308,7 +310,7 @@ private fun ErrorContent(
         Text(text = message, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

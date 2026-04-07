@@ -13,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
@@ -36,20 +38,20 @@ fun ConversationsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Conversations") },
+                title = { Text(stringResource(R.string.conversations)) },
                 actions = {
                     IconButton(onClick = onNavigateToAgentList) {
-                        Icon(Icons.Default.AccountCircle, "Agents")
+                        Icon(Icons.Default.AccountCircle, stringResource(R.string.agents))
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, "Settings")
+                        Icon(Icons.Default.Settings, stringResource(R.string.settings))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAgentPickerDialog = true }) {
-                Icon(Icons.Default.Add, "New Conversation")
+                Icon(Icons.Default.Add, stringResource(R.string.new_conversation))
             }
         }
     ) { paddingValues ->
@@ -162,8 +164,8 @@ private fun ConversationCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Conversation") },
-            text = { Text("Are you sure you want to delete this conversation?") },
+            title = { Text(stringResource(R.string.delete_conversation)) },
+            text = { Text(stringResource(R.string.confirm_delete_conversation)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -171,12 +173,12 @@ private fun ConversationCard(
                         onDelete()
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -207,7 +209,7 @@ private fun ErrorContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }
@@ -219,11 +221,11 @@ private fun AgentPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Agent") },
-        text = { Text("Agent picker not yet implemented") },
+        title = { Text(stringResource(R.string.select_agent)) },
+        text = { Text(stringResource(R.string.agent_picker_not_implemented)) },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

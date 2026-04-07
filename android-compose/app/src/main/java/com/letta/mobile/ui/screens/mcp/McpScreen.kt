@@ -11,10 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -31,10 +33,10 @@ fun McpScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("MCP Management") },
+                title = { Text(stringResource(R.string.mcp_management)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 }
             )
@@ -87,12 +89,12 @@ private fun McpContent(
             Tab(
                 selected = state.selectedTab == 0,
                 onClick = { onTabSelected(0) },
-                text = { Text("Tools") }
+                text = { Text(stringResource(R.string.tools)) }
             )
             Tab(
                 selected = state.selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                text = { Text("MCP Servers") }
+                text = { Text(stringResource(R.string.mcp_servers)) }
             )
         }
 
@@ -139,7 +141,7 @@ private fun ServersTab(
     if (servers.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Storage,
-            message = "No MCP servers configured",
+            message = stringResource(R.string.no_mcp_servers),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -286,8 +288,8 @@ private fun ServerCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Server") },
-            text = { Text("Remove ${server.name}?") },
+            title = { Text(stringResource(R.string.delete_server)) },
+            text = { Text(stringResource(R.string.confirm_delete_server, server.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -295,12 +297,12 @@ private fun ServerCard(
                         onDelete()
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -317,20 +319,20 @@ private fun AddServerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add MCP Server") },
+        title = { Text(stringResource(R.string.add_mcp_server)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = serverName,
                     onValueChange = { serverName = it },
-                    label = { Text("Server Name") },
+                    label = { Text(stringResource(R.string.server_name)) },
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = serverUrl,
                     onValueChange = { serverUrl = it },
-                    label = { Text("Server URL") },
+                    label = { Text(stringResource(R.string.server_url)) },
                     singleLine = true
                 )
             }
@@ -344,12 +346,12 @@ private fun AddServerDialog(
                 },
                 enabled = serverName.isNotBlank() && serverUrl.isNotBlank()
             ) {
-                Text("Add")
+                Text(stringResource(R.string.add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -375,7 +377,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

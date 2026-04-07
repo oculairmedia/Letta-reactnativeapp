@@ -10,10 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
@@ -33,15 +35,15 @@ fun AgentListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agents") },
+                title = { Text(stringResource(R.string.agents)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { }) {
-                        Icon(Icons.Default.Search, "Search")
+                        Icon(Icons.Default.Search, stringResource(R.string.search))
                     }
                 }
             )
@@ -180,8 +182,8 @@ private fun AgentCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Agent") },
-            text = { Text("Are you sure you want to delete ${agent.name}?") },
+            title = { Text(stringResource(R.string.delete_agent)) },
+            text = { Text(stringResource(R.string.confirm_delete_agent, agent.name)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -189,12 +191,12 @@ private fun AgentCard(
                         onDelete()
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -224,7 +226,7 @@ private fun ErrorContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }
@@ -238,12 +240,12 @@ private fun CreateAgentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Agent") },
+        title = { Text(stringResource(R.string.create_agent)) },
         text = {
             OutlinedTextField(
                 value = agentName,
                 onValueChange = { agentName = it },
-                label = { Text("Agent Name") },
+                label = { Text(stringResource(R.string.agent_name)) },
                 singleLine = true
             )
         },
@@ -256,12 +258,12 @@ private fun CreateAgentDialog(
                 },
                 enabled = agentName.isNotBlank()
             ) {
-                Text("Create")
+                Text(stringResource(R.string.create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

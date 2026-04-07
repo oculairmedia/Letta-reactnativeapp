@@ -7,9 +7,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
+import com.letta.mobile.R
 import com.letta.mobile.ui.screens.settings.AgentSettingsScreen
 import com.letta.mobile.ui.screens.tools.ToolsScreen
 
@@ -43,10 +45,10 @@ fun AgentScaffold(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Agent Chat") },
+                    title = { Text(stringResource(R.string.agent_chat)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, "Back")
+                            Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                         }
                     },
                     actions = {
@@ -65,20 +67,20 @@ fun AgentScaffold(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Chat, "Chat") },
-                        label = { Text("Chat") }
+                        icon = { Icon(Icons.Default.Chat, stringResource(R.string.chat)) },
+                        label = { Text(stringResource(R.string.chat)) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.Build, "Tools") },
-                        label = { Text("Tools") }
+                        icon = { Icon(Icons.Default.Build, stringResource(R.string.tools)) },
+                        label = { Text(stringResource(R.string.tools)) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Settings, "Settings") },
-                        label = { Text("Settings") }
+                        icon = { Icon(Icons.Default.Settings, stringResource(R.string.settings)) },
+                        label = { Text(stringResource(R.string.settings)) }
                     )
                 }
             }
@@ -106,13 +108,13 @@ private fun DrawerContent(
             .padding(16.dp)
     ) {
         Text(
-            text = "Agent Configuration",
+            text = stringResource(R.string.agent_configuration),
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Model Config",
+            text = stringResource(R.string.model_config),
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -120,7 +122,7 @@ private fun DrawerContent(
         OutlinedTextField(
             value = "",
             onValueChange = {},
-            label = { Text("Model") },
+            label = { Text(stringResource(R.string.model)) },
             readOnly = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -128,7 +130,7 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Context Window",
+            text = stringResource(R.string.context_window),
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -144,7 +146,7 @@ private fun DrawerContent(
             onClick = onClose,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Close")
+            Text(stringResource(R.string.close))
         }
     }
 }

@@ -8,9 +8,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
 
@@ -67,27 +69,27 @@ private fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Model Settings",
+            text = stringResource(R.string.model_settings),
             style = MaterialTheme.typography.titleMedium
         )
         
         OutlinedTextField(
-            value = state.agent?.model ?: "No model",
+            value = state.agent?.model ?: stringResource(R.string.no_model),
             onValueChange = {},
-            label = { Text("Model") },
+            label = { Text(stringResource(R.string.model)) },
             readOnly = true,
             modifier = Modifier.fillMaxWidth()
         )
 
         Text(
-            text = "Context Window: ${state.agent?.contextWindowLimit ?: 0}",
+            text = stringResource(R.string.context_window_limit, state.agent?.contextWindowLimit ?: 0),
             style = MaterialTheme.typography.bodyMedium
         )
 
         Divider()
 
         Text(
-            text = "Temperature: ${String.format("%.2f", state.temperature)}",
+            text = stringResource(R.string.temperature_value, state.temperature),
             style = MaterialTheme.typography.bodyMedium
         )
         Slider(
@@ -102,7 +104,7 @@ private fun SettingsContent(
             onValueChange = { 
                 it.toIntOrNull()?.let { value -> onMaxTokensChange(value) }
             },
-            label = { Text("Max Output Tokens") },
+            label = { Text(stringResource(R.string.max_output_tokens)) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -111,7 +113,7 @@ private fun SettingsContent(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Parallel Tool Calls",
+                text = stringResource(R.string.parallel_tool_calls),
                 style = MaterialTheme.typography.bodyMedium
             )
             Switch(
@@ -123,14 +125,14 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = "Memory Blocks",
+            text = stringResource(R.string.memory_blocks),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.personaBlock,
             onValueChange = onPersonaChange,
-            label = { Text("Persona") },
+            label = { Text(stringResource(R.string.persona)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -138,7 +140,7 @@ private fun SettingsContent(
         OutlinedTextField(
             value = state.humanBlock,
             onValueChange = onHumanChange,
-            label = { Text("Human") },
+            label = { Text(stringResource(R.string.human)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -146,14 +148,14 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = "System Prompt",
+            text = stringResource(R.string.system_prompt),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.systemPrompt,
             onValueChange = onSystemPromptChange,
-            label = { Text("System Prompt") },
+            label = { Text(stringResource(R.string.system_prompt)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5
         )
@@ -161,7 +163,7 @@ private fun SettingsContent(
         Divider()
 
         Text(
-            text = "Tags",
+            text = stringResource(R.string.tags),
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -183,7 +185,7 @@ private fun SettingsContent(
             onClick = onSave,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Save Settings")
+            Text(stringResource(R.string.save_settings))
         }
 
         OutlinedButton(
@@ -195,15 +197,15 @@ private fun SettingsContent(
         ) {
             Icon(Icons.Default.Delete, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Delete Agent")
+            Text(stringResource(R.string.delete_agent))
         }
     }
 
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Agent") },
-            text = { Text("Are you sure you want to delete this agent? This action cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_agent)) },
+            text = { Text(stringResource(R.string.confirm_delete_agent_permanent)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -211,12 +213,12 @@ private fun SettingsContent(
                         onDelete()
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -242,7 +244,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

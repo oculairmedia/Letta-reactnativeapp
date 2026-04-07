@@ -8,9 +8,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
 
@@ -25,10 +27,10 @@ fun EditAgentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Agent") },
+                title = { Text(stringResource(R.string.edit_agent)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back))
                     }
                 }
             )
@@ -76,21 +78,21 @@ private fun EditAgentContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Basic Information",
+            text = stringResource(R.string.basic_information),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.name,
             onValueChange = onNameChange,
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.name)) },
             modifier = Modifier.fillMaxWidth()
         )
 
         OutlinedTextField(
             value = state.description,
             onValueChange = onDescriptionChange,
-            label = { Text("Description") },
+            label = { Text(stringResource(R.string.description)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 2
         )
@@ -98,21 +100,21 @@ private fun EditAgentContent(
         OutlinedTextField(
             value = state.model,
             onValueChange = onModelChange,
-            label = { Text("Model") },
+            label = { Text(stringResource(R.string.model)) },
             modifier = Modifier.fillMaxWidth()
         )
 
         Divider()
 
         Text(
-            text = "Memory Blocks",
+            text = stringResource(R.string.memory_blocks),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.personaBlock,
             onValueChange = onPersonaChange,
-            label = { Text("Persona") },
+            label = { Text(stringResource(R.string.persona)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -120,7 +122,7 @@ private fun EditAgentContent(
         OutlinedTextField(
             value = state.humanBlock,
             onValueChange = onHumanChange,
-            label = { Text("Human") },
+            label = { Text(stringResource(R.string.human)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3
         )
@@ -128,14 +130,14 @@ private fun EditAgentContent(
         Divider()
 
         Text(
-            text = "System Prompt",
+            text = stringResource(R.string.system_prompt),
             style = MaterialTheme.typography.titleMedium
         )
 
         OutlinedTextField(
             value = state.systemPrompt,
             onValueChange = onSystemPromptChange,
-            label = { Text("System Prompt") },
+            label = { Text(stringResource(R.string.system_prompt)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5
         )
@@ -143,7 +145,7 @@ private fun EditAgentContent(
         Divider()
 
         Text(
-            text = "Tags",
+            text = stringResource(R.string.tags),
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -167,7 +169,7 @@ private fun EditAgentContent(
         ) {
             Icon(Icons.Default.Save, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Save Changes")
+            Text(stringResource(R.string.save_changes))
         }
     }
 }
@@ -192,7 +194,7 @@ private fun ErrorContent(
         Text(text = message)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry) {
-            Text("Retry")
+            Text(stringResource(R.string.retry))
         }
     }
 }

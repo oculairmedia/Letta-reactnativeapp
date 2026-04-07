@@ -9,13 +9,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.letta.mobile.R
 
 @Composable
 fun ErrorDialog(
     message: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Error",
+    title: String = stringResource(R.string.error),
     onRetry: (() -> Unit)? = null,
 ) {
     AlertDialog(
@@ -24,7 +26,7 @@ fun ErrorDialog(
         icon = {
             Icon(
                 imageVector = Icons.Default.Error,
-                contentDescription = "Error",
+                contentDescription = stringResource(R.string.error),
                 tint = MaterialTheme.colorScheme.error
             )
         },
@@ -33,13 +35,13 @@ fun ErrorDialog(
         confirmButton = {
             if (onRetry != null) {
                 TextButton(onClick = onRetry) {
-                    Text("Retry")
+                    Text(stringResource(R.string.retry))
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Dismiss")
+                Text(stringResource(R.string.dismiss))
             }
         }
     )
