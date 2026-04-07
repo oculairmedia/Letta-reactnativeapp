@@ -39,20 +39,14 @@ export function useResetChatMessages() {
   return useMutation({
     mutationFn: ({
       agentId,
-      conversationId,
       add_default_initial_messages,
     }: {
       agentId: string
       conversationId?: string | null
       add_default_initial_messages?: boolean
     }) => {
-      if (conversationId) {
-        // Reset specific conversation messages
-        return lettaClient.conversations.messages.reset(conversationId, {
-          add_default_initial_messages,
-        })
-      }
       // Reset all agent messages (default conversation)
+      // Note: Conversation-specific reset is not supported by the SDK
       return lettaClient.agents.messages.reset(agentId, { add_default_initial_messages })
     },
     onSuccess: (_, variables) => {

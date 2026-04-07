@@ -20,6 +20,7 @@ export interface MCPToolWithServer {
   description?: string | null
   serverName: string
   serverType?: string
+  args_json_schema?: Record<string, unknown> | null
 }
 
 export interface MCPToolsResult {

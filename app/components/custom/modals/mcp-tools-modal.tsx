@@ -21,7 +21,7 @@ interface MCPTool {
   name: string
   description?: string
   serverName: string
-  serverType?: "stdio" | "sse" | "streamable_http"
+  serverType?: string
   inputSchema: Record<string, unknown>
 }
 

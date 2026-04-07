@@ -166,7 +166,7 @@ const MCPServerCard: FC<MCPServerCardProps> = ({
             <View style={$toolCountContainer}>
               {hasError ? (
                 <View style={$errorBadge}>
-                  <Icon icon="AlertCircle" size={12} color={colors.error} />
+                  <Icon icon="CircleAlert" size={12} color={colors.error} />
                   <Text size="xxs" style={{ color: colors.error }}>
                     {toolCountText}
                   </Text>

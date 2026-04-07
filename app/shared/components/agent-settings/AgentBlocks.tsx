@@ -11,6 +11,47 @@ import { useAppTheme } from "@/utils/useAppTheme"
 import { useQueryClient } from "@tanstack/react-query"
 import { Icon } from "@/components"
 
+// Format block label for display - strip UUIDs and make readable
+const formatBlockLabel = (label: string): { displayName: string; category: string | null } => {
+  // Check if it's a system block (starts with "system/")
+  if (label.startsWith("system/")) {
+    const name = label.replace("system/", "")
+    // Clean up the name - remove UUID suffixes
+    const cleanName = name.replace(/-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i, "")
+    // Format nicely: system/agent_card -> Agent Card
+    const displayName = cleanName
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+    return { displayName, category: "System" }
+  }
+
+  // Check for graphiti blocks
+  if (label.startsWith("graphiti_")) {
+    const cleanName = label
+      .replace(/graphiti_context_agent-[a-f0-9-]+$/i, "graphiti_context")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+    return { displayName: cleanName, category: "Graph" }
+  }
+
+  // Check for UUID-like labels and clean them
+  const uuidPattern = /-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+  if (uuidPattern.test(label)) {
+    const cleanName = label.replace(uuidPattern, "")
+    const displayName = cleanName
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+    return { displayName, category: null }
+  }
+
+  // Default formatting
+  const displayName = label
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+  return { displayName, category: null }
+}
+
 interface AgentBlocksProps {
   style?: ViewStyle
 }
@@ -114,13 +155,15 @@ export const AgentBlocks: FC<AgentBlocksProps> = ({ style }) => {
       {blocks.map((block) => {
         const blockId = block.id ?? ""
         const blockModified = isModified(blockId)
+        const { displayName, category } = formatBlockLabel(block.label || "Unnamed Block")
+        const displayLabel = category ? `${displayName}` : displayName
 
         return (
           <Accordion
             key={blockId}
             isExpanded={expandedBlocks[blockId] ?? false}
             onToggle={() => blockId && toggleBlock(blockId)}
-            text={block.label || "Unnamed Block"}
+            text={displayLabel}
             preset="reversed"
           >
             <View style={$blockContent}>

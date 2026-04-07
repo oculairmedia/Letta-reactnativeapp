@@ -103,21 +103,20 @@ export function useUpdateConversation() {
 }
 
 export function useArchiveConversation() {
-  const { lettaClient } = useLettaClient()
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({
       conversationId,
       agentId,
-      isArchived,
     }: {
       conversationId: string
       agentId: string
       isArchived: boolean
-    }) => {
-      await lettaClient.conversations.update(conversationId, { is_archived: isArchived })
-      return { conversationId, agentId }
+    }): Promise<{ conversationId: string; agentId: string }> => {
+      // Note: is_archived is not currently supported by the Letta SDK
+      // This feature is disabled until SDK support is added
+      throw new Error("Archive feature is not currently supported")
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
