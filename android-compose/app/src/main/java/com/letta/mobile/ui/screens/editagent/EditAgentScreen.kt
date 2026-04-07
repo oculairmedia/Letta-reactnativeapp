@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
+import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
 
@@ -23,6 +24,7 @@ fun EditAgentScreen(
     viewModel: EditAgentViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarDispatcher.current
 
     Scaffold(
         topBar = {
@@ -51,7 +53,7 @@ fun EditAgentScreen(
                 onPersonaChange = { viewModel.updatePersonaBlock(it) },
                 onHumanChange = { viewModel.updateHumanBlock(it) },
                 onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
-                onSave = { viewModel.saveAgent(onNavigateBack) },
+                onSave = { viewModel.saveAgent { snackbar.dispatch("Agent saved"); onNavigateBack() } },
                 modifier = Modifier.padding(paddingValues)
             )
         }

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
+import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
 
@@ -25,6 +26,7 @@ fun ConfigScreen(
     viewModel: ConfigViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarDispatcher.current
 
     Scaffold(
         topBar = {
@@ -56,7 +58,12 @@ fun ConfigScreen(
                 onServerUrlChange = { viewModel.updateServerUrl(it) },
                 onApiTokenChange = { viewModel.updateApiToken(it) },
                 onThemeChange = { viewModel.updateTheme(it) },
-                onSave = { viewModel.saveConfig(onNavigateBack) },
+                onSave = {
+                    viewModel.saveConfig(
+                        onSuccess = { snackbar.dispatch("Configuration saved"); onNavigateBack() },
+                        onError = { snackbar.dispatch(it) },
+                    )
+                },
                 modifier = Modifier.padding(paddingValues)
             )
         }
