@@ -20,6 +20,7 @@ import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import javax.inject.Inject
@@ -59,13 +60,13 @@ class MessageRepository @Inject constructor(
 
             // Update cache
             if (conversationId != null) {
-                _messagesByConversation.value = _messagesByConversation.value.toMutableMap().apply {
-                    put(conversationId, appMessages)
-                }
+                _messagesByConversation.update { current -> current.toMutableMap().apply {
+                            put(conversationId, appMessages)
+                        } }
             } else {
-                _messagesByAgent.value = _messagesByAgent.value.toMutableMap().apply {
-                    put(agentId, appMessages)
-                }
+                _messagesByAgent.update { current -> current.toMutableMap().apply {
+                            put(agentId, appMessages)
+                        } }
             }
 
             appMessages
@@ -182,6 +183,7 @@ class MessageRepository @Inject constructor(
                         val message = json.decodeFromString<LettaMessage>(cleaned)
                         emit(message)
                     } catch (e: Exception) {
+                        android.util.Log.w("MessageRepository", "Failed to parse SSE message: ${cleaned.take(100)}", e)
                     }
                 }
             }
@@ -208,34 +210,34 @@ class MessageRepository @Inject constructor(
 
     suspend fun resetMessages(agentId: String) {
         messageApi.resetMessages(agentId)
-        _messagesByAgent.value = _messagesByAgent.value.toMutableMap().apply {
-            remove(agentId)
-        }
+        _messagesByAgent.update { current -> current.toMutableMap().apply {
+                    remove(agentId)
+                } }
     }
 
     private fun addMessageToCache(agentId: String, conversationId: String?, message: AppMessage) {
         if (conversationId != null) {
-            _messagesByConversation.value = _messagesByConversation.value.toMutableMap().apply {
-                val existing = get(conversationId) ?: emptyList()
-                put(conversationId, existing + message)
-            }
+            _messagesByConversation.update { current -> current.toMutableMap().apply {
+                        val existing = get(conversationId) ?: emptyList()
+                        put(conversationId, existing + message)
+                    } }
         } else {
-            _messagesByAgent.value = _messagesByAgent.value.toMutableMap().apply {
-                val existing = get(agentId) ?: emptyList()
-                put(agentId, existing + message)
-            }
+            _messagesByAgent.update { current -> current.toMutableMap().apply {
+                        val existing = get(agentId) ?: emptyList()
+                        put(agentId, existing + message)
+                    } }
         }
     }
 
     private fun updateMessagesInCache(agentId: String, conversationId: String?, messages: List<AppMessage>) {
         if (conversationId != null) {
-            _messagesByConversation.value = _messagesByConversation.value.toMutableMap().apply {
-                put(conversationId, messages)
-            }
+            _messagesByConversation.update { current -> current.toMutableMap().apply {
+                        put(conversationId, messages)
+                    } }
         } else {
-            _messagesByAgent.value = _messagesByAgent.value.toMutableMap().apply {
-                put(agentId, messages)
-            }
+            _messagesByAgent.update { current -> current.toMutableMap().apply {
+                        put(agentId, messages)
+                    } }
         }
     }
 }

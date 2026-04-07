@@ -112,7 +112,7 @@ private fun ModelBrowserContent(
                     label = { Text("All") },
                 )
             }
-            items(providers) { provider ->
+            items(providers, key = { it }) { provider ->
                 FilterChip(
                     selected = state.selectedProvider == provider,
                     onClick = { onProviderSelect(provider) },

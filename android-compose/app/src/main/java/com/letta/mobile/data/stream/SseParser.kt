@@ -51,6 +51,7 @@ object SseParser {
                         val message = json.decodeFromString<LettaMessage>(data)
                         if (message.messageType == "ping") null else message
                     } catch (e: Exception) {
+                        android.util.Log.w("SseParser", "Failed to parse SSE event: ${data.take(100)}", e)
                         null
                     }
                 }

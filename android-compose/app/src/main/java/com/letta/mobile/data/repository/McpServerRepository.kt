@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,9 +34,9 @@ class McpServerRepository @Inject constructor(
 
     suspend fun refreshServerTools(serverId: String) {
         val tools = mcpServerApi.listMcpServerTools(serverId)
-        _toolsByServer.value = _toolsByServer.value.toMutableMap().apply {
-            put(serverId, tools)
-        }
+        _toolsByServer.update { current -> current.toMutableMap().apply {
+                    put(serverId, tools)
+                } }
     }
 
     suspend fun createServer(params: McpServerCreateParams): McpServer {
@@ -47,8 +48,8 @@ class McpServerRepository @Inject constructor(
     suspend fun deleteServer(id: String) {
         mcpServerApi.deleteMcpServer(id)
         refreshServers()
-        _toolsByServer.value = _toolsByServer.value.toMutableMap().apply {
-            remove(id)
-        }
+        _toolsByServer.update { current -> current.toMutableMap().apply {
+                    remove(id)
+                } }
     }
 }

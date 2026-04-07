@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import com.letta.mobile.data.repository.api.IToolRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,28 +31,28 @@ class ToolRepository @Inject constructor(
     }
 
     suspend fun refreshAgentTools(agentId: String, tools: List<Tool>) {
-        _toolsByAgent.value = _toolsByAgent.value.toMutableMap().apply {
-            put(agentId, tools)
-        }
+        _toolsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, tools)
+                } }
     }
 
     override suspend fun attachTool(agentId: String, toolId: String) {
         toolApi.attachTool(agentId, toolId)
         val tool = _tools.value.find { it.id == toolId }
         if (tool != null) {
-            _toolsByAgent.value = _toolsByAgent.value.toMutableMap().apply {
-                val existing = get(agentId) ?: emptyList()
-                put(agentId, existing + tool)
-            }
+            _toolsByAgent.update { current -> current.toMutableMap().apply {
+                        val existing = get(agentId) ?: emptyList()
+                        put(agentId, existing + tool)
+                    } }
         }
     }
 
     override suspend fun detachTool(agentId: String, toolId: String) {
         toolApi.detachTool(agentId, toolId)
-        _toolsByAgent.value = _toolsByAgent.value.toMutableMap().apply {
-            val existing = get(agentId) ?: emptyList()
-            put(agentId, existing.filter { it.id != toolId })
-        }
+        _toolsByAgent.update { current -> current.toMutableMap().apply {
+                    val existing = get(agentId) ?: emptyList()
+                    put(agentId, existing.filter { it.id != toolId })
+                } }
     }
 
     override suspend fun upsertTool(params: ToolCreateParams): Tool {

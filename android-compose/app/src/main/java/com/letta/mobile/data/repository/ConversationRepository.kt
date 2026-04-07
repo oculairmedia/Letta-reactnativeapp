@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import com.letta.mobile.data.repository.api.IConversationRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,9 +26,9 @@ class ConversationRepository @Inject constructor(
 
     override suspend fun refreshConversations(agentId: String) {
         val conversations = conversationApi.listConversations(agentId = agentId)
-        _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
-            put(agentId, conversations)
-        }
+        _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, conversations)
+                } }
     }
 
     override suspend fun createConversation(agentId: String, summary: String?): Conversation {
@@ -40,16 +41,16 @@ class ConversationRepository @Inject constructor(
     override suspend fun deleteConversation(id: String, agentId: String) {
         val snapshot = _conversationsByAgent.value[agentId] ?: emptyList()
 
-        _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
-            put(agentId, snapshot.filter { it.id != id })
-        }
+        _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, snapshot.filter { it.id != id })
+                } }
 
         try {
             conversationApi.deleteConversation(id)
         } catch (e: Exception) {
-            _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
-                put(agentId, snapshot)
-            }
+            _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                        put(agentId, snapshot)
+                    } }
             throw e
         }
 
@@ -64,17 +65,17 @@ class ConversationRepository @Inject constructor(
         val optimisticList = snapshot.toMutableList()
         optimisticList[conversationIndex] = snapshot[conversationIndex].copy(summary = summary)
 
-        _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
-            put(agentId, optimisticList)
-        }
+        _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, optimisticList)
+                } }
 
         try {
             val params = ConversationUpdateParams(summary = summary)
             conversationApi.updateConversation(id, params)
         } catch (e: Exception) {
-            _conversationsByAgent.value = _conversationsByAgent.value.toMutableMap().apply {
-                put(agentId, snapshot)
-            }
+            _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                        put(agentId, snapshot)
+                    } }
             throw e
         }
 
