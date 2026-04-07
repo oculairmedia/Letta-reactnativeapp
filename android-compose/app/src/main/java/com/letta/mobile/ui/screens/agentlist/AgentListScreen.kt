@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -25,6 +24,7 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -54,9 +54,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.domain.AgentSearch
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -71,15 +73,22 @@ fun AgentListScreen(
     agentSearch: AgentSearch = remember { AgentSearch() }
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val agentsPaged = viewModel.agentsPaged.collectAsLazyPagingItems()
     var showCreateDialog by remember { mutableStateOf(false) }
     var searchActive by remember { mutableStateOf(false) }
-    val searchQuery = (uiState as? UiState.Success)?.data?.searchQuery ?: ""
+    val searchQuery = uiState.searchQuery
 
-    // Get filtered agents using fuzzy search
-    val allAgents = (uiState as? UiState.Success)?.data?.agents ?: emptyList()
-    val filteredAgents by remember(allAgents, searchQuery) {
+    // Get all currently loaded agents for search filtering
+    val loadedAgents by remember(agentsPaged.itemCount) {
         derivedStateOf {
-            agentSearch.search(allAgents, searchQuery)
+            (0 until agentsPaged.itemCount).mapNotNull { agentsPaged[it] }
+        }
+    }
+
+    // Filter using fuzzy search
+    val filteredAgents by remember(loadedAgents, searchQuery) {
+        derivedStateOf {
+            agentSearch.search(loadedAgents, searchQuery)
         }
     }
 
@@ -152,25 +161,21 @@ fun AgentListScreen(
             }
         }
     ) { paddingValues ->
-        when (val state = uiState) {
-            is UiState.Loading -> LoadingIndicator()
-            is UiState.Error -> ErrorContent(
-                message = state.message,
-                onRetry = { viewModel.loadAgents() },
-                modifier = Modifier.padding(paddingValues)
-            )
-            is UiState.Success -> {
-                AgentListContent(
-                    agents = filteredAgents,
-                    searchQuery = searchQuery,
-                    onAgentClick = { onNavigateToAgent(it.id) },
-                    onAgentLongPress = { onNavigateToEditAgent(it.id) },
-                    onDeleteAgent = { viewModel.deleteAgent(it.id) },
-                    onRefresh = { viewModel.refresh() },
-                    modifier = Modifier.padding(paddingValues)
-                )
-            }
-        }
+        AgentListContent(
+            agentsPaged = agentsPaged,
+            filteredAgents = filteredAgents,
+            searchQuery = searchQuery,
+            onAgentClick = { onNavigateToAgent(it.id) },
+            onAgentLongPress = { onNavigateToEditAgent(it.id) },
+            onDeleteAgent = { viewModel.deleteAgent(it.id) },
+            onRetry = { agentsPaged.retry() },
+            modifier = Modifier.padding(paddingValues)
+        )
+    }
+
+    // Error snackbar from ViewModel
+    uiState.error?.let { error ->
+        // Could show a snackbar here
     }
 
     if (showCreateDialog) {
@@ -188,36 +193,125 @@ fun AgentListScreen(
 
 @Composable
 private fun AgentListContent(
-    agents: List<Agent>,
+    agentsPaged: LazyPagingItems<Agent>,
+    filteredAgents: List<Agent>,
     searchQuery: String,
     onAgentClick: (Agent) -> Unit,
     onAgentLongPress: (Agent) -> Unit,
     onDeleteAgent: (Agent) -> Unit,
-    onRefresh: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (agents.isEmpty()) {
-        EmptyState(
-            icon = Icons.Default.SmartToy,
-            message = if (searchQuery.isBlank()) "No agents yet" else "No agents matching \"$searchQuery\"",
-            modifier = modifier.fillMaxSize()
-        )
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(
-                items = agents,
-                key = { it.id }
-            ) { agent ->
-                AgentCard(
-                    agent = agent,
-                    onClick = { onAgentClick(agent) },
-                    onLongPress = { onAgentLongPress(agent) },
-                    onDelete = { onDeleteAgent(agent) }
-                )
+    val loadState = agentsPaged.loadState
+
+    when {
+        // Initial loading
+        loadState.refresh is LoadState.Loading && agentsPaged.itemCount == 0 -> {
+            LoadingIndicator()
+        }
+        // Initial load error
+        loadState.refresh is LoadState.Error && agentsPaged.itemCount == 0 -> {
+            val error = (loadState.refresh as LoadState.Error).error
+            ErrorContent(
+                message = error.message ?: "Failed to load agents",
+                onRetry = onRetry,
+                modifier = modifier
+            )
+        }
+        // Empty state (no search query, no results)
+        agentsPaged.itemCount == 0 && searchQuery.isBlank() -> {
+            EmptyState(
+                icon = Icons.Default.SmartToy,
+                message = "No agents yet",
+                modifier = modifier.fillMaxSize()
+            )
+        }
+        // Empty search results
+        filteredAgents.isEmpty() && searchQuery.isNotBlank() -> {
+            EmptyState(
+                icon = Icons.Default.SmartToy,
+                message = "No agents matching \"$searchQuery\"",
+                modifier = modifier.fillMaxSize()
+            )
+        }
+        // Show content
+        else -> {
+            val displayAgents = if (searchQuery.isNotBlank()) filteredAgents else null
+
+            LazyColumn(
+                modifier = modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (displayAgents != null) {
+                    // When searching, use filtered list
+                    items(
+                        count = displayAgents.size,
+                        key = { displayAgents[it].id }
+                    ) { index ->
+                        val agent = displayAgents[index]
+                        AgentCard(
+                            agent = agent,
+                            onClick = { onAgentClick(agent) },
+                            onLongPress = { onAgentLongPress(agent) },
+                            onDelete = { onDeleteAgent(agent) }
+                        )
+                    }
+                } else {
+                    // When not searching, use paged data for infinite scroll
+                    items(
+                        count = agentsPaged.itemCount,
+                        key = { agentsPaged[it]?.id ?: it }
+                    ) { index ->
+                        val agent = agentsPaged[index]
+                        if (agent != null) {
+                            AgentCard(
+                                agent = agent,
+                                onClick = { onAgentClick(agent) },
+                                onLongPress = { onAgentLongPress(agent) },
+                                onDelete = { onDeleteAgent(agent) }
+                            )
+                        }
+                    }
+
+                    // Loading more indicator
+                    if (loadState.append is LoadState.Loading) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+
+                    // Load more error
+                    if (loadState.append is LoadState.Error) {
+                        item {
+                            val error = (loadState.append as LoadState.Error).error
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = error.message ?: "Failed to load more",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(onClick = onRetry) {
+                                        Text("Retry")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

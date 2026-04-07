@@ -1,9 +1,13 @@
 package com.letta.mobile.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.letta.mobile.data.api.AgentApi
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.paging.AgentPagingSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +23,17 @@ class AgentRepository @Inject constructor(
 ) {
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
+
+    fun getAgentsPaged(tags: List<String>? = null): Flow<PagingData<Agent>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = AgentPagingSource.PAGE_SIZE,
+                enablePlaceholders = false,
+                initialLoadSize = AgentPagingSource.PAGE_SIZE * 2
+            ),
+            pagingSourceFactory = { AgentPagingSource(agentApi, tags) }
+        ).flow
+    }
 
     suspend fun refreshAgents() {
         _agents.value = agentApi.listAgents()

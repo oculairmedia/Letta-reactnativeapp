@@ -1,5 +1,8 @@
 package com.letta.mobile.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.AssistantMessage
@@ -11,6 +14,7 @@ import com.letta.mobile.data.model.ReasoningMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
+import com.letta.mobile.data.paging.MessagePagingSource
 import com.letta.mobile.domain.MessageProcessor
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +34,17 @@ class MessageRepository @Inject constructor(
 
     private val _messagesByAgent = MutableStateFlow<Map<String, List<AppMessage>>>(emptyMap())
     private val _messagesByConversation = MutableStateFlow<Map<String, List<AppMessage>>>(emptyMap())
+
+    fun getMessagesPaged(agentId: String?, conversationId: String?): Flow<PagingData<AppMessage>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = MessagePagingSource.PAGE_SIZE,
+                enablePlaceholders = false,
+                initialLoadSize = MessagePagingSource.PAGE_SIZE
+            ),
+            pagingSourceFactory = { MessagePagingSource(messageApi, agentId, conversationId) }
+        ).flow
+    }
 
     suspend fun fetchMessages(agentId: String, conversationId: String? = null): List<AppMessage> {
         // Try to fetch from API
