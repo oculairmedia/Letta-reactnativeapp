@@ -28,7 +28,7 @@ import com.letta.mobile.ui.theme.customColors
 
 @PreviewLightDark
 @Composable
-private fun MessageBubblePreview() {
+internal fun PreviewMessageBubbleContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Column(
@@ -65,7 +65,11 @@ private fun MessageBubblePreview() {
 
 @PreviewLightDark
 @Composable
-private fun ThinkingSectionPreview() {
+private fun MessageBubblePreview() = PreviewMessageBubbleContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewThinkingSectionContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             ThinkingSection(
@@ -77,7 +81,11 @@ private fun ThinkingSectionPreview() {
 
 @PreviewLightDark
 @Composable
-private fun EmptyStatePreview() {
+private fun ThinkingSectionPreview() = PreviewThinkingSectionContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewEmptyStateContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             EmptyState(
@@ -91,7 +99,11 @@ private fun EmptyStatePreview() {
 
 @PreviewLightDark
 @Composable
-private fun MessageActionButtonsPreview() {
+private fun EmptyStatePreview() = PreviewEmptyStateContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewMessageActionButtonsContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Row(
@@ -115,7 +127,11 @@ private fun MessageActionButtonsPreview() {
 
 @PreviewLightDark
 @Composable
-private fun LatencyTextPreview() {
+private fun MessageActionButtonsPreview() = PreviewMessageActionButtonsContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewLatencyTextContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Column(
@@ -132,7 +148,11 @@ private fun LatencyTextPreview() {
 
 @PreviewLightDark
 @Composable
-private fun ErrorDialogPreview() {
+private fun LatencyTextPreview() = PreviewLatencyTextContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewErrorDialogContent() {
     LettaTheme(dynamicColor = false) {
         ErrorDialog(
             message = "Failed to connect to server. Please check your connection and try again.",
@@ -144,7 +164,11 @@ private fun ErrorDialogPreview() {
 
 @PreviewLightDark
 @Composable
-private fun RotationalLoaderPreview() {
+private fun ErrorDialogPreview() = PreviewErrorDialogContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewRotationalLoaderContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Box(modifier = Modifier.padding(32.dp)) {
@@ -156,7 +180,11 @@ private fun RotationalLoaderPreview() {
 
 @PreviewLightDark
 @Composable
-private fun AccordionsPreview() {
+private fun RotationalLoaderPreview() = PreviewRotationalLoaderContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewAccordionsContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Column {
@@ -184,7 +212,11 @@ private fun AccordionsPreview() {
 
 @PreviewLightDark
 @Composable
-private fun MessageSenderPreview() {
+private fun AccordionsPreview() = PreviewAccordionsContent()
+
+@PreviewLightDark
+@Composable
+internal fun PreviewMessageSenderContent() {
     LettaTheme(dynamicColor = false) {
         Surface {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -195,3 +227,7 @@ private fun MessageSenderPreview() {
         }
     }
 }
+
+@PreviewLightDark
+@Composable
+private fun MessageSenderPreview() = PreviewMessageSenderContent()
