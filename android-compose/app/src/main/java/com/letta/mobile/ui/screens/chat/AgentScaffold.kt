@@ -6,7 +6,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import com.letta.mobile.ui.screens.settings.AgentSettingsScreen
 import com.letta.mobile.ui.screens.tools.ToolsScreen
 
@@ -18,6 +20,7 @@ fun AgentScaffold(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf(0) }
 
     ModalNavigationDrawer(
@@ -25,7 +28,7 @@ fun AgentScaffold(
         drawerContent = {
             ModalDrawerSheet {
                 DrawerContent(onClose = {
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    scope.launch {
                         drawerState.close()
                     }
                 })
@@ -43,7 +46,7 @@ fun AgentScaffold(
                     },
                     actions = {
                         IconButton(onClick = {
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            scope.launch {
                                 drawerState.open()
                             }
                         }) {
