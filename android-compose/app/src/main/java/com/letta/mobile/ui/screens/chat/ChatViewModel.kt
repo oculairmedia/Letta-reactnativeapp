@@ -36,6 +36,7 @@ data class ToolCall(
 data class ChatUiState(
     val messages: List<Message> = emptyList(),
     val isStreaming: Boolean = false,
+    val isAgentTyping: Boolean = false,
     val inputText: String = "",
     val agentName: String = ""
 )
@@ -79,25 +80,32 @@ class ChatViewModel @Inject constructor(
             val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
             _uiState.value = UiState.Success(currentState.copy(
                 inputText = "",
-                isStreaming = true
+                isStreaming = true,
+                isAgentTyping = true
             ))
             try {
                 messageRepository.sendMessage(agentId, text, conversationId).collect { state ->
                     when (state) {
-                        is StreamState.Sending -> {}
+                        is StreamState.Sending -> {
+                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
+                            _uiState.value = UiState.Success(current.copy(isAgentTyping = true))
+                        }
                         is StreamState.Streaming -> {
                             val messages = state.messages.map { it.toUiMessage() }
                             val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
                             _uiState.value = UiState.Success(
-                                current.copy(messages = messages, isStreaming = true)
+                                current.copy(messages = messages, isStreaming = true, isAgentTyping = false)
                             )
                         }
-                        is StreamState.ToolExecution -> {}
+                        is StreamState.ToolExecution -> {
+                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
+                            _uiState.value = UiState.Success(current.copy(isAgentTyping = true))
+                        }
                         is StreamState.Complete -> {
                             val messages = state.messages.map { it.toUiMessage() }
                             val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
                             _uiState.value = UiState.Success(
-                                current.copy(messages = messages, isStreaming = false)
+                                current.copy(messages = messages, isStreaming = false, isAgentTyping = false)
                             )
                         }
                         is StreamState.Error -> {

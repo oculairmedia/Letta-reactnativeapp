@@ -7,17 +7,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -49,12 +48,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.common.GroupPosition
+import com.letta.mobile.ui.common.groupMessages
+import com.letta.mobile.ui.components.DateSeparator
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.components.MessageBubbleShape
+import com.letta.mobile.ui.components.ScrollToBottomFab
 import com.letta.mobile.ui.components.ThinkingSection
+import com.letta.mobile.ui.components.TypingIndicator
 import com.letta.mobile.ui.theme.customColors
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 @Composable
 fun ChatScreen(
@@ -88,6 +94,7 @@ private fun ChatContent(
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
@@ -103,8 +110,15 @@ private fun ChatContent(
 
     val isAtBottom by remember {
         derivedStateOf {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
-            lastVisible <= 1
+            val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
+            firstVisible <= 1
+        }
+    }
+
+    val showScrollFab by remember {
+        derivedStateOf {
+            val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
+            firstVisible > 3
         }
     }
 
@@ -114,27 +128,75 @@ private fun ChatContent(
         }
     }
 
+    val groupedMessages = remember(state.messages) {
+        groupMessages(
+            messages = state.messages,
+            getRole = { it.role },
+            getTimestamp = { it.timestamp },
+        )
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
-        if (state.messages.isEmpty()) {
+        if (state.messages.isEmpty() && !state.isStreaming) {
             EmptyState(
                 icon = Icons.Default.ChatBubbleOutline,
                 message = stringResource(R.string.start_conversation),
                 modifier = Modifier.weight(1f)
             )
         } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                reverseLayout = true
-            ) {
-                items(
-                    items = state.messages.reversed(),
-                    key = { it.id }
-                ) { message ->
-                    MessageBubble(message = message, isStreaming = state.isStreaming)
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    reverseLayout = true
+                ) {
+                    if (state.isStreaming) {
+                        item(key = "typing") {
+                            TypingIndicator(modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                    }
+
+                    val reversed = groupedMessages.reversed()
+                    reversed.forEachIndexed { index, (message, position) ->
+                        val prevDate = reversed.getOrNull(index + 1)?.first?.timestamp?.take(10)
+                        val currentDate = message.timestamp.take(10)
+                        val showDate = prevDate != null && prevDate != currentDate
+
+                        item(key = message.id) {
+                            val spacing = when (position) {
+                                GroupPosition.Middle, GroupPosition.Last -> 2.dp
+                                else -> 6.dp
+                            }
+                            MessageBubble(
+                                message = message,
+                                groupPosition = position,
+                                isStreaming = state.isStreaming,
+                                modifier = Modifier.padding(top = spacing)
+                            )
+                        }
+
+                        if (showDate) {
+                            item(key = "date-$currentDate") {
+                                val date = try {
+                                    LocalDate.parse(currentDate)
+                                } catch (_: Exception) {
+                                    null
+                                }
+                                if (date != null) {
+                                    DateSeparator(date = date)
+                                }
+                            }
+                        }
+                    }
                 }
+
+                ScrollToBottomFab(
+                    visible = showScrollFab,
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                )
             }
         }
 
@@ -150,6 +212,7 @@ private fun ChatContent(
 @Composable
 private fun MessageBubble(
     message: Message,
+    groupPosition: GroupPosition = GroupPosition.None,
     isStreaming: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -181,7 +244,7 @@ private fun MessageBubble(
         Box(
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .clip(MessageBubbleShape(radius = 16.dp, isFromUser = isUser))
+                .clip(MessageBubbleShape(radius = 16.dp, isFromUser = isUser, groupPosition = groupPosition))
                 .background(bubbleColor)
                 .padding(12.dp)
         ) {
