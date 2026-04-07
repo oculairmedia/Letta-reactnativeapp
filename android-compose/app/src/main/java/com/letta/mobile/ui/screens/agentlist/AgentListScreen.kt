@@ -129,7 +129,7 @@ fun AgentListScreen(
                                 expanded = searchActive,
                                 onExpandedChange = { searchActive = it },
                                 placeholder = { Text(stringResource(R.string.screen_agents_search_hint)) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { viewModel.updateSearchQuery("") }) {
@@ -151,7 +151,7 @@ fun AgentListScreen(
                                 ListItem(
                                     headlineContent = { Text(agent.name) },
                                     supportingContent = agent.model?.let { { Text(it) } },
-                                    leadingContent = { Icon(Icons.Default.SmartToy, contentDescription = null) },
+                                    leadingContent = { Icon(Icons.Default.SmartToy, contentDescription = "Agent") },
                                     modifier = Modifier
                                         .clickable {
                                             searchActive = false

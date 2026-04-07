@@ -121,6 +121,26 @@ class ConversationsViewModel @Inject constructor(
         }
     }
 
+    fun renameConversation(conversationId: String, agentId: String, newName: String) {
+        viewModelScope.launch {
+            try {
+                conversationRepository.updateConversation(conversationId, agentId, newName)
+                val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
+                _uiState.value = UiState.Success(
+                    currentState.copy(
+                        conversations = currentState.conversations.map {
+                            if (it.conversation.id == conversationId) {
+                                it.copy(conversation = it.conversation.copy(summary = newName))
+                            } else it
+                        }
+                    )
+                )
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Failed to rename conversation")
+            }
+        }
+    }
+
     fun createConversation(agentId: String, onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             try {

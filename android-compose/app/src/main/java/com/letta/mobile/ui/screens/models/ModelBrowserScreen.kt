@@ -97,7 +97,7 @@ private fun ModelBrowserContent(
             onValueChange = onSearchChange,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             placeholder = { Text("Search models\u2026") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
             singleLine = true,
         )
 
@@ -118,7 +118,7 @@ private fun ModelBrowserContent(
                     onClick = { onProviderSelect(provider) },
                     label = { Text(provider) },
                     leadingIcon = if (state.selectedProvider == provider) {
-                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.height(16.dp)) }
+                        { Icon(Icons.Default.Check, contentDescription = "Selected", modifier = Modifier.height(16.dp)) }
                     } else null,
                 )
             }

@@ -34,6 +34,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -104,6 +105,9 @@ fun ConversationsScreen(
                     onNavigateToChat(display.conversation.agentId, display.conversation.id)
                 },
                 onDeleteConversation = { viewModel.deleteConversation(it.conversation.id) },
+                onRenameConversation = { display, newName ->
+                    viewModel.renameConversation(display.conversation.id, display.conversation.agentId, newName)
+                },
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.padding(paddingValues)
             )
@@ -130,6 +134,7 @@ private fun ConversationsContent(
     state: ConversationsUiState,
     onConversationClick: (ConversationDisplay) -> Unit,
     onDeleteConversation: (ConversationDisplay) -> Unit,
+    onRenameConversation: (ConversationDisplay, String) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -152,7 +157,8 @@ private fun ConversationsContent(
                 ConversationCard(
                     display = display,
                     onClick = { onConversationClick(display) },
-                    onDelete = { onDeleteConversation(display) }
+                    onDelete = { onDeleteConversation(display) },
+                    onRename = { newName -> onRenameConversation(display, newName) },
                 )
             }
         }
@@ -165,11 +171,13 @@ private fun ConversationCard(
     display: ConversationDisplay,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onRename: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val conversation = display.conversation
     var showContextMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
     val title = conversation.summary
@@ -231,6 +239,13 @@ private fun ConversationCard(
             onDismissRequest = { showContextMenu = false },
         ) {
             DropdownMenuItem(
+                text = { Text("Rename") },
+                onClick = {
+                    showContextMenu = false
+                    showRenameDialog = true
+                },
+            )
+            DropdownMenuItem(
                 text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                 onClick = {
                     showContextMenu = false
@@ -252,6 +267,36 @@ private fun ConversationCard(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+
+    if (showRenameDialog) {
+        var renameText by remember { mutableStateOf(conversation.summary ?: "") }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Conversation") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showRenameDialog = false; onRename(renameText) },
+                    enabled = renameText.isNotBlank(),
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             }
