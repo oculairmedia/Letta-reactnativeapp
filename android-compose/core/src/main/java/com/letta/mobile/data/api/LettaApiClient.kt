@@ -1,7 +1,9 @@
 package com.letta.mobile.data.api
 
+import android.content.Context
 import android.util.Log
 import com.letta.mobile.data.repository.SettingsRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.*
@@ -18,6 +20,7 @@ import javax.inject.Singleton
 
 @Singleton
 class LettaApiClient @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository
 ) {
     private val json = Json {
@@ -62,11 +65,15 @@ class LettaApiClient @Inject constructor(
     }
 
     private fun createClient(apiKey: String?, baseUrl: String): HttpClient {
+        val cacheDir = java.io.File(context.cacheDir, "http_cache")
+        val cacheSize = 10L * 1024 * 1024
+
         return HttpClient(OkHttp) {
             engine {
                 config {
                     followRedirects(true)
                     followSslRedirects(true)
+                    cache(okhttp3.Cache(cacheDir, cacheSize))
                 }
             }
 
