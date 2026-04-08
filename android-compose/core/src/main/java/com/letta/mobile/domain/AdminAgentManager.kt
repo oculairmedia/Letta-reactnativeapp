@@ -76,7 +76,7 @@ class AdminAgentManager @Inject constructor(
                 name = ADMIN_NAME,
                 description = ADMIN_DESCRIPTION,
                 model = "anthropic-claude-max/opus-4-6-reasoning-medium",
-                embedding = "dengcao/Qwen3-Embedding-4B:Q4_K_M",
+                embedding = "ollama/dengcao/Qwen3-Embedding-4B:Q4_K_M",
                 system = ADMIN_SYSTEM_PROMPT,
                 tags = listOf(ADMIN_TAG),
                 includeBaseTools = true,
