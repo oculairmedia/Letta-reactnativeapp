@@ -3,8 +3,9 @@ package com.letta.mobile.ui.screens.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.mapper.toUiMessage
 import com.letta.mobile.data.model.AppMessage
-import com.letta.mobile.data.model.MessageType
+
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.repository.AgentRepository
@@ -33,7 +34,6 @@ data class ChatUiState(
     val isStreaming: Boolean = false,
     val isAgentTyping: Boolean = false,
     val pendingTools: List<PendingToolCall> = emptyList(),
-    val inputText: String = "",
     val agentName: String = "",
     val error: String? = null,
     val promptTokens: Int? = null,
@@ -55,6 +55,9 @@ class ChatViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    private val _inputText = MutableStateFlow("")
+    val inputText: StateFlow<String> = _inputText.asStateFlow()
 
     private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     private var hasSummary = false
@@ -118,9 +121,9 @@ class ChatViewModel @Inject constructor(
                 content = text,
                 timestamp = java.time.Instant.now().toString(),
             )
+            _inputText.value = ""
             val existingMessages = _uiState.value.messages + userMessage
             _uiState.value = _uiState.value.copy(
-                inputText = "",
                 messages = existingMessages,
                 isStreaming = true,
                 isAgentTyping = true,
@@ -222,28 +225,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun updateInputText(text: String) {
-        _uiState.value = _uiState.value.copy(inputText = text)
+        _inputText.value = text
     }
 
-    private fun AppMessage.toUiMessage(): UiMessage {
-        val role = when (messageType) {
-            MessageType.USER -> "user"
-            MessageType.ASSISTANT -> "assistant"
-            MessageType.REASONING -> "assistant"
-            MessageType.TOOL_CALL -> "tool"
-            MessageType.TOOL_RETURN -> "tool"
-        }
-        val toolCalls = toolName?.takeIf { messageType == MessageType.TOOL_CALL }?.let { name ->
-            listOf(UiToolCall(name = name, arguments = content, result = null))
-        }
-
-        return UiMessage(
-            id = id,
-            role = role,
-            content = content,
-            timestamp = date.toString(),
-            isReasoning = messageType == MessageType.REASONING,
-            toolCalls = toolCalls
-        )
-    }
 }

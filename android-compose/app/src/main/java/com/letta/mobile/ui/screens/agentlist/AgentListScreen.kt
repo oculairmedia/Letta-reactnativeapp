@@ -86,8 +86,8 @@ fun AgentListScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
 
-    val filteredAgents by remember(uiState.agents, uiState.searchQuery) {
-        derivedStateOf { viewModel.getFilteredAgents() }
+    val filteredAgents = remember(uiState.agents, uiState.searchQuery) {
+        viewModel.getFilteredAgents()
     }
 
     val favoriteAgent = uiState.favoriteAgentId?.let { favId ->

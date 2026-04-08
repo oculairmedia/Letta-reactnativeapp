@@ -85,6 +85,7 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val inputText by viewModel.inputText.collectAsStateWithLifecycle()
 
     LettaChatTheme {
     Column(modifier = modifier.fillMaxSize()) {
@@ -106,7 +107,7 @@ fun ChatScreen(
         }
 
         MessageInputBar(
-            text = state.inputText,
+            text = inputText,
             onTextChange = { viewModel.updateInputText(it) },
             onSend = { viewModel.sendMessage(it) },
             isStreaming = state.isStreaming,
