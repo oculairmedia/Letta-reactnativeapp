@@ -115,10 +115,6 @@ fun AgentScaffold(
                         scope.launch { drawerState.close() }
                         onNavigateToTools?.invoke()
                     },
-                    onSettings = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToSettings(agentId)
-                    },
                     onClose = { scope.launch { drawerState.close() } },
                 )
             }
@@ -279,7 +275,6 @@ private fun DrawerContent(
     onEditAgent: () -> Unit,
     onArchivalMemory: () -> Unit,
     onTools: () -> Unit = {},
-    onSettings: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     Column(
@@ -334,13 +329,6 @@ private fun DrawerContent(
             label = { Text(stringResource(R.string.common_tools)) },
             selected = false,
             onClick = onTools,
-        )
-
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-            label = { Text(stringResource(R.string.common_settings)) },
-            selected = false,
-            onClick = onSettings,
         )
 
         Spacer(modifier = Modifier.weight(1f))
