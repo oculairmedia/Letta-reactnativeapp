@@ -10,7 +10,8 @@ import io.ktor.client.plugins.auth.providers.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,19 +27,38 @@ class LettaApiClient @Inject constructor(
         explicitNulls = false
     }
 
+    private val mutex = Mutex()
+    private var cachedClient: HttpClient? = null
+    private var cachedBaseUrl: String? = null
+    private var cachedToken: String? = null
+
     suspend fun getClient(): HttpClient {
-        val config = settingsRepository.activeConfig.first()
-        var baseUrl = config?.serverUrl?.trim() ?: "https://api.letta.com"
-        // Ensure URL ends with slash for proper path resolution
-        if (!baseUrl.endsWith("/")) {
-            baseUrl = "$baseUrl/"
+        val config = settingsRepository.activeConfig.value
+        val url = config?.serverUrl?.trim() ?: "https://api.letta.com"
+        val token = config?.accessToken?.trim()
+
+        mutex.withLock {
+            if (cachedClient != null && cachedBaseUrl == url && cachedToken == token) {
+                return cachedClient!!
+            }
+            cachedClient?.close()
+            cachedClient = createClient(token, if (url.endsWith("/")) url else "$url/")
+            cachedBaseUrl = url
+            cachedToken = token
+            return cachedClient!!
         }
-        return createClient(config?.accessToken?.trim(), baseUrl)
     }
 
-    suspend fun getBaseUrl(): String {
-        val config = settingsRepository.activeConfig.first()
+    fun getBaseUrl(): String {
+        val config = settingsRepository.activeConfig.value
         return config?.serverUrl ?: "https://api.letta.com"
+    }
+
+    fun invalidateClient() {
+        cachedClient?.close()
+        cachedClient = null
+        cachedBaseUrl = null
+        cachedToken = null
     }
 
     private fun createClient(apiKey: String?, baseUrl: String): HttpClient {

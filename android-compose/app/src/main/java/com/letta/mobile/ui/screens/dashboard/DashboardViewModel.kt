@@ -12,6 +12,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -49,9 +51,14 @@ class DashboardViewModel @Inject constructor(
             try {
                 val adminAgent = adminAgentManager.ensureAdminAgent()
 
-                agentRepository.refreshAgents()
-                allConversationsRepository.refresh()
-                toolRepository.refreshTools()
+                coroutineScope {
+                    val agentsDeferred = async { agentRepository.refreshAgents() }
+                    val conversationsDeferred = async { allConversationsRepository.refresh() }
+                    val toolsDeferred = async { toolRepository.refreshTools() }
+                    agentsDeferred.await()
+                    conversationsDeferred.await()
+                    toolsDeferred.await()
+                }
 
                 val agents = agentRepository.agents.value
                 val conversations = allConversationsRepository.conversations.value
