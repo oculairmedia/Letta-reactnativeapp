@@ -115,6 +115,10 @@ fun AgentScaffold(
                         scope.launch { drawerState.close() }
                         onNavigateToTools?.invoke()
                     },
+                    onResetMessages = {
+                        scope.launch { drawerState.close() }
+                        viewModel.resetMessages()
+                    },
                     onClose = { scope.launch { drawerState.close() } },
                 )
             }
@@ -275,6 +279,7 @@ private fun DrawerContent(
     onEditAgent: () -> Unit,
     onArchivalMemory: () -> Unit,
     onTools: () -> Unit = {},
+    onResetMessages: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     Column(
@@ -329,6 +334,15 @@ private fun DrawerContent(
             label = { Text(stringResource(R.string.common_tools)) },
             selected = false,
             onClick = onTools,
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Delete, contentDescription = "Reset") },
+            label = { Text("Reset Messages") },
+            selected = false,
+            onClick = onResetMessages,
         )
 
         Spacer(modifier = Modifier.weight(1f))

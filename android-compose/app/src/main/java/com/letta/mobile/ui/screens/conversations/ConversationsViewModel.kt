@@ -131,6 +131,18 @@ class ConversationsViewModel @Inject constructor(
         }
     }
 
+    fun forkConversation(conversationId: String, agentId: String, onSuccess: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val forked = conversationRepository.forkConversation(conversationId, agentId)
+                onSuccess(forked.id)
+                loadConversations()
+            } catch (e: Exception) {
+                Log.w("ConversationsVM", "Fork failed", e)
+            }
+        }
+    }
+
     fun createConversation(agentId: String, onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             try {

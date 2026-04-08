@@ -141,6 +141,11 @@ fun ConversationsScreen(
                 onRenameConversation = { display, newName ->
                     viewModel.renameConversation(display.conversation.id, display.conversation.agentId, newName)
                 },
+                onForkConversation = { display ->
+                    viewModel.forkConversation(display.conversation.id, display.conversation.agentId) { newConvId ->
+                        onNavigateToChat(display.conversation.agentId, newConvId)
+                    }
+                },
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.padding(paddingValues)
             )
@@ -168,6 +173,7 @@ private fun ConversationsContent(
     onConversationClick: (ConversationDisplay) -> Unit,
     onDeleteConversation: (ConversationDisplay) -> Unit,
     onRenameConversation: (ConversationDisplay, String) -> Unit,
+    onForkConversation: (ConversationDisplay) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -195,8 +201,9 @@ private fun ConversationsContent(
                     ConversationCard(
                         display = display,
                         onClick = { onConversationClick(display) },
-                        onDelete = { onDeleteConversation(display) },
-                        onRename = { newName -> onRenameConversation(display, newName) },
+                    onDelete = { onDeleteConversation(display) },
+                    onRename = { newName -> onRenameConversation(display, newName) },
+                    onFork = { onForkConversation(display) },
                     )
                 }
             }
@@ -211,6 +218,7 @@ private fun ConversationCard(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onRename: (String) -> Unit,
+    onFork: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val conversation = display.conversation
@@ -282,6 +290,13 @@ private fun ConversationCard(
                 onClick = {
                     showContextMenu = false
                     showRenameDialog = true
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Fork") },
+                onClick = {
+                    showContextMenu = false
+                    onFork()
                 },
             )
             DropdownMenuItem(

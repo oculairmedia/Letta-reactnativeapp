@@ -210,6 +210,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun resetMessages() {
+        viewModelScope.launch {
+            try {
+                messageRepository.resetMessages(agentId)
+                _uiState.value = _uiState.value.copy(messages = emptyList())
+            } catch (e: Exception) {
+                android.util.Log.w("ChatViewModel", "Failed to reset messages", e)
+            }
+        }
+    }
+
     fun updateInputText(text: String) {
         _uiState.value = _uiState.value.copy(inputText = text)
     }
