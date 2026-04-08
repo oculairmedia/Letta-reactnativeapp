@@ -37,9 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.LoadingIndicator
-import com.letta.mobile.ui.components.MessageSkeletonList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,30 +77,14 @@ fun HomeScreen(
             )
         },
     ) { paddingValues ->
-        when (val state = uiState) {
-            is UiState.Loading -> LoadingIndicator()
-            is UiState.Error -> Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(state.message, style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Check your server configuration",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            is UiState.Success -> HomeContent(
-                state = state.data,
-                onNavigateToAgents = onNavigateToAgents,
-                onNavigateToConversations = onNavigateToConversations,
-                onNavigateToTools = onNavigateToTools,
-                onNavigateToChat = onNavigateToChat,
-                modifier = Modifier.padding(paddingValues),
-            )
-        }
+        HomeContent(
+            state = uiState,
+            onNavigateToAgents = onNavigateToAgents,
+            onNavigateToConversations = onNavigateToConversations,
+            onNavigateToTools = onNavigateToTools,
+            onNavigateToChat = onNavigateToChat,
+            modifier = Modifier.padding(paddingValues),
+        )
     }
 }
 
@@ -122,21 +104,21 @@ private fun HomeContent(
         ) {
             StatCard(
                 label = "Agents",
-                value = state.agentCount.toString(),
+                value = state.agentCount?.toString(),
                 icon = Icons.Default.People,
                 onClick = onNavigateToAgents,
                 modifier = Modifier.weight(1f),
             )
             StatCard(
                 label = "Chats",
-                value = state.conversationCount.toString(),
+                value = state.conversationCount?.toString(),
                 icon = Icons.Default.Chat,
                 onClick = onNavigateToConversations,
                 modifier = Modifier.weight(1f),
             )
             StatCard(
                 label = "Tools",
-                value = state.toolCount.toString(),
+                value = state.toolCount?.toString(),
                 icon = Icons.Default.Build,
                 onClick = onNavigateToTools,
                 modifier = Modifier.weight(1f),
@@ -208,7 +190,7 @@ private fun HomeContent(
 @Composable
 private fun StatCard(
     label: String,
-    value: String,
+    value: String?,
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -228,11 +210,20 @@ private fun StatCard(
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
+            if (value != null) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            } else {
+                Text(
+                    text = "—",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                )
+            }
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,

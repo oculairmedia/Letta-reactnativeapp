@@ -34,12 +34,22 @@ class AgentListViewModel @Inject constructor(
     val uiState: StateFlow<AgentListUiState> = _uiState.asStateFlow()
 
     init {
+        val cached = agentRepository.agents.value
+        if (cached.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                agents = cached,
+                favoriteAgentId = settingsRepository.favoriteAgentId.value,
+                isLoading = false,
+            )
+        }
         loadAgents()
     }
 
     fun loadAgents() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            if (_uiState.value.agents.isEmpty()) {
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            }
             try {
                 agentRepository.refreshAgents()
                 _uiState.value = _uiState.value.copy(
@@ -50,7 +60,7 @@ class AgentListViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.message ?: "Failed to load agents",
+                    error = if (_uiState.value.agents.isEmpty()) e.message ?: "Failed to load agents" else null,
                 )
             }
         }
