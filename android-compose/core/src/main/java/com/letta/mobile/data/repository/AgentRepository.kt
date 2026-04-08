@@ -3,7 +3,10 @@ package com.letta.mobile.data.repository
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import android.util.Log
 import com.letta.mobile.data.api.AgentApi
+import com.letta.mobile.data.local.AgentDao
+import com.letta.mobile.data.local.AgentEntity
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
@@ -21,9 +24,23 @@ import javax.inject.Singleton
 @Singleton
 class AgentRepository @Inject constructor(
     private val agentApi: AgentApi,
+    private val agentDao: AgentDao,
 ) : IAgentRepository {
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
+
+    init {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val cached = agentDao.getAllOnce().map { it.toAgent() }
+                if (cached.isNotEmpty() && _agents.value.isEmpty()) {
+                    _agents.value = cached
+                }
+            } catch (e: Exception) {
+                Log.w("AgentRepository", "Failed to load cached agents", e)
+            }
+        }
+    }
 
     fun getAgentsPaged(tags: List<String>? = null): Flow<PagingData<Agent>> {
         return Pager(
@@ -37,8 +54,15 @@ class AgentRepository @Inject constructor(
     }
 
     override suspend fun refreshAgents() {
-        // Fetch all agents with a large limit for search functionality
-        _agents.value = agentApi.listAgents(limit = 1000)
+        val fresh = agentApi.listAgents(limit = 1000)
+        _agents.value = fresh
+        try {
+            val entities = fresh.map { AgentEntity.fromAgent(it) }
+            agentDao.insertAll(entities)
+            agentDao.deleteExcept(fresh.map { it.id })
+        } catch (e: Exception) {
+            Log.w("AgentRepository", "Failed to cache agents to Room", e)
+        }
     }
 
     override fun getAgent(id: String): Flow<Agent> = flow {
