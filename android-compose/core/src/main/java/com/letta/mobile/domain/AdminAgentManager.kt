@@ -53,14 +53,18 @@ class AdminAgentManager @Inject constructor(
             AgentCreateParams(
                 name = ADMIN_NAME,
                 description = ADMIN_DESCRIPTION,
+                model = "anthropic-claude-max/opus-4-6-reasoning-medium",
+                embedding = "dengcao/Qwen3-Embedding-4B:Q4_K_M",
                 system = ADMIN_SYSTEM_PROMPT,
                 tags = listOf(ADMIN_TAG),
                 includeBaseTools = true,
+                enableSleeptime = true,
                 memoryBlocks = listOf(
                     BlockCreateParams(label = "persona", value = "I am a Letta server admin assistant."),
                     BlockCreateParams(label = "human", value = "The user is a Letta Mobile app user managing their server."),
                 ),
             )
+        )
         )
         settingsRepository.setAdminAgentId(created.id)
         return created
