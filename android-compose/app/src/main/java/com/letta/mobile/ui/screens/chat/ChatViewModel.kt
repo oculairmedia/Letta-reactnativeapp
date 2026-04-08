@@ -12,7 +12,6 @@ import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.model.ConversationUpdateParams
 import com.letta.mobile.data.repository.StreamState
-import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,10 +23,12 @@ import javax.inject.Inject
 @androidx.compose.runtime.Immutable
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
+    val isLoadingMessages: Boolean = true,
     val isStreaming: Boolean = false,
     val isAgentTyping: Boolean = false,
     val inputText: String = "",
     val agentName: String = "",
+    val error: String? = null,
     val promptTokens: Int? = null,
     val completionTokens: Int? = null,
     val totalTokens: Int? = null,
@@ -44,14 +45,14 @@ class ChatViewModel @Inject constructor(
     val agentId: String = savedStateHandle.get<String>("agentId") ?: ""
     val conversationId: String? = savedStateHandle.get<String>("conversationId")
 
-    private val _uiState = MutableStateFlow<UiState<ChatUiState>>(UiState.Loading)
-    val uiState: StateFlow<UiState<ChatUiState>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(ChatUiState())
+    val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private var hasSummary = false
 
     init {
         if (agentId.isBlank()) {
-            _uiState.value = UiState.Error("No agent selected")
+            _uiState.value = _uiState.value.copy(error = "No agent selected")
         } else {
             loadMessages()
         }
@@ -59,29 +60,28 @@ class ChatViewModel @Inject constructor(
 
     fun loadMessages() {
         viewModelScope.launch {
-            _uiState.value = UiState.Loading
+            _uiState.value = _uiState.value.copy(isLoadingMessages = true)
             try {
                 val agent = agentRepository.getAgent(agentId).first()
+                _uiState.value = _uiState.value.copy(agentName = agent.name)
+
                 val appMessages = messageRepository.getMessages(agentId, conversationId).first()
                 val messages = appMessages.map { it.toUiMessage() }
                 if (messages.isNotEmpty()) hasSummary = true
-                _uiState.value = UiState.Success(
-                    ChatUiState(messages = messages, agentName = agent.name)
+                _uiState.value = _uiState.value.copy(
+                    messages = messages, isLoadingMessages = false
                 )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to load messages")
-            }
+                _uiState.value = _uiState.value.copy(
+                    isLoadingMessages = false,
+                    error = e.message ?: "Failed to load messages",
+                )
         }
     }
 
     fun sendMessage(text: String) {
         viewModelScope.launch {
-            val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
-            _uiState.value = UiState.Success(currentState.copy(
-                inputText = "",
-                isStreaming = true,
-                isAgentTyping = true
-            ))
+            _uiState.value = _uiState.value.copy(inputText = "", isStreaming = true, isAgentTyping = true)
             try {
                 if (!hasSummary && conversationId != null) {
                     try {
@@ -95,43 +95,32 @@ class ChatViewModel @Inject constructor(
                 messageRepository.sendMessage(agentId, text, conversationId).collect { state ->
                     when (state) {
                         is StreamState.Sending -> {
-                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
-                            _uiState.value = UiState.Success(current.copy(isAgentTyping = true))
+                            _uiState.value = _uiState.value.copy(isAgentTyping = true)
                         }
                         is StreamState.Streaming -> {
                             val messages = state.messages.map { it.toUiMessage() }
-                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
-                            _uiState.value = UiState.Success(
-                                current.copy(messages = messages, isStreaming = true, isAgentTyping = false)
-                            )
+                            _uiState.value = _uiState.value.copy(messages = messages, isStreaming = true, isAgentTyping = false)
                         }
                         is StreamState.ToolExecution -> {
-                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
-                            _uiState.value = UiState.Success(current.copy(isAgentTyping = true))
+                            _uiState.value = _uiState.value.copy(isAgentTyping = true)
                         }
                         is StreamState.Complete -> {
                             val messages = state.messages.map { it.toUiMessage() }
-                            val current = (_uiState.value as? UiState.Success)?.data ?: return@collect
-                            _uiState.value = UiState.Success(
-                                current.copy(messages = messages, isStreaming = false, isAgentTyping = false)
-                            )
+                            _uiState.value = _uiState.value.copy(messages = messages, isStreaming = false, isAgentTyping = false)
                         }
                         is StreamState.Error -> {
-                            _uiState.value = UiState.Error(state.message)
+                            _uiState.value = _uiState.value.copy(error = state.message, isStreaming = false, isAgentTyping = false)
                         }
                     }
                 }
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to send message")
+                _uiState.value = _uiState.value.copy(error = e.message, isStreaming = false, isAgentTyping = false)
             }
         }
     }
 
     fun updateInputText(text: String) {
-        val currentState = (_uiState.value as? UiState.Success)?.data
-        if (currentState != null) {
-            _uiState.value = UiState.Success(currentState.copy(inputText = text))
-        }
+        _uiState.value = _uiState.value.copy(inputText = text)
     }
 
     private fun AppMessage.toUiMessage(): UiMessage {

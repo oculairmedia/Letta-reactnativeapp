@@ -62,7 +62,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.util.formatRelativeTime
@@ -125,15 +124,15 @@ fun ConversationsScreen(
             }
         }
     ) { paddingValues ->
-        when (val state = uiState) {
-            is UiState.Loading -> LoadingIndicator()
-            is UiState.Error -> ErrorContent(
-                message = state.message,
+        when {
+            uiState.isLoading && uiState.conversations.isEmpty() -> LoadingIndicator()
+            uiState.error != null && uiState.conversations.isEmpty() -> ErrorContent(
+                message = uiState.error!!,
                 onRetry = { viewModel.loadConversations() },
                 modifier = Modifier.padding(paddingValues)
             )
-            is UiState.Success -> ConversationsContent(
-                state = state.data,
+            else -> ConversationsContent(
+                state = uiState,
                 onConversationClick = { display ->
                     onNavigateToChat(display.conversation.agentId, display.conversation.id)
                 },
@@ -148,7 +147,7 @@ fun ConversationsScreen(
     }
 
     if (showAgentPickerDialog) {
-        val agents = (uiState as? UiState.Success)?.data?.agents ?: emptyList()
+        val agents = uiState.agents
         AgentPickerDialog(
             agents = agents,
             onDismiss = { showAgentPickerDialog = false },

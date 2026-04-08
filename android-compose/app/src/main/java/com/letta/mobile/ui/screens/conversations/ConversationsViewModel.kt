@@ -1,5 +1,6 @@
 package com.letta.mobile.ui.screens.conversations
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
@@ -7,7 +8,6 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ConversationRepository
-import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +25,10 @@ data class ConversationDisplay(
 data class ConversationsUiState(
     val conversations: List<ConversationDisplay> = emptyList(),
     val agents: List<Agent> = emptyList(),
+    val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val searchQuery: String = "",
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -36,18 +38,32 @@ class ConversationsViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<ConversationsUiState>>(UiState.Loading)
-    val uiState: StateFlow<UiState<ConversationsUiState>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(ConversationsUiState())
+    val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
 
     private var agentNameCache = mutableMapOf<String, String>()
 
     init {
+        val cachedAgents = agentRepository.agents.value
+        if (cachedAgents.isNotEmpty()) {
+            agentNameCache = cachedAgents.associate { it.id to it.name }.toMutableMap()
+        }
+        val cachedConversations = allConversationsRepository.conversations.value
+        if (cachedConversations.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                conversations = cachedConversations.map { it.toDisplay() },
+                agents = cachedAgents,
+                isLoading = false,
+            )
+        }
         loadConversations()
     }
 
     fun loadConversations() {
         viewModelScope.launch {
-            _uiState.value = UiState.Loading
+            if (_uiState.value.conversations.isEmpty()) {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+            }
             try {
                 agentRepository.refreshAgents()
                 agentNameCache = agentRepository.agents.value
@@ -55,90 +71,62 @@ class ConversationsViewModel @Inject constructor(
                     .toMutableMap()
 
                 allConversationsRepository.refresh()
-                val displays = allConversationsRepository.conversations.value.map { conv ->
-                    ConversationDisplay(
-                        conversation = conv,
-                        agentName = agentNameCache[conv.agentId] ?: conv.agentId.take(8),
-                    )
-                }
-                _uiState.value = UiState.Success(
-                    ConversationsUiState(
-                        conversations = displays,
-                        agents = agentRepository.agents.value,
-                    )
+                _uiState.value = _uiState.value.copy(
+                    conversations = allConversationsRepository.conversations.value.map { it.toDisplay() },
+                    agents = agentRepository.agents.value,
+                    isLoading = false,
+                    error = null,
                 )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to load conversations")
+                Log.w("ConversationsVM", "Load failed", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = if (_uiState.value.conversations.isEmpty()) e.message else null,
+                )
             }
         }
     }
 
     fun refresh() {
         viewModelScope.launch {
-            val currentState = (_uiState.value as? UiState.Success)?.data
-            if (currentState != null) {
-                _uiState.value = UiState.Success(currentState.copy(isRefreshing = true))
-            }
+            _uiState.value = _uiState.value.copy(isRefreshing = true)
             try {
                 allConversationsRepository.refresh()
-                val displays = allConversationsRepository.conversations.value.map { conv ->
-                    ConversationDisplay(
-                        conversation = conv,
-                        agentName = agentNameCache[conv.agentId] ?: conv.agentId.take(8),
-                    )
-                }
-                _uiState.value = UiState.Success(
-                    ConversationsUiState(
-                        conversations = displays,
-                        agents = agentRepository.agents.value,
-                        isRefreshing = false,
-                    )
+                _uiState.value = _uiState.value.copy(
+                    conversations = allConversationsRepository.conversations.value.map { it.toDisplay() },
+                    agents = agentRepository.agents.value,
+                    isRefreshing = false,
                 )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to refresh")
+                _uiState.value = _uiState.value.copy(isRefreshing = false)
             }
         }
     }
 
     fun deleteConversation(conversationId: String) {
-        viewModelScope.launch {
-            try {
-                allConversationsRepository.handleOptimisticDelete(conversationId)
-                val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
-                _uiState.value = UiState.Success(
-                    currentState.copy(
-                        conversations = currentState.conversations.filter { it.conversation.id != conversationId }
-                    )
-                )
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to delete conversation")
-            }
-        }
+        allConversationsRepository.handleOptimisticDelete(conversationId)
+        _uiState.value = _uiState.value.copy(
+            conversations = _uiState.value.conversations.filter { it.conversation.id != conversationId }
+        )
     }
 
     fun updateSearchQuery(query: String) {
-        val currentState = (_uiState.value as? UiState.Success)?.data
-        if (currentState != null) {
-            _uiState.value = UiState.Success(currentState.copy(searchQuery = query))
-        }
+        _uiState.value = _uiState.value.copy(searchQuery = query)
     }
 
     fun renameConversation(conversationId: String, agentId: String, newName: String) {
         viewModelScope.launch {
             try {
                 conversationRepository.updateConversation(conversationId, agentId, newName)
-                val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
-                _uiState.value = UiState.Success(
-                    currentState.copy(
-                        conversations = currentState.conversations.map {
-                            if (it.conversation.id == conversationId) {
-                                it.copy(conversation = it.conversation.copy(summary = newName))
-                            } else it
-                        }
-                    )
+                _uiState.value = _uiState.value.copy(
+                    conversations = _uiState.value.conversations.map {
+                        if (it.conversation.id == conversationId) {
+                            it.copy(conversation = it.conversation.copy(summary = newName))
+                        } else it
+                    }
                 )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to rename conversation")
+                Log.w("ConversationsVM", "Rename failed", e)
             }
         }
     }
@@ -149,9 +137,17 @@ class ConversationsViewModel @Inject constructor(
                 val conversation = conversationRepository.createConversation(agentId)
                 onSuccess(conversation.id)
                 allConversationsRepository.handleOptimisticUpdate(conversation)
+                _uiState.value = _uiState.value.copy(
+                    conversations = _uiState.value.conversations + conversation.toDisplay()
+                )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to create conversation")
+                Log.w("ConversationsVM", "Create failed", e)
             }
         }
     }
+
+    private fun Conversation.toDisplay() = ConversationDisplay(
+        conversation = this,
+        agentName = agentNameCache[agentId] ?: agentId.take(8),
+    )
 }

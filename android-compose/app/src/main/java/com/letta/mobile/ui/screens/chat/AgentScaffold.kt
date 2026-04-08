@@ -63,10 +63,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import com.letta.mobile.R
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import com.letta.mobile.data.repository.ConversationRepository
-import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ConnectionState
 import com.letta.mobile.ui.components.ConnectionStatusBanner
@@ -90,7 +87,7 @@ fun AgentScaffold(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showConversationPicker by remember { mutableStateOf(false) }
 
-    val agentName = (uiState as? UiState.Success)?.data?.agentName ?: ""
+    val agentName = uiState.agentName
     val agentId = viewModel.agentId
     val conversationId = viewModel.conversationId
     val connectivityMonitorAvailable = false
@@ -107,7 +104,7 @@ fun AgentScaffold(
                 DrawerContent(
                     agentName = agentName,
                     agentId = agentId,
-                    messageCount = (uiState as? UiState.Success)?.data?.messages?.size ?: 0,
+                    messageCount = uiState.messages.size,
                     onEditAgent = {
                         scope.launch { drawerState.close() }
                         onNavigateToSettings(agentId)

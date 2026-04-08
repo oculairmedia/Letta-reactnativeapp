@@ -54,7 +54,6 @@ import com.letta.mobile.R
 import androidx.compose.material3.FilterChip
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
-import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.common.GroupPosition
 import com.letta.mobile.ui.common.groupMessages
 import com.letta.mobile.ui.components.DateSeparator
@@ -77,20 +76,31 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    when (val state = uiState) {
-        is UiState.Loading -> MessageSkeletonList(modifier = modifier)
-        is UiState.Error -> ErrorContent(
-            message = state.message,
-            onRetry = { viewModel.loadMessages() },
-            modifier = modifier
-        )
-        is UiState.Success -> ChatContent(
-            state = state.data,
-            onSendMessage = { viewModel.sendMessage(it) },
-            onInputTextChange = { viewModel.updateInputText(it) },
-            modifier = modifier
+    Column(modifier = modifier.fillMaxSize()) {
+        if (state.isLoadingMessages && state.messages.isEmpty()) {
+            MessageSkeletonList(modifier = Modifier.weight(1f))
+        } else if (state.error != null && state.messages.isEmpty()) {
+            ErrorContent(
+                message = state.error!!,
+                onRetry = { viewModel.loadMessages() },
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            ChatContent(
+                state = state,
+                onSendMessage = { viewModel.sendMessage(it) },
+                onInputTextChange = { viewModel.updateInputText(it) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        MessageInputBar(
+            text = state.inputText,
+            onTextChange = { viewModel.updateInputText(it) },
+            onSend = { viewModel.sendMessage(it) },
+            isStreaming = state.isStreaming,
         )
     }
 }
@@ -100,7 +110,7 @@ private fun ChatContent(
     state: ChatUiState,
     onSendMessage: (String) -> Unit,
     onInputTextChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -252,12 +262,6 @@ private fun ChatContent(
             }
         }
 
-        MessageInputBar(
-            text = state.inputText,
-            onTextChange = onInputTextChange,
-            onSend = onSendMessage,
-            isStreaming = state.isStreaming
-        )
     }
 }
 
