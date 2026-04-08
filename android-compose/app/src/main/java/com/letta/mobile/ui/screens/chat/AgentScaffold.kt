@@ -4,14 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,8 +40,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -71,8 +68,7 @@ import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ConnectionState
 import com.letta.mobile.ui.components.ConnectionStatusBanner
-import com.letta.mobile.ui.screens.settings.AgentSettingsScreen
-import com.letta.mobile.ui.screens.tools.ToolsScreen
+
 import com.letta.mobile.util.ConnectivityMonitor
 import kotlinx.coroutines.launch
 
@@ -87,17 +83,12 @@ fun AgentScaffold(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var selectedTab by remember { mutableStateOf(0) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showConversationPicker by remember { mutableStateOf(false) }
 
     val agentName = uiState.agentName
     val agentId = viewModel.agentId
     val conversationId = viewModel.conversationId
-    val connectivityMonitorAvailable = false
-    val connectionState = ConnectionState.Online
-    val imeBottom = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
-    val isKeyboardOpen = imeBottom > 0
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
@@ -118,6 +109,14 @@ fun AgentScaffold(
                     onArchivalMemory = {
                         scope.launch { drawerState.close() }
                         onNavigateToArchival?.invoke(agentId)
+                    },
+                    onTools = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToSettings(agentId)
+                    },
+                    onSettings = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToSettings(agentId)
                     },
                     onClose = { scope.launch { drawerState.close() } },
                 )
@@ -163,42 +162,8 @@ fun AgentScaffold(
                     }
                 )
             },
-            bottomBar = {
-                if (!isKeyboardOpen) NavigationBar {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Chat, stringResource(R.string.common_chat)) },
-                        label = { Text(stringResource(R.string.common_chat)) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.Build, stringResource(R.string.common_tools)) },
-                        label = { Text(stringResource(R.string.common_tools)) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Settings, stringResource(R.string.common_settings)) },
-                        label = { Text(stringResource(R.string.common_settings)) }
-                    )
-                }
-            }
         ) { paddingValues ->
-            Column(modifier = Modifier.padding(paddingValues)) {
-                ConnectionStatusBanner(
-                    state = if (connectivityMonitorAvailable) connectionState else ConnectionState.Online,
-                )
-                when (selectedTab) {
-                    0 -> ChatScreen(modifier = Modifier.weight(1f))
-                    1 -> ToolsScreen(modifier = Modifier.weight(1f))
-                    2 -> AgentSettingsScreen(
-                        onNavigateBack = { selectedTab = 0 },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            ChatScreen(modifier = Modifier.padding(paddingValues).fillMaxSize())
         }
     }
 
@@ -312,6 +277,8 @@ private fun DrawerContent(
     messageCount: Int,
     onEditAgent: () -> Unit,
     onArchivalMemory: () -> Unit,
+    onTools: () -> Unit = {},
+    onSettings: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     Column(
@@ -359,6 +326,20 @@ private fun DrawerContent(
             label = { Text(stringResource(R.string.screen_drawer_archival)) },
             selected = false,
             onClick = onArchivalMemory,
+        )
+
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Build, contentDescription = "Tools") },
+            label = { Text(stringResource(R.string.common_tools)) },
+            selected = false,
+            onClick = onTools,
+        )
+
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+            label = { Text(stringResource(R.string.common_settings)) },
+            selected = false,
+            onClick = onSettings,
         )
 
         Spacer(modifier = Modifier.weight(1f))
