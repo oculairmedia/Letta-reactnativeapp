@@ -13,9 +13,15 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.letta.mobile.data.model.ToolCreateParams
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,8 +55,14 @@ fun AllToolsScreen(
     viewModel: AllToolsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showCreateDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Create Tool")
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.common_tools)) },

@@ -25,6 +25,17 @@ class AllToolsViewModel @Inject constructor(
         loadTools()
     }
 
+    fun createTool(name: String, sourceCode: String) {
+        viewModelScope.launch {
+            try {
+                toolRepository.upsertTool(com.letta.mobile.data.model.ToolCreateParams(name = name, sourceCode = sourceCode))
+                loadTools()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(com.letta.mobile.util.mapErrorToUserMessage(e, "Failed to create tool"))
+            }
+        }
+    }
+
     fun loadTools() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
