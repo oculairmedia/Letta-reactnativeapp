@@ -23,6 +23,7 @@ class LettaApiClient @Inject constructor(
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        explicitNulls = false
     }
 
     suspend fun getClient(): HttpClient {
