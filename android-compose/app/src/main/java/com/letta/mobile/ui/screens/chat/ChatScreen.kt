@@ -2,6 +2,9 @@ package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,7 +87,7 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     LettaChatTheme {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().imePadding()) {
         if (state.isLoadingMessages && state.messages.isEmpty()) {
             MessageSkeletonList(modifier = Modifier.weight(1f))
         } else if (state.error != null && state.messages.isEmpty()) {
@@ -388,11 +391,29 @@ private fun MessageInputBar(
         ) {
             OutlinedTextField(
                 value = text,
-                onValueChange = onTextChange,
+                onValueChange = { newText ->
+                    if (newText.endsWith("\n") && !isStreaming && text.isNotBlank()) {
+                        onSend(text)
+                        keyboardController?.hide()
+                    } else {
+                        onTextChange(newText)
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text(stringResource(R.string.screen_chat_input_hint)) },
                 enabled = !isStreaming,
-                maxLines = 6
+                maxLines = 4,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Send,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onSend = {
+                        if (text.isNotBlank() && !isStreaming) {
+                            onSend(text)
+                            keyboardController?.hide()
+                        }
+                    },
+                ),
             )
 
             Spacer(modifier = Modifier.width(8.dp))
