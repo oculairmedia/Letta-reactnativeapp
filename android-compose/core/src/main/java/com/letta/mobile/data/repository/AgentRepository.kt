@@ -12,6 +12,9 @@ import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.paging.AgentPagingSource
 import com.letta.mobile.data.repository.api.IAgentRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,15 +33,18 @@ class AgentRepository @Inject constructor(
 ) : IAgentRepository {
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        try {
-            val cached = runBlocking { agentDao.getAllOnce() }.map { it.toAgent() }
-            if (cached.isNotEmpty()) {
-                _agents.value = cached
+        repositoryScope.launch {
+            try {
+                val cached = agentDao.getAllOnce().map { it.toAgent() }
+                if (cached.isNotEmpty()) {
+                    _agents.value = cached
+                }
+            } catch (e: Exception) {
+                Log.w("AgentRepository", "Failed to load cached agents", e)
             }
-        } catch (e: Exception) {
-            Log.w("AgentRepository", "Failed to load cached agents", e)
         }
     }
 
