@@ -112,6 +112,7 @@ class ChatViewModel @Inject constructor(
 
     fun sendMessage(text: String) {
         viewModelScope.launch {
+            val existingMessages = _uiState.value.messages
             _uiState.value = _uiState.value.copy(inputText = "", isStreaming = true, isAgentTyping = true)
             try {
                 // Auto-create conversation if none exists
@@ -147,8 +148,12 @@ class ChatViewModel @Inject constructor(
                             _uiState.value = _uiState.value.copy(isAgentTyping = true)
                         }
                         is StreamState.Streaming -> {
-                            val messages = state.messages.map { it.toUiMessage() }
-                            _uiState.value = _uiState.value.copy(messages = messages, isStreaming = true, isAgentTyping = false)
+                            val newMessages = state.messages.map { it.toUiMessage() }
+                            _uiState.value = _uiState.value.copy(
+                                messages = existingMessages + newMessages,
+                                isStreaming = true,
+                                isAgentTyping = false,
+                            )
                         }
                         is StreamState.ToolExecution -> {
                             val toolCall = PendingToolCall(id = state.toolName, name = state.toolName)
@@ -160,8 +165,13 @@ class ChatViewModel @Inject constructor(
                         }
                         is StreamState.Complete -> {
                             pendingToolsMap.clear()
-                            val messages = state.messages.map { it.toUiMessage() }
-                            _uiState.value = _uiState.value.copy(messages = messages, isStreaming = false, isAgentTyping = false, pendingTools = emptyList())
+                            val newMessages = state.messages.map { it.toUiMessage() }
+                            _uiState.value = _uiState.value.copy(
+                                messages = existingMessages + newMessages,
+                                isStreaming = false,
+                                isAgentTyping = false,
+                                pendingTools = emptyList(),
+                            )
                         }
                         is StreamState.Error -> {
                             _uiState.value = _uiState.value.copy(error = state.message, isStreaming = false, isAgentTyping = false)
