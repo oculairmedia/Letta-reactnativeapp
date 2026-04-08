@@ -76,6 +76,7 @@ class ChatViewModel @Inject constructor(
                     isLoadingMessages = false,
                     error = e.message ?: "Failed to load messages",
                 )
+            }
         }
     }
 

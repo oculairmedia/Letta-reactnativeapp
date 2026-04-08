@@ -57,8 +57,7 @@ fun HomeScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Letta", fontWeight = FontWeight.Bold)
-                        val state = uiState as? UiState.Success
-                        if (state != null) {
+                        if (uiState.isConnected) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 Icons.Default.Circle,

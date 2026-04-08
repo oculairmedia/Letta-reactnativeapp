@@ -1,12 +1,13 @@
 package com.letta.mobile.di
 
+import android.content.Context
 import com.letta.mobile.data.api.*
 import com.letta.mobile.data.repository.SettingsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.ktor.client.*
 import javax.inject.Singleton
 
 @Module
@@ -15,8 +16,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideLettaApiClient(settingsRepository: SettingsRepository): LettaApiClient {
-        return LettaApiClient(settingsRepository)
+    fun provideLettaApiClient(
+        @ApplicationContext context: Context,
+        settingsRepository: SettingsRepository
+    ): LettaApiClient {
+        return LettaApiClient(context, settingsRepository)
     }
 
     @Provides
