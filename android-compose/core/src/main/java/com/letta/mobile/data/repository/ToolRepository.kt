@@ -31,6 +31,10 @@ class ToolRepository @Inject constructor(
         _tools.update { toolApi.listTools() }
     }
 
+    suspend fun fetchToolsPage(limit: Int, offset: Int): List<Tool> {
+        return toolApi.listTools(limit = limit, offset = offset)
+    }
+
     suspend fun refreshAgentTools(agentId: String, tools: List<Tool>) {
         _toolsByAgent.update { current -> current.toMutableMap().apply {
                     put(agentId, tools)

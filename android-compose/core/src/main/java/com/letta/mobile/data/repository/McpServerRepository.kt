@@ -40,6 +40,17 @@ class McpServerRepository @Inject constructor(
                 } }
     }
 
+    suspend fun fetchAllMcpTools(): List<Tool> {
+        refreshServers()
+        return _servers.value.flatMap { server ->
+            try {
+                mcpServerApi.listMcpServerTools(server.id)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
+
     suspend fun createServer(params: McpServerCreateParams): McpServer {
         val server = mcpServerApi.createMcpServer(params)
         refreshServers()
