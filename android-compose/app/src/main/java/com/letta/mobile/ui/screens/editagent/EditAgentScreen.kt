@@ -397,11 +397,11 @@ private fun EditAgentContent(
                     if (showDeleteConfirm) {
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirm = false },
-                            title = { Text(stringResource(R.string.screen_agent_edit_delete_block_title, block.label)) },
-                            text = { Text(stringResource(R.string.screen_agent_edit_delete_block_message)) },
+                            title = { Text(stringResource(R.string.screen_agent_edit_detach_block_title, block.label)) },
+                            text = { Text(stringResource(R.string.screen_agent_edit_detach_block_message)) },
                             confirmButton = {
                                 TextButton(onClick = { showDeleteConfirm = false; onDeleteBlock(block.id) }) {
-                                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                                    Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
                                 }
                             },
                             dismissButton = {

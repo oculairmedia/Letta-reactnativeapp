@@ -171,6 +171,14 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `deleteBlock detaches without deleting shared block`() = runTest {
+        viewModel.deleteBlock("block-1")
+
+        assertEquals(listOf("block-1"), fakeBlockRepo.detachedBlockIds)
+        assertTrue(fakeBlockRepo.deletedBlockIds.isEmpty())
+    }
+
+    @Test
     fun `saveAgent forwards edited block metadata`() = runTest {
         viewModel.loadAgent()
         viewModel.updateBlockDescription("persona", "updated description")
@@ -248,6 +256,8 @@ class EditAgentViewModelTest {
         var lastUpdatedLabel: String? = null
         var lastUpdatedParams: BlockUpdateParams? = null
         val attachedExistingBlockIds = mutableListOf<String>()
+        val detachedBlockIds = mutableListOf<String>()
+        val deletedBlockIds = mutableListOf<String>()
 
         override suspend fun createBlock(params: BlockCreateParams): Block {
             lastCreatedParams = params
@@ -269,6 +279,14 @@ class EditAgentViewModelTest {
         override suspend fun attachBlock(agentId: String, blockId: String): Block {
             attachedExistingBlockIds.add(blockId)
             return TestData.block(id = blockId, label = "attached", value = "value")
+        }
+
+        override suspend fun detachBlock(agentId: String, blockId: String) {
+            detachedBlockIds.add(blockId)
+        }
+
+        override suspend fun deleteBlock(blockId: String) {
+            deletedBlockIds.add(blockId)
         }
     }
 

@@ -117,7 +117,7 @@ fun BlockLibraryScreen(
                                 BlockLibraryCard(
                                     block = block,
                                     onInspect = { selectedBlock = block },
-                                    onDelete = { deleteTarget = block },
+                                    onDelete = { if (block.readOnly != true) deleteTarget = block },
                                 )
                             }
                         }
@@ -191,8 +191,10 @@ private fun BlockLibraryCard(
                         )
                     }
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, stringResource(R.string.action_delete))
+                if (block.readOnly != true) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.action_delete))
+                    }
                 }
             }
 

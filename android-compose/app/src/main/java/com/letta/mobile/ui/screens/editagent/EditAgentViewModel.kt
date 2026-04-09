@@ -226,7 +226,6 @@ class EditAgentViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 blockRepository.detachBlock(agentId, blockId)
-                blockRepository.deleteBlock(blockId)
                 val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(currentState.copy(
                     blocks = currentState.blocks.filter { it.id != blockId }
