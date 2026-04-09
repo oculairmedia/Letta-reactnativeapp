@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -47,12 +48,18 @@ class McpViewModelTest {
 
     @Test
     fun `loadData sets Success with servers and tools`() = runTest {
-        fakeMcpRepo.setServers(listOf(TestData.mcpServer(id = "1")))
-        fakeToolRepo.setTools(listOf(TestData.tool(id = "t1")))
+        val server = TestData.mcpServer(id = "s1")
+        val tool = TestData.tool(id = "t1")
+        fakeMcpRepo.setServers(listOf(server))
+        fakeMcpRepo.setServerTools("s1", listOf(tool))
+        fakeToolRepo.setTools(listOf(tool))
         viewModel.loadData()
         viewModel.uiState.test {
             val state = awaitItem() as UiState.Success
             assertEquals(1, state.data.servers.size)
+            assertEquals(1, state.data.allTools.size)
+            assertEquals(1, state.data.serverTools.size)
+            assertEquals(listOf(tool), state.data.serverTools["s1"])
         }
     }
 
@@ -87,16 +94,52 @@ class McpViewModelTest {
         assertTrue(fakeMcpRepo.createCalls.isNotEmpty())
     }
 
+    @Test
+    fun `loadData loads tools per server`() = runTest {
+        val server1 = TestData.mcpServer(id = "s1", serverName = "Server 1")
+        val server2 = TestData.mcpServer(id = "s2", serverName = "Server 2")
+        val toolsForS1 = listOf(TestData.tool(id = "t1", name = "tool1"))
+        val toolsForS2 = listOf(TestData.tool(id = "t2", name = "tool2"))
+        
+        fakeMcpRepo.setServers(listOf(server1, server2))
+        fakeMcpRepo.setServerTools("s1", toolsForS1)
+        fakeMcpRepo.setServerTools("s2", toolsForS2)
+        fakeToolRepo.setTools(emptyList())
+        
+        viewModel.loadData()
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertEquals(2, state.data.servers.size)
+            assertEquals(2, state.data.serverTools.size)
+            assertEquals(toolsForS1, state.data.serverTools["s1"])
+            assertEquals(toolsForS2, state.data.serverTools["s2"])
+        }
+    }
+
     private class FakeMcpRepo : McpServerRepository(FakeMcpServerApi()) {
         private val _servers = MutableStateFlow<List<McpServer>>(emptyList())
+        private val _toolsByServer = MutableStateFlow<Map<String, List<Tool>>>(emptyMap())
         override val servers: StateFlow<List<McpServer>> = _servers.asStateFlow()
         var shouldFail = false
         val deleteCalls = mutableListOf<String>()
         val createCalls = mutableListOf<String>()
 
         fun setServers(list: List<McpServer>) { _servers.value = list }
+        fun setServerTools(serverId: String, tools: List<Tool>) {
+            _toolsByServer.value = _toolsByServer.value.toMutableMap().apply {
+                put(serverId, tools)
+            }
+        }
         override suspend fun refreshServers() { if (shouldFail) throw Exception("Failed") }
-        override suspend fun deleteServer(id: String) { deleteCalls.add(id); _servers.value = _servers.value.filter { it.id != id } }
+        override suspend fun refreshServerTools(serverId: String) {}
+        override fun getServerTools(serverId: String): Flow<List<Tool>> {
+            return _toolsByServer.map { it[serverId] ?: emptyList() }
+        }
+        override suspend fun deleteServer(id: String) {
+            deleteCalls.add(id)
+            _servers.value = _servers.value.filter { it.id != id }
+            _toolsByServer.value = _toolsByServer.value.toMutableMap().apply { remove(id) }
+        }
         override suspend fun createServer(params: McpServerCreateParams): McpServer {
             createCalls.add(params.serverName)
             return TestData.mcpServer(serverName = params.serverName)

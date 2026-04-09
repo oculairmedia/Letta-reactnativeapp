@@ -2,10 +2,13 @@ package com.letta.mobile.ui.screens.mcp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.model.McpServer
 import com.letta.mobile.data.model.McpServerCreateParams
+import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.McpServerRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,19 +20,11 @@ import kotlinx.serialization.json.buildJsonObject
 import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
-data class McpServer(
-    val id: String,
-    val name: String,
-    val url: String,
-    val isHealthy: Boolean,
-    val tools: List<String>
-)
-
-@androidx.compose.runtime.Immutable
 data class McpUiState(
     val selectedTab: Int = 0,
     val servers: List<McpServer> = emptyList(),
-    val allTools: List<com.letta.mobile.data.model.Tool> = emptyList()
+    val allTools: List<Tool> = emptyList(),
+    val serverTools: Map<String, List<Tool>> = emptyMap()
 )
 
 @HiltViewModel
@@ -51,19 +46,29 @@ class McpViewModel @Inject constructor(
             try {
                 mcpServerRepository.refreshServers()
                 toolRepository.refreshTools()
-                val servers = mcpServerRepository.servers.value.map {
-                    McpServer(
-                        id = it.id,
-                        name = it.serverName,
-                        url = it.serverUrl ?: "",
-                        isHealthy = true,
-                        tools = emptyList()
-                    )
+                
+                val servers = mcpServerRepository.servers.value
+                val serverToolsMap = mutableMapOf<String, List<Tool>>()
+                
+                // Load discovered tools for each server
+                servers.forEach { server ->
+                    mcpServerRepository.refreshServerTools(server.id)
+                    val tools = mcpServerRepository.getServerTools(server.id).first()
+                    serverToolsMap[server.id] = tools
                 }
-                val tools = toolRepository.getTools().first()
-                _uiState.value = UiState.Success(McpUiState(servers = servers, allTools = tools))
+                
+                val allTools = toolRepository.getTools().first()
+                _uiState.value = UiState.Success(
+                    McpUiState(
+                        servers = servers,
+                        allTools = allTools,
+                        serverTools = serverToolsMap
+                    )
+                )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to load MCP data")
+                _uiState.value = UiState.Error(
+                    mapErrorToUserMessage(e, "Failed to load MCP data")
+                )
             }
         }
     }
@@ -81,7 +86,9 @@ class McpViewModel @Inject constructor(
                 mcpServerRepository.deleteServer(serverId)
                 loadData()
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to delete server")
+                _uiState.value = UiState.Error(
+                    mapErrorToUserMessage(e, "Failed to delete server")
+                )
             }
         }
     }
@@ -96,7 +103,9 @@ class McpViewModel @Inject constructor(
                 mcpServerRepository.createServer(params)
                 loadData()
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to add server")
+                _uiState.value = UiState.Error(
+                    mapErrorToUserMessage(e, "Failed to add server")
+                )
             }
         }
     }

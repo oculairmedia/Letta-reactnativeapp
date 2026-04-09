@@ -10,13 +10,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
+import com.letta.mobile.data.model.McpServer
+import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
@@ -103,6 +104,7 @@ private fun McpContent(
             0 -> ToolsTab(tools = state.allTools)
             1 -> ServersTab(
                 servers = state.servers,
+                serverTools = state.serverTools,
                 onDeleteServer = onDeleteServer
             )
         }
@@ -111,13 +113,13 @@ private fun McpContent(
 
 @Composable
 private fun ToolsTab(
-    tools: List<com.letta.mobile.data.model.Tool>,
+    tools: List<Tool>,
     modifier: Modifier = Modifier
 ) {
     if (tools.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Build,
-            message = "No tools available",
+            message = stringResource(R.string.screen_tools_empty),
             modifier = modifier.fillMaxSize()
         )
     } else {
@@ -136,6 +138,7 @@ private fun ToolsTab(
 @Composable
 private fun ServersTab(
     servers: List<McpServer>,
+    serverTools: Map<String, List<Tool>>,
     onDeleteServer: (McpServer) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -154,6 +157,7 @@ private fun ServersTab(
             items(servers, key = { it.id }) { server ->
                 ServerCard(
                     server = server,
+                    tools = serverTools[server.id] ?: emptyList(),
                     onDelete = { onDeleteServer(server) }
                 )
             }
@@ -164,7 +168,7 @@ private fun ServersTab(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ToolCard(
-    tool: com.letta.mobile.data.model.Tool,
+    tool: Tool,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -212,6 +216,7 @@ private fun ToolCard(
 @Composable
 private fun ServerCard(
     server: McpServer,
+    tools: List<Tool>,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -233,54 +238,120 @@ private fun ServerCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .padding(2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Surface(
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = if (server.isHealthy) Color.Green else Color.Red,
-                            modifier = Modifier.size(8.dp)
-                        ) {}
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = server.name,
+                            text = server.serverName,
                             style = MaterialTheme.typography.titleMedium
                         )
+                        server.mcpServerType?.let { serverType ->
+                            Spacer(modifier = Modifier.width(8.dp))
+                            AssistChip(
+                                onClick = {},
+                                label = { 
+                                    Text(
+                                        text = serverType,
+                                        style = MaterialTheme.typography.labelSmall
+                                    ) 
+                                }
+                            )
+                        }
+                    }
+                    
+                    server.serverUrl?.let { url ->
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = server.url,
+                            text = url,
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    
+                    server.command?.let { command ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.screen_mcp_server_command),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = command,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    
+                    server.args?.let { args ->
+                        if (args.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = args.joinToString(" "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    
+                    server.createdAt?.let { createdAt ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.screen_mcp_server_created, createdAt),
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    
+                    if (tools.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.screen_mcp_server_tools_count, tools.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
+                
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, "Delete")
+                    Icon(Icons.Default.Delete, stringResource(R.string.action_delete))
                 }
             }
 
-            if (expanded && server.tools.isNotEmpty()) {
+            if (expanded && tools.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Tools (${server.tools.size})",
+                    text = stringResource(R.string.screen_mcp_server_discovered_tools),
                     style = MaterialTheme.typography.labelMedium
                 )
-                server.tools.forEach { toolName ->
-                    Text(
-                        text = "• $toolName",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                    )
+                tools.forEach { tool ->
+                    Row(
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "• ${tool.name}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        tool.description?.let { desc ->
+                            Text(
+                                text = " - $desc",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -290,7 +361,7 @@ private fun ServerCard(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text(stringResource(R.string.screen_mcp_dialog_delete_title)) },
-            text = { Text(stringResource(R.string.screen_mcp_dialog_delete_confirm, server.name)) },
+            text = { Text(stringResource(R.string.screen_mcp_dialog_delete_confirm, server.serverName)) },
             confirmButton = {
                 TextButton(
                     onClick = {
