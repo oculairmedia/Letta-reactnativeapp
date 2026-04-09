@@ -4,10 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.repository.MessageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +31,8 @@ data class ConversationsUiState(
     val isRefreshing: Boolean = false,
     val searchQuery: String = "",
     val selectedConversation: ConversationDisplay? = null,
+    val inspectorMessages: List<ConversationInspectorMessage> = emptyList(),
+    val inspectorError: String? = null,
     val recompilePreview: String? = null,
     val error: String? = null,
 )
@@ -38,6 +42,7 @@ class ConversationsViewModel @Inject constructor(
     private val allConversationsRepository: AllConversationsRepository,
     private val conversationRepository: ConversationRepository,
     private val agentRepository: AgentRepository,
+    private val messageRepository: MessageRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConversationsUiState())
@@ -163,18 +168,33 @@ class ConversationsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val conversation = conversationRepository.getConversation(display.conversation.id)
+                val inspectorResult = runCatching {
+                    messageRepository.fetchConversationInspectorMessages(display.conversation.id)
+                }
                 _uiState.value = _uiState.value.copy(
                     selectedConversation = display.copy(conversation = conversation),
+                    inspectorMessages = inspectorResult.getOrDefault(emptyList()),
+                    inspectorError = inspectorResult.exceptionOrNull()?.message,
                     recompilePreview = null,
                 )
             } catch (e: Exception) {
                 Log.w("ConversationsVM", "Admin detail load failed", e)
+                _uiState.value = _uiState.value.copy(
+                    selectedConversation = null,
+                    inspectorMessages = emptyList(),
+                    inspectorError = e.message,
+                )
             }
         }
     }
 
     fun closeConversationAdmin() {
-        _uiState.value = _uiState.value.copy(selectedConversation = null, recompilePreview = null)
+        _uiState.value = _uiState.value.copy(
+            selectedConversation = null,
+            inspectorMessages = emptyList(),
+            inspectorError = null,
+            recompilePreview = null,
+        )
     }
 
     fun setConversationArchived(display: ConversationDisplay, archived: Boolean) {

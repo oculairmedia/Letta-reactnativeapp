@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,6 +65,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
@@ -208,6 +210,8 @@ fun ConversationsScreen(
             onToggleArchived = { archived -> viewModel.setConversationArchived(display, archived) },
             onFork = { viewModel.forkConversation(display.conversation.id, display.conversation.agentId) { } },
             onCancelRuns = { viewModel.cancelConversationRuns(display) },
+            inspectorMessages = uiState.inspectorMessages,
+            inspectorError = uiState.inspectorError,
             onRecompile = { viewModel.recompileConversation(display) },
             onDelete = { viewModel.deleteConversation(display.conversation.id) },
         )
@@ -419,6 +423,8 @@ private fun ConversationCard(
 private fun ConversationAdminDialog(
     display: ConversationDisplay,
     recompilePreview: String?,
+    inspectorMessages: List<ConversationInspectorMessage>,
+    inspectorError: String?,
     onDismiss: () -> Unit,
     onRename: (String) -> Unit,
     onToggleArchived: (Boolean) -> Unit,
@@ -468,6 +474,34 @@ private fun ConversationAdminDialog(
                     TextButton(onClick = onCancelRuns) { Text(stringResource(R.string.screen_conversations_cancel_runs_action)) }
                     TextButton(onClick = onRecompile) { Text(stringResource(R.string.screen_conversations_recompile_action)) }
                 }
+                Text(
+                    text = stringResource(R.string.screen_conversations_message_inspector_title),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                if (!inspectorError.isNullOrBlank()) {
+                    Text(
+                        text = inspectorError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else if (inspectorMessages.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.screen_conversations_message_inspector_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(inspectorMessages, key = { it.id }) { message ->
+                            ConversationInspectorCard(message = message)
+                        }
+                    }
+                }
                 if (!recompilePreview.isNullOrBlank()) {
                     Text(stringResource(R.string.screen_conversations_recompile_preview_title), style = MaterialTheme.typography.labelLarge)
                     Text(recompilePreview, style = MaterialTheme.typography.bodySmall)
@@ -483,6 +517,50 @@ private fun ConversationAdminDialog(
             }
         },
     )
+}
+
+@Composable
+private fun ConversationInspectorCard(message: ConversationInspectorMessage) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = message.messageType,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    text = message.id,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = message.summary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            message.detailLines.forEach { (label, value) ->
+                Text(
+                    text = "$label: $value",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
 
 @Composable

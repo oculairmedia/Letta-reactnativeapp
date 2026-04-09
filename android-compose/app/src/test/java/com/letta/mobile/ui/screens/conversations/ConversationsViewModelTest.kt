@@ -4,8 +4,11 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
+import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.local.AgentDao
+import com.letta.mobile.testutil.FakeMessageApi
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeConversationApi
 import com.letta.mobile.testutil.TestData
@@ -32,6 +35,7 @@ class ConversationsViewModelTest {
     private lateinit var fakeAllRepo: FakeAllConversationsRepository
     private lateinit var fakeConvRepo: FakeConversationRepository
     private lateinit var fakeAgentRepo: FakeAgentRepository
+    private lateinit var fakeMessageRepo: FakeMessageRepository
     private lateinit var viewModel: ConversationsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -41,7 +45,8 @@ class ConversationsViewModelTest {
         fakeAllRepo = FakeAllConversationsRepository()
         fakeConvRepo = FakeConversationRepository()
         fakeAgentRepo = FakeAgentRepository()
-        viewModel = ConversationsViewModel(fakeAllRepo, fakeConvRepo, fakeAgentRepo)
+        fakeMessageRepo = FakeMessageRepository()
+        viewModel = ConversationsViewModel(fakeAllRepo, fakeConvRepo, fakeAgentRepo, fakeMessageRepo)
     }
 
     @After
@@ -76,6 +81,7 @@ class ConversationsViewModelTest {
         viewModel.openConversationAdmin(display)
 
         assertEquals("1", viewModel.uiState.value.selectedConversation?.conversation?.id)
+        assertEquals(1, viewModel.uiState.value.inspectorMessages.size)
     }
 
     @Test
@@ -98,6 +104,29 @@ class ConversationsViewModelTest {
         viewModel.recompileConversation(display)
 
         assertEquals("recompiled-system-prompt", viewModel.uiState.value.recompilePreview)
+    }
+
+    @Test
+    fun `closeConversationAdmin clears inspector state`() = runTest {
+        val display = ConversationDisplay(TestData.conversation(id = "1", agentId = "a1"), "Agent One")
+
+        viewModel.openConversationAdmin(display)
+        viewModel.closeConversationAdmin()
+
+        assertEquals(0, viewModel.uiState.value.inspectorMessages.size)
+        assertEquals(null, viewModel.uiState.value.selectedConversation)
+    }
+
+    @Test
+    fun `openConversationAdmin keeps dialog open when inspector load fails`() = runTest {
+        fakeMessageRepo.shouldFail = true
+        val display = ConversationDisplay(TestData.conversation(id = "1", agentId = "a1"), "Agent One")
+
+        viewModel.openConversationAdmin(display)
+
+        assertEquals("1", viewModel.uiState.value.selectedConversation?.conversation?.id)
+        assertEquals(0, viewModel.uiState.value.inspectorMessages.size)
+        assertEquals("Inspector failed", viewModel.uiState.value.inspectorError)
     }
 
     private class FakeAllConversationsRepository : AllConversationsRepository(FakeConversationApi()) {
@@ -149,5 +178,25 @@ class ConversationsViewModelTest {
         override suspend fun createAgent(params: com.letta.mobile.data.model.AgentCreateParams) = _agents.value.first()
         override suspend fun updateAgent(id: String, params: com.letta.mobile.data.model.AgentUpdateParams) = _agents.value.first()
         override suspend fun deleteAgent(id: String) {}
+    }
+
+    private class FakeMessageRepository : MessageRepository(FakeMessageApi(), mockk(relaxed = true)) {
+        var shouldFail: Boolean = false
+
+        override suspend fun fetchConversationInspectorMessages(conversationId: String): List<ConversationInspectorMessage> {
+            if (shouldFail) throw IllegalStateException("Inspector failed")
+            return listOf(
+                ConversationInspectorMessage(
+                    id = "msg-1",
+                    messageType = "assistant_message",
+                    date = "2026-04-09T10:00:00Z",
+                    runId = "run-1",
+                    stepId = null,
+                    otid = null,
+                    summary = "Hello from the inspector",
+                    detailLines = listOf("Run ID" to "run-1"),
+                )
+            )
+        }
     }
 }
