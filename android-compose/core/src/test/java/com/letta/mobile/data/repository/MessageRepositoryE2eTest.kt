@@ -58,6 +58,14 @@ class MessageRepositoryE2eTest {
 
     @Test
     fun `sendMessage keeps existing cached history after streaming completes`() = runTest {
+        // After streaming, the server will have the new messages on reload
+        val reloadJson = """
+            [
+              {"id":"user-1","message_type":"user_message","content":"Hello"},
+              {"id":"assistant-1","message_type":"assistant_message","content":"Done"}
+            ]
+        """.trimIndent()
+        var getCallCount = 0
         val repository = createRepository(
             streamConversationId = "conv-1",
             conversationMessagesJson = "[]",
@@ -66,6 +74,7 @@ class MessageRepositoryE2eTest {
 
                 data: [DONE]
             """.trimIndent(),
+            overrideGetResponse = { if (getCallCount++ > 0) reloadJson else "[]" },
         )
 
         val initialMessages = repository.fetchMessages("agent-1", "conv-1")
@@ -126,6 +135,7 @@ class MessageRepositoryE2eTest {
         conversationMessagesJson: String,
         ssePayload: String,
         onConversationMessagesRequest: ((String?) -> Unit)? = null,
+        overrideGetResponse: (() -> String)? = null,
     ): MessageRepository {
         val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
         val sseHeaders = headersOf(HttpHeaders.ContentType, "text/event-stream")
@@ -137,7 +147,8 @@ class MessageRepositoryE2eTest {
                 }
                 req.method == HttpMethod.Get && url.contains("/v1/conversations/$streamConversationId/messages") -> {
                     onConversationMessagesRequest?.invoke(req.url.parameters["order"])
-                    respond(conversationMessagesJson, HttpStatusCode.OK, jsonHeaders)
+                    val body = overrideGetResponse?.invoke() ?: conversationMessagesJson
+                    respond(body, HttpStatusCode.OK, jsonHeaders)
                 }
                 else -> respond("[]", HttpStatusCode.OK, jsonHeaders)
             }
