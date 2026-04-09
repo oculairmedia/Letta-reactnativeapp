@@ -234,7 +234,7 @@ private fun ToolDetailContent(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tool.tags.forEach { tag ->
+                    tool.tags?.forEach { tag ->
                         AssistChip(onClick = {}, label = { Text(tag, style = MaterialTheme.typography.labelSmall) })
                     }
                 }
