@@ -3,9 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.allopen")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("io.gitlab.arturbosch.detekt")
+}
+
+allOpen {
+    annotation("javax.inject.Singleton")
 }
 
 detekt {
@@ -46,6 +51,7 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            isReturnDefaultValues = true
             all {
                 it.useJUnitPlatform()
             }
@@ -56,7 +62,11 @@ android {
         compose = true
     }
 
-
+    sourceSets {
+        getByName("test") {
+            java.srcDir("${project(":core").projectDir}/src/testFixtures/java")
+        }
+    }
 }
 
 dependencies {

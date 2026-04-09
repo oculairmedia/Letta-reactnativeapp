@@ -6,10 +6,12 @@ import com.letta.mobile.data.model.ScheduleDefinition
 import com.letta.mobile.data.model.ScheduleMessage
 import com.letta.mobile.data.model.SchedulePayload
 import com.letta.mobile.data.model.ScheduledMessage
+import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ScheduleRepository
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeScheduleApi
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -86,7 +88,7 @@ class ScheduleListViewModelTest {
         assertEquals(listOf("s1"), fakeScheduleRepo.deletedScheduleIds)
     }
 
-    private class FakeAgentRepo : AgentRepository(FakeAgentApi()) {
+    private class FakeAgentRepo : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {
         private val _agents = MutableStateFlow(
             listOf(
                 Agent(id = "a1", name = "Agent One"),

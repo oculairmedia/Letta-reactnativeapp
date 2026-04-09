@@ -9,10 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class McpServerApi @Inject constructor(
+open class McpServerApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
-    suspend fun listMcpServers(
+    open suspend fun listMcpServers(
         limit: Int? = null,
         offset: Int? = null
     ): List<McpServer> {
@@ -29,7 +29,7 @@ class McpServerApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun getMcpServer(serverId: String): McpServer {
+    open suspend fun getMcpServer(serverId: String): McpServer {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -40,7 +40,7 @@ class McpServerApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createMcpServer(params: McpServerCreateParams): McpServer {
+    open suspend fun createMcpServer(params: McpServerCreateParams): McpServer {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -54,7 +54,7 @@ class McpServerApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateMcpServer(serverId: String, params: McpServerUpdateParams): McpServer {
+    open suspend fun updateMcpServer(serverId: String, params: McpServerUpdateParams): McpServer {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -68,7 +68,7 @@ class McpServerApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteMcpServer(serverId: String) {
+    open suspend fun deleteMcpServer(serverId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -78,7 +78,7 @@ class McpServerApi @Inject constructor(
         }
     }
 
-    suspend fun listMcpServerTools(serverId: String): List<Tool> {
+    open suspend fun listMcpServerTools(serverId: String): List<Tool> {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

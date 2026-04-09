@@ -10,10 +10,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class RunApi @Inject constructor(
+open class RunApi @Inject constructor(
     private val apiClient: LettaApiClient,
 ) {
-    suspend fun listRuns(params: RunListParams = RunListParams()): List<Run> {
+    open suspend fun listRuns(params: RunListParams = RunListParams()): List<Run> {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -38,7 +38,7 @@ class RunApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun retrieveRun(runId: String): Run {
+    open suspend fun retrieveRun(runId: String): Run {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

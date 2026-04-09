@@ -5,9 +5,11 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeConversationApi
 import com.letta.mobile.testutil.TestData
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -139,7 +141,7 @@ class ConversationsViewModelTest {
         override suspend fun cancelConversation(id: String, agentId: String?) {}
     }
 
-    private class FakeAgentRepository : AgentRepository(FakeAgentApi()) {
+    private class FakeAgentRepository : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {
         private val _agents = MutableStateFlow(listOf(Agent(id = "a1", name = "Agent One")))
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         override suspend fun refreshAgents() {}

@@ -16,10 +16,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class ScheduleApi @Inject constructor(
+open class ScheduleApi @Inject constructor(
     private val apiClient: LettaApiClient,
 ) {
-    suspend fun listSchedules(
+    open suspend fun listSchedules(
         agentId: String,
         limit: Int? = null,
         after: String? = null,
@@ -37,7 +37,7 @@ class ScheduleApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun retrieveSchedule(agentId: String, scheduledMessageId: String): ScheduledMessage {
+    open suspend fun retrieveSchedule(agentId: String, scheduledMessageId: String): ScheduledMessage {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -48,7 +48,7 @@ class ScheduleApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createSchedule(agentId: String, params: ScheduleCreateParams): ScheduledMessage {
+    open suspend fun createSchedule(agentId: String, params: ScheduleCreateParams): ScheduledMessage {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -62,7 +62,7 @@ class ScheduleApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteSchedule(agentId: String, scheduledMessageId: String) {
+    open suspend fun deleteSchedule(agentId: String, scheduledMessageId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

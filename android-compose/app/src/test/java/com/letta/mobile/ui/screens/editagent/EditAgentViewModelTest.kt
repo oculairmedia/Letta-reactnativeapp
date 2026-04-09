@@ -9,13 +9,16 @@ import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.Tool
+import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
+import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeBlockApi
 import com.letta.mobile.testutil.FakeToolApi
 import com.letta.mobile.testutil.TestData
+import io.mockk.mockk
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +43,7 @@ class EditAgentViewModelTest {
     private lateinit var fakeAgentRepo: FakeAgentRepo
     private lateinit var fakeBlockRepo: FakeBlockRepo
     private lateinit var fakeToolRepo: FakeToolRepo
+    private lateinit var mockModelRepository: ModelRepository
     private lateinit var viewModel: EditAgentViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -49,8 +53,9 @@ class EditAgentViewModelTest {
         fakeAgentRepo = FakeAgentRepo()
         fakeBlockRepo = FakeBlockRepo()
         fakeToolRepo = FakeToolRepo()
+        mockModelRepository = mockk(relaxed = true)
         val savedState = SavedStateHandle(mapOf("agentId" to "a1"))
-        viewModel = EditAgentViewModel(savedState, fakeAgentRepo, fakeBlockRepo, fakeToolRepo)
+        viewModel = EditAgentViewModel(savedState, fakeAgentRepo, fakeBlockRepo, mockModelRepository, fakeToolRepo)
     }
 
     @After
@@ -199,7 +204,7 @@ class EditAgentViewModelTest {
         viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
     }
 
-    private class FakeAgentRepo : AgentRepository(FakeAgentApi()) {
+    private class FakeAgentRepo : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {
         private val _agents = MutableStateFlow<List<Agent>>(emptyList())
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         var shouldFail = false

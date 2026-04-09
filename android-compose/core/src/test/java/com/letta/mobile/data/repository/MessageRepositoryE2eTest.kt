@@ -15,6 +15,9 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
@@ -97,9 +100,9 @@ class MessageRepositoryE2eTest {
             }
         }
 
-        val apiClient = object : LettaApiClient(null!!) {
-            override fun getClient() = client
-            override fun getBaseUrl() = "http://test"
+        val apiClient = mockk<LettaApiClient> {
+            coEvery { getClient() } returns client
+            every { getBaseUrl() } returns "http://test"
         }
 
         return MessageRepository(

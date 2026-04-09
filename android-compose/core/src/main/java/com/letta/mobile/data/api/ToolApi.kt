@@ -9,10 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class ToolApi @Inject constructor(
+open class ToolApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
-    suspend fun listTools(
+    open suspend fun listTools(
         tags: List<String>? = null,
         limit: Int? = null,
         offset: Int? = null
@@ -31,7 +31,7 @@ class ToolApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun getTool(toolId: String): Tool {
+    open suspend fun getTool(toolId: String): Tool {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -42,7 +42,7 @@ class ToolApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createTool(params: ToolCreateParams): Tool {
+    open suspend fun createTool(params: ToolCreateParams): Tool {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -56,7 +56,7 @@ class ToolApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun upsertTool(params: ToolCreateParams): Tool {
+    open suspend fun upsertTool(params: ToolCreateParams): Tool {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -70,7 +70,7 @@ class ToolApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateTool(toolId: String, params: ToolUpdateParams): Tool {
+    open suspend fun updateTool(toolId: String, params: ToolUpdateParams): Tool {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -84,7 +84,7 @@ class ToolApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteTool(toolId: String) {
+    open suspend fun deleteTool(toolId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -94,7 +94,7 @@ class ToolApi @Inject constructor(
         }
     }
 
-    suspend fun attachTool(agentId: String, toolId: String) {
+    open suspend fun attachTool(agentId: String, toolId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -106,7 +106,7 @@ class ToolApi @Inject constructor(
         }
     }
 
-    suspend fun detachTool(agentId: String, toolId: String) {
+    open suspend fun detachTool(agentId: String, toolId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

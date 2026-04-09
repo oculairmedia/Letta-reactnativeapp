@@ -18,6 +18,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -25,13 +28,13 @@ class ScheduleApiTest {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
 
-    private fun createApi(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.engine.mock.HttpResponseData)): ScheduleApi {
+    private fun createApi(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData)): ScheduleApi {
         val client = HttpClient(MockEngine(handler)) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; isLenient = true }) }
         }
-        val apiClient = object : LettaApiClient(null!!) {
-            override fun getClient() = client
-            override fun getBaseUrl() = "http://test"
+        val apiClient = mockk<LettaApiClient> {
+            coEvery { getClient() } returns client
+            every { getBaseUrl() } returns "http://test"
         }
         return ScheduleApi(apiClient)
     }

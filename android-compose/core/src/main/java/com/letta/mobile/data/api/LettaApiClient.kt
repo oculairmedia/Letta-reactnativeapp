@@ -19,7 +19,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class LettaApiClient @Inject constructor(
+open class LettaApiClient @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository
 ) {
@@ -35,7 +35,7 @@ class LettaApiClient @Inject constructor(
     private var cachedBaseUrl: String? = null
     private var cachedToken: String? = null
 
-    suspend fun getClient(): HttpClient {
+    open suspend fun getClient(): HttpClient {
         val config = settingsRepository.activeConfig.value
         val url = config?.serverUrl?.trim() ?: "https://api.letta.com"
         val token = config?.accessToken?.trim()
@@ -52,7 +52,7 @@ class LettaApiClient @Inject constructor(
         }
     }
 
-    fun getBaseUrl(): String {
+    open fun getBaseUrl(): String {
         val config = settingsRepository.activeConfig.value
         return config?.serverUrl ?: "https://api.letta.com"
     }

@@ -56,7 +56,7 @@ class MessageRepository @Inject constructor(
                 messageApi.listMessages(agentId, limit = 100)
             }
 
-            val appMessages = lettaMessages.mapNotNull { it.toAppMessage() }
+            val appMessages = lettaMessages.mapNotNull { it.toAppMessage() }.sortedBy { it.date }
 
             // Update cache
             if (conversationId != null) {

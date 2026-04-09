@@ -132,6 +132,11 @@ class ChatViewModelTest {
         val vm = createViewModel()
         assertEquals(2, vm.uiState.value.messages.size)
 
+        // Update fetchMessages to return what server would have after the send
+        messages = existingMessages + listOf(
+            TestData.appMessage(id = "user-q2", messageType = MessageType.USER, content = "Second question"),
+        ) + streamResponse
+
         vm.sendMessage("Second question")
         val state = vm.uiState.value
 

@@ -106,7 +106,7 @@ class AgentSettingsViewModelTest {
         assertTrue(successCalled)
         assertEquals("Updated system", paramsSlot.captured.system)
         assertEquals(true, paramsSlot.captured.enableSleeptime)
-        assertEquals(1.2, paramsSlot.captured.modelSettings?.temperature, 0.0)
+        assertEquals(1.2, paramsSlot.captured.modelSettings?.temperature!!, 0.0)
         assertEquals(4096, paramsSlot.captured.modelSettings?.maxOutputTokens)
         assertEquals(false, paramsSlot.captured.modelSettings?.parallelToolCalls)
         assertEquals("openai", paramsSlot.captured.modelSettings?.providerType)

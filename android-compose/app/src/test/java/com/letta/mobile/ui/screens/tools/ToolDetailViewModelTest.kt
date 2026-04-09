@@ -3,11 +3,13 @@ package com.letta.mobile.ui.screens.tools
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeToolApi
 import com.letta.mobile.testutil.TestData
+import io.mockk.mockk
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -161,7 +163,7 @@ class ToolDetailViewModelTest {
         }
     }
 
-    private class FakeAgentRepository : AgentRepository(FakeAgentApi()) {
+    private class FakeAgentRepository : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {
         private val agentsFlow = kotlinx.coroutines.flow.MutableStateFlow(
             listOf(
                 Agent(id = "a1", name = "Agent One", tools = listOf(TestData.tool(id = "t1", name = "my_tool"))),

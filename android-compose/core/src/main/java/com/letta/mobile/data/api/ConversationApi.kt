@@ -9,10 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class ConversationApi @Inject constructor(
+open class ConversationApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
-    suspend fun listConversations(
+    open suspend fun listConversations(
         agentId: String? = null,
         limit: Int? = null,
         after: String? = null,
@@ -39,7 +39,7 @@ class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun getConversation(conversationId: String): Conversation {
+    open suspend fun getConversation(conversationId: String): Conversation {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -50,7 +50,7 @@ class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createConversation(params: ConversationCreateParams): Conversation {
+    open suspend fun createConversation(params: ConversationCreateParams): Conversation {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -65,7 +65,7 @@ class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateConversation(conversationId: String, params: ConversationUpdateParams): Conversation {
+    open suspend fun updateConversation(conversationId: String, params: ConversationUpdateParams): Conversation {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -79,7 +79,7 @@ class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteConversation(conversationId: String) {
+    open suspend fun deleteConversation(conversationId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -89,7 +89,7 @@ class ConversationApi @Inject constructor(
         }
     }
 
-    suspend fun forkConversation(conversationId: String, agentId: String? = null): Conversation {
+    open suspend fun forkConversation(conversationId: String, agentId: String? = null): Conversation {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -103,7 +103,7 @@ class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun cancelConversation(conversationId: String, agentId: String? = null) {
+    open suspend fun cancelConversation(conversationId: String, agentId: String? = null) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -116,7 +116,7 @@ class ConversationApi @Inject constructor(
         }
     }
 
-    suspend fun recompileConversation(
+    open suspend fun recompileConversation(
         conversationId: String,
         dryRun: Boolean = false,
         agentId: String? = null,

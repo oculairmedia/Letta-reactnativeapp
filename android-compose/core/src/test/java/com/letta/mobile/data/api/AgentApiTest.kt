@@ -13,6 +13,9 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -26,18 +29,10 @@ class AgentApiTest {
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun createMockClient(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.engine.mock.HttpResponseData)): HttpClient {
-        return HttpClient(MockEngine(handler)) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
-    }
-
     private fun createApi(client: HttpClient): AgentApi {
-        val apiClient = object : LettaApiClient(null!!) {
-            override fun getClient() = client
-            override fun getBaseUrl() = "http://test"
+        val apiClient = mockk<LettaApiClient> {
+            coEvery { getClient() } returns client
+            every { getBaseUrl() } returns "http://test"
         }
         return AgentApi(apiClient)
     }
@@ -46,10 +41,14 @@ class AgentApiTest {
     fun `listAgents sends GET to correct endpoint`() = runTest {
         var capturedMethod: HttpMethod? = null
         var capturedUrl: String? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedMethod = request.method
             capturedUrl = request.url.toString()
             respond("""[{"id":"1","name":"Agent1"}]""", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         val agents = api.listAgents()
@@ -62,9 +61,13 @@ class AgentApiTest {
     @Test
     fun `getAgent sends GET with agent ID`() = runTest {
         var capturedUrl: String? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
             respond("""{"id":"a1","name":"MyAgent"}""", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         val agent = api.getAgent("a1")
@@ -75,9 +78,13 @@ class AgentApiTest {
     @Test
     fun `createAgent sends POST with body`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedMethod = request.method
             respond("""{"id":"new-1","name":"NewAgent"}""", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         val agent = api.createAgent(AgentCreateParams(name = "NewAgent"))
@@ -88,9 +95,13 @@ class AgentApiTest {
     @Test
     fun `updateAgent sends PATCH`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedMethod = request.method
             respond("""{"id":"a1","name":"Updated"}""", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         val agent = api.updateAgent("a1", AgentUpdateParams(name = "Updated"))
@@ -101,9 +112,13 @@ class AgentApiTest {
     @Test
     fun `deleteAgent sends DELETE`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedMethod = request.method
             respond("", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         api.deleteAgent("a1")
@@ -112,8 +127,12 @@ class AgentApiTest {
 
     @Test(expected = ApiException::class)
     fun `listAgents throws ApiException on 500`() = runTest {
-        val client = createMockClient {
+        val client = HttpClient(MockEngine {
             respond("""{"error":"server error"}""", HttpStatusCode.InternalServerError, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         api.listAgents()
@@ -121,8 +140,12 @@ class AgentApiTest {
 
     @Test(expected = ApiException::class)
     fun `getAgent throws ApiException on 404`() = runTest {
-        val client = createMockClient {
+        val client = HttpClient(MockEngine {
             respond("""{"error":"not found"}""", HttpStatusCode.NotFound, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         api.getAgent("nonexistent")
@@ -131,9 +154,13 @@ class AgentApiTest {
     @Test
     fun `listAgents passes limit and offset parameters`() = runTest {
         var capturedUrl: String? = null
-        val client = createMockClient { request ->
+        val client = HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
             respond("[]", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
         }
         val api = createApi(client)
         api.listAgents(limit = 10, offset = 20)

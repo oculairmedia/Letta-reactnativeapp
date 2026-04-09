@@ -1,8 +1,10 @@
 package com.letta.mobile.ui.screens.tools
 
 import com.letta.mobile.data.model.Tool
+import com.letta.mobile.data.repository.McpServerRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.testutil.FakeToolApi
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -21,13 +23,15 @@ class AllToolsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeRepository: FakeToolRepository
+    private lateinit var mockMcpServerRepository: McpServerRepository
     private lateinit var viewModel: AllToolsViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeToolRepository()
-        viewModel = AllToolsViewModel(fakeRepository)
+        mockMcpServerRepository = mockk(relaxed = true)
+        viewModel = AllToolsViewModel(fakeRepository, mockMcpServerRepository)
     }
 
     @After

@@ -131,9 +131,9 @@ class ConfigViewModelTest {
         viewModel.updateApiToken("new-token")
 
         var onSuccessCalled = false
-        viewModel.saveConfig {
+        viewModel.saveConfig(onSuccess = {
             onSuccessCalled = true
-        }
+        })
 
         val savedConfig = fakeRepository.getSavedConfig()
         assertEquals(LettaConfig.Mode.CLOUD, savedConfig?.mode)
@@ -152,9 +152,9 @@ class ConfigViewModelTest {
         viewModel.updateApiToken("local-token")
 
         var onSuccessCalled = false
-        viewModel.saveConfig {
+        viewModel.saveConfig(onSuccess = {
             onSuccessCalled = true
-        }
+        })
 
         val savedConfig = fakeRepository.getSavedConfig()
         assertEquals(LettaConfig.Mode.SELF_HOSTED, savedConfig?.mode)
@@ -176,7 +176,7 @@ class ConfigViewModelTest {
 
         viewModel.updateServerUrl("https://new.letta.ai")
 
-        viewModel.saveConfig {}
+        viewModel.saveConfig(onSuccess = {})
 
         val savedConfig = fakeRepository.getSavedConfig()
         assertEquals("existing-id-123", savedConfig?.id)
@@ -192,7 +192,7 @@ class ConfigViewModelTest {
         viewModel.updateServerUrl("https://api.letta.com")
         viewModel.updateApiToken("")
 
-        viewModel.saveConfig {}
+        viewModel.saveConfig(onSuccess = {})
 
         val savedConfig = fakeRepository.getSavedConfig()
         assertEquals(null, savedConfig?.accessToken)

@@ -18,10 +18,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class IdentityApi @Inject constructor(
+open class IdentityApi @Inject constructor(
     private val apiClient: LettaApiClient,
 ) {
-    suspend fun listIdentities(): List<Identity> {
+    open suspend fun listIdentities(): List<Identity> {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -32,7 +32,7 @@ class IdentityApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun retrieveIdentity(identityId: String): Identity {
+    open suspend fun retrieveIdentity(identityId: String): Identity {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -43,7 +43,7 @@ class IdentityApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createIdentity(params: IdentityCreateParams): Identity {
+    open suspend fun createIdentity(params: IdentityCreateParams): Identity {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -57,7 +57,7 @@ class IdentityApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun upsertIdentity(params: IdentityUpsertParams): Identity {
+    open suspend fun upsertIdentity(params: IdentityUpsertParams): Identity {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -71,7 +71,7 @@ class IdentityApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateIdentity(identityId: String, params: IdentityUpdateParams): Identity {
+    open suspend fun updateIdentity(identityId: String, params: IdentityUpdateParams): Identity {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -85,7 +85,7 @@ class IdentityApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteIdentity(identityId: String) {
+    open suspend fun deleteIdentity(identityId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -95,7 +95,7 @@ class IdentityApi @Inject constructor(
         }
     }
 
-    suspend fun attachIdentity(agentId: String, identityId: String) {
+    open suspend fun attachIdentity(agentId: String, identityId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -105,7 +105,7 @@ class IdentityApi @Inject constructor(
         }
     }
 
-    suspend fun detachIdentity(agentId: String, identityId: String) {
+    open suspend fun detachIdentity(agentId: String, identityId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

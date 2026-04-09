@@ -9,10 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AgentApi @Inject constructor(
+open class AgentApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
-    suspend fun listAgents(
+    open suspend fun listAgents(
         limit: Int? = null,
         offset: Int? = null,
         tags: List<String>? = null
@@ -31,7 +31,7 @@ class AgentApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun getAgent(agentId: String): Agent {
+    open suspend fun getAgent(agentId: String): Agent {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -42,7 +42,7 @@ class AgentApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createAgent(params: AgentCreateParams): Agent {
+    open suspend fun createAgent(params: AgentCreateParams): Agent {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -56,7 +56,7 @@ class AgentApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateAgent(agentId: String, params: AgentUpdateParams): Agent {
+    open suspend fun updateAgent(agentId: String, params: AgentUpdateParams): Agent {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -70,7 +70,7 @@ class AgentApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteAgent(agentId: String) {
+    open suspend fun deleteAgent(agentId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -80,7 +80,7 @@ class AgentApi @Inject constructor(
         }
     }
 
-    suspend fun exportAgent(agentId: String): String {
+    open suspend fun exportAgent(agentId: String): String {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

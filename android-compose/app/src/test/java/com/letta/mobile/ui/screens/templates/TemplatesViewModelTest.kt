@@ -4,9 +4,11 @@ import app.cash.turbine.test
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.TestData
+import io.mockk.mockk
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,7 +68,7 @@ class TemplatesViewModelTest {
         viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
     }
 
-    private class FakeAgentRepo : AgentRepository(FakeAgentApi()) {
+    private class FakeAgentRepo : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {
         private val _agents = MutableStateFlow<List<Agent>>(emptyList())
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         var shouldFail = false

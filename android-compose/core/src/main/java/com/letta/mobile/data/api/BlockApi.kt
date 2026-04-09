@@ -9,10 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class BlockApi @Inject constructor(
+open class BlockApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
-    suspend fun getBlock(agentId: String, blockLabel: String): Block {
+    open suspend fun getBlock(agentId: String, blockLabel: String): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -23,7 +23,7 @@ class BlockApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+    open suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -37,7 +37,7 @@ class BlockApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun createBlock(params: BlockCreateParams): Block {
+    open suspend fun createBlock(params: BlockCreateParams): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -51,7 +51,7 @@ class BlockApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun deleteBlock(blockId: String) {
+    open suspend fun deleteBlock(blockId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -61,7 +61,7 @@ class BlockApi @Inject constructor(
         }
     }
 
-    suspend fun attachBlock(agentId: String, blockId: String): Block {
+    open suspend fun attachBlock(agentId: String, blockId: String): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -72,7 +72,7 @@ class BlockApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun detachBlock(agentId: String, blockId: String) {
+    open suspend fun detachBlock(agentId: String, blockId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -82,7 +82,7 @@ class BlockApi @Inject constructor(
         }
     }
 
-    suspend fun listBlocks(agentId: String): List<Block> {
+    open suspend fun listBlocks(agentId: String): List<Block> {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
@@ -93,7 +93,7 @@ class BlockApi @Inject constructor(
         return response.body()
     }
 
-    suspend fun listAllBlocks(
+    open suspend fun listAllBlocks(
         label: String? = null,
         isTemplate: Boolean? = null,
         limit: Int? = null,
