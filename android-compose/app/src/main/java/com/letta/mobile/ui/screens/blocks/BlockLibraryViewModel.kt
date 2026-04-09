@@ -1,10 +1,13 @@
 package com.letta.mobile.ui.screens.blocks
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
@@ -22,11 +25,14 @@ data class BlockLibraryUiState(
     val filterLabel: String? = null,
     val filterTemplate: Boolean? = null,
     val operationError: String? = null,
+    val agentsByBlock: Map<String, List<Agent>> = emptyMap(),
+    val allAgents: List<Agent> = emptyList(),
 )
 
 @HiltViewModel
 class BlockLibraryViewModel @Inject constructor(
     private val blockRepository: IBlockRepository,
+    private val agentRepository: AgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<BlockLibraryUiState>>(UiState.Loading)
@@ -48,6 +54,21 @@ class BlockLibraryViewModel @Inject constructor(
                     label = filterLabel,
                     isTemplate = filterTemplate,
                 )
+
+                val agents = try {
+                    agentRepository.refreshAgents()
+                    agentRepository.agents.value
+                } catch (e: Exception) {
+                    Log.w("BlockLibraryVM", "Failed to load agents for block mapping", e)
+                    agentRepository.agents.value
+                }
+
+                val agentsByBlock = agents
+                    .flatMap { agent ->
+                        agent.blocks?.map { block -> block.id to agent } ?: emptyList()
+                    }
+                    .groupBy({ it.first }, { it.second })
+
                 _uiState.value = UiState.Success(
                     BlockLibraryUiState(
                         blocks = blocks,
@@ -55,6 +76,8 @@ class BlockLibraryViewModel @Inject constructor(
                         filterLabel = filterLabel,
                         filterTemplate = filterTemplate,
                         operationError = null,
+                        agentsByBlock = agentsByBlock,
+                        allAgents = agents,
                     )
                 )
             } catch (e: Exception) {
@@ -154,6 +177,30 @@ class BlockLibraryViewModel @Inject constructor(
                 onSuccess()
             } catch (e: Exception) {
                 reportOperationError(mapErrorToUserMessage(e, "Failed to update block"))
+            }
+        }
+    }
+
+    fun detachBlockFromAgent(blockId: String, agentId: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                blockRepository.detachBlock(agentId, blockId)
+                loadBlocks()
+                onSuccess()
+            } catch (e: Exception) {
+                reportOperationError(mapErrorToUserMessage(e, "Failed to detach block"))
+            }
+        }
+    }
+
+    fun attachBlockToAgent(blockId: String, agentId: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                blockRepository.attachBlock(agentId, blockId)
+                loadBlocks()
+                onSuccess()
+            } catch (e: Exception) {
+                reportOperationError(mapErrorToUserMessage(e, "Failed to attach block"))
             }
         }
     }

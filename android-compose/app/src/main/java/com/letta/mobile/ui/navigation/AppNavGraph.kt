@@ -64,6 +64,7 @@ fun AppNavGraph() {
                 onNavigateToAgents = { navController.navigate("agentList") },
                 onNavigateToConversations = { navController.navigate("conversations") },
                 onNavigateToTools = { navController.navigate("allTools") },
+                onNavigateToBlocks = { navController.navigate("blocks") },
                 onNavigateToSettings = { navController.navigate("config") },
                 onNavigateToChat = { agentId ->
                     navController.navigate("agent/$agentId/chat")

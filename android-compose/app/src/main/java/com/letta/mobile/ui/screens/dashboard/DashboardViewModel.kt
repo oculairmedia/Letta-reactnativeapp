@@ -7,6 +7,7 @@ import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.domain.AdminAgentManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,7 @@ data class DashboardUiState(
     val agentCount: Int? = null,
     val conversationCount: Int? = null,
     val toolCount: Int? = null,
+    val blockCount: Int? = null,
     val adminAgentId: String? = null,
     val adminAgentName: String = "Letta Admin",
     val error: String? = null,
@@ -33,6 +35,7 @@ class DashboardViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
     private val allConversationsRepository: AllConversationsRepository,
     private val toolRepository: ToolRepository,
+    private val blockRepository: IBlockRepository,
     private val settingsRepository: SettingsRepository,
     private val adminAgentManager: AdminAgentManager,
 ) : ViewModel() {
@@ -95,6 +98,17 @@ class DashboardViewModel @Inject constructor(
                 )
             } catch (e: Exception) {
                 Log.w("DashboardVM", "Tool count failed", e)
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                val blocks = blockRepository.listAllBlocks()
+                _uiState.value = _uiState.value.copy(
+                    blockCount = blocks.size,
+                )
+            } catch (e: Exception) {
+                Log.w("DashboardVM", "Block count failed", e)
             }
         }
     }

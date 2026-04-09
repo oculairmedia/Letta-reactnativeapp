@@ -1,13 +1,19 @@
 package com.letta.mobile.ui.screens.blocks
 
 import app.cash.turbine.test
+import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.ui.common.UiState
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -22,14 +28,18 @@ import org.junit.Test
 class BlockLibraryViewModelTest {
 
     private lateinit var fakeRepo: FakeBlockRepo
+    private lateinit var mockAgentRepo: AgentRepository
     private lateinit var viewModel: BlockLibraryViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
+    private val agentsFlow = MutableStateFlow<List<Agent>>(emptyList())
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeRepo = FakeBlockRepo()
-        viewModel = BlockLibraryViewModel(fakeRepo)
+        mockAgentRepo = mockk(relaxed = true)
+        every { mockAgentRepo.agents } returns agentsFlow
+        viewModel = BlockLibraryViewModel(fakeRepo, mockAgentRepo)
     }
 
     @After
@@ -176,12 +186,60 @@ class BlockLibraryViewModelTest {
         assertEquals("Failed to create block", state.data.operationError)
     }
 
+    @Test
+    fun `loadBlocks populates agentsByBlock from agent repository`() = runTest {
+        fakeRepo.allBlocks = listOf(
+            Block(id = "b1", label = "persona", value = "Persona block"),
+            Block(id = "b2", label = "human", value = "Human block"),
+        )
+        agentsFlow.value = listOf(
+            Agent(id = "a1", name = "Agent One", blocks = listOf(
+                Block(id = "b1", label = "persona", value = "Persona block"),
+            )),
+            Agent(id = "a2", name = "Agent Two", blocks = listOf(
+                Block(id = "b1", label = "persona", value = "Persona block"),
+                Block(id = "b2", label = "human", value = "Human block"),
+            )),
+        )
+
+        viewModel.loadBlocks()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals(2, state.data.agentsByBlock["b1"]?.size)
+        assertEquals(1, state.data.agentsByBlock["b2"]?.size)
+        assertEquals("Agent Two", state.data.agentsByBlock["b2"]?.first()?.name)
+    }
+
+    @Test
+    fun `detachBlockFromAgent calls repository and reloads`() = runTest {
+        fakeRepo.allBlocks = listOf(Block(id = "b1", label = "persona", value = "Block"))
+        var successCalled = false
+
+        viewModel.detachBlockFromAgent("b1", "a1") { successCalled = true }
+
+        assertTrue(successCalled)
+        assertTrue(fakeRepo.detachedPairs.contains("a1" to "b1"))
+    }
+
+    @Test
+    fun `attachBlockToAgent calls repository and reloads`() = runTest {
+        fakeRepo.allBlocks = listOf(Block(id = "b1", label = "persona", value = "Block"))
+        var successCalled = false
+
+        viewModel.attachBlockToAgent("b1", "a1") { successCalled = true }
+
+        assertTrue(successCalled)
+        assertTrue(fakeRepo.attachedPairs.contains("a1" to "b1"))
+    }
+
     private class FakeBlockRepo : IBlockRepository {
         var allBlocks = listOf<Block>()
         var shouldFail = false
         val deletedBlockIds = mutableListOf<String>()
         val createdBlocks = mutableListOf<BlockCreateParams>()
         val updatedBlockIds = mutableListOf<String>()
+        val attachedPairs = mutableListOf<Pair<String, String>>()
+        val detachedPairs = mutableListOf<Pair<String, String>>()
 
         override suspend fun listAllBlocks(label: String?, isTemplate: Boolean?): List<Block> {
             if (shouldFail) throw Exception("Failed to load blocks")
@@ -219,6 +277,7 @@ class BlockLibraryViewModelTest {
             return updated
         }
         override suspend fun createBlock(params: BlockCreateParams): Block {
+            if (shouldFail) throw Exception("Failed to create block")
             createdBlocks.add(params)
             val created = Block(
                 id = "block-${createdBlocks.size}",
@@ -234,8 +293,12 @@ class BlockLibraryViewModelTest {
             deletedBlockIds.add(blockId)
             allBlocks = allBlocks.filterNot { it.id == blockId }
         }
-        override suspend fun attachBlock(agentId: String, blockId: String): Block =
-            Block(id = blockId, label = "stub", value = "")
-        override suspend fun detachBlock(agentId: String, blockId: String) {}
+        override suspend fun attachBlock(agentId: String, blockId: String): Block {
+            attachedPairs.add(agentId to blockId)
+            return Block(id = blockId, label = "stub", value = "")
+        }
+        override suspend fun detachBlock(agentId: String, blockId: String) {
+            detachedPairs.add(agentId to blockId)
+        }
     }
 }

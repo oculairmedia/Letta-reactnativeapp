@@ -2,6 +2,8 @@ package com.letta.mobile.ui.screens.blocks
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -16,9 +19,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -27,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
+import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
@@ -62,6 +70,8 @@ fun BlockLibraryScreen(
     var editTarget by remember { mutableStateOf<Block?>(null) }
     var deleteTarget by remember { mutableStateOf<Block?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var attachTarget by remember { mutableStateOf<Block?>(null) }
+    var detachTarget by remember { mutableStateOf<Pair<Block, Agent>?>(null) }
 
     Scaffold(
         topBar = {
@@ -139,9 +149,12 @@ fun BlockLibraryScreen(
                             items(filteredBlocks, key = { it.id }) { block ->
                                 BlockLibraryCard(
                                     block = block,
+                                    agents = state.data.agentsByBlock[block.id] ?: emptyList(),
                                     onInspect = { selectedBlock = block },
                                     onEdit = { if (block.readOnly != true) editTarget = block },
                                     onDelete = { if (block.readOnly != true) deleteTarget = block },
+                                    onDetachAgent = { agent -> detachTarget = block to agent },
+                                    onAttach = { attachTarget = block },
                                 )
                             }
                         }
@@ -220,14 +233,64 @@ fun BlockLibraryScreen(
             },
         )
     }
+
+    detachTarget?.let { (block, agent) ->
+        AlertDialog(
+            onDismissRequest = { detachTarget = null },
+            title = { Text(stringResource(R.string.screen_blocks_detach_title)) },
+            text = {
+                Text(stringResource(
+                    R.string.screen_blocks_detach_confirm,
+                    block.label ?: stringResource(R.string.common_unknown),
+                    agent.name,
+                ))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.detachBlockFromAgent(block.id, agent.id) {
+                            detachTarget = null
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { detachTarget = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    attachTarget?.let { block ->
+        val successData = (uiState as? UiState.Success)?.data
+        val attachedAgentIds = successData?.agentsByBlock?.get(block.id)?.map { it.id }?.toSet() ?: emptySet()
+        val availableAgents = successData?.allAgents?.filter { it.id !in attachedAgentIds } ?: emptyList()
+
+        AgentPickerDialog(
+            agents = availableAgents,
+            onDismiss = { attachTarget = null },
+            onSelect = { agent ->
+                viewModel.attachBlockToAgent(block.id, agent.id) {
+                    attachTarget = null
+                }
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BlockLibraryCard(
     block: Block,
+    agents: List<Agent>,
     onInspect: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onDetachAgent: (Agent) -> Unit,
+    onAttach: () -> Unit,
 ) {
     Card(
         onClick = onInspect,
@@ -268,9 +331,9 @@ private fun BlockLibraryCard(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 block.limit?.let { limit ->
                     AssistChip(onClick = {}, label = { Text(stringResource(R.string.screen_blocks_limit_chip, limit)) })
@@ -281,6 +344,53 @@ private fun BlockLibraryCard(
                 block.readOnly?.takeIf { it }?.let {
                     AssistChip(onClick = {}, label = { Text(stringResource(R.string.screen_agent_edit_block_read_only)) })
                 }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (agents.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.screen_blocks_no_agents),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                } else {
+                    agents.forEach { agent ->
+                        AssistChip(
+                            onClick = { onDetachAgent(agent) },
+                            label = { Text(agent.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.People,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.LinkOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                        )
+                    }
+                }
+                AssistChip(
+                    onClick = onAttach,
+                    label = { Text(stringResource(R.string.action_attach)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                        )
+                    },
+                )
             }
         }
     }
@@ -411,6 +521,61 @@ private fun BlockEditorDialog(
                 enabled = value.isNotBlank() && (!labelEnabled || label.isNotBlank()),
             ) {
                 Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun AgentPickerDialog(
+    agents: List<Agent>,
+    onDismiss: () -> Unit,
+    onSelect: (Agent) -> Unit,
+) {
+    var selected by remember { mutableStateOf<Agent?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.screen_blocks_attach_title)) },
+        text = {
+            if (agents.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.screen_blocks_no_available_agents),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(agents, key = { it.id }) { agent ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = selected?.id == agent.id,
+                                onClick = { selected = agent },
+                            )
+                            Text(
+                                text = agent.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { selected?.let(onSelect) },
+                enabled = selected != null,
+            ) {
+                Text(stringResource(R.string.action_attach))
             }
         },
         dismissButton = {

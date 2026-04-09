@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +46,7 @@ fun HomeScreen(
     onNavigateToAgents: () -> Unit,
     onNavigateToConversations: () -> Unit,
     onNavigateToTools: () -> Unit,
+    onNavigateToBlocks: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToChat: (agentId: String) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -81,6 +83,7 @@ fun HomeScreen(
             onNavigateToAgents = onNavigateToAgents,
             onNavigateToConversations = onNavigateToConversations,
             onNavigateToTools = onNavigateToTools,
+            onNavigateToBlocks = onNavigateToBlocks,
             onNavigateToChat = onNavigateToChat,
             modifier = Modifier.padding(paddingValues),
         )
@@ -93,6 +96,7 @@ private fun HomeContent(
     onNavigateToAgents: () -> Unit,
     onNavigateToConversations: () -> Unit,
     onNavigateToTools: () -> Unit,
+    onNavigateToBlocks: () -> Unit,
     onNavigateToChat: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -135,6 +139,13 @@ private fun HomeContent(
                 value = state.toolCount?.toString(),
                 icon = Icons.Default.Build,
                 onClick = onNavigateToTools,
+                modifier = Modifier.weight(1f),
+            )
+            StatCard(
+                label = "Blocks",
+                value = state.blockCount?.toString(),
+                icon = Icons.Default.ViewModule,
+                onClick = onNavigateToBlocks,
                 modifier = Modifier.weight(1f),
             )
         }
