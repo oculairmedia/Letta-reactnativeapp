@@ -78,6 +78,7 @@ fun ConversationsScreen(
     onNavigateToTemplates: () -> Unit = {},
     onNavigateToBlocks: () -> Unit = {},
     onNavigateToSchedules: () -> Unit = {},
+    onNavigateToRuns: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
@@ -118,6 +119,11 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_schedules)) },
                             onClick = { showOverflowMenu = false; onNavigateToSchedules() },
                             leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.screen_nav_runs)) },
+                            onClick = { showOverflowMenu = false; onNavigateToRuns() },
+                            leadingIcon = { Icon(Icons.Default.ChatBubbleOutline, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.screen_nav_mcp_servers)) },
