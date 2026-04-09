@@ -61,6 +61,7 @@ class EditAgentViewModelTest {
             assertEquals("persona value", state.data.blocks.first { it.label == "persona" }.value)
             assertEquals("human value", state.data.blocks.first { it.label == "human" }.value)
             assertEquals("stateful", state.data.agentType)
+            assertEquals("openai", state.data.providerType)
             assertEquals(4096, state.data.maxOutputTokens)
         }
     }
@@ -108,6 +109,27 @@ class EditAgentViewModelTest {
         viewModel.saveAgent {}
 
         assertEquals(8192, fakeAgentRepo.lastUpdateParams?.modelSettings?.maxOutputTokens)
+    }
+
+    @Test
+    fun `updateProviderType changes provider type`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateProviderType("anthropic")
+
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertEquals("anthropic", state.data.providerType)
+        }
+    }
+
+    @Test
+    fun `saveAgent persists edited provider type`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateProviderType("anthropic")
+
+        viewModel.saveAgent {}
+
+        assertEquals("anthropic", fakeAgentRepo.lastUpdateParams?.modelSettings?.providerType)
     }
 
     @Test
@@ -160,6 +182,7 @@ class EditAgentViewModelTest {
                 agentType = "stateful",
                 enableSleeptime = true,
                 modelSettings = com.letta.mobile.data.model.ModelSettings(
+                    providerType = "openai",
                     temperature = 0.9,
                     maxOutputTokens = 4096,
                     parallelToolCalls = false,

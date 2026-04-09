@@ -112,6 +112,7 @@ fun EditAgentScreen(
                 onAddTag = { viewModel.addTag(it) },
                 onRemoveTag = { viewModel.removeTag(it) },
                 onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
+                onProviderTypeChange = { viewModel.updateProviderType(it) },
                 onTemperatureChange = { viewModel.updateTemperature(it) },
                 onMaxOutputTokensChange = { viewModel.updateMaxOutputTokens(it) },
                 onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
@@ -147,6 +148,7 @@ private fun EditAgentContent(
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
     onSystemPromptChange: (String) -> Unit,
+    onProviderTypeChange: (String) -> Unit,
     onTemperatureChange: (Float) -> Unit,
     onMaxOutputTokensChange: (Int) -> Unit,
     onParallelToolCallsChange: (Boolean) -> Unit,
@@ -246,6 +248,14 @@ private fun EditAgentContent(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                OutlinedTextField(
+                    value = state.providerType,
+                    onValueChange = onProviderTypeChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_provider_type)) },
+                    placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
                 Text(
                     stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
                     style = MaterialTheme.typography.bodyMedium,

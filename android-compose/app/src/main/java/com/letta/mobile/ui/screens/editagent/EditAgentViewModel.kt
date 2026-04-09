@@ -40,6 +40,7 @@ data class EditAgentUiState(
     val blocks: List<EditableBlock> = emptyList(),
     val systemPrompt: String = "",
     val tags: List<String> = emptyList(),
+    val providerType: String = "",
     val temperature: Float = 1.0f,
     val maxOutputTokens: Int = 4096,
     val parallelToolCalls: Boolean = true,
@@ -112,6 +113,7 @@ class EditAgentViewModel @Inject constructor(
                         blocks = editableBlocks,
                         systemPrompt = agent.system ?: "",
                         tags = agent.tags ?: emptyList(),
+                        providerType = agent.modelSettings?.providerType ?: "",
                         temperature = agent.modelSettings?.temperature?.toFloat() ?: 1.0f,
                         maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: 4096,
                         parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,
@@ -240,6 +242,13 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun updateProviderType(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data
+        if (currentState != null) {
+            _uiState.value = UiState.Success(currentState.copy(providerType = value))
+        }
+    }
+
     fun updateMaxOutputTokens(value: Int) {
         val currentState = (_uiState.value as? UiState.Success)?.data
         if (currentState != null) {
@@ -276,6 +285,7 @@ class EditAgentViewModel @Inject constructor(
                         tags = state.tags,
                         enableSleeptime = state.enableSleeptime,
                         modelSettings = com.letta.mobile.data.model.ModelSettings(
+                            providerType = state.providerType.ifBlank { null },
                             temperature = state.temperature.toDouble(),
                             maxOutputTokens = state.maxOutputTokens,
                             parallelToolCalls = state.parallelToolCalls,

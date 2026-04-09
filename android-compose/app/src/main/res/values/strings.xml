@@ -63,6 +63,7 @@
     <string name="screen_agent_edit_title">Edit Agent</string>
     <string name="common_name">Name</string>
     <string name="common_id">ID</string>
+    <string name="common_provider">Provider</string>
     <string name="common_value">Value</string>
     <string name="common_description">Description</string>
     <string name="common_type">Type</string>
@@ -74,6 +75,7 @@
     <string name="screen_agent_memory_blocks_section">Memory Blocks</string>
     <string name="screen_agent_edit_embedding_model">Embedding Model</string>
     <string name="screen_agent_edit_llm_configuration">LLM Configuration</string>
+    <string name="screen_agent_edit_provider_type">Provider Type</string>
     <string name="screen_agent_edit_temperature_subtitle">Temperature: %.1f</string>
     <string name="screen_agent_edit_temperature_value">Temperature: %.2f</string>
     <string name="screen_agent_edit_context_window">Context Window: %1$d</string>
@@ -148,6 +150,11 @@
     <string name="screen_settings_reset_messages_title">Reset Message History</string>
     <string name="screen_settings_reset_messages_confirm">This clears the agent message history stored by Letta. This action cannot be undone.</string>
     <string name="screen_settings_export_subject">Letta agent export</string>
+    <string name="screen_agents_create_embedding_placeholder">e.g. openai/text-embedding-3-small</string>
+    <string name="screen_agents_create_model_placeholder">e.g. openai/gpt-4o</string>
+    <string name="screen_agents_create_include_base_tools">Include Base Tools</string>
+    <string name="screen_agents_create_advanced_model_section">Advanced Model Settings</string>
+    <string name="screen_agents_create_provider_placeholder">e.g. openai</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="common_error">Error</string>
     <string name="screen_config_list_empty">No saved configurations</string>

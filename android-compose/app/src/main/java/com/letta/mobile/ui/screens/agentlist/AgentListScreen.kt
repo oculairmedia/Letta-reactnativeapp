@@ -69,6 +69,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
+import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -468,7 +469,11 @@ private fun CreateAgentDialog(
     var description by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
     var embedding by remember { mutableStateOf("") }
+    var providerType by remember { mutableStateOf("") }
     var systemPrompt by remember { mutableStateOf("") }
+    var temperature by remember { mutableStateOf("1.0") }
+    var maxOutputTokens by remember { mutableStateOf("4096") }
+    var parallelToolCalls by remember { mutableStateOf(true) }
     var enableSleeptime by remember { mutableStateOf(false) }
     var includeBaseTools by remember { mutableStateOf(true) }
 
@@ -500,16 +505,58 @@ private fun CreateAgentDialog(
                     label = { Text(stringResource(R.string.common_model)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("e.g. openai/gpt-4o") },
+                    placeholder = { Text(stringResource(R.string.screen_agents_create_model_placeholder)) },
                 )
                 OutlinedTextField(
                     value = embedding,
                     onValueChange = { embedding = it },
-                    label = { Text("Embedding Model") },
+                    label = { Text(stringResource(R.string.screen_agent_edit_embedding_model)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("e.g. openai/text-embedding-3-small") },
+                    placeholder = { Text(stringResource(R.string.screen_agents_create_embedding_placeholder)) },
                 )
+                Text(
+                    text = stringResource(R.string.screen_agents_create_advanced_model_section),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                OutlinedTextField(
+                    value = providerType,
+                    onValueChange = { providerType = it },
+                    label = { Text(stringResource(R.string.common_provider)) },
+                    placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = temperature,
+                    onValueChange = { value ->
+                        if (value.isBlank() || value.toDoubleOrNull() != null) {
+                            temperature = value
+                        }
+                    },
+                    label = { Text(stringResource(R.string.screen_agent_edit_temperature_value, temperature.toFloatOrNull() ?: 0f)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = maxOutputTokens,
+                    onValueChange = { value ->
+                        if (value.isBlank() || value.toIntOrNull() != null) {
+                            maxOutputTokens = value
+                        }
+                    },
+                    label = { Text(stringResource(R.string.common_max_output_tokens)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.common_parallel_tool_calls), style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = parallelToolCalls, onCheckedChange = { parallelToolCalls = it })
+                }
                 OutlinedTextField(
                     value = systemPrompt,
                     onValueChange = { systemPrompt = it },
@@ -523,7 +570,7 @@ private fun CreateAgentDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Enable Sleeptime", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.common_enable_sleeptime), style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = enableSleeptime, onCheckedChange = { enableSleeptime = it })
                 }
                 Row(
@@ -531,7 +578,7 @@ private fun CreateAgentDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Include Base Tools", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.screen_agents_create_include_base_tools), style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = includeBaseTools, onCheckedChange = { includeBaseTools = it })
                 }
             }
@@ -545,6 +592,12 @@ private fun CreateAgentDialog(
                             description = description.ifBlank { null },
                             model = model,
                             embedding = embedding,
+                            modelSettings = ModelSettings(
+                                providerType = providerType.ifBlank { null },
+                                temperature = temperature.toDoubleOrNull(),
+                                maxOutputTokens = maxOutputTokens.toIntOrNull(),
+                                parallelToolCalls = parallelToolCalls,
+                            ),
                             system = systemPrompt.ifBlank { null },
                             enableSleeptime = enableSleeptime,
                             includeBaseTools = includeBaseTools,
