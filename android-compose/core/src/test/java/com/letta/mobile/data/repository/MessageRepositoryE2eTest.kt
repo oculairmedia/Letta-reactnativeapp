@@ -130,6 +130,41 @@ class MessageRepositoryE2eTest {
         assertEquals(listOf("user-1", "assistant-1"), messages.map { it.id })
     }
 
+    @Test
+    fun `fetchConversationInspectorMessages keeps metadata for debugging`() = runTest {
+        val repository = createRepository(
+            streamConversationId = "conv-1",
+            conversationMessagesJson = """
+                [
+                  {
+                    "id":"tool-1",
+                    "message_type":"tool_call_message",
+                    "date":"2026-04-09T10:00:00Z",
+                    "run_id":"run-1",
+                    "step_id":"step-1",
+                    "tool_call":{"id":"call-1","name":"search","arguments":"{\"q\":\"hi\"}","type":"function"}
+                  },
+                  {
+                    "id":"event-1",
+                    "message_type":"event_message",
+                    "event_type":"heartbeat",
+                    "event_data":{"phase":"streaming"}
+                  }
+                ]
+            """.trimIndent(),
+            ssePayload = "data: [DONE]\n\n",
+        )
+
+        val messages = repository.fetchConversationInspectorMessages("conv-1")
+
+        assertEquals(2, messages.size)
+        assertEquals("tool_call_message", messages.first().messageType)
+        assertTrue(messages.first().detailLines.any { it.first == "Run ID" && it.second == "run-1" })
+        assertTrue(messages.first().detailLines.any { it.first == "Arguments" && it.second.contains("\"q\":\"hi\"") })
+        assertEquals("heartbeat", messages.last().summary)
+        assertTrue(messages.last().detailLines.any { it.first == "phase" && it.second == "streaming" })
+    }
+
     private fun createRepository(
         streamConversationId: String,
         conversationMessagesJson: String,

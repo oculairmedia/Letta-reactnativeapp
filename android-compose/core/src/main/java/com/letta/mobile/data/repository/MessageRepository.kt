@@ -5,7 +5,11 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.data.model.AppMessage
+import com.letta.mobile.data.model.ApprovalRequestMessage
+import com.letta.mobile.data.model.ApprovalResponseMessage
 import com.letta.mobile.data.model.AssistantMessage
+import com.letta.mobile.data.model.EventMessage
+import com.letta.mobile.data.model.HiddenReasoningMessage
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageCreate
 import com.letta.mobile.data.model.MessageCreateRequest
@@ -13,6 +17,7 @@ import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.model.ReasoningMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
+import com.letta.mobile.data.model.UnknownMessage
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.data.paging.MessagePagingSource
 import com.letta.mobile.domain.MessageProcessor
@@ -26,8 +31,20 @@ import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@androidx.compose.runtime.Immutable
+data class ConversationInspectorMessage(
+    val id: String,
+    val messageType: String,
+    val date: String?,
+    val runId: String?,
+    val stepId: String?,
+    val otid: String?,
+    val summary: String,
+    val detailLines: List<Pair<String, String>> = emptyList(),
+)
+
 @Singleton
-class MessageRepository @Inject constructor(
+open class MessageRepository @Inject constructor(
     private val messageApi: MessageApi,
     private val messageProcessor: MessageProcessor,
 ) {
@@ -85,6 +102,11 @@ class MessageRepository @Inject constructor(
         emit(messages)
     }
 
+    open suspend fun fetchConversationInspectorMessages(conversationId: String): List<ConversationInspectorMessage> {
+        return messageApi.listConversationMessages(conversationId, limit = 200, order = "asc")
+            .map { it.toInspectorMessage() }
+    }
+
     private fun LettaMessage.toAppMessage(): AppMessage? {
         return when (this) {
             is UserMessage -> AppMessage(
@@ -121,6 +143,154 @@ class MessageRepository @Inject constructor(
                 toolCallId = toolReturn.toolCallId
             )
             else -> null // Skip other message types like HiddenReasoningMessage, EventMessage, etc.
+        }
+    }
+
+    private fun LettaMessage.toInspectorMessage(): ConversationInspectorMessage {
+        val baseDetails = buildList {
+            date?.let { add("Date" to it) }
+            runId?.let { add("Run ID" to it) }
+            stepId?.let { add("Step ID" to it) }
+            otid?.let { add("OTID" to it) }
+        }
+        return when (this) {
+            is UserMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = content.ifBlank { "User message" },
+                detailLines = baseDetails + listOfNotNull(senderId?.let { "Sender ID" to it }),
+            )
+            is AssistantMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = content.ifBlank { "Assistant message" },
+                detailLines = baseDetails + listOfNotNull(senderId?.let { "Sender ID" to it }),
+            )
+            is ReasoningMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = reasoning,
+                detailLines = baseDetails + listOfNotNull(senderId?.let { "Sender ID" to it }),
+            )
+            is ToolCallMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = toolCall.name,
+                detailLines = baseDetails + listOf(
+                    "Tool Call ID" to toolCall.effectiveId,
+                    "Arguments" to toolCall.arguments,
+                ) + listOfNotNull(senderId?.let { "Sender ID" to it }),
+            )
+            is ToolReturnMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = toolReturn.funcResponse ?: toolReturn.status,
+                detailLines = baseDetails + buildList {
+                    add("Tool Call ID" to toolReturn.toolCallId)
+                    add("Status" to toolReturn.status)
+                    toolReturn.funcResponse?.let { add("Function Response" to it) }
+                    toolReturn.stdout?.takeIf { it.isNotEmpty() }?.let { add("Stdout" to it.joinToString("\n")) }
+                    toolReturn.stderr?.takeIf { it.isNotEmpty() }?.let { add("Stderr" to it.joinToString("\n")) }
+                    senderId?.let { add("Sender ID" to it) }
+                },
+            )
+            is ApprovalRequestMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = "Approval request",
+                detailLines = baseDetails + buildList {
+                    add("Tool Call Count" to (toolCalls?.size ?: 0).toString())
+                    toolCalls?.forEachIndexed { index, toolCall ->
+                        add("Tool ${index + 1}" to "${toolCall.name}: ${toolCall.arguments}")
+                    }
+                    senderId?.let { add("Sender ID" to it) }
+                },
+            )
+            is ApprovalResponseMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = "Approval response",
+                detailLines = baseDetails + buildList {
+                    add("Approval Count" to (approvals?.size ?: 0).toString())
+                    approvals?.forEachIndexed { index, approval ->
+                        add(
+                            "Approval ${index + 1}" to listOfNotNull(
+                                approval.status,
+                                approval.type,
+                                approval.toolCallId,
+                                approval.toolReturn,
+                            ).joinToString(" • ")
+                        )
+                    }
+                    senderId?.let { add("Sender ID" to it) }
+                },
+            )
+            is HiddenReasoningMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = hiddenReasoning ?: state,
+                detailLines = baseDetails + buildList {
+                    add("State" to state)
+                    hiddenReasoning?.let { add("Hidden Reasoning" to it) }
+                    senderId?.let { add("Sender ID" to it) }
+                },
+            )
+            is EventMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = eventType,
+                detailLines = baseDetails + buildList {
+                    add("Event Type" to eventType)
+                    eventData?.forEach { (key, value) -> add(key to value) }
+                    senderId?.let { add("Sender ID" to it) }
+                },
+            )
+            is UnknownMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = "Unknown message type",
+                detailLines = baseDetails,
+            )
         }
     }
 
