@@ -164,6 +164,13 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `attachExistingBlock delegates to repository`() = runTest {
+        viewModel.attachExistingBlock("existing-block")
+
+        assertEquals(listOf("existing-block"), fakeBlockRepo.attachedExistingBlockIds)
+    }
+
+    @Test
     fun `saveAgent forwards edited block metadata`() = runTest {
         viewModel.loadAgent()
         viewModel.updateBlockDescription("persona", "updated description")
@@ -240,6 +247,7 @@ class EditAgentViewModelTest {
         var lastCreatedParams: BlockCreateParams? = null
         var lastUpdatedLabel: String? = null
         var lastUpdatedParams: BlockUpdateParams? = null
+        val attachedExistingBlockIds = mutableListOf<String>()
 
         override suspend fun createBlock(params: BlockCreateParams): Block {
             lastCreatedParams = params
@@ -259,6 +267,7 @@ class EditAgentViewModelTest {
         }
 
         override suspend fun attachBlock(agentId: String, blockId: String): Block {
+            attachedExistingBlockIds.add(blockId)
             return TestData.block(id = blockId, label = "attached", value = "value")
         }
     }

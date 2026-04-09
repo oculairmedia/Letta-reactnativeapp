@@ -59,6 +59,7 @@ import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.screens.blocks.BlockPickerDialog
 import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -110,6 +111,7 @@ fun EditAgentScreen(
                 onBlockDescriptionChange = { label, value -> viewModel.updateBlockDescription(label, value) },
                 onBlockLimitChange = { label, value -> viewModel.updateBlockLimit(label, value) },
                 onAddBlock = { label, value, description, limit -> viewModel.addBlock(label, value, description, limit) },
+                onAttachExistingBlock = { viewModel.attachExistingBlock(it) },
                 onDeleteBlock = { viewModel.deleteBlock(it) },
                 onAddTag = { viewModel.addTag(it) },
                 onRemoveTag = { viewModel.removeTag(it) },
@@ -148,6 +150,7 @@ private fun EditAgentContent(
     onBlockDescriptionChange: (String, String) -> Unit,
     onBlockLimitChange: (String, Int?) -> Unit,
     onAddBlock: (String, String, String, Int?) -> Unit,
+    onAttachExistingBlock: (String) -> Unit,
     onDeleteBlock: (String) -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
@@ -315,6 +318,7 @@ private fun EditAgentContent(
 
         var memoryExpanded by remember { mutableStateOf(true) }
         var showAddBlockDialog by remember { mutableStateOf(false) }
+        var showAttachBlockDialog by remember { mutableStateOf(false) }
         Accordions(
             title = stringResource(R.string.screen_agent_memory_blocks_section),
             subtitle = "${state.blocks.size} blocks",
@@ -416,6 +420,14 @@ private fun EditAgentContent(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.screen_agent_edit_add_memory_block))
                 }
+                OutlinedButton(
+                    onClick = { showAttachBlockDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.screen_agent_edit_attach_existing_block))
+                }
             }
         }
         if (showAddBlockDialog) {
@@ -473,6 +485,16 @@ private fun EditAgentContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddBlockDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                },
+            )
+        }
+        if (showAttachBlockDialog) {
+            BlockPickerDialog(
+                excludedBlockIds = state.blocks.map { it.id },
+                onDismiss = { showAttachBlockDialog = false },
+                onConfirm = { selectedIds ->
+                    selectedIds.forEach(onAttachExistingBlock)
+                    showAttachBlockDialog = false
                 },
             )
         }

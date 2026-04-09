@@ -55,6 +55,7 @@
     <string name="screen_tools_dialog_remove_title">Remove Tool</string>
     <string name="screen_tools_dialog_remove_confirm">Remove %1$s from this agent?</string>
     <string name="action_remove">Remove</string>
+    <string name="action_attach">Attach</string>
     <string name="screen_config_list_title">Saved Configurations</string>
     <string name="action_set_active">Set Active</string>
     <string name="screen_config_dialog_delete_title">Delete Configuration</string>
@@ -67,6 +68,7 @@
     <string name="common_name">Name</string>
     <string name="common_id">ID</string>
     <string name="common_provider">Provider</string>
+    <string name="common_unknown">Unknown</string>
     <string name="common_value">Value</string>
     <string name="common_description">Description</string>
     <string name="common_type">Type</string>
@@ -88,6 +90,7 @@
     <string name="screen_agent_edit_block_template">Template</string>
     <string name="screen_agent_edit_block_read_only">Read only</string>
     <string name="screen_agent_edit_add_memory_block">Add Memory Block</string>
+    <string name="screen_agent_edit_attach_existing_block">Attach Existing Block</string>
     <string name="screen_agent_edit_attach_tools">Attach Tools</string>
     <string name="screen_agent_edit_attached_tools_count">%1$d attached</string>
     <string name="screen_agent_edit_new_tag">New tag</string>
@@ -137,6 +140,7 @@
     <string name="screen_mcp_server_tools_count">%1$d discovered tools</string>
     <string name="screen_mcp_server_discovered_tools">Discovered Tools</string>
     <string name="screen_tools_empty_attached">No tools attached</string>
+    <string name="screen_blocks_empty_available">No reusable blocks available</string>
     <string name="screen_settings_model_section">Model Settings</string>
     <string name="screen_settings_operational_section">Operational Settings</string>
     <string name="screen_settings_no_model">No model</string>

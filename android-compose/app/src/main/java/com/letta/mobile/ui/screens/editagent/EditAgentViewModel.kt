@@ -211,6 +211,17 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun attachExistingBlock(blockId: String) {
+        viewModelScope.launch {
+            try {
+                blockRepository.attachBlock(agentId, blockId)
+                loadAgent()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Failed to attach block")
+            }
+        }
+    }
+
     fun deleteBlock(blockId: String) {
         viewModelScope.launch {
             try {
