@@ -13,8 +13,8 @@ class FakeBlockApi : BlockApi(mockk(relaxed = true)) {
     val calls = mutableListOf<String>()
     var lastUpdateParams: BlockUpdateParams? = null
 
-    override suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
-        calls.add("updateBlock:$agentId:$blockLabel")
+    override suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+        calls.add("updateAgentBlock:$agentId:$blockLabel")
         lastUpdateParams = params
         if (shouldFail) throw ApiException(500, "Server error")
         val agentBlocks = blocks.getOrPut(agentId) { mutableListOf() }

@@ -269,7 +269,7 @@ class EditAgentViewModelTest {
             return TestData.block(id = "new-block", label = params.label, value = params.value)
         }
 
-        override suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+        override suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
             lastUpdatedLabel = blockLabel
             lastUpdatedParams = params
             return Block(
@@ -278,6 +278,21 @@ class EditAgentViewModelTest {
                 value = params.value ?: "",
                 description = params.description,
                 limit = params.limit,
+            )
+        }
+
+        override suspend fun updateGlobalBlock(
+            blockId: String,
+            params: BlockUpdateParams,
+            clearDescription: Boolean,
+            clearLimit: Boolean,
+        ): Block {
+            return Block(
+                id = blockId,
+                label = "global",
+                value = params.value ?: "",
+                description = if (clearDescription) null else params.description,
+                limit = if (clearLimit) null else params.limit,
             )
         }
 

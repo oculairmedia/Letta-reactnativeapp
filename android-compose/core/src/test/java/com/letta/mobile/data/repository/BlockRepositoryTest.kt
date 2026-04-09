@@ -23,28 +23,56 @@ class BlockRepositoryTest {
     }
 
     @Test
-    fun `updateBlock calls API with correct params`() = runTest {
-        repository.updateBlock(
+    fun `updateAgentBlock calls API with correct params`() = runTest {
+        repository.updateAgentBlock(
             "a1",
             "persona",
             BlockUpdateParams(value = "New persona value", description = "desc", limit = 256)
         )
-        assertTrue(fakeApi.calls.contains("updateBlock:a1:persona"))
+        assertTrue(fakeApi.calls.contains("updateAgentBlock:a1:persona"))
         assertEquals("desc", fakeApi.lastUpdateParams?.description)
         assertEquals(256, fakeApi.lastUpdateParams?.limit)
     }
 
     @Test
-    fun `updateBlock returns updated block`() = runTest {
-        val result = repository.updateBlock("a1", "human", BlockUpdateParams(value = "Updated human block"))
+    fun `updateAgentBlock returns updated block`() = runTest {
+        val result = repository.updateAgentBlock("a1", "human", BlockUpdateParams(value = "Updated human block"))
         assertEquals("human", result.label)
         assertEquals("Updated human block", result.value)
     }
 
+    @Test
+    fun `updateGlobalBlock calls global API endpoint`() = runTest {
+        fakeApi.allBlocks.add(Block(id = "b1", label = "persona", value = "Old value"))
+
+        val result = repository.updateGlobalBlock("b1", BlockUpdateParams(value = "New value", description = "desc"))
+
+        assertTrue(fakeApi.calls.contains("updateGlobalBlock:b1:false:false"))
+        assertEquals("New value", result.value)
+        assertEquals("desc", result.description)
+    }
+
+    @Test
+    fun `updateGlobalBlock can clear optional metadata`() = runTest {
+        fakeApi.allBlocks.add(Block(id = "b1", label = "persona", value = "Old value", description = "desc", limit = 42))
+
+        val result = repository.updateGlobalBlock(
+            "b1",
+            BlockUpdateParams(value = "New value"),
+            clearDescription = true,
+            clearLimit = true,
+        )
+
+        assertTrue(fakeApi.calls.contains("updateGlobalBlock:b1:true:true"))
+        assertEquals("New value", result.value)
+        assertEquals(null, result.description)
+        assertEquals(null, result.limit)
+    }
+
     @Test(expected = com.letta.mobile.data.api.ApiException::class)
-    fun `updateBlock throws on API failure`() = runTest {
+    fun `updateAgentBlock throws on API failure`() = runTest {
         fakeApi.shouldFail = true
-        repository.updateBlock("a1", "persona", BlockUpdateParams(value = "value"))
+        repository.updateAgentBlock("a1", "persona", BlockUpdateParams(value = "value"))
     }
 
     @Test

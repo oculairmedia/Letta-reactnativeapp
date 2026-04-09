@@ -13,8 +13,8 @@ class FakeBlockApi : BlockApi(mockk(relaxed = true)) {
     val calls = mutableListOf<String>()
     var lastUpdateParams: BlockUpdateParams? = null
 
-    override suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
-        calls.add("updateBlock:$agentId:$blockLabel")
+    override suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+        calls.add("updateAgentBlock:$agentId:$blockLabel")
         lastUpdateParams = params
         if (shouldFail) throw ApiException(500, "Server error")
         val agentBlocks = blocks.getOrPut(agentId) { mutableListOf() }
@@ -31,6 +31,38 @@ class FakeBlockApi : BlockApi(mockk(relaxed = true)) {
             agentBlocks[index] = updated
         } else {
             agentBlocks.add(updated)
+        }
+        return updated
+    }
+
+    override suspend fun updateGlobalBlock(
+        blockId: String,
+        params: BlockUpdateParams,
+        clearDescription: Boolean,
+        clearLimit: Boolean,
+    ): Block {
+        calls.add("updateGlobalBlock:$blockId:$clearDescription:$clearLimit")
+        lastUpdateParams = params
+        if (shouldFail) throw ApiException(500, "Server error")
+        val index = allBlocks.indexOfFirst { it.id == blockId }
+        val existing = allBlocks.getOrNull(index) ?: Block(id = blockId, value = params.value ?: "")
+        val updated = existing.copy(
+            value = params.value ?: existing.value,
+            description = when {
+                params.description != null -> params.description
+                clearDescription -> null
+                else -> existing.description
+            },
+            limit = when {
+                params.limit != null -> params.limit
+                clearLimit -> null
+                else -> existing.limit
+            },
+        )
+        if (index >= 0) {
+            allBlocks[index] = updated
+        } else {
+            allBlocks.add(updated)
         }
         return updated
     }

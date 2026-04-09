@@ -16,8 +16,17 @@ class BlockRepository @Inject constructor(
         return blockApi.listBlocks(agentId)
     }
 
-    override suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
-        return blockApi.updateBlock(agentId, blockLabel, params)
+    override suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+        return blockApi.updateAgentBlock(agentId, blockLabel, params)
+    }
+
+    override suspend fun updateGlobalBlock(
+        blockId: String,
+        params: BlockUpdateParams,
+        clearDescription: Boolean,
+        clearLimit: Boolean,
+    ): Block {
+        return blockApi.updateGlobalBlock(blockId, params, clearDescription, clearLimit)
     }
 
     override suspend fun createBlock(params: BlockCreateParams): Block {

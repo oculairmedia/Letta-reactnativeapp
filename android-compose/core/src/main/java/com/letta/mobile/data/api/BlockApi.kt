@@ -5,6 +5,9 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,13 +26,43 @@ open class BlockApi @Inject constructor(
         return response.body()
     }
 
-    open suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+    open suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
         val response = client.patch("$baseUrl/v1/agents/$agentId/blocks/$blockLabel") {
             contentType(ContentType.Application.Json)
             setBody(params)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun updateGlobalBlock(
+        blockId: String,
+        params: BlockUpdateParams,
+        clearDescription: Boolean = false,
+        clearLimit: Boolean = false,
+    ): Block {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+        val requestBody = buildJsonObject {
+            params.value?.let { put("value", it) }
+            when {
+                params.description != null -> put("description", params.description)
+                clearDescription -> put("description", JsonNull)
+            }
+            when {
+                params.limit != null -> put("limit", params.limit)
+                clearLimit -> put("limit", JsonNull)
+            }
+        }
+
+        val response = client.patch("$baseUrl/v1/blocks/$blockId") {
+            contentType(ContentType.Application.Json)
+            setBody(requestBody)
         }
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())

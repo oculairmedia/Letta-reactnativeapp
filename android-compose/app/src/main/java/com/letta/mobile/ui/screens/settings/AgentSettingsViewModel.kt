@@ -161,11 +161,11 @@ class AgentSettingsViewModel @Inject constructor(
                     )
                 )
                 if (state.personaBlock != originalPersonaBlock) {
-                    blockRepository.updateBlock(agentId, "persona", BlockUpdateParams(value = state.personaBlock))
+                    blockRepository.updateAgentBlock(agentId, "persona", BlockUpdateParams(value = state.personaBlock))
                     originalPersonaBlock = state.personaBlock
                 }
                 if (state.humanBlock != originalHumanBlock) {
-                    blockRepository.updateBlock(agentId, "human", BlockUpdateParams(value = state.humanBlock))
+                    blockRepository.updateAgentBlock(agentId, "human", BlockUpdateParams(value = state.humanBlock))
                     originalHumanBlock = state.humanBlock
                 }
                 _uiState.value = UiState.Success(state.copy(agent = updatedAgent))

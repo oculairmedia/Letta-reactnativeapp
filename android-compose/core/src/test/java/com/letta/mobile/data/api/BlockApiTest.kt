@@ -64,14 +64,28 @@ class BlockApiTest {
     }
 
     @Test
-    fun `updateBlock sends PATCH`() = runTest {
+    fun `updateAgentBlock sends PATCH`() = runTest {
         var method: HttpMethod? = null
         val api = createApi { req ->
             method = req.method
             respond("""{"id":"b1","label":"persona","value":"updated"}""", HttpStatusCode.OK, jsonHeaders)
         }
-        api.updateBlock("a1", "persona", com.letta.mobile.data.model.BlockUpdateParams(value = "updated"))
+        api.updateAgentBlock("a1", "persona", com.letta.mobile.data.model.BlockUpdateParams(value = "updated"))
         assertEquals(HttpMethod.Patch, method)
+    }
+
+    @Test
+    fun `updateGlobalBlock sends PATCH to global block endpoint`() = runTest {
+        var method: HttpMethod? = null
+        var url: String? = null
+        val api = createApi { req ->
+            method = req.method
+            url = req.url.toString()
+            respond("""{"id":"b1","label":"persona","value":"updated"}""", HttpStatusCode.OK, jsonHeaders)
+        }
+        api.updateGlobalBlock("b1", com.letta.mobile.data.model.BlockUpdateParams(value = "updated"))
+        assertEquals(HttpMethod.Patch, method)
+        assertTrue(url!!.contains("/v1/blocks/b1"))
     }
 
     @Test(expected = ApiException::class)

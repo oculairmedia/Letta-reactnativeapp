@@ -341,7 +341,7 @@ class EditAgentViewModel @Inject constructor(
                         normalizedDescription != original.description?.ifBlank { null } ||
                         block.limit != original.limit
                     ) {
-                        blockRepository.updateBlock(
+                        blockRepository.updateAgentBlock(
                             agentId,
                             block.label,
                             BlockUpdateParams(
