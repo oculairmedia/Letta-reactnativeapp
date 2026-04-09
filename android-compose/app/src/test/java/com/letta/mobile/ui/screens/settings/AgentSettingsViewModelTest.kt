@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.ui.common.UiState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -52,6 +53,8 @@ class AgentSettingsViewModelTest {
                 tags = listOf("test"),
                 system = "Original system",
                 enableSleeptime = false,
+                agentType = "stateful",
+                contextWindowLimit = 128000,
                 modelSettings = ModelSettings(
                     temperature = 0.7,
                     maxOutputTokens = 2000,
@@ -107,6 +110,14 @@ class AgentSettingsViewModelTest {
         assertEquals(4096, paramsSlot.captured.modelSettings?.maxOutputTokens)
         assertEquals(false, paramsSlot.captured.modelSettings?.parallelToolCalls)
         assertEquals("openai", paramsSlot.captured.modelSettings?.providerType)
+    }
+
+    @Test
+    fun `loadSettings includes read only operational fields`() = runTest {
+        val state = (viewModel.uiState.value as UiState.Success).data
+
+        assertEquals("stateful", state.agentType)
+        assertEquals(128000, state.contextWindow)
     }
 
     @Test

@@ -60,6 +60,8 @@ class EditAgentViewModelTest {
             assertEquals(2, state.data.blocks.size)
             assertEquals("persona value", state.data.blocks.first { it.label == "persona" }.value)
             assertEquals("human value", state.data.blocks.first { it.label == "human" }.value)
+            assertEquals("stateful", state.data.agentType)
+            assertEquals(4096, state.data.maxOutputTokens)
         }
     }
 
@@ -95,6 +97,17 @@ class EditAgentViewModelTest {
         var called = false
         viewModel.saveAgent { called = true }
         assertTrue(called)
+        assertEquals(4096, fakeAgentRepo.lastUpdateParams?.modelSettings?.maxOutputTokens)
+    }
+
+    @Test
+    fun `saveAgent persists edited max output tokens`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateMaxOutputTokens(8192)
+
+        viewModel.saveAgent {}
+
+        assertEquals(8192, fakeAgentRepo.lastUpdateParams?.modelSettings?.maxOutputTokens)
     }
 
     @Test
@@ -132,12 +145,25 @@ class EditAgentViewModelTest {
         private val _agents = MutableStateFlow<List<Agent>>(emptyList())
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         var shouldFail = false
+        var lastUpdateParams: AgentUpdateParams? = null
 
         override fun getAgent(id: String): Flow<Agent> = flow {
             if (shouldFail) throw Exception("Load failed")
-            emit(TestData.agent(
+            emit(Agent(
                 id = "a1",
                 name = "Test Agent",
+                description = "A test agent",
+                model = "letta/letta-free",
+                embedding = "openai/text-embedding-3-small",
+                tags = listOf("test"),
+                system = "System prompt",
+                agentType = "stateful",
+                enableSleeptime = true,
+                modelSettings = com.letta.mobile.data.model.ModelSettings(
+                    temperature = 0.9,
+                    maxOutputTokens = 4096,
+                    parallelToolCalls = false,
+                ),
                 blocks = listOf(
                     TestData.block(label = "persona", value = "persona value"),
                     TestData.block(label = "human", value = "human value"),
@@ -148,7 +174,19 @@ class EditAgentViewModelTest {
         override suspend fun createAgent(params: AgentCreateParams): Agent = TestData.agent()
         override suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent {
             if (shouldFail) throw Exception("Update failed")
-            return TestData.agent(id = id)
+            lastUpdateParams = params
+            return Agent(
+                id = id,
+                name = params.name ?: "Test Agent",
+                description = params.description,
+                model = params.model,
+                embedding = params.embedding,
+                system = params.system,
+                tags = params.tags,
+                enableSleeptime = params.enableSleeptime,
+                agentType = "stateful",
+                modelSettings = params.modelSettings,
+            )
         }
         override suspend fun deleteAgent(id: String) {}
     }

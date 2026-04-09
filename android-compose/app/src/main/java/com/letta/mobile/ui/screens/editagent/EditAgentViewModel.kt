@@ -42,7 +42,6 @@ data class EditAgentUiState(
     val tags: List<String> = emptyList(),
     val temperature: Float = 1.0f,
     val maxOutputTokens: Int = 4096,
-    val enableMaxOutputTokens: Boolean = false,
     val parallelToolCalls: Boolean = true,
     val contextWindow: Int = 0,
     val enableSleeptime: Boolean = false,
@@ -115,7 +114,6 @@ class EditAgentViewModel @Inject constructor(
                         tags = agent.tags ?: emptyList(),
                         temperature = agent.modelSettings?.temperature?.toFloat() ?: 1.0f,
                         maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: 4096,
-                        enableMaxOutputTokens = agent.modelSettings?.maxOutputTokens != null,
                         parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,
                         contextWindow = agent.contextWindowLimit ?: agent.llmConfig?.contextWindow ?: 0,
                         enableSleeptime = agent.enableSleeptime ?: false,
@@ -279,7 +277,7 @@ class EditAgentViewModel @Inject constructor(
                         enableSleeptime = state.enableSleeptime,
                         modelSettings = com.letta.mobile.data.model.ModelSettings(
                             temperature = state.temperature.toDouble(),
-                            maxOutputTokens = if (state.enableMaxOutputTokens) state.maxOutputTokens else null,
+                            maxOutputTokens = state.maxOutputTokens,
                             parallelToolCalls = state.parallelToolCalls,
                         ),
                     )

@@ -97,6 +97,21 @@ private fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
+            text = stringResource(R.string.screen_settings_operational_section),
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        if (state.agentType.isNotBlank()) {
+            OutlinedTextField(
+                value = state.agentType,
+                onValueChange = {},
+                label = { Text(stringResource(R.string.common_type)) },
+                readOnly = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Text(
             text = stringResource(R.string.screen_settings_model_section),
             style = MaterialTheme.typography.titleMedium
         )
@@ -110,7 +125,7 @@ private fun SettingsContent(
         )
 
         Text(
-            text = stringResource(R.string.screen_settings_context_window_limit, state.agent?.contextWindowLimit ?: 0),
+            text = stringResource(R.string.screen_settings_context_window_limit, state.contextWindow),
             style = MaterialTheme.typography.bodyMedium
         )
 

@@ -22,6 +22,8 @@ import javax.inject.Inject
 @androidx.compose.runtime.Immutable
 data class AgentSettingsUiState(
     val agent: Agent? = null,
+    val agentType: String = "",
+    val contextWindow: Int = 0,
     val temperature: Float = 0.7f,
     val maxTokens: Int = 2000,
     val parallelToolCalls: Boolean = true,
@@ -64,6 +66,8 @@ class AgentSettingsViewModel @Inject constructor(
                 _uiState.value = UiState.Success(
                     AgentSettingsUiState(
                         agent = agent,
+                        agentType = agent.agentType ?: "",
+                        contextWindow = agent.contextWindowLimit ?: agent.llmConfig?.contextWindow ?: 0,
                         temperature = agent.modelSettings?.temperature?.toFloat() ?: 0.7f,
                         maxTokens = agent.modelSettings?.maxOutputTokens ?: 2000,
                         parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: true,

@@ -74,6 +74,7 @@ fun EditAgentScreen(
     val llmModels by viewModel.llmModels.collectAsStateWithLifecycle()
     val embeddingModels by viewModel.embeddingModels.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarDispatcher.current
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -115,7 +116,12 @@ fun EditAgentScreen(
                 onMaxOutputTokensChange = { viewModel.updateMaxOutputTokens(it) },
                 onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
                 onEnableSleeptimeChange = { viewModel.updateEnableSleeptime(it) },
-                onSave = { viewModel.saveAgent { snackbar.dispatch("Agent saved"); onNavigateBack() } },
+                onSave = {
+                    viewModel.saveAgent {
+                        snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_saved))
+                        onNavigateBack()
+                    }
+                },
                 modifier = Modifier.padding(paddingValues)
             )
         }
@@ -164,7 +170,10 @@ private fun EditAgentContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(state.name.ifBlank { "Agent" }, style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    state.name.ifBlank { stringResource(R.string.screen_agent_edit_default_name) },
+                    style = MaterialTheme.typography.headlineSmall,
+                )
                 Text(
                     text = state.agentId,
                     style = MaterialTheme.typography.labelSmall,
@@ -174,16 +183,16 @@ private fun EditAgentContent(
             }
             IconButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("Agent ID", state.agentId))
-                snackbar.dispatch("Agent ID copied")
+                clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.common_id), state.agentId))
+                snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_id_copied))
             }) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy Agent ID")
+                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.screen_agent_edit_copy_agent_id))
             }
         }
 
         if (state.agentType.isNotBlank()) {
             Text(
-                text = "Type: ${state.agentType}",
+                text = stringResource(R.string.common_type) + ": ${state.agentType}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -221,15 +230,15 @@ private fun EditAgentContent(
             onModelSelected = onEmbeddingChange,
             onLoadModels = onLoadModels,
             modifier = Modifier.fillMaxWidth(),
-            label = "Embedding Model",
+            label = stringResource(R.string.screen_agent_edit_embedding_model),
         )
 
         HorizontalDivider()
 
         var llmConfigExpanded by remember { mutableStateOf(false) }
         Accordions(
-            title = "LLM Configuration",
-            subtitle = "Temperature: ${String.format("%.1f", state.temperature)}",
+            title = stringResource(R.string.screen_agent_edit_llm_configuration),
+            subtitle = stringResource(R.string.screen_agent_edit_temperature_subtitle, state.temperature),
             expanded = llmConfigExpanded,
             onExpandedChange = { llmConfigExpanded = it },
         ) {
@@ -237,7 +246,10 @@ private fun EditAgentContent(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Temperature: ${String.format("%.2f", state.temperature)}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Slider(
                     value = state.temperature,
                     onValueChange = onTemperatureChange,
@@ -246,7 +258,10 @@ private fun EditAgentContent(
                 )
 
                 if (state.contextWindow > 0) {
-                    Text("Context window: ${state.contextWindow}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(R.string.screen_agent_edit_context_window, state.contextWindow),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
 
                 Row(
@@ -254,14 +269,14 @@ private fun EditAgentContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Parallel tool calls", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.common_parallel_tool_calls), style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = state.parallelToolCalls, onCheckedChange = onParallelToolCallsChange)
                 }
 
                 OutlinedTextField(
                     value = state.maxOutputTokens.toString(),
                     onValueChange = { it.toIntOrNull()?.let(onMaxOutputTokensChange) },
-                    label = { Text("Max output tokens") },
+                    label = { Text(stringResource(R.string.common_max_output_tokens)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -275,7 +290,7 @@ private fun EditAgentContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Enable Sleeptime", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.common_enable_sleeptime), style = MaterialTheme.typography.bodyMedium)
             Switch(checked = state.enableSleeptime, onCheckedChange = onEnableSleeptimeChange)
         }
 
@@ -320,7 +335,7 @@ private fun EditAgentContent(
                     OutlinedTextField(
                         value = block.description.orEmpty(),
                         onValueChange = { onBlockDescriptionChange(block.label, it) },
-                        label = { Text("Description") },
+                        label = { Text(stringResource(R.string.common_description)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         enabled = !block.readOnly,
@@ -332,7 +347,7 @@ private fun EditAgentContent(
                                 onBlockLimitChange(block.label, value.toIntOrNull())
                             }
                         },
-                        label = { Text("Character limit") },
+                        label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = !block.readOnly,
@@ -346,14 +361,14 @@ private fun EditAgentContent(
                                 InputChip(
                                     selected = false,
                                     onClick = {},
-                                    label = { Text("Template") },
+                                    label = { Text(stringResource(R.string.screen_agent_edit_block_template)) },
                                 )
                             }
                             if (block.readOnly) {
                                 InputChip(
                                     selected = false,
                                     onClick = {},
-                                    label = { Text("Read only") },
+                                    label = { Text(stringResource(R.string.screen_agent_edit_block_read_only)) },
                                 )
                             }
                         }
@@ -361,8 +376,8 @@ private fun EditAgentContent(
                     if (showDeleteConfirm) {
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirm = false },
-                            title = { Text("Delete \"${block.label}\"?") },
-                            text = { Text("This memory block will be permanently removed from the agent.") },
+                            title = { Text(stringResource(R.string.screen_agent_edit_delete_block_title, block.label)) },
+                            text = { Text(stringResource(R.string.screen_agent_edit_delete_block_message)) },
                             confirmButton = {
                                 TextButton(onClick = { showDeleteConfirm = false; onDeleteBlock(block.id) }) {
                                     Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
@@ -382,7 +397,7 @@ private fun EditAgentContent(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add Memory Block")
+                    Text(stringResource(R.string.screen_agent_edit_add_memory_block))
                 }
             }
         }
@@ -393,27 +408,27 @@ private fun EditAgentContent(
             var newLimit by remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { showAddBlockDialog = false },
-                title = { Text("Add Memory Block") },
+                title = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = newLabel,
                             onValueChange = { newLabel = it },
-                            label = { Text("Label") },
+                            label = { Text(stringResource(R.string.common_name)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = newValue,
                             onValueChange = { newValue = it },
-                            label = { Text("Value") },
+                            label = { Text(stringResource(R.string.common_value)) },
                             minLines = 3,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = newDescription,
                             onValueChange = { newDescription = it },
-                            label = { Text("Description") },
+                            label = { Text(stringResource(R.string.common_description)) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
                         )
@@ -424,7 +439,7 @@ private fun EditAgentContent(
                                     newLimit = value
                                 }
                             },
-                            label = { Text("Character limit") },
+                            label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -478,7 +493,13 @@ private fun EditAgentContent(
                     selected = false,
                     onClick = { onRemoveTag(tag) },
                     label = { Text(tag) },
-                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp)) },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.screen_agent_edit_remove_tag),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
                 )
             }
         }
@@ -491,7 +512,7 @@ private fun EditAgentContent(
             OutlinedTextField(
                 value = newTag,
                 onValueChange = { newTag = it },
-                label = { Text("New tag") },
+                label = { Text(stringResource(R.string.screen_agent_edit_new_tag)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
