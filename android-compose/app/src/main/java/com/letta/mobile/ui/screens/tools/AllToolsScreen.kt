@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -54,22 +57,57 @@ fun AllToolsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
 
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Create Tool")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.screen_tools_create_action))
             }
         },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.common_tools)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
+            Column {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.common_tools)) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            showSearch = !showSearch
+                            if (!showSearch) viewModel.updateSearchQuery("")
+                        }) {
+                            Icon(
+                                if (showSearch) Icons.Default.Clear else Icons.Default.Search,
+                                contentDescription = stringResource(R.string.action_search),
+                            )
+                        }
                     }
-                },
-            )
+                )
+
+                if (showSearch) {
+                    val searchQuery = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty()
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.updateSearchQuery(it) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        placeholder = { Text(stringResource(R.string.screen_tools_search_hint)) },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.action_cancel))
+                                }
+                            }
+                        },
+                    )
+                }
+            }
         },
     ) { paddingValues ->
         when (val state = uiState) {
@@ -80,15 +118,22 @@ fun AllToolsScreen(
                 modifier = Modifier.padding(paddingValues),
             )
             is UiState.Success -> {
+                val filteredTools = remember(state.data.tools, state.data.searchQuery) {
+                    viewModel.getFilteredTools()
+                }
                 PullToRefreshBox(
                     isRefreshing = false,
                     onRefresh = { viewModel.loadTools() },
                     modifier = Modifier.padding(paddingValues).fillMaxSize(),
                 ) {
-                    if (state.data.isEmpty()) {
+                    if (filteredTools.isEmpty()) {
                         EmptyState(
                             icon = Icons.Default.Build,
-                            message = stringResource(R.string.screen_tools_empty),
+                            message = if (state.data.searchQuery.isBlank()) {
+                                stringResource(R.string.screen_tools_empty)
+                            } else {
+                                stringResource(R.string.screen_tools_empty_search, state.data.searchQuery)
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
@@ -98,7 +143,7 @@ fun AllToolsScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(state.data, key = { it.id }) { tool ->
+                            items(filteredTools, key = { it.id }) { tool ->
                                 ToolTile(
                                     tool = tool,
                                     onClick = { onNavigateToToolDetail(tool.id) },

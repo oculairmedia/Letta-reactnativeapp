@@ -26,6 +26,9 @@
     <string name="screen_conversations_empty">No conversations yet</string>
     <string name="screen_agents_empty">No agents yet</string>
     <string name="screen_tools_empty">No tools available</string>
+    <string name="screen_tools_search_hint">Search tools…</string>
+    <string name="screen_tools_empty_search">No tools matching “%1$s”</string>
+    <string name="screen_tools_create_action">Create Tool</string>
     
     <string name="action_send_message">Send message</string>
     <string name="screen_chat_input_placeholder">Type a message...</string>

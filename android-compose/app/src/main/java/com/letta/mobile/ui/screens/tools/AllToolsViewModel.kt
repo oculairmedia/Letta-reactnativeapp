@@ -13,13 +13,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@androidx.compose.runtime.Immutable
+data class AllToolsUiState(
+    val tools: List<Tool> = emptyList(),
+    val searchQuery: String = "",
+)
+
 @HiltViewModel
 class AllToolsViewModel @Inject constructor(
     private val toolRepository: ToolRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<List<Tool>>>(UiState.Loading)
-    val uiState: StateFlow<UiState<List<Tool>>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<AllToolsUiState>>(UiState.Loading)
+    val uiState: StateFlow<UiState<AllToolsUiState>> = _uiState.asStateFlow()
 
     init {
         loadTools()
@@ -36,13 +42,32 @@ class AllToolsViewModel @Inject constructor(
         }
     }
 
+    fun updateSearchQuery(query: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(searchQuery = query))
+    }
+
+    fun getFilteredTools(): List<Tool> {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
+        if (currentState.searchQuery.isBlank()) return currentState.tools
+        val q = currentState.searchQuery.trim().lowercase()
+        return currentState.tools.filter { tool ->
+            tool.name.lowercase().contains(q) ||
+                (tool.description?.lowercase()?.contains(q) == true) ||
+                (tool.toolType?.lowercase()?.contains(q) == true) ||
+                (tool.sourceType?.lowercase()?.contains(q) == true) ||
+                (tool.tags?.any { it.lowercase().contains(q) } == true)
+        }
+    }
+
     fun loadTools() {
         viewModelScope.launch {
+            val searchQuery = (_uiState.value as? UiState.Success)?.data?.searchQuery.orEmpty()
             _uiState.value = UiState.Loading
             try {
                 toolRepository.refreshTools()
                 val tools = toolRepository.getTools().first()
-                _uiState.value = UiState.Success(tools)
+                _uiState.value = UiState.Success(AllToolsUiState(tools = tools, searchQuery = searchQuery))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load tools")
             }
