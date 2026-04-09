@@ -5,7 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
+import com.letta.mobile.data.model.EmbeddingModel
+import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.model.Tool
@@ -21,6 +24,8 @@ import javax.inject.Inject
 data class AgentListUiState(
     val agents: List<Agent> = emptyList(),
     val availableTools: List<Tool> = emptyList(),
+    val llmModels: List<LlmModel> = emptyList(),
+    val embeddingModels: List<EmbeddingModel> = emptyList(),
     val favoriteAgentId: String? = null,
     val searchQuery: String = "",
     val isLoading: Boolean = true,
@@ -34,6 +39,7 @@ class AgentListViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
     private val settingsRepository: SettingsRepository,
     private val toolRepository: ToolRepository,
+    private val modelRepository: ModelRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AgentListUiState())
@@ -50,6 +56,7 @@ class AgentListViewModel @Inject constructor(
         }
         loadAgents()
         loadAvailableTools()
+        loadAvailableModels()
     }
 
     fun loadAvailableTools() {
@@ -61,6 +68,21 @@ class AgentListViewModel @Inject constructor(
                 )
             } catch (_: Exception) {
                 Log.w("AgentListViewModel", "Failed to load available tools")
+            }
+        }
+    }
+
+    fun loadAvailableModels() {
+        viewModelScope.launch {
+            try {
+                modelRepository.refreshLlmModels()
+                modelRepository.refreshEmbeddingModels()
+                _uiState.value = _uiState.value.copy(
+                    llmModels = modelRepository.llmModels.value,
+                    embeddingModels = modelRepository.embeddingModels.value,
+                )
+            } catch (_: Exception) {
+                Log.w("AgentListViewModel", "Failed to load available models")
             }
         }
     }

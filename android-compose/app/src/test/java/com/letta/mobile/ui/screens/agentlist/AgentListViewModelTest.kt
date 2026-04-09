@@ -2,8 +2,11 @@ package com.letta.mobile.ui.screens.agentlist
 
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
+import com.letta.mobile.data.model.EmbeddingModel
+import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
 import io.mockk.coEvery
@@ -32,6 +35,7 @@ class AgentListViewModelTest {
     private lateinit var agentRepository: AgentRepository
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var toolRepository: ToolRepository
+    private lateinit var modelRepository: ModelRepository
     private lateinit var viewModel: AgentListViewModel
 
     @Before
@@ -40,6 +44,7 @@ class AgentListViewModelTest {
         agentRepository = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
         toolRepository = mockk(relaxed = true)
+        modelRepository = mockk(relaxed = true)
 
         every { agentRepository.agents } returns MutableStateFlow(emptyList())
         every { settingsRepository.favoriteAgentId } returns MutableStateFlow(null)
@@ -49,8 +54,14 @@ class AgentListViewModelTest {
                 Tool(id = "t2", name = "tool_two"),
             )
         )
+        every { modelRepository.llmModels } returns MutableStateFlow(
+            listOf(LlmModel(id = "m1", name = "openai/gpt-4o", providerType = "openai"))
+        )
+        every { modelRepository.embeddingModels } returns MutableStateFlow(
+            listOf(EmbeddingModel(id = "e1", name = "openai/text-embedding-3-small", providerType = "openai"))
+        )
 
-        viewModel = AgentListViewModel(agentRepository, settingsRepository, toolRepository)
+        viewModel = AgentListViewModel(agentRepository, settingsRepository, toolRepository, modelRepository)
     }
 
     @After
@@ -64,6 +75,15 @@ class AgentListViewModelTest {
 
         assertEquals(2, viewModel.uiState.value.availableTools.size)
         assertEquals("tool_one", viewModel.uiState.value.availableTools.first().name)
+    }
+
+    @Test
+    fun `loadAvailableModels populates create form model sources`() = runTest {
+        viewModel.loadAvailableModels()
+
+        assertEquals(1, viewModel.uiState.value.llmModels.size)
+        assertEquals(1, viewModel.uiState.value.embeddingModels.size)
+        assertEquals("openai/gpt-4o", viewModel.uiState.value.llmModels.first().name)
     }
 
     @Test

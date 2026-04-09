@@ -70,8 +70,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
+import com.letta.mobile.data.model.EmbeddingModel
+import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.Tool
+import com.letta.mobile.ui.components.ModelDropdown
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -209,6 +212,9 @@ fun AgentListScreen(
         CreateAgentDialog(
             onDismiss = { showCreateDialog = false },
             availableTools = uiState.availableTools,
+            llmModels = uiState.llmModels,
+            embeddingModels = uiState.embeddingModels,
+            onLoadModels = { viewModel.loadAvailableModels() },
             onCreate = { params ->
                 viewModel.createAgent(params) { agentId ->
                     showCreateDialog = false
@@ -468,6 +474,9 @@ private fun AgentCard(
 private fun CreateAgentDialog(
     onDismiss: () -> Unit,
     availableTools: List<Tool> = emptyList(),
+    llmModels: List<LlmModel> = emptyList(),
+    embeddingModels: List<EmbeddingModel> = emptyList(),
+    onLoadModels: () -> Unit = {},
     onCreate: (AgentCreateParams) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
@@ -483,6 +492,16 @@ private fun CreateAgentDialog(
     var includeBaseTools by remember { mutableStateOf(true) }
     var selectedToolIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var showToolPicker by remember { mutableStateOf(false) }
+    val embeddingDropdownModels = remember(embeddingModels) {
+        embeddingModels.map {
+            LlmModel(
+                id = it.id,
+                name = it.name,
+                handle = it.handle,
+                providerType = it.providerType,
+            )
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -506,21 +525,21 @@ private fun CreateAgentDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = model,
-                    onValueChange = { model = it },
-                    label = { Text(stringResource(R.string.common_model)) },
-                    singleLine = true,
+                ModelDropdown(
+                    selectedModel = model,
+                    models = llmModels,
+                    onModelSelected = { model = it },
+                    onLoadModels = onLoadModels,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.screen_agents_create_model_placeholder)) },
+                    label = stringResource(R.string.common_model),
                 )
-                OutlinedTextField(
-                    value = embedding,
-                    onValueChange = { embedding = it },
-                    label = { Text(stringResource(R.string.screen_agent_edit_embedding_model)) },
-                    singleLine = true,
+                ModelDropdown(
+                    selectedModel = embedding,
+                    models = embeddingDropdownModels,
+                    onModelSelected = { embedding = it },
+                    onLoadModels = onLoadModels,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.screen_agents_create_embedding_placeholder)) },
+                    label = stringResource(R.string.screen_agent_edit_embedding_model),
                 )
                 Text(
                     text = stringResource(R.string.screen_agents_create_advanced_model_section),
