@@ -316,9 +316,10 @@ private fun JobDetailDialog(
                 job.callbackError?.let { Text(stringResource(R.string.screen_jobs_callback_error_label, it)) }
                 job.totalDurationNs?.let { Text(stringResource(R.string.screen_jobs_total_duration_label, it)) }
                 job.ttftNs?.let { Text(stringResource(R.string.screen_jobs_ttft_label, it)) }
-                if (!job.metadata.isNullOrEmpty()) {
+                val metadata = job.metadata
+                if (!metadata.isNullOrEmpty()) {
                     Text(stringResource(R.string.screen_jobs_metadata_title), style = MaterialTheme.typography.labelLarge)
-                    job.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
+                    metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
                         Text(
                             text = "$key: $value",
                             style = MaterialTheme.typography.bodySmall,
