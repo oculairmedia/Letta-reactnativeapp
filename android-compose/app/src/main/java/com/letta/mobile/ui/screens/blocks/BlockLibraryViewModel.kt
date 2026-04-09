@@ -47,6 +47,7 @@ class BlockLibraryViewModel @Inject constructor(
     }
 
     fun loadBlocks() {
+        // Phase 1: Load blocks and render immediately
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
@@ -54,30 +55,12 @@ class BlockLibraryViewModel @Inject constructor(
                     label = filterLabel,
                     isTemplate = filterTemplate,
                 )
-
-                val agents = try {
-                    agentRepository.refreshAgents()
-                    agentRepository.agents.value
-                } catch (e: Exception) {
-                    Log.w("BlockLibraryVM", "Failed to load agents for block mapping", e)
-                    agentRepository.agents.value
-                }
-
-                val agentsByBlock = agents
-                    .flatMap { agent ->
-                        agent.blocks?.map { block -> block.id to agent } ?: emptyList()
-                    }
-                    .groupBy({ it.first }, { it.second })
-
                 _uiState.value = UiState.Success(
                     BlockLibraryUiState(
                         blocks = blocks,
                         searchQuery = searchQuery,
                         filterLabel = filterLabel,
                         filterTemplate = filterTemplate,
-                        operationError = null,
-                        agentsByBlock = agentsByBlock,
-                        allAgents = agents,
                     )
                 )
             } catch (e: Exception) {
@@ -86,6 +69,32 @@ class BlockLibraryViewModel @Inject constructor(
                 )
             }
         }
+
+        // Phase 2: Load agent relationships in background
+        viewModelScope.launch {
+            try {
+                val cachedAgents = agentRepository.agents.value
+                if (cachedAgents.isNotEmpty()) {
+                    updateAgentMapping(cachedAgents)
+                }
+                agentRepository.refreshAgents()
+                updateAgentMapping(agentRepository.agents.value)
+            } catch (e: Exception) {
+                Log.w("BlockLibraryVM", "Failed to load agents for block mapping", e)
+            }
+        }
+    }
+
+    private fun updateAgentMapping(agents: List<Agent>) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        val agentsByBlock = agents
+            .flatMap { agent ->
+                agent.blocks?.map { block -> block.id to agent } ?: emptyList()
+            }
+            .groupBy({ it.first }, { it.second })
+        _uiState.value = UiState.Success(
+            currentState.copy(agentsByBlock = agentsByBlock, allAgents = agents)
+        )
     }
 
     fun setFilter(label: String?, isTemplate: Boolean?) {

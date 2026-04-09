@@ -46,6 +46,6 @@ class BlockRepository @Inject constructor(
     }
 
     override suspend fun listAllBlocks(label: String?, isTemplate: Boolean?): List<Block> {
-        return blockApi.listAllBlocks(label = label, isTemplate = isTemplate)
+        return blockApi.listAllBlocks(label = label, isTemplate = isTemplate, limit = 1000)
     }
 }
