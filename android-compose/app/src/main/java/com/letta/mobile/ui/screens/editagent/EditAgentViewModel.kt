@@ -25,6 +25,8 @@ data class EditableBlock(
     val value: String,
     val description: String? = null,
     val limit: Int? = null,
+    val isTemplate: Boolean = false,
+    val readOnly: Boolean = false,
 )
 
 data class EditAgentUiState(
@@ -94,6 +96,8 @@ class EditAgentViewModel @Inject constructor(
                         value = block.value ?: "",
                         description = block.description,
                         limit = block.limit,
+                        isTemplate = block.isTemplate ?: false,
+                        readOnly = block.readOnly ?: false,
                     )
                 } ?: emptyList()
                 originalBlockValues = editableBlocks.associate { it.label to it.value }
@@ -160,11 +164,16 @@ class EditAgentViewModel @Inject constructor(
         ))
     }
 
-    fun addBlock(label: String, value: String) {
+    fun addBlock(label: String, value: String, description: String, limit: Int?) {
         viewModelScope.launch {
             try {
                 val block = blockRepository.createBlock(
-                    com.letta.mobile.data.model.BlockCreateParams(label = label, value = value)
+                    com.letta.mobile.data.model.BlockCreateParams(
+                        label = label,
+                        value = value,
+                        description = description.ifBlank { null },
+                        limit = limit,
+                    )
                 )
                 blockRepository.attachBlock(agentId, block.id)
                 loadAgent()

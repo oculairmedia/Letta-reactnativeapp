@@ -6,6 +6,7 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.Block
+import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
@@ -95,6 +96,16 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `addBlock forwards description and limit`() = runTest {
+        viewModel.addBlock("memory", "value", "notes", 512)
+
+        assertEquals("memory", fakeBlockRepo.lastCreatedParams?.label)
+        assertEquals("value", fakeBlockRepo.lastCreatedParams?.value)
+        assertEquals("notes", fakeBlockRepo.lastCreatedParams?.description)
+        assertEquals(512, fakeBlockRepo.lastCreatedParams?.limit)
+    }
+
+    @Test
     fun `saveAgent sets Error on failure`() = runTest {
         viewModel.loadAgent()
         fakeAgentRepo.shouldFail = true
@@ -128,8 +139,19 @@ class EditAgentViewModelTest {
     }
 
     private class FakeBlockRepo : BlockRepository(FakeBlockApi()) {
+        var lastCreatedParams: BlockCreateParams? = null
+
+        override suspend fun createBlock(params: BlockCreateParams): Block {
+            lastCreatedParams = params
+            return TestData.block(id = "new-block", label = params.label, value = params.value)
+        }
+
         override suspend fun updateBlock(agentId: String, blockLabel: String, value: String): Block {
             return TestData.block(label = blockLabel, value = value)
+        }
+
+        override suspend fun attachBlock(agentId: String, blockId: String): Block {
+            return TestData.block(id = blockId, label = "attached", value = "value")
         }
     }
 }
