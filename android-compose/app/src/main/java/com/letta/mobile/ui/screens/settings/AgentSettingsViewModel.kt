@@ -4,8 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.model.BlockUpdateParams
+import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -156,11 +157,11 @@ class AgentSettingsViewModel @Inject constructor(
                     )
                 )
                 if (state.personaBlock != originalPersonaBlock) {
-                    blockRepository.updateBlock(agentId, "persona", state.personaBlock)
+                    blockRepository.updateBlock(agentId, "persona", BlockUpdateParams(value = state.personaBlock))
                     originalPersonaBlock = state.personaBlock
                 }
                 if (state.humanBlock != originalHumanBlock) {
-                    blockRepository.updateBlock(agentId, "human", state.humanBlock)
+                    blockRepository.updateBlock(agentId, "human", BlockUpdateParams(value = state.humanBlock))
                     originalHumanBlock = state.humanBlock
                 }
                 _uiState.value = UiState.Success(state.copy(agent = updatedAgent))

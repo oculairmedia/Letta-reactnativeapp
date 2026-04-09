@@ -108,6 +108,19 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `saveAgent forwards edited block metadata`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateBlockDescription("persona", "updated description")
+        viewModel.updateBlockLimit("persona", 256)
+        viewModel.saveAgent {}
+
+        assertEquals("persona", fakeBlockRepo.lastUpdatedLabel)
+        assertEquals("updated description", fakeBlockRepo.lastUpdatedParams?.description)
+        assertEquals(256, fakeBlockRepo.lastUpdatedParams?.limit)
+        assertEquals("persona value", fakeBlockRepo.lastUpdatedParams?.value)
+    }
+
+    @Test
     fun `saveAgent sets Error on failure`() = runTest {
         viewModel.loadAgent()
         fakeAgentRepo.shouldFail = true
@@ -142,14 +155,24 @@ class EditAgentViewModelTest {
 
     private class FakeBlockRepo : BlockRepository(FakeBlockApi()) {
         var lastCreatedParams: BlockCreateParams? = null
+        var lastUpdatedLabel: String? = null
+        var lastUpdatedParams: BlockUpdateParams? = null
 
         override suspend fun createBlock(params: BlockCreateParams): Block {
             lastCreatedParams = params
             return TestData.block(id = "new-block", label = params.label, value = params.value)
         }
 
-        override suspend fun updateBlock(agentId: String, blockLabel: String, value: String): Block {
-            return TestData.block(label = blockLabel, value = value)
+        override suspend fun updateBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
+            lastUpdatedLabel = blockLabel
+            lastUpdatedParams = params
+            return Block(
+                id = "updated-block",
+                label = blockLabel,
+                value = params.value ?: "",
+                description = params.description,
+                limit = params.limit,
+            )
         }
 
         override suspend fun attachBlock(agentId: String, blockId: String): Block {

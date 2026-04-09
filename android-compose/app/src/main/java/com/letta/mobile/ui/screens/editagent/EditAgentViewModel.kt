@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
@@ -66,7 +67,7 @@ class EditAgentViewModel @Inject constructor(
     val llmModels: StateFlow<List<LlmModel>> = modelRepository.llmModels
     val embeddingModels: StateFlow<List<com.letta.mobile.data.model.EmbeddingModel>> = modelRepository.embeddingModels
 
-    @Volatile private var originalBlockValues: Map<String, String> = emptyMap()
+    @Volatile private var originalBlocks: Map<String, EditableBlock> = emptyMap()
 
     init {
         loadAgent()
@@ -100,7 +101,7 @@ class EditAgentViewModel @Inject constructor(
                         readOnly = block.readOnly ?: false,
                     )
                 } ?: emptyList()
-                originalBlockValues = editableBlocks.associate { it.label to it.value }
+                originalBlocks = editableBlocks.associateBy { it.label }
                 _uiState.value = UiState.Success(
                     EditAgentUiState(
                         agent = agent,
@@ -160,6 +161,24 @@ class EditAgentViewModel @Inject constructor(
         _uiState.value = UiState.Success(currentState.copy(
             blocks = currentState.blocks.map {
                 if (it.label == blockLabel) it.copy(value = value) else it
+            }
+        ))
+    }
+
+    fun updateBlockDescription(blockLabel: String, description: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(
+            blocks = currentState.blocks.map {
+                if (it.label == blockLabel) it.copy(description = description) else it
+            }
+        ))
+    }
+
+    fun updateBlockLimit(blockLabel: String, limit: Int?) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(
+            blocks = currentState.blocks.map {
+                if (it.label == blockLabel) it.copy(limit = limit) else it
             }
         ))
     }
@@ -266,9 +285,22 @@ class EditAgentViewModel @Inject constructor(
                     )
                 )
                 state.blocks.forEach { block ->
-                    val original = originalBlockValues[block.label]
-                    if (original == null || block.value != original) {
-                        blockRepository.updateBlock(agentId, block.label, block.value)
+                    val original = originalBlocks[block.label]
+                    val normalizedDescription = block.description?.ifBlank { null }
+                    if (original == null ||
+                        block.value != original.value ||
+                        normalizedDescription != original.description?.ifBlank { null } ||
+                        block.limit != original.limit
+                    ) {
+                        blockRepository.updateBlock(
+                            agentId,
+                            block.label,
+                            BlockUpdateParams(
+                                value = block.value,
+                                description = normalizedDescription,
+                                limit = block.limit,
+                            )
+                        )
                     }
                 }
                 onSuccess()
