@@ -7,6 +7,7 @@ import com.letta.mobile.data.model.BlockUpdateParams
 
 class FakeBlockApi : BlockApi(null!!) {
     var blocks = mutableMapOf<String, MutableList<Block>>()
+    var allBlocks = mutableListOf<Block>()
     var shouldFail = false
     val calls = mutableListOf<String>()
     var lastUpdateParams: BlockUpdateParams? = null
@@ -31,5 +32,19 @@ class FakeBlockApi : BlockApi(null!!) {
             agentBlocks.add(updated)
         }
         return updated
+    }
+
+    override suspend fun listAllBlocks(
+        label: String?,
+        isTemplate: Boolean?,
+        limit: Int?,
+        offset: Int?,
+    ): List<Block> {
+        calls.add("listAllBlocks")
+        if (shouldFail) throw ApiException(500, "Server error")
+        return allBlocks.filter { block ->
+            (label == null || block.label == label) &&
+            (isTemplate == null || block.isTemplate == isTemplate)
+        }
     }
 }

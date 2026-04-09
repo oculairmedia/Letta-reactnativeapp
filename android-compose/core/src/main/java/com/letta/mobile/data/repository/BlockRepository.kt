@@ -35,4 +35,8 @@ class BlockRepository @Inject constructor(
     override suspend fun detachBlock(agentId: String, blockId: String) {
         blockApi.detachBlock(agentId, blockId)
     }
+
+    override suspend fun listAllBlocks(label: String?, isTemplate: Boolean?): List<Block> {
+        return blockApi.listAllBlocks(label = label, isTemplate = isTemplate)
+    }
 }

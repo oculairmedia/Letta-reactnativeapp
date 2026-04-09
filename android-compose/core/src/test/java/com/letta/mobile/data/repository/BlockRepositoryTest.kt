@@ -1,5 +1,6 @@
 package com.letta.mobile.data.repository
 
+import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.testutil.FakeBlockApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,5 +45,38 @@ class BlockRepositoryTest {
     fun `updateBlock throws on API failure`() = runTest {
         fakeApi.shouldFail = true
         repository.updateBlock("a1", "persona", BlockUpdateParams(value = "value"))
+    }
+
+    @Test
+    fun `listAllBlocks returns all blocks`() = runTest {
+        fakeApi.allBlocks.add(Block(id = "b1", label = "persona", value = "Test persona"))
+        fakeApi.allBlocks.add(Block(id = "b2", label = "human", value = "Test human"))
+        val result = repository.listAllBlocks()
+        assertEquals(2, result.size)
+        assertTrue(fakeApi.calls.contains("listAllBlocks"))
+    }
+
+    @Test
+    fun `listAllBlocks filters by label`() = runTest {
+        fakeApi.allBlocks.add(Block(id = "b1", label = "persona", value = "Test persona"))
+        fakeApi.allBlocks.add(Block(id = "b2", label = "human", value = "Test human"))
+        val result = repository.listAllBlocks(label = "persona")
+        assertEquals(1, result.size)
+        assertEquals("persona", result[0].label)
+    }
+
+    @Test
+    fun `listAllBlocks filters by isTemplate`() = runTest {
+        fakeApi.allBlocks.add(Block(id = "b1", label = "persona", value = "Template", isTemplate = true))
+        fakeApi.allBlocks.add(Block(id = "b2", label = "human", value = "Not template", isTemplate = false))
+        val result = repository.listAllBlocks(isTemplate = true)
+        assertEquals(1, result.size)
+        assertEquals(true, result[0].isTemplate)
+    }
+
+    @Test(expected = com.letta.mobile.data.api.ApiException::class)
+    fun `listAllBlocks throws on API failure`() = runTest {
+        fakeApi.shouldFail = true
+        repository.listAllBlocks()
     }
 }

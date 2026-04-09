@@ -11,4 +11,5 @@ interface IBlockRepository {
     suspend fun deleteBlock(blockId: String)
     suspend fun attachBlock(agentId: String, blockId: String): Block
     suspend fun detachBlock(agentId: String, blockId: String)
+    suspend fun listAllBlocks(label: String? = null, isTemplate: Boolean? = null): List<Block>
 }

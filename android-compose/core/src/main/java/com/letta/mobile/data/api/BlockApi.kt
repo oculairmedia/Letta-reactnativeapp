@@ -92,4 +92,25 @@ class BlockApi @Inject constructor(
         }
         return response.body()
     }
+
+    suspend fun listAllBlocks(
+        label: String? = null,
+        isTemplate: Boolean? = null,
+        limit: Int? = null,
+        offset: Int? = null,
+    ): List<Block> {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/blocks") {
+            parameter("label", label)
+            parameter("is_template", isTemplate)
+            parameter("limit", limit)
+            parameter("offset", offset)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
 }
