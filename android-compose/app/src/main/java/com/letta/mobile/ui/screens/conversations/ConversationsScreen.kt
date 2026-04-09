@@ -77,6 +77,7 @@ fun ConversationsScreen(
     onNavigateToAgentList: () -> Unit,
     onNavigateToTemplates: () -> Unit = {},
     onNavigateToBlocks: () -> Unit = {},
+    onNavigateToIdentities: () -> Unit = {},
     onNavigateToSchedules: () -> Unit = {},
     onNavigateToRuns: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
@@ -114,6 +115,11 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_blocks)) },
                             onClick = { showOverflowMenu = false; onNavigateToBlocks() },
                             leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.screen_nav_identities)) },
+                            onClick = { showOverflowMenu = false; onNavigateToIdentities() },
+                            leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.screen_nav_schedules)) },

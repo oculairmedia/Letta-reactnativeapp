@@ -21,6 +21,7 @@ import com.letta.mobile.ui.screens.config.ConfigListScreen
 import com.letta.mobile.ui.screens.config.ConfigScreen
 import com.letta.mobile.ui.screens.conversations.ConversationsScreen
 import com.letta.mobile.ui.screens.editagent.EditAgentScreen
+import com.letta.mobile.ui.screens.identities.IdentityListScreen
 import com.letta.mobile.ui.screens.mcp.McpScreen
 import com.letta.mobile.ui.screens.models.ModelBrowserScreen
 import com.letta.mobile.ui.screens.runs.RunMonitorScreen
@@ -86,6 +87,9 @@ fun AppNavGraph() {
                 onNavigateToBlocks = {
                     navController.navigate("blocks")
                 },
+                onNavigateToIdentities = {
+                    navController.navigate("identities")
+                },
                 onNavigateToSchedules = {
                     navController.navigate("schedules")
                 },
@@ -147,6 +151,12 @@ fun AppNavGraph() {
 
         composable("blocks") {
             BlockLibraryScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("identities") {
+            IdentityListScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }
