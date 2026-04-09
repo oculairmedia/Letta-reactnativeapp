@@ -278,10 +278,14 @@
     <string name="screen_identities_empty">No identities available</string>
     <string name="screen_identities_empty_search">No identities matching “%1$s”</string>
     <string name="screen_identities_add_title">Add Identity</string>
+    <string name="screen_identities_edit_title">Edit Identity</string>
     <string name="screen_identities_delete_title">Delete Identity</string>
     <string name="screen_identities_delete_confirm">Delete %1$s?</string>
+    <string name="screen_identities_attach_agent_action">Attach Agent</string>
     <string name="screen_identities_identifier_key_label">Identifier Key</string>
     <string name="screen_identities_type_input_label">Identity Type</string>
+    <string name="screen_identities_block_ids_label">Block IDs</string>
+    <string name="screen_identities_block_ids_helper">Comma-separated block ids. Clear the field to remove all linked blocks.</string>
     <string name="screen_identities_properties_chip">%1$d properties</string>
     <string name="screen_identities_identifier_label">Identifier: %1$s</string>
     <string name="screen_identities_type_label">Type: %1$s</string>
@@ -289,6 +293,11 @@
     <string name="screen_identities_organization_label">Organization: %1$s</string>
     <string name="screen_identities_agent_count_label">Agents linked: %1$d</string>
     <string name="screen_identities_block_count_label">Blocks linked: %1$d</string>
+    <string name="screen_identities_no_linked_agents">No linked agents</string>
+    <string name="screen_identities_no_available_agents">No available agents to attach</string>
+    <string name="screen_identities_blocks_title">Linked Blocks</string>
+    <string name="screen_identities_no_linked_blocks">No linked blocks</string>
+    <string name="screen_identities_blocks_manage_hint">Use Edit to change linked block ids.</string>
     <string name="screen_identities_properties_title">Properties</string>
     <string name="screen_drawer_edit_agent">Edit Agent</string>
     <string name="screen_drawer_archival">Archival Memory</string>

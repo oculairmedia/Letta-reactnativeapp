@@ -2,8 +2,11 @@ package com.letta.mobile.ui.screens.identities
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Identity
 import com.letta.mobile.data.model.IdentityCreateParams
+import com.letta.mobile.data.model.IdentityUpdateParams
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.IdentityRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
@@ -19,11 +22,14 @@ data class IdentityListUiState(
     val identities: List<Identity> = emptyList(),
     val searchQuery: String = "",
     val selectedIdentity: Identity? = null,
+    val knownAgents: List<Agent> = emptyList(),
+    val operationError: String? = null,
 )
 
 @HiltViewModel
 class IdentityListViewModel @Inject constructor(
     private val identityRepository: IdentityRepository,
+    private val agentRepository: AgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<IdentityListUiState>>(UiState.Loading)
@@ -43,7 +49,10 @@ class IdentityListViewModel @Inject constructor(
                     IdentityListUiState(
                         identities = identityRepository.identities.value,
                         searchQuery = current?.searchQuery.orEmpty(),
-                        selectedIdentity = current?.selectedIdentity,
+                        selectedIdentity = current?.selectedIdentity?.let { selected ->
+                            identityRepository.identities.value.firstOrNull { it.id == selected.id } ?: selected
+                        },
+                        knownAgents = current?.knownAgents.orEmpty(),
                     )
                 )
             } catch (e: Exception) {
@@ -72,26 +81,54 @@ class IdentityListViewModel @Inject constructor(
         viewModelScope.launch {
             val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
             try {
-                val identity = identityRepository.getIdentity(identityId)
-                _uiState.value = UiState.Success(current.copy(selectedIdentity = identity))
+                _uiState.value = UiState.Success(current.copy(operationError = null))
+                refreshSelectedIdentity(identityId)
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to load identity details"))
+                setOperationError(mapErrorToUserMessage(e, "Failed to load identity details"))
             }
         }
     }
 
     fun clearSelectedIdentity() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(current.copy(selectedIdentity = null))
+        _uiState.value = UiState.Success(current.copy(selectedIdentity = null, knownAgents = emptyList()))
     }
 
-    fun createIdentity(params: IdentityCreateParams) {
+    fun clearOperationError() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(current.copy(operationError = null))
+    }
+
+    fun createIdentity(params: IdentityCreateParams, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 identityRepository.createIdentity(params)
                 loadIdentities()
+                onSuccess()
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to create identity"))
+                setOperationError(mapErrorToUserMessage(e, "Failed to create identity"))
+            }
+        }
+    }
+
+    fun updateIdentity(identityId: String, params: IdentityUpdateParams, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val updated = identityRepository.updateIdentity(identityId, params)
+                val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
+                _uiState.value = UiState.Success(
+                    current.copy(
+                        identities = current.identities.replaceIdentity(updated),
+                        selectedIdentity = if (current.selectedIdentity?.id == identityId) updated else current.selectedIdentity,
+                        operationError = null,
+                    )
+                )
+                if (current.selectedIdentity?.id == identityId) {
+                    refreshSelectedIdentity(identityId)
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to update identity"))
             }
         }
     }
@@ -105,11 +142,76 @@ class IdentityListViewModel @Inject constructor(
                     current.copy(
                         identities = current.identities.filterNot { it.id == identityId },
                         selectedIdentity = if (current.selectedIdentity?.id == identityId) null else current.selectedIdentity,
+                        operationError = null,
                     )
                 )
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to delete identity"))
+                setOperationError(mapErrorToUserMessage(e, "Failed to delete identity"))
             }
         }
+    }
+
+    fun attachIdentity(agentId: String, identityId: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                identityRepository.attachIdentity(agentId, identityId)
+                refreshSelectedIdentity(identityId)
+                onSuccess()
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to attach identity to agent"))
+            }
+        }
+    }
+
+    fun detachIdentity(agentId: String, identityId: String) {
+        viewModelScope.launch {
+            try {
+                identityRepository.detachIdentity(agentId, identityId)
+                refreshSelectedIdentity(identityId)
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to detach identity from agent"))
+            }
+        }
+    }
+
+    private suspend fun refreshSelectedIdentity(identityId: String) {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        val identity = identityRepository.getIdentity(identityId)
+        val knownAgents = try {
+            loadKnownAgents()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        _uiState.value = UiState.Success(
+            current.copy(
+                identities = current.identities.replaceIdentity(identity),
+                selectedIdentity = identity,
+                knownAgents = knownAgents,
+                operationError = null,
+            )
+        )
+    }
+
+    private suspend fun loadKnownAgents(): List<Agent> {
+        agentRepository.refreshAgents()
+        return agentRepository.agents.value.sortedBy { it.name.lowercase() }
+    }
+
+    private fun setOperationError(message: String) {
+        val current = (_uiState.value as? UiState.Success)?.data
+        if (current != null) {
+            _uiState.value = UiState.Success(current.copy(operationError = message))
+        } else {
+            _uiState.value = UiState.Error(message)
+        }
+    }
+}
+
+private fun List<Identity>.replaceIdentity(updated: Identity): List<Identity> {
+    val index = indexOfFirst { it.id == updated.id }
+    return if (index >= 0) {
+        toMutableList().apply { this[index] = updated }
+    } else {
+        this + updated
     }
 }
