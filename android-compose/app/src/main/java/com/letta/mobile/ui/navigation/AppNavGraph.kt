@@ -22,6 +22,7 @@ import com.letta.mobile.ui.screens.config.ConfigScreen
 import com.letta.mobile.ui.screens.conversations.ConversationsScreen
 import com.letta.mobile.ui.screens.editagent.EditAgentScreen
 import com.letta.mobile.ui.screens.identities.IdentityListScreen
+import com.letta.mobile.ui.screens.jobs.JobMonitorScreen
 import com.letta.mobile.ui.screens.mcp.McpScreen
 import com.letta.mobile.ui.screens.mcp.McpServerToolsScreen
 import com.letta.mobile.ui.screens.models.ModelBrowserScreen
@@ -98,6 +99,9 @@ fun AppNavGraph() {
                 onNavigateToRuns = {
                     navController.navigate("runs")
                 },
+                onNavigateToJobs = {
+                    navController.navigate("jobs")
+                },
                 onNavigateToMcp = {
                     navController.navigate("mcp")
                 },
@@ -171,6 +175,12 @@ fun AppNavGraph() {
 
         composable("runs") {
             RunMonitorScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("jobs") {
+            JobMonitorScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }
