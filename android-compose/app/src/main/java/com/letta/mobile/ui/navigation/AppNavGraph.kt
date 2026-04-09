@@ -15,6 +15,7 @@ import com.letta.mobile.ui.screens.about.AboutScreen
 import com.letta.mobile.ui.screens.agentlist.AgentListScreen
 import com.letta.mobile.ui.screens.dashboard.HomeScreen
 import com.letta.mobile.ui.screens.archival.ArchivalScreen
+import com.letta.mobile.ui.screens.blocks.BlockLibraryScreen
 import com.letta.mobile.ui.screens.chat.AgentScaffold
 import com.letta.mobile.ui.screens.config.ConfigListScreen
 import com.letta.mobile.ui.screens.config.ConfigScreen
@@ -80,6 +81,9 @@ fun AppNavGraph() {
                 onNavigateToTemplates = {
                     navController.navigate("templates")
                 },
+                onNavigateToBlocks = {
+                    navController.navigate("blocks")
+                },
                 onNavigateToMcp = {
                     navController.navigate("mcp")
                 },
@@ -130,6 +134,12 @@ fun AppNavGraph() {
                 onNavigateToAgent = { agentId ->
                     navController.navigate("agent/$agentId/chat")
                 }
+            )
+        }
+
+        composable("blocks") {
+            BlockLibraryScreen(
+                onNavigateBack = { navController.popBackStack() },
             )
         }
 

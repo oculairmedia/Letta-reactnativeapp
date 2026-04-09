@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
@@ -74,6 +75,7 @@ fun ConversationsScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToAgentList: () -> Unit,
     onNavigateToTemplates: () -> Unit = {},
+    onNavigateToBlocks: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
@@ -104,6 +106,11 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_templates)) },
                             onClick = { showOverflowMenu = false; onNavigateToTemplates() },
                             leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.screen_nav_blocks)) },
+                            onClick = { showOverflowMenu = false; onNavigateToBlocks() },
+                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.screen_nav_mcp_servers)) },

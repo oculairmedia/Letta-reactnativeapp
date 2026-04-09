@@ -16,6 +16,7 @@ import javax.inject.Inject
 @androidx.compose.runtime.Immutable
 data class BlockLibraryUiState(
     val blocks: List<Block> = emptyList(),
+    val searchQuery: String = "",
     val filterLabel: String? = null,
     val filterTemplate: Boolean? = null,
 )
@@ -30,6 +31,7 @@ class BlockLibraryViewModel @Inject constructor(
 
     private var filterLabel: String? = null
     private var filterTemplate: Boolean? = null
+    private var searchQuery: String = ""
 
     init {
         loadBlocks()
@@ -46,6 +48,7 @@ class BlockLibraryViewModel @Inject constructor(
                 _uiState.value = UiState.Success(
                     BlockLibraryUiState(
                         blocks = blocks,
+                        searchQuery = searchQuery,
                         filterLabel = filterLabel,
                         filterTemplate = filterTemplate,
                     )
@@ -62,5 +65,35 @@ class BlockLibraryViewModel @Inject constructor(
         filterLabel = label
         filterTemplate = isTemplate
         loadBlocks()
+    }
+
+    fun updateSearchQuery(query: String) {
+        searchQuery = query
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(searchQuery = query))
+    }
+
+    fun getFilteredBlocks(): List<Block> {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
+        if (currentState.searchQuery.isBlank()) return currentState.blocks
+        val q = currentState.searchQuery.trim().lowercase()
+        return currentState.blocks.filter { block ->
+            (block.label?.lowercase()?.contains(q) == true) ||
+                (block.description?.lowercase()?.contains(q) == true) ||
+                block.value.lowercase().contains(q)
+        }
+    }
+
+    fun deleteBlock(blockId: String) {
+        viewModelScope.launch {
+            try {
+                blockRepository.deleteBlock(blockId)
+                loadBlocks()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(
+                    mapErrorToUserMessage(e, "Failed to delete block")
+                )
+            }
+        }
     }
 }

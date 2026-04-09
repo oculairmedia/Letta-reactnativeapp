@@ -85,9 +85,34 @@ class BlockLibraryViewModelTest {
         }
     }
 
+    @Test
+    fun `updateSearchQuery filters loaded blocks locally`() = runTest {
+        fakeRepo.allBlocks = listOf(
+            Block(id = "b1", label = "persona", value = "Template block", description = "Behavior rules"),
+            Block(id = "b2", label = "human", value = "Human block", description = "User profile"),
+        )
+        viewModel.loadBlocks()
+
+        viewModel.updateSearchQuery("behavior")
+
+        val filtered = viewModel.getFilteredBlocks()
+        assertEquals(1, filtered.size)
+        assertEquals("persona", filtered.first().label)
+    }
+
+    @Test
+    fun `deleteBlock delegates to repository`() = runTest {
+        fakeRepo.allBlocks = listOf(Block(id = "b1", label = "persona", value = "Template block"))
+
+        viewModel.deleteBlock("b1")
+
+        assertEquals(listOf("b1"), fakeRepo.deletedBlockIds)
+    }
+
     private class FakeBlockRepo : IBlockRepository {
         var allBlocks = listOf<Block>()
         var shouldFail = false
+        val deletedBlockIds = mutableListOf<String>()
 
         override suspend fun listAllBlocks(label: String?, isTemplate: Boolean?): List<Block> {
             if (shouldFail) throw Exception("Failed to load blocks")
@@ -102,7 +127,10 @@ class BlockLibraryViewModelTest {
             Block(id = "stub", label = blockLabel, value = params.value ?: "")
         override suspend fun createBlock(params: BlockCreateParams): Block =
             Block(id = "stub", label = params.label, value = params.value)
-        override suspend fun deleteBlock(blockId: String) {}
+        override suspend fun deleteBlock(blockId: String) {
+            deletedBlockIds.add(blockId)
+            allBlocks = allBlocks.filterNot { it.id == blockId }
+        }
         override suspend fun attachBlock(agentId: String, blockId: String): Block =
             Block(id = blockId, label = "stub", value = "")
         override suspend fun detachBlock(agentId: String, blockId: String) {}
