@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
+import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,7 @@ class AgentSettingsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val agentRepository: AgentRepository,
     private val blockRepository: BlockRepository,
+    private val messageRepository: MessageRepository,
 ) : ViewModel() {
 
     private val agentId: String = savedStateHandle.get<String>("agentId") ?: ""
@@ -135,25 +138,46 @@ class AgentSettingsViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings() {
+    fun saveSettings(onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
-                agentRepository.updateAgent(
+                val updatedAgent = agentRepository.updateAgent(
                     agentId,
                     AgentUpdateParams(
                         system = state.systemPrompt,
                         enableSleeptime = state.enableSleeptime,
+                        modelSettings = ModelSettings(
+                            temperature = state.temperature.toDouble(),
+                            maxOutputTokens = state.maxTokens,
+                            parallelToolCalls = state.parallelToolCalls,
+                            providerType = state.agent?.modelSettings?.providerType,
+                        ),
                     )
                 )
                 if (state.personaBlock != originalPersonaBlock) {
                     blockRepository.updateBlock(agentId, "persona", state.personaBlock)
+                    originalPersonaBlock = state.personaBlock
                 }
                 if (state.humanBlock != originalHumanBlock) {
                     blockRepository.updateBlock(agentId, "human", state.humanBlock)
+                    originalHumanBlock = state.humanBlock
                 }
+                _uiState.value = UiState.Success(state.copy(agent = updatedAgent))
+                onSuccess()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to save settings")
+            }
+        }
+    }
+
+    fun resetMessages(onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                messageRepository.resetMessages(agentId)
+                onSuccess()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Failed to reset messages")
             }
         }
     }
