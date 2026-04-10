@@ -57,6 +57,7 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.util.formatRelativeTime
+import kotlinx.serialization.json.JsonElement
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -308,9 +309,37 @@ private fun RunDetailDialog(
                 run.createdAt?.let { Text(stringResource(R.string.screen_runs_created_exact_label, it)) }
                 run.completedAt?.let { Text(stringResource(R.string.screen_runs_completed_label, it)) }
                 run.callbackUrl?.let { Text(stringResource(R.string.screen_runs_callback_label, it)) }
+                run.callbackSentAt?.let { Text(stringResource(R.string.screen_runs_callback_sent_label, it)) }
                 run.callbackStatusCode?.let { Text(stringResource(R.string.screen_runs_callback_status_label, it)) }
+                run.callbackError?.let { Text(stringResource(R.string.screen_runs_callback_error_label, it)) }
                 run.totalDurationNs?.let { Text(stringResource(R.string.screen_runs_total_duration_label, it)) }
                 run.ttftNs?.let { Text(stringResource(R.string.screen_runs_ttft_label, it)) }
+                if (run.metadata.isNotEmpty()) {
+                    Text(stringResource(R.string.screen_runs_metadata_title), style = MaterialTheme.typography.labelLarge)
+                    run.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
+                        Text(
+                            text = "$key: ${value.toDisplayString()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                run.requestConfig?.let { config ->
+                    Text(stringResource(R.string.screen_runs_request_config_title), style = MaterialTheme.typography.labelLarge)
+                    config.assistantMessageToolName?.let {
+                        Text(stringResource(R.string.screen_runs_request_config_assistant_tool_name_label, it))
+                    }
+                    config.assistantMessageToolKwarg?.let {
+                        Text(stringResource(R.string.screen_runs_request_config_assistant_tool_kwarg_label, it))
+                    }
+                    config.includeReturnMessageTypes?.takeIf { it.isNotEmpty() }?.let {
+                        Text(stringResource(R.string.screen_runs_request_config_include_return_types_label, it.joinToString(", ")))
+                    }
+                    config.useAssistantMessage?.let {
+                        Text(stringResource(R.string.screen_runs_request_config_use_assistant_message_label, it.toString()))
+                    }
+                }
                 usage?.let {
                     Text(stringResource(R.string.screen_runs_usage_title), style = MaterialTheme.typography.labelLarge)
                     Text(stringResource(R.string.screen_runs_usage_prompt_tokens_label, it.promptTokens ?: 0))
@@ -319,6 +348,21 @@ private fun RunDetailDialog(
                 }
                 metrics?.let {
                     Text(stringResource(R.string.screen_runs_metrics_title), style = MaterialTheme.typography.labelLarge)
+                    it.organizationId?.let { organizationId ->
+                        Text(stringResource(R.string.screen_runs_metrics_organization_label, organizationId))
+                    }
+                    it.projectId?.let { projectId ->
+                        Text(stringResource(R.string.screen_runs_metrics_project_label, projectId))
+                    }
+                    it.runStartNs?.let { runStartNs ->
+                        Text(stringResource(R.string.screen_runs_metrics_run_start_ns_label, runStartNs))
+                    }
+                    it.templateId?.let { templateId ->
+                        Text(stringResource(R.string.screen_runs_metrics_template_label, templateId))
+                    }
+                    it.baseTemplateId?.let { baseTemplateId ->
+                        Text(stringResource(R.string.screen_runs_metrics_base_template_label, baseTemplateId))
+                    }
                     it.numSteps?.let { numSteps -> Text(stringResource(R.string.screen_runs_metrics_num_steps_label, numSteps)) }
                     it.runNs?.let { runNs -> Text(stringResource(R.string.screen_runs_metrics_run_ns_label, runNs)) }
                     if (it.toolsUsed.isNotEmpty()) {
@@ -328,16 +372,59 @@ private fun RunDetailDialog(
                 if (steps.isNotEmpty()) {
                     Text(stringResource(R.string.screen_runs_steps_title), style = MaterialTheme.typography.labelLarge)
                     steps.take(5).forEach { step ->
-                        Text(
-                            text = buildString {
-                                append(step.id)
-                                step.status?.let { append(" • ").append(it) }
-                                step.model?.let { append(" • ").append(it) }
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = buildString {
+                                    append(step.id)
+                                    step.status?.let { append(" • ").append(it) }
+                                    step.model?.let { append(" • ").append(it) }
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            step.origin?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+                            step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.providerCategory?.let { Text(stringResource(R.string.screen_runs_step_provider_category_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.providerId?.let { Text(stringResource(R.string.screen_runs_step_provider_id_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.modelEndpoint?.let { Text(stringResource(R.string.screen_runs_step_model_endpoint_label, it), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                            step.contextWindowLimit?.let { Text(stringResource(R.string.screen_runs_step_context_window_limit_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.promptTokens?.let { Text(stringResource(R.string.screen_runs_step_prompt_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.completionTokens?.let { Text(stringResource(R.string.screen_runs_step_completion_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.totalTokens?.let { Text(stringResource(R.string.screen_runs_step_total_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.traceId?.let { Text(stringResource(R.string.screen_runs_step_trace_id_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.tid?.let { Text(stringResource(R.string.screen_runs_step_tid_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.feedback?.let { Text(stringResource(R.string.screen_runs_step_feedback_label, it), style = MaterialTheme.typography.bodySmall) }
+                            if (step.tags.isNotEmpty()) {
+                                Text(stringResource(R.string.screen_runs_step_tags_label, step.tags.joinToString(", ")), style = MaterialTheme.typography.bodySmall)
+                            }
+                            step.errorType?.let { Text(stringResource(R.string.screen_runs_step_error_type_label, it), style = MaterialTheme.typography.bodySmall) }
+                            if (step.messages.isNotEmpty()) {
+                                Text(stringResource(R.string.screen_runs_step_messages_count_label, step.messages.size), style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (step.completionTokensDetails.isNotEmpty()) {
+                                Text(
+                                    stringResource(
+                                        R.string.screen_runs_step_completion_details_label,
+                                        step.completionTokensDetails.toSortedDisplayString(),
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (step.errorData.isNotEmpty()) {
+                                Text(
+                                    stringResource(
+                                        R.string.screen_runs_step_error_data_label,
+                                        step.errorData.toSortedDisplayString(),
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
                 if (messages.isNotEmpty()) {
@@ -378,6 +465,12 @@ private fun RunDetailDialog(
         },
     )
 }
+
+private fun Map<String, JsonElement>.toSortedDisplayString(): String {
+    return entries.sortedBy { it.key }.joinToString(", ") { (key, value) -> "$key=${value.toDisplayString()}" }
+}
+
+private fun JsonElement.toDisplayString(): String = toString().trim('"')
 
 private fun messageSummary(message: LettaMessage): String {
     return when (message) {
