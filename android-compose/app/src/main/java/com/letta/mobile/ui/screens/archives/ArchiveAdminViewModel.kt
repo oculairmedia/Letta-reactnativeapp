@@ -7,6 +7,7 @@ import com.letta.mobile.data.model.Archive
 import com.letta.mobile.data.model.ArchiveCreateParams
 import com.letta.mobile.data.model.ArchiveUpdateParams
 import com.letta.mobile.data.model.EmbeddingConfig
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ArchiveRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
@@ -23,12 +24,14 @@ data class ArchiveAdminUiState(
     val searchQuery: String = "",
     val selectedArchive: Archive? = null,
     val selectedArchiveAgents: List<Agent> = emptyList(),
+    val allAgents: List<Agent> = emptyList(),
     val operationError: String? = null,
 )
 
 @HiltViewModel
 class ArchiveAdminViewModel @Inject constructor(
     private val archiveRepository: ArchiveRepository,
+    private val agentRepository: AgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ArchiveAdminUiState>>(UiState.Loading)
@@ -44,7 +47,9 @@ class ArchiveAdminViewModel @Inject constructor(
             _uiState.value = UiState.Loading
             try {
                 archiveRepository.refreshArchives()
+                agentRepository.refreshAgents()
                 val archives = archiveRepository.archives.value
+                val allAgents = agentRepository.agents.value
                 _uiState.value = UiState.Success(
                     ArchiveAdminUiState(
                         archives = archives,
@@ -53,6 +58,7 @@ class ArchiveAdminViewModel @Inject constructor(
                             archives.firstOrNull { it.id == selected.id } ?: selected
                         },
                         selectedArchiveAgents = current?.selectedArchiveAgents.orEmpty(),
+                        allAgents = allAgents,
                     )
                 )
             } catch (e: Exception) {
@@ -168,6 +174,35 @@ class ArchiveAdminViewModel @Inject constructor(
                 )
             } catch (e: Exception) {
                 setOperationError(mapErrorToUserMessage(e, "Failed to delete archive"))
+            }
+        }
+    }
+
+    fun getAvailableAgentsForArchive(): List<Agent> {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
+        val attachedIds = current.selectedArchiveAgents.map { it.id }.toSet()
+        return current.allAgents.filter { it.id !in attachedIds }
+    }
+
+    fun attachArchiveToAgent(archiveId: String, agentId: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                agentRepository.attachArchive(agentId = agentId, archiveId = archiveId)
+                inspectArchive(archiveId)
+                onSuccess()
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to attach archive"))
+            }
+        }
+    }
+
+    fun detachArchiveFromAgent(archiveId: String, agentId: String) {
+        viewModelScope.launch {
+            try {
+                agentRepository.detachArchive(agentId = agentId, archiveId = archiveId)
+                inspectArchive(archiveId)
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to detach archive"))
             }
         }
     }

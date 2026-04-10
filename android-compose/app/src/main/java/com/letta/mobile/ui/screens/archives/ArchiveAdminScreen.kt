@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -16,9 +17,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -26,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
+import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Archive
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
@@ -63,6 +69,8 @@ fun ArchiveAdminScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Archive?>(null) }
     var deleteTarget by remember { mutableStateOf<Archive?>(null) }
+    var attachTarget by remember { mutableStateOf<Archive?>(null) }
+    var detachTarget by remember { mutableStateOf<Pair<Archive, Agent>?>(null) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -150,6 +158,14 @@ fun ArchiveAdminScreen(
                 viewModel.clearSelectedArchive()
                 editTarget = archive
             },
+            onAttachAgent = {
+                viewModel.clearOperationError()
+                attachTarget = archive
+            },
+            onDetachAgent = { agent ->
+                viewModel.clearOperationError()
+                detachTarget = archive to agent
+            },
         )
     }
 
@@ -190,6 +206,36 @@ fun ArchiveAdminScreen(
                 deleteTarget = null
             },
             onDismiss = { deleteTarget = null },
+            destructive = true,
+        )
+    }
+
+    attachTarget?.let { archive ->
+        AgentPickerDialog(
+            title = stringResource(R.string.screen_archives_attach_title),
+            emptyMessage = stringResource(R.string.screen_archives_no_available_agents),
+            agents = (uiState as? UiState.Success)?.data?.let { viewModel.getAvailableAgentsForArchive() }.orEmpty(),
+            onDismiss = { attachTarget = null },
+            onSelect = { agent ->
+                viewModel.attachArchiveToAgent(archive.id, agent.id) {
+                    attachTarget = null
+                }
+            },
+        )
+    }
+
+    detachTarget?.let { (archive, agent) ->
+        ConfirmDialog(
+            show = true,
+            title = stringResource(R.string.screen_archives_detach_title),
+            message = stringResource(R.string.screen_archives_detach_confirm, archive.name, agent.name),
+            confirmText = stringResource(R.string.action_remove),
+            dismissText = stringResource(R.string.action_cancel),
+            onConfirm = {
+                viewModel.detachArchiveFromAgent(archive.id, agent.id)
+                detachTarget = null
+            },
+            onDismiss = { detachTarget = null },
             destructive = true,
         )
     }
@@ -251,9 +297,11 @@ private fun ArchiveCard(
 @Composable
 private fun ArchiveDetailDialog(
     archive: Archive,
-    attachedAgents: List<com.letta.mobile.data.model.Agent>,
+    attachedAgents: List<Agent>,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
+    onAttachAgent: () -> Unit,
+    onDetachAgent: (Agent) -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -269,8 +317,34 @@ private fun ArchiveDetailDialog(
                 if (attachedAgents.isNotEmpty()) {
                     Text(stringResource(R.string.screen_archives_agents_title), style = MaterialTheme.typography.labelLarge)
                     attachedAgents.forEach { agent ->
-                        Text(agent.name, style = MaterialTheme.typography.bodySmall)
+                        AssistChip(
+                            onClick = { onDetachAgent(agent) },
+                            label = { Text(agent.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.People,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.LinkOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                        )
                     }
+                } else {
+                    Text(
+                        text = stringResource(R.string.screen_archives_no_agents),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = onAttachAgent, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                    Text(stringResource(R.string.screen_archives_attach_action))
                 }
                 if (archive.metadata.isNotEmpty()) {
                     Text(stringResource(R.string.screen_archival_metadata_title), style = MaterialTheme.typography.labelLarge)
@@ -288,6 +362,60 @@ private fun ArchiveDetailDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_close))
+            }
+        },
+    )
+}
+
+@Composable
+private fun AgentPickerDialog(
+    title: String,
+    emptyMessage: String,
+    agents: List<Agent>,
+    onDismiss: () -> Unit,
+    onSelect: (Agent) -> Unit,
+) {
+    var selected by remember { mutableStateOf<Agent?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            if (agents.isEmpty()) {
+                Text(text = emptyMessage, style = MaterialTheme.typography.bodyMedium)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(agents, key = { it.id }) { agent ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = selected?.id == agent.id,
+                                onClick = { selected = agent },
+                            )
+                            Text(
+                                text = agent.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { selected?.let(onSelect) },
+                enabled = selected != null,
+            ) {
+                Text(stringResource(R.string.action_attach))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )

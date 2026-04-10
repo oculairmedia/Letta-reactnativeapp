@@ -1,7 +1,10 @@
 package com.letta.mobile.ui.screens.archives
 
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ArchiveRepository
+import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeArchiveApi
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -10,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -18,21 +22,31 @@ class ArchiveAdminViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeApi: FakeArchiveApi
+    private lateinit var fakeAgentApi: FakeAgentApi
     private lateinit var repository: ArchiveRepository
+    private lateinit var agentRepository: AgentRepository
     private lateinit var viewModel: ArchiveAdminViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeApi = FakeArchiveApi()
+        fakeAgentApi = FakeAgentApi()
         fakeApi.archives.addAll(
             listOf(
                 com.letta.mobile.data.model.Archive(id = "archive-1", name = "Primary Archive", description = "Knowledge"),
                 com.letta.mobile.data.model.Archive(id = "archive-2", name = "Logs", description = "Events"),
             )
         )
+        fakeAgentApi.agents.addAll(
+            listOf(
+                com.letta.mobile.testutil.TestData.agent(id = "agent-1", name = "Attached Agent"),
+                com.letta.mobile.testutil.TestData.agent(id = "agent-2", name = "Available Agent"),
+            )
+        )
         repository = ArchiveRepository(fakeApi)
-        viewModel = ArchiveAdminViewModel(repository)
+        agentRepository = AgentRepository(fakeAgentApi, mockk(relaxed = true))
+        viewModel = ArchiveAdminViewModel(repository, agentRepository)
     }
 
     @After
@@ -81,5 +95,37 @@ class ArchiveAdminViewModelTest {
 
         val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
         assertEquals(1, state.data.archives.size)
+    }
+
+    @Test
+    fun `getAvailableAgentsForArchive excludes already attached agents`() = runTest {
+        viewModel.inspectArchive("archive-1")
+
+        val availableAgents = viewModel.getAvailableAgentsForArchive()
+
+        assertEquals(1, availableAgents.size)
+        assertEquals("agent-2", availableAgents.first().id)
+    }
+
+    @Test
+    fun `attachArchiveToAgent delegates through agent repository`() = runTest {
+        viewModel.inspectArchive("archive-1")
+        var successCalled = false
+
+        viewModel.attachArchiveToAgent("archive-1", "agent-2") { successCalled = true }
+
+        assertTrue(successCalled)
+        assertTrue(fakeAgentApi.calls.contains("attachArchive:agent-2:archive-1"))
+        assertTrue(fakeApi.calls.count { it == "listAgentsForArchive:archive-1" } >= 2)
+    }
+
+    @Test
+    fun `detachArchiveFromAgent delegates through agent repository`() = runTest {
+        viewModel.inspectArchive("archive-1")
+
+        viewModel.detachArchiveFromAgent("archive-1", "agent-1")
+
+        assertTrue(fakeAgentApi.calls.contains("detachArchive:agent-1:archive-1"))
+        assertTrue(fakeApi.calls.count { it == "listAgentsForArchive:archive-1" } >= 2)
     }
 }

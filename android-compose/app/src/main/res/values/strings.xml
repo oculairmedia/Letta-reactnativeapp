@@ -321,6 +321,12 @@
     <string name="screen_archives_embedding_model_input">Embedding model</string>
     <string name="screen_archives_created_label">Created: %1$s</string>
     <string name="screen_archives_agents_title">Attached Agents</string>
+    <string name="screen_archives_no_agents">No agents attached</string>
+    <string name="screen_archives_attach_action">Attach agent</string>
+    <string name="screen_archives_attach_title">Attach Archive to Agent</string>
+    <string name="screen_archives_no_available_agents">All available agents are already attached</string>
+    <string name="screen_archives_detach_title">Detach Archive</string>
+    <string name="screen_archives_detach_confirm">Detach archive %1$s from %2$s?</string>
     <string name="screen_folders_title">Folders</string>
     <string name="screen_folders_search_hint">Search folders…</string>
     <string name="screen_folders_empty">No folders available</string>
