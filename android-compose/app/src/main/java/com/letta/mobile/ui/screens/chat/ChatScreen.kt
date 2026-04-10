@@ -67,7 +67,7 @@ fun ChatScreen(
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
 
     LettaChatTheme {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().imePadding()) {
         if (state.isLoadingMessages && state.messages.isEmpty()) {
             MessageSkeletonList(modifier = Modifier.weight(1f))
         } else if (state.error != null && state.messages.isEmpty()) {
@@ -127,7 +127,7 @@ private fun ChatContent(
             .distinctUntilChanged()
             .collect {
                 if (it > 0 && isAtBottom) {
-                    listState.scrollToItem(0)
+                    listState.animateScrollToItem(0)
                 }
             }
     }
@@ -199,8 +199,9 @@ private fun ChatContent(
                         val showDate = prevDate != null && prevDate != currentDate
 
                         item(key = "${message.id}-$index") {
-                            val spacing = when (position) {
-                                GroupPosition.Middle, GroupPosition.Last -> 2.dp
+                            val spacing = when {
+                                message.isReasoning -> 10.dp
+                                position == GroupPosition.Middle || position == GroupPosition.Last -> 2.dp
                                 else -> 6.dp
                             }
                             if (chatMode == "debug") {
@@ -291,10 +292,8 @@ private fun MessageInputBar(
     isStreaming: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-
     Surface(
-        modifier = modifier.imePadding(),
+        modifier = modifier,
         tonalElevation = 3.dp
     ) {
         Row(
@@ -308,7 +307,6 @@ private fun MessageInputBar(
                 onValueChange = { newText ->
                     if (newText.endsWith("\n") && !isStreaming && text.isNotBlank()) {
                         onSend(text)
-                        keyboardController?.hide()
                     } else {
                         onTextChange(newText)
                     }
@@ -324,7 +322,6 @@ private fun MessageInputBar(
                     onSend = {
                         if (text.isNotBlank() && !isStreaming) {
                             onSend(text)
-                            keyboardController?.hide()
                         }
                     },
                 ),
@@ -336,7 +333,6 @@ private fun MessageInputBar(
                 onClick = {
                     if (text.isNotBlank()) {
                         onSend(text)
-                        keyboardController?.hide()
                     }
                 },
                 enabled = text.isNotBlank() && !isStreaming

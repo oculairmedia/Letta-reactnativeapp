@@ -39,7 +39,7 @@ fun ThinkingSection(
         isExpanded = true
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
             modifier = Modifier.clickable { isExpanded = !isExpanded }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
