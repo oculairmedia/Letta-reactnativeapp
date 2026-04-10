@@ -14,6 +14,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import io.mockk.coEvery
 import io.mockk.every
@@ -41,6 +42,20 @@ class ToolApiTest {
         val api = createApi { req -> method = req.method; respond("[]", HttpStatusCode.OK, jsonHeaders) }
         api.listTools()
         assertEquals(HttpMethod.Get, method)
+    }
+
+    @Test
+    fun `countTools sends GET to count endpoint`() = runTest {
+        var url: String? = null
+        val api = createApi { req ->
+            url = req.url.toString()
+            respond("3", HttpStatusCode.OK, jsonHeaders)
+        }
+
+        val count = api.countTools()
+
+        assertEquals(3, count)
+        assertTrue(url!!.endsWith("/v1/tools/count"))
     }
 
     @Test

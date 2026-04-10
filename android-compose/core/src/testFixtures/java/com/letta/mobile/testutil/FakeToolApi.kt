@@ -45,6 +45,12 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
         return tools.find { it.id == toolId } ?: throw ApiException(404, "Not found")
     }
 
+    override suspend fun countTools(): Int {
+        calls.add("countTools")
+        if (shouldFail) throw ApiException(500, "Server error")
+        return tools.size
+    }
+
     override suspend fun updateTool(toolId: String, params: ToolUpdateParams): Tool {
         calls.add("updateTool:$toolId")
         if (shouldFail) throw ApiException(500, "Server error")

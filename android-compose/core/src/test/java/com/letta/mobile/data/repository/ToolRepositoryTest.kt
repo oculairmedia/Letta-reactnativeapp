@@ -37,6 +37,16 @@ class ToolRepositoryTest {
     }
 
     @Test
+    fun `countTools delegates to api`() = runTest {
+        fakeApi.tools.addAll(listOf(TestData.tool(id = "1"), TestData.tool(id = "2"), TestData.tool(id = "3")))
+
+        val count = repository.countTools()
+
+        assertEquals(3, count)
+        assertTrue(fakeApi.calls.contains("countTools"))
+    }
+
+    @Test
     fun `attachTool adds to agent tools`() = runTest {
         fakeApi.tools.add(TestData.tool(id = "t1", name = "search"))
         repository.refreshTools()
