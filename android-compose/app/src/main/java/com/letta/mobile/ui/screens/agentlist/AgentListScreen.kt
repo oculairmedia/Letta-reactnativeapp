@@ -1,5 +1,6 @@
 package com.letta.mobile.ui.screens.agentlist
 
+import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
@@ -57,6 +59,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -70,6 +74,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,6 +98,7 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerGrid
+import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.screens.tools.ToolPickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,8 +111,42 @@ fun AgentListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showGrid by rememberSaveable { mutableStateOf(false) }
+    var pendingImportName by remember { mutableStateOf<String?>(null) }
+    var pendingImportOverrideTools by remember { mutableStateOf(true) }
+    var pendingImportStripMessages by remember { mutableStateOf(false) }
+    val snackbar = LocalSnackbarDispatcher.current
+    val context = LocalContext.current
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull()
+        if (bytes == null) {
+            snackbar.dispatch(context.getString(R.string.screen_agents_import_read_failed))
+        } else {
+            val fileName = uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.screen_agents_import_default_filename)
+            viewModel.importAgent(
+                fileName = fileName,
+                fileBytes = bytes,
+                overrideName = pendingImportName,
+                overrideExistingTools = pendingImportOverrideTools,
+                stripMessages = pendingImportStripMessages,
+            ) { response ->
+                val importedId = response.agentIds.firstOrNull()
+                snackbar.dispatch(
+                    context.getString(
+                        if (response.agentIds.size == 1) R.string.screen_agents_import_success_single else R.string.screen_agents_import_success_multiple,
+                        response.agentIds.size,
+                    )
+                )
+                importedId?.let(onNavigateToAgent)
+            }
+        }
+    }
 
     val filteredAgents = remember(uiState.agents, uiState.searchQuery) {
         viewModel.getFilteredAgents()
@@ -132,6 +172,12 @@ fun AgentListScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showImportDialog = true }) {
+                            Icon(
+                                Icons.Default.FileOpen,
+                                contentDescription = stringResource(R.string.action_import_agent),
+                            )
+                        }
                         IconButton(onClick = {
                             showSearch = !showSearch
                             if (!showSearch) viewModel.updateSearchQuery("")
@@ -286,6 +332,20 @@ fun AgentListScreen(
                     showCreateDialog = false
                     onNavigateToAgent(agentId)
                 }
+            },
+        )
+    }
+
+    if (showImportDialog) {
+        ImportAgentDialog(
+            isImporting = uiState.isImporting,
+            onDismiss = { showImportDialog = false },
+            onImport = { overrideName, overrideExistingTools, stripMessages ->
+                pendingImportName = overrideName
+                pendingImportOverrideTools = overrideExistingTools
+                pendingImportStripMessages = stripMessages
+                importLauncher.launch(arrayOf("application/json", "text/plain"))
+                showImportDialog = false
             },
         )
     }
@@ -924,4 +984,81 @@ private fun CreateAgentDialog(
             },
         )
     }
+}
+
+@Composable
+private fun ImportAgentDialog(
+    isImporting: Boolean,
+    onDismiss: () -> Unit,
+    onImport: (overrideName: String?, overrideExistingTools: Boolean, stripMessages: Boolean) -> Unit,
+) {
+    var overrideName by remember { mutableStateOf("") }
+    var overrideExistingTools by remember { mutableStateOf(true) }
+    var stripMessages by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.screen_agents_import_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.screen_agents_import_helper),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = overrideName,
+                    onValueChange = { overrideName = it },
+                    label = { Text(stringResource(R.string.screen_agents_import_override_name)) },
+                    placeholder = { Text(stringResource(R.string.screen_agents_import_override_name_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_override_tools_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = overrideExistingTools, onCheckedChange = { overrideExistingTools = it })
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_strip_messages_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = stripMessages, onCheckedChange = { stripMessages = it })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onImport(overrideName.ifBlank { null }, overrideExistingTools, stripMessages)
+                },
+                enabled = !isImporting,
+            ) {
+                Text(stringResource(R.string.action_choose_file))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isImporting) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }

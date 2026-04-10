@@ -107,6 +107,7 @@ open class AgentApi @Inject constructor(
         fileName: String,
         fileBytes: ByteArray,
         overrideName: String? = null,
+        overrideExistingTools: Boolean? = null,
         projectId: String? = null,
         stripMessages: Boolean? = null,
     ): ImportedAgentsResponse {
@@ -121,6 +122,7 @@ open class AgentApi @Inject constructor(
                     append(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 })
                 overrideName?.let { append("override_name", it) }
+                overrideExistingTools?.let { append("override_existing_tools", it.toString()) }
                 projectId?.let { append("project_id", it) }
                 stripMessages?.let { append("strip_messages", it.toString()) }
             }

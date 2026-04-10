@@ -23,6 +23,9 @@
     <string name="action_back">Back</string>
     <string name="action_retry">Retry</string>
     <string name="action_export_agent">Export Agent</string>
+    <string name="action_import_agent">Import Agent</string>
+    <string name="action_clone_agent">Clone Agent</string>
+    <string name="action_choose_file">Choose File</string>
     <string name="action_reset_messages">Reset Messages</string>
     
     <string name="common_loading">Loading...</string>
@@ -202,6 +205,12 @@
     <string name="screen_settings_reset_messages_title">Reset Message History</string>
     <string name="screen_settings_reset_messages_confirm">This clears the agent message history stored by Letta. This action cannot be undone.</string>
     <string name="screen_settings_export_subject">Letta agent export</string>
+    <string name="screen_settings_clone_title">Clone Agent</string>
+    <string name="screen_settings_clone_helper">Create a new agent from this agent’s export, with optional safety guards.</string>
+    <string name="screen_settings_clone_dialog_helper">Cloning uses the current export format and re-imports it through Letta’s import endpoint.</string>
+    <string name="screen_settings_clone_name_label">Clone name</string>
+    <string name="screen_settings_clone_success_single">Cloned agent successfully</string>
+    <string name="screen_settings_clone_success_multiple">Cloned %1$d agents successfully</string>
     <string name="screen_agents_create_embedding_placeholder">e.g. openai/text-embedding-3-small</string>
     <string name="screen_agents_create_model_placeholder">e.g. openai/gpt-4o</string>
     <string name="screen_agents_create_include_base_tools">Include Base Tools</string>
@@ -209,6 +218,18 @@
     <string name="screen_agents_create_selected_tools_count">%1$d selected</string>
     <string name="screen_agents_create_advanced_model_section">Advanced Model Settings</string>
     <string name="screen_agents_create_provider_placeholder">e.g. openai</string>
+    <string name="screen_agents_import_title">Import Agent Export</string>
+    <string name="screen_agents_import_helper">Pick a Letta agent export file. You can optionally rename the imported agent and choose whether to overwrite matching custom tools.</string>
+    <string name="screen_agents_import_override_name">Imported agent name</string>
+    <string name="screen_agents_import_override_name_placeholder">Leave blank to keep the exported name</string>
+    <string name="screen_agents_import_override_tools_title">Override matching custom tools</string>
+    <string name="screen_agents_import_override_tools_helper">If enabled, imported tool definitions can replace matching custom tools on the server.</string>
+    <string name="screen_agents_import_strip_messages_title">Strip messages on import</string>
+    <string name="screen_agents_import_strip_messages_helper">Recommended for clones to avoid copying chat history into the new agent.</string>
+    <string name="screen_agents_import_read_failed">Couldn’t read the selected import file.</string>
+    <string name="screen_agents_import_default_filename">agent-export.json</string>
+    <string name="screen_agents_import_success_single">Imported agent successfully</string>
+    <string name="screen_agents_import_success_multiple">Imported %1$d agents successfully</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="common_error">Error</string>
     <string name="screen_config_list_empty">No saved configurations</string>

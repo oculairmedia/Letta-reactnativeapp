@@ -5,6 +5,7 @@ import com.letta.mobile.data.api.ApiException
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import io.mockk.mockk
 
 class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
@@ -13,6 +14,7 @@ class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
     var failCode = 500
     var failMessage = "Server error"
     val calls = mutableListOf<String>()
+    var exportPayloadByAgentId = mutableMapOf<String, String>()
 
     override suspend fun listAgents(limit: Int?, offset: Int?, tags: List<String>?): List<Agent> {
         calls.add("listAgents")
@@ -48,5 +50,39 @@ class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
         calls.add("deleteAgent:$agentId")
         if (shouldFail) throw ApiException(failCode, failMessage)
         agents.removeAll { it.id == agentId }
+    }
+
+    override suspend fun exportAgent(agentId: String): String {
+        calls.add("exportAgent:$agentId")
+        if (shouldFail) throw ApiException(failCode, failMessage)
+        return exportPayloadByAgentId[agentId]
+            ?: "{\"agents\":[{\"id\":\"$agentId\",\"name\":\"${agents.find { it.id == agentId }?.name ?: "Agent"}\"}]}"
+    }
+
+    override suspend fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String?,
+        overrideExistingTools: Boolean?,
+        projectId: String?,
+        stripMessages: Boolean?,
+    ): ImportedAgentsResponse {
+        calls.add(
+            buildString {
+                append("importAgent:")
+                append(fileName)
+                append(":")
+                append(overrideName ?: "")
+                append(":")
+                append(overrideExistingTools?.toString() ?: "")
+                append(":")
+                append(stripMessages?.toString() ?: "")
+            }
+        )
+        if (shouldFail) throw ApiException(failCode, failMessage)
+        val importedId = "imported-${agents.size}"
+        val importedName = overrideName ?: "Imported Agent"
+        agents.add(TestData.agent(id = importedId, name = importedName))
+        return ImportedAgentsResponse(agentIds = listOf(importedId))
     }
 }

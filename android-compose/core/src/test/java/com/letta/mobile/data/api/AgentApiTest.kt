@@ -20,6 +20,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -166,5 +167,33 @@ class AgentApiTest {
         api.listAgents(limit = 10, offset = 20)
         assertTrue(capturedUrl!!.contains("limit=10"))
         assertTrue(capturedUrl!!.contains("offset=20"))
+    }
+
+    @Test
+    fun `importAgent sends multipart form with safety toggles`() = runTest {
+        var capturedUrl: String? = null
+        var capturedMethod: HttpMethod? = null
+        val client = HttpClient(MockEngine { request ->
+            capturedUrl = request.url.toString()
+            capturedMethod = request.method
+            respond("""{"agent_ids":["a2"]}""", HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
+        }
+        val api = createApi(client)
+
+        val response = api.importAgent(
+            fileName = "agent.json",
+            fileBytes = "{}".toByteArray(),
+            overrideName = "Clone Name",
+            overrideExistingTools = false,
+            stripMessages = true,
+        )
+
+        assertEquals(HttpMethod.Post, capturedMethod)
+        assertTrue(capturedUrl!!.contains("/v1/agents/import"))
+        assertEquals(listOf("a2"), response.agentIds)
     }
 }

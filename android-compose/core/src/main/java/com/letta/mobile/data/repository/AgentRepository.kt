@@ -118,6 +118,7 @@ class AgentRepository @Inject constructor(
         fileName: String,
         fileBytes: ByteArray,
         overrideName: String?,
+        overrideExistingTools: Boolean?,
         projectId: String?,
         stripMessages: Boolean?,
     ): ImportedAgentsResponse {
@@ -125,6 +126,7 @@ class AgentRepository @Inject constructor(
             fileName = fileName,
             fileBytes = fileBytes,
             overrideName = overrideName,
+            overrideExistingTools = overrideExistingTools,
             projectId = projectId,
             stripMessages = stripMessages,
         )

@@ -20,6 +20,7 @@ interface IAgentRepository {
         fileName: String,
         fileBytes: ByteArray,
         overrideName: String? = null,
+        overrideExistingTools: Boolean? = null,
         projectId: String? = null,
         stripMessages: Boolean? = null,
     ): ImportedAgentsResponse

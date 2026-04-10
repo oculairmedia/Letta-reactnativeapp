@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.Block
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
@@ -138,5 +139,40 @@ class AgentSettingsViewModelTest {
 
         assertTrue(successCalled)
         coVerify(exactly = 1) { messageRepository.resetMessages("a1") }
+    }
+
+    @Test
+    fun `cloneAgent exports then imports with override flags`() = runTest {
+        coEvery { agentRepository.exportAgent("a1") } returns "{\"agents\":[{\"id\":\"a1\"}]}"
+        coEvery {
+            agentRepository.importAgent(
+                fileName = "Test Agent.json",
+                fileBytes = any(),
+                overrideName = "Test Agent Copy",
+                overrideExistingTools = false,
+                projectId = null,
+                stripMessages = true,
+            )
+        } returns ImportedAgentsResponse(agentIds = listOf("copy-1"))
+
+        var importedIds: List<String> = emptyList()
+        viewModel.cloneAgent(
+            cloneName = "Test Agent Copy",
+            overrideExistingTools = false,
+            stripMessages = true,
+        ) { importedIds = it.agentIds }
+
+        assertEquals(listOf("copy-1"), importedIds)
+        coVerify(exactly = 1) { agentRepository.exportAgent("a1") }
+        coVerify(exactly = 1) {
+            agentRepository.importAgent(
+                fileName = "Test Agent.json",
+                fileBytes = any(),
+                overrideName = "Test Agent Copy",
+                overrideExistingTools = false,
+                projectId = null,
+                stripMessages = true,
+            )
+        }
     }
 }

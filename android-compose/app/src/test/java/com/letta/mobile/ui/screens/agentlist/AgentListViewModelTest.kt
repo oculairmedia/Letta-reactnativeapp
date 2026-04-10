@@ -3,6 +3,7 @@ package com.letta.mobile.ui.screens.agentlist
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.EmbeddingModel
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.AgentRepository
@@ -106,5 +107,40 @@ class AgentListViewModelTest {
         assertTrue(paramsSlot.captured.includeBaseTools == true)
         assertEquals("a1", createdId)
         coVerify(exactly = 1) { agentRepository.createAgent(any()) }
+    }
+
+    @Test
+    fun `importAgent forwards safety flags and returns imported ids`() = runTest {
+        coEvery {
+            agentRepository.importAgent(
+                fileName = "agent.json",
+                fileBytes = any(),
+                overrideName = "Cloned Agent",
+                overrideExistingTools = false,
+                projectId = null,
+                stripMessages = true,
+            )
+        } returns ImportedAgentsResponse(agentIds = listOf("a2"))
+
+        var importedIds: List<String> = emptyList()
+        viewModel.importAgent(
+            fileName = "agent.json",
+            fileBytes = "{}".toByteArray(),
+            overrideName = "Cloned Agent",
+            overrideExistingTools = false,
+            stripMessages = true,
+        ) { importedIds = it.agentIds }
+
+        assertEquals(listOf("a2"), importedIds)
+        coVerify(exactly = 1) {
+            agentRepository.importAgent(
+                fileName = "agent.json",
+                fileBytes = any(),
+                overrideName = "Cloned Agent",
+                overrideExistingTools = false,
+                projectId = null,
+                stripMessages = true,
+            )
+        }
     }
 }

@@ -6,12 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.EmbeddingModel
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.model.Tool
+import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,7 @@ data class AgentListUiState(
     val embeddingModels: List<EmbeddingModel> = emptyList(),
     val favoriteAgentId: String? = null,
     val searchQuery: String = "",
+    val isImporting: Boolean = false,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val isCreating: Boolean = false,
@@ -180,6 +183,38 @@ class AgentListViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
                     error = com.letta.mobile.util.mapErrorToUserMessage(e, "Failed to create agent"),
+                )
+            }
+        }
+    }
+
+    fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String?,
+        overrideExistingTools: Boolean,
+        stripMessages: Boolean,
+        onSuccess: (ImportedAgentsResponse) -> Unit,
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isImporting = true, error = null)
+            try {
+                val response = agentRepository.importAgent(
+                    fileName = fileName,
+                    fileBytes = fileBytes,
+                    overrideName = overrideName?.takeIf { it.isNotBlank() },
+                    overrideExistingTools = overrideExistingTools,
+                    stripMessages = stripMessages,
+                )
+                _uiState.value = _uiState.value.copy(
+                    isImporting = false,
+                    agents = agentRepository.agents.value,
+                )
+                onSuccess(response)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isImporting = false,
+                    error = mapErrorToUserMessage(e, "Failed to import agent"),
                 )
             }
         }

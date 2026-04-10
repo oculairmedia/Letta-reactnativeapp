@@ -62,6 +62,20 @@ fun AgentSettingsScreen(
                     )
                 }
             },
+            onClone = { cloneName, overrideExistingTools, stripMessages ->
+                viewModel.cloneAgent(
+                    cloneName = cloneName,
+                    overrideExistingTools = overrideExistingTools,
+                    stripMessages = stripMessages,
+                ) { response ->
+                    snackbar.dispatch(
+                        context.getString(
+                            if (response.agentIds.size == 1) R.string.screen_settings_clone_success_single else R.string.screen_settings_clone_success_multiple,
+                            response.agentIds.size,
+                        )
+                    )
+                }
+            },
             onResetMessages = {
                 viewModel.resetMessages {
                     snackbar.dispatch(context.getString(R.string.screen_settings_messages_reset))
@@ -85,12 +99,14 @@ private fun SettingsContent(
     onSystemPromptChange: (String) -> Unit,
     onSave: () -> Unit,
     onExport: () -> Unit,
+    onClone: (cloneName: String?, overrideExistingTools: Boolean, stripMessages: Boolean) -> Unit,
     onResetMessages: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
+    var showCloneDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -281,6 +297,14 @@ private fun SettingsContent(
                 leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
             )
             item(
+                onClick = { showCloneDialog = true },
+                headlineContent = { Text(stringResource(R.string.action_clone_agent)) },
+                supportingContent = {
+                    Text(stringResource(R.string.screen_settings_clone_helper))
+                },
+                leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+            )
+            item(
                 onClick = { showResetDialog = true },
                 headlineContent = {
                     Text(
@@ -336,6 +360,18 @@ private fun SettingsContent(
         onDismiss = { showDeleteDialog = false },
         destructive = true,
     )
+
+    if (showCloneDialog) {
+        CloneAgentDialog(
+            initialName = state.agent?.name.orEmpty(),
+            isCloning = state.isCloning,
+            onDismiss = { showCloneDialog = false },
+            onClone = { cloneName, overrideExistingTools, stripMessages ->
+                showCloneDialog = false
+                onClone(cloneName, overrideExistingTools, stripMessages)
+            },
+        )
+    }
 }
 
 @Composable
@@ -421,4 +457,81 @@ private fun shareAgentExport(context: Context, exportData: String): Boolean {
     } catch (_: ActivityNotFoundException) {
         return false
     }
+}
+
+@Composable
+private fun CloneAgentDialog(
+    initialName: String,
+    isCloning: Boolean,
+    onDismiss: () -> Unit,
+    onClone: (cloneName: String?, overrideExistingTools: Boolean, stripMessages: Boolean) -> Unit,
+) {
+    var cloneName by remember(initialName) { mutableStateOf(if (initialName.isBlank()) "" else "$initialName Copy") }
+    var overrideExistingTools by remember { mutableStateOf(true) }
+    var stripMessages by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.screen_settings_clone_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.screen_settings_clone_dialog_helper),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = cloneName,
+                    onValueChange = { cloneName = it },
+                    label = { Text(stringResource(R.string.screen_settings_clone_name_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_override_tools_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = overrideExistingTools, onCheckedChange = { overrideExistingTools = it })
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_strip_messages_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = stripMessages, onCheckedChange = { stripMessages = it })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onClone(cloneName.ifBlank { null }, overrideExistingTools, stripMessages)
+                },
+                enabled = !isCloning,
+            ) {
+                Text(stringResource(R.string.action_clone_agent))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isCloning) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
