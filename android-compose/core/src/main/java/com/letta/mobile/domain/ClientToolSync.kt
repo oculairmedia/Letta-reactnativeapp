@@ -2,8 +2,6 @@ package com.letta.mobile.domain
 
 import com.letta.mobile.data.api.ToolApi
 import com.letta.mobile.data.model.ToolCreateParams
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,7 +12,6 @@ class ClientToolSync @Inject constructor(
 ) {
     suspend fun syncTools(agentId: String) {
         val deviceInfoTool = ToolCreateParams(
-            name = "get_device_info",
             sourceCode = """
                 def get_device_info():
                     '''Get information about the mobile device.
@@ -28,8 +25,8 @@ class ClientToolSync @Inject constructor(
             tags = listOf("client", "device", "mobile")
         )
 
-        toolApi.upsertTool(deviceInfoTool)
-        
-        toolApi.attachTool(agentId, deviceInfoTool.name)
+        val syncedTool = toolApi.upsertTool(deviceInfoTool)
+
+        toolApi.attachTool(agentId, syncedTool.id)
     }
 }
