@@ -20,16 +20,24 @@ data class Tool(
 
 @Serializable
 data class ToolCreateParams(
-    val name: String,
     @SerialName("source_code") val sourceCode: String,
+    @SerialName("source_type") val sourceType: String = "python",
+    @SerialName("json_schema") val jsonSchema: JsonObject? = null,
     val description: String? = null,
     val tags: List<String>? = null,
 )
 
 @Serializable
 data class ToolUpdateParams(
-    val name: String? = null,
     @SerialName("source_code") val sourceCode: String? = null,
+    @SerialName("source_type") val sourceType: String? = null,
+    @SerialName("json_schema") val jsonSchema: JsonObject? = null,
     val description: String? = null,
     val tags: List<String>? = null,
+)
+
+@Serializable
+data class ToolSchemaGenerateParams(
+    val code: String,
+    @SerialName("source_type") val sourceType: String = "python",
 )

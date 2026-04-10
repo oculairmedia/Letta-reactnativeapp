@@ -95,6 +95,20 @@ open class ToolApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun generateJsonSchema(params: ToolSchemaGenerateParams): kotlinx.serialization.json.JsonObject {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.post("$baseUrl/v1/tools/generate-schema") {
+            contentType(ContentType.Application.Json)
+            setBody(params)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
     open suspend fun deleteTool(toolId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
