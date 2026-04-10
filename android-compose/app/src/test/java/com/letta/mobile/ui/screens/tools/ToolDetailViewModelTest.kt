@@ -3,6 +3,7 @@ package com.letta.mobile.ui.screens.tools
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ToolRepository
@@ -13,6 +14,8 @@ import io.mockk.mockk
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -48,11 +51,9 @@ class ToolDetailViewModelTest {
         fakeToolApi.tools.add(tool.copy(toolType = "custom", sourceCode = "def my_tool():\n    return 'ok'"))
         val savedState = SavedStateHandle(mapOf("toolId" to "t1"))
         val viewModel = ToolDetailViewModel(savedState, fakeToolApi, toolRepository, agentRepository)
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals("my_tool", state.data.name)
-            assertEquals("Does things", state.data.description)
-        }
+        val state = awaitToolSuccess(viewModel)
+        assertEquals("my_tool", state.name)
+        assertEquals("Does things", state.description)
     }
 
     @Test
@@ -60,14 +61,14 @@ class ToolDetailViewModelTest {
         fakeToolApi.shouldFail = true
         val savedState = SavedStateHandle(mapOf("toolId" to "t1"))
         val viewModel = ToolDetailViewModel(savedState, fakeToolApi, toolRepository, agentRepository)
-        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
+        assertTrue(viewModel.uiState.first { it is UiState.Error } is UiState.Error)
     }
 
     @Test
     fun `loadTool sets Error for missing tool`() = runTest {
         val savedState = SavedStateHandle(mapOf("toolId" to "nonexistent"))
         val viewModel = ToolDetailViewModel(savedState, fakeToolApi, toolRepository, agentRepository)
-        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
+        assertTrue(viewModel.uiState.first { it is UiState.Error } is UiState.Error)
     }
 
     @Test
@@ -80,6 +81,7 @@ class ToolDetailViewModelTest {
         )
         val savedState = SavedStateHandle(mapOf("toolId" to "t1"))
         val viewModel = ToolDetailViewModel(savedState, fakeToolApi, toolRepository, agentRepository)
+        awaitToolSuccess(viewModel)
 
         viewModel.updateTool(
             description = "Updated",
@@ -87,12 +89,9 @@ class ToolDetailViewModelTest {
             tags = listOf("admin")
         )
 
-        viewModel.uiState.test {
-            awaitItem()
-            val state = awaitItem() as UiState.Success
-            assertEquals("my_tool_v2", state.data.name)
-            assertEquals("Updated", state.data.description)
-        }
+        val state = awaitToolSuccess(viewModel)
+        assertEquals("my_tool_v2", state.name)
+        assertEquals("Updated", state.description)
         assertTrue(fakeToolApi.calls.contains("generateJsonSchema:python"))
     }
 
@@ -106,10 +105,7 @@ class ToolDetailViewModelTest {
 
         viewModel.deleteTool()
 
-        viewModel.deleteState.test {
-            awaitItem()
-            assertTrue(awaitItem() is UiState.Success)
-        }
+        assertTrue(awaitDeleteState(viewModel) is UiState.Success)
     }
 
     @Test
@@ -120,10 +116,7 @@ class ToolDetailViewModelTest {
 
         viewModel.deleteTool()
 
-        viewModel.deleteState.test {
-            awaitItem()
-            assertTrue(awaitItem() is UiState.Error)
-        }
+        assertTrue(awaitDeleteState(viewModel) is UiState.Error)
     }
 
     @Test
@@ -177,5 +170,13 @@ class ToolDetailViewModelTest {
         override suspend fun createAgent(params: com.letta.mobile.data.model.AgentCreateParams) = agentsFlow.value.first()
         override suspend fun updateAgent(id: String, params: com.letta.mobile.data.model.AgentUpdateParams) = agentsFlow.value.first { it.id == id }
         override suspend fun deleteAgent(id: String) {}
+    }
+
+    private suspend fun awaitToolSuccess(viewModel: ToolDetailViewModel): Tool {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
+    }
+
+    private suspend fun awaitDeleteState(viewModel: ToolDetailViewModel): UiState<Unit> {
+        return viewModel.deleteState.filterNotNull().first { it !is UiState.Loading }
     }
 }

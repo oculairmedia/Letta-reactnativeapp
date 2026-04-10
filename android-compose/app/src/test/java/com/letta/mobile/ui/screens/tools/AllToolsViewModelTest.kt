@@ -4,11 +4,11 @@ import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.McpServerRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.testutil.FakeToolApi
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -31,6 +31,7 @@ class AllToolsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeToolRepository()
         mockMcpServerRepository = mockk(relaxed = true)
+        coEvery { mockMcpServerRepository.fetchAllMcpTools() } returns emptyList()
         viewModel = AllToolsViewModel(fakeRepository, mockMcpServerRepository)
     }
 
@@ -48,6 +49,7 @@ class AllToolsViewModelTest {
             )
         )
         viewModel.loadTools()
+        awaitSuccessState()
 
         viewModel.updateSearchQuery("forecast")
 
@@ -65,21 +67,25 @@ class AllToolsViewModelTest {
             )
         )
         viewModel.loadTools()
+        awaitSuccessState()
 
         val filtered = viewModel.getFilteredTools()
         assertEquals(2, filtered.size)
     }
 
     private class FakeToolRepository : ToolRepository(FakeToolApi()) {
-        private val toolsFlow = MutableStateFlow<List<Tool>>(emptyList())
+        private var tools: List<Tool> = emptyList()
 
         fun setTools(tools: List<Tool>) {
-            toolsFlow.value = tools
+            this.tools = tools
         }
 
-        override fun getTools(): Flow<List<Tool>> = toolsFlow
+        override suspend fun fetchToolsPage(limit: Int, offset: Int): List<Tool> =
+            tools.drop(offset).take(limit)
+    }
 
-        override suspend fun refreshTools() {
-        }
+    private suspend fun awaitSuccessState(): AllToolsUiState {
+        return viewModel.uiState.first { it is com.letta.mobile.ui.common.UiState.Success }
+            .let { (it as com.letta.mobile.ui.common.UiState.Success).data }
     }
 }

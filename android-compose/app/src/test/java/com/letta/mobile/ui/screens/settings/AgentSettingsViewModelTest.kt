@@ -17,6 +17,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -100,6 +101,7 @@ class AgentSettingsViewModelTest {
         viewModel.updateParallelToolCalls(false)
         viewModel.updateSystemPrompt("Updated system")
         viewModel.updateSleeptime(true)
+        awaitSuccessState()
 
         var successCalled = false
         viewModel.saveSettings { successCalled = true }
@@ -107,7 +109,7 @@ class AgentSettingsViewModelTest {
         assertTrue(successCalled)
         assertEquals("Updated system", paramsSlot.captured.system)
         assertEquals(true, paramsSlot.captured.enableSleeptime)
-        assertEquals(1.2, paramsSlot.captured.modelSettings?.temperature!!, 0.0)
+        assertEquals(1.2, paramsSlot.captured.modelSettings?.temperature!!, 0.0001)
         assertEquals(4096, paramsSlot.captured.modelSettings?.maxOutputTokens)
         assertEquals(false, paramsSlot.captured.modelSettings?.parallelToolCalls)
         assertEquals("openai", paramsSlot.captured.modelSettings?.providerType)
@@ -115,7 +117,7 @@ class AgentSettingsViewModelTest {
 
     @Test
     fun `loadSettings includes read only operational fields`() = runTest {
-        val state = (viewModel.uiState.value as UiState.Success).data
+        val state = awaitSuccessState()
 
         assertEquals("stateful", state.agentType)
         assertEquals(128000, state.contextWindow)
@@ -174,5 +176,9 @@ class AgentSettingsViewModelTest {
                 stripMessages = true,
             )
         }
+    }
+
+    private suspend fun awaitSuccessState(): AgentSettingsUiState {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
     }
 }

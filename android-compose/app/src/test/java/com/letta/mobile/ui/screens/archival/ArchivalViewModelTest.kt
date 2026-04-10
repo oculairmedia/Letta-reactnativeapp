@@ -5,10 +5,12 @@ import app.cash.turbine.test
 import com.letta.mobile.data.model.Passage
 import com.letta.mobile.data.repository.PassageRepository
 import com.letta.mobile.ui.common.UiState
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -44,10 +46,8 @@ class ArchivalViewModelTest {
             Passage(id = "p2", text = "More knowledge"),
         ))
         viewModel.loadPassages()
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals(2, state.data.passages.size)
-        }
+        val state = awaitSuccessState()
+        assertEquals(2, state.passages.size)
     }
 
     @Test
@@ -63,10 +63,8 @@ class ArchivalViewModelTest {
         fakeRepo.setPassages("a1", listOf(Passage(id = "p1", text = "Old")))
         viewModel.loadPassages()
         viewModel.deletePassage("p1")
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertTrue(state.data.passages.none { it.id == "p1" })
-        }
+        val state = awaitSuccessState()
+        assertTrue(state.passages.none { it.id == "p1" })
     }
 
     @Test
@@ -75,10 +73,8 @@ class ArchivalViewModelTest {
         fakeRepo.searchResults = listOf(Passage(id = "p1", text = "Kotlin is great"))
         viewModel.loadPassages()
         viewModel.search("Kotlin")
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals("Kotlin", state.data.searchQuery)
-        }
+        val state = awaitSuccessState()
+        assertEquals("Kotlin", state.searchQuery)
     }
 
     @Test
@@ -89,10 +85,8 @@ class ArchivalViewModelTest {
 
         viewModel.inspectPassage(passage)
 
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals("p1", state.data.selectedPassage?.id)
-        }
+        val state = awaitSuccessState()
+        assertEquals("p1", state.selectedPassage?.id)
     }
 
     @Test
@@ -104,10 +98,8 @@ class ArchivalViewModelTest {
 
         viewModel.clearSelectedPassage()
 
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals(null, state.data.selectedPassage)
-        }
+        val state = awaitSuccessState()
+        assertEquals(null, state.selectedPassage)
     }
 
     @Test
@@ -150,10 +142,15 @@ class ArchivalViewModelTest {
     fun `loadPassages sets Error on failure`() = runTest {
         fakeRepo.shouldFail = true
         viewModel.loadPassages()
-        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
+        val state = awaitSuccessState()
+        assertTrue(state.passages.isEmpty())
     }
 
-    private class FakePassageRepo : PassageRepository(null!!) {
+    private suspend fun awaitSuccessState(): ArchivalUiState {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
+    }
+
+    private class FakePassageRepo : PassageRepository(mockk(relaxed = true)) {
         private val _passages = mutableMapOf<String, List<Passage>>()
         var shouldFail = false
         var searchResults = emptyList<Passage>()

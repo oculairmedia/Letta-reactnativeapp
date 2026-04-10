@@ -5,11 +5,13 @@ import com.letta.mobile.data.model.EmbeddingModel
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.ui.common.UiState
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -44,10 +46,8 @@ class ModelBrowserViewModelTest {
             LlmModel(id = "m2", name = "Claude", providerType = "anthropic", contextWindow = 200000),
         ))
         viewModel.loadModels()
-        viewModel.uiState.test {
-            val state = awaitItem() as UiState.Success
-            assertEquals(2, state.data.models.size)
-        }
+        val state = awaitSuccessState()
+        assertEquals(2, state.models.size)
     }
 
     @Test
@@ -58,6 +58,7 @@ class ModelBrowserViewModelTest {
             LlmModel(id = "3", name = "C", providerType = "openai"),
         ))
         viewModel.loadModels()
+        awaitSuccessState()
         val providers = viewModel.getProviders()
         assertEquals(listOf("anthropic", "openai"), providers)
     }
@@ -69,6 +70,7 @@ class ModelBrowserViewModelTest {
             LlmModel(id = "2", name = "Claude", providerType = "anthropic"),
         ))
         viewModel.loadModels()
+        awaitSuccessState()
         viewModel.updateSearchQuery("GPT")
         val filtered = viewModel.getFilteredModels()
         assertEquals(1, filtered.size)
@@ -82,6 +84,7 @@ class ModelBrowserViewModelTest {
             LlmModel(id = "2", name = "Claude", providerType = "anthropic"),
         ))
         viewModel.loadModels()
+        awaitSuccessState()
         viewModel.selectProvider("anthropic")
         val filtered = viewModel.getFilteredModels()
         assertEquals(1, filtered.size)
@@ -92,10 +95,16 @@ class ModelBrowserViewModelTest {
     fun `loadModels sets Error on failure`() = runTest {
         fakeRepo.shouldFail = true
         viewModel.loadModels()
-        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is UiState.Error)
+        }
     }
 
-    private class FakeModelRepo : ModelRepository(null!!) {
+    private suspend fun awaitSuccessState(): ModelBrowserUiState {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
+    }
+
+    private class FakeModelRepo : ModelRepository(mockk(relaxed = true)) {
         private val _llm = MutableStateFlow<List<LlmModel>>(emptyList())
         private val _emb = MutableStateFlow<List<EmbeddingModel>>(emptyList())
         override val llmModels: StateFlow<List<LlmModel>> = _llm.asStateFlow()

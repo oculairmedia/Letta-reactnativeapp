@@ -60,7 +60,7 @@ class RunMonitorViewModel @Inject constructor(
             val selectedRun = current?.selectedRun
             _uiState.value = UiState.Loading
             try {
-                runRepository.refreshRuns(RunListParams(active = activeOnly))
+                runRepository.refreshRuns(RunListParams(active = activeOnly.takeIf { it }))
                 _uiState.value = UiState.Success(
                     RunMonitorUiState(
                         runs = runRepository.runs.value,

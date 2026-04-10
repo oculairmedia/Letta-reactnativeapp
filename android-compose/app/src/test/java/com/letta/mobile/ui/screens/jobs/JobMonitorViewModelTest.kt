@@ -3,8 +3,10 @@ package com.letta.mobile.ui.screens.jobs
 import com.letta.mobile.data.model.Job
 import com.letta.mobile.data.repository.JobRepository
 import com.letta.mobile.testutil.FakeJobApi
+import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -46,18 +48,18 @@ class JobMonitorViewModelTest {
     fun `loadJobs populates state`() = runTest {
         viewModel.loadJobs()
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(2, state.data.jobs.size)
+        val state = awaitSuccessState()
+        assertEquals(2, state.jobs.size)
     }
 
     @Test
     fun `toggleActiveOnly filters jobs through repository`() = runTest {
         viewModel.toggleActiveOnly(true)
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertTrue(state.data.activeOnly)
-        assertEquals(1, state.data.jobs.size)
-        assertEquals("running", state.data.jobs.first().status)
+        val state = awaitSuccessState()
+        assertTrue(state.activeOnly)
+        assertEquals(1, state.jobs.size)
+        assertEquals("running", state.jobs.first().status)
     }
 
     @Test
@@ -72,49 +74,58 @@ class JobMonitorViewModelTest {
 
     @Test
     fun `inspectJob loads detailed job`() = runTest {
+        awaitSuccessState()
         viewModel.inspectJob("job-1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("job-1", state.data.selectedJob?.id)
+        val state = awaitSuccessState()
+        assertEquals("job-1", state.selectedJob?.id)
     }
 
     @Test
     fun `cancelJob updates selected job state`() = runTest {
+        awaitSuccessState()
         viewModel.inspectJob("job-1")
 
         viewModel.cancelJob("job-1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("cancelled", state.data.selectedJob?.status)
+        val state = awaitSuccessState()
+        assertEquals("cancelled", state.selectedJob?.status)
     }
 
     @Test
     fun `loadJobs includes terminal jobs when active filter is off`() = runTest {
         viewModel.loadJobs()
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(listOf("job-1", "job-2"), state.data.jobs.map { it.id })
+        val state = awaitSuccessState()
+        assertEquals(listOf("job-1", "job-2"), state.jobs.map { it.id })
     }
 
     @Test
     fun `cancelJob removes cancelled job from active-only list`() = runTest {
         viewModel.toggleActiveOnly(true)
+        awaitSuccessState()
         viewModel.inspectJob("job-1")
+        awaitSuccessState()
 
         viewModel.cancelJob("job-1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertTrue(state.data.jobs.isEmpty())
-        assertEquals(null, state.data.selectedJob)
+        val state = awaitSuccessState()
+        assertTrue(state.jobs.isEmpty())
+        assertEquals(null, state.selectedJob)
     }
 
     @Test
     fun `deleteJob removes job from list`() = runTest {
+        awaitSuccessState()
         viewModel.deleteJob("job-1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(1, state.data.jobs.size)
-        assertEquals("job-2", state.data.jobs.first().id)
+        val state = awaitSuccessState()
+        assertEquals(1, state.jobs.size)
+        assertEquals("job-2", state.jobs.first().id)
+    }
+
+    private suspend fun awaitSuccessState(): JobMonitorUiState {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
     }
 }
 

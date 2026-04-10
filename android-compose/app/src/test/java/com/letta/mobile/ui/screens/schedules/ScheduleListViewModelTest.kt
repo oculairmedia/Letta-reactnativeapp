@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -54,22 +55,24 @@ class ScheduleListViewModelTest {
     fun `loadData selects first agent and loads schedules`() = runTest {
         viewModel.loadData()
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("a1", state.data.selectedAgentId)
-        assertEquals(1, state.data.schedules.size)
+        val state = awaitSuccessState()
+        assertEquals("a1", state.selectedAgentId)
+        assertEquals(1, state.schedules.size)
     }
 
     @Test
     fun `selectAgent loads that agents schedules`() = runTest {
+        awaitSuccessState()
         viewModel.selectAgent("a2")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("a2", state.data.selectedAgentId)
-        assertEquals("s2", state.data.schedules.first().id)
+        val state = awaitSuccessState()
+        assertEquals("a2", state.selectedAgentId)
+        assertEquals("s2", state.schedules.first().id)
     }
 
     @Test
     fun `createSchedule delegates to repository`() = runTest {
+        awaitSuccessState()
         viewModel.createSchedule(
             "a2",
             ScheduleCreateParams(
@@ -79,11 +82,14 @@ class ScheduleListViewModelTest {
         )
 
         assertEquals(1, fakeScheduleRepo.createdSchedules.size)
-        assertEquals("created-1", (viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success).data.schedules.first().id)
+        val state = awaitSuccessState()
+        assertEquals("a2", state.selectedAgentId)
+        assertEquals(true, state.schedules.any { it.id == "created-1" })
     }
 
     @Test
     fun `deleteSchedule delegates to repository`() = runTest {
+        awaitSuccessState()
         viewModel.deleteSchedule("s1")
 
         assertEquals(listOf("s1"), fakeScheduleRepo.deletedScheduleIds)
@@ -95,21 +101,27 @@ class ScheduleListViewModelTest {
 
         viewModel.loadData()
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(false, state.data.scheduleAdminAvailable)
-        assertEquals("Schedule admin isn't available on this Letta server.", state.data.scheduleAdminMessage)
-        assertEquals(0, state.data.schedules.size)
+        val state = awaitSuccessState()
+        assertEquals(false, state.scheduleAdminAvailable)
+        assertEquals("Schedule admin isn't available on this Letta server.", state.scheduleAdminMessage)
+        assertEquals(0, state.schedules.size)
     }
 
     @Test
     fun `selectAgent shows unavailable state when schedule routes are missing`() = runTest {
+        awaitSuccessState()
         fakeScheduleRepo.error = ApiException(404, "Not found")
 
         viewModel.selectAgent("a2")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("a2", state.data.selectedAgentId)
-        assertEquals(false, state.data.scheduleAdminAvailable)
+        val state = awaitSuccessState()
+        assertEquals("a2", state.selectedAgentId)
+        assertEquals(false, state.scheduleAdminAvailable)
+    }
+
+    private suspend fun awaitSuccessState(): ScheduleListUiState {
+        return viewModel.uiState.first { it is com.letta.mobile.ui.common.UiState.Success }
+            .let { (it as com.letta.mobile.ui.common.UiState.Success).data }
     }
 
     private class FakeAgentRepo : AgentRepository(FakeAgentApi(), mockk(relaxed = true)) {

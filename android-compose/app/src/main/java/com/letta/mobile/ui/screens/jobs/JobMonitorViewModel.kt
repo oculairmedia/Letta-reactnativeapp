@@ -101,10 +101,11 @@ class JobMonitorViewModel @Inject constructor(
                 jobRepository.cancelJob(jobId)
                 jobRepository.refreshJobs(JobListParams(active = current.activeOnly.takeIf { it }, order = "desc"))
                 val refreshedJobs = jobRepository.jobs.value
-                val refreshedSelectedJob = current.selectedJob?.takeIf { it.id == jobId }?.let { previous ->
-                    refreshedJobs.firstOrNull { it.id == previous.id }
-                } ?: current.selectedJob?.let { previous ->
-                    refreshedJobs.firstOrNull { it.id == previous.id } ?: previous
+                val refreshedSelectedJob = when {
+                    current.selectedJob?.id == jobId -> refreshedJobs.firstOrNull { it.id == jobId }
+                    else -> current.selectedJob?.let { previous ->
+                        refreshedJobs.firstOrNull { it.id == previous.id } ?: previous
+                    }
                 }
                 _uiState.value = UiState.Success(
                     current.copy(

@@ -6,8 +6,10 @@ import com.letta.mobile.data.repository.RunRepository
 import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.testutil.FakeRunApi
 import com.letta.mobile.testutil.FakeStepApi
+import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -53,18 +55,18 @@ class RunMonitorViewModelTest {
     fun `loadRuns populates state`() = runTest {
         viewModel.loadRuns()
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(2, state.data.runs.size)
+        val state = awaitSuccessState()
+        assertEquals(2, state.runs.size)
     }
 
     @Test
     fun `toggleActiveOnly filters runs through repository`() = runTest {
         viewModel.toggleActiveOnly(true)
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertTrue(state.data.activeOnly)
-        assertEquals(1, state.data.runs.size)
-        assertEquals("running", state.data.runs.first().status)
+        val state = awaitSuccessState()
+        assertTrue(state.activeOnly)
+        assertEquals(1, state.runs.size)
+        assertEquals("running", state.runs.first().status)
     }
 
     @Test
@@ -79,73 +81,88 @@ class RunMonitorViewModelTest {
 
     @Test
     fun `inspectRun loads detailed run`() = runTest {
+        awaitSuccessState()
         viewModel.inspectRun("r1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("r1", state.data.selectedRun?.id)
-        assertEquals(1, state.data.selectedRunMessages.size)
-        assertEquals(1, state.data.selectedRunSteps.size)
-        assertEquals(30, state.data.selectedRunUsage?.totalTokens)
-        assertEquals("r1", state.data.selectedRunMetrics?.id)
-        assertEquals("org-1", state.data.selectedRunMetrics?.organizationId)
-        assertEquals("provider-1", state.data.selectedRunSteps.first().providerId)
-        assertEquals("positive", state.data.selectedRunSteps.first().feedback)
+        val state = awaitSuccessState()
+        assertEquals("r1", state.selectedRun?.id)
+        assertEquals(1, state.selectedRunMessages.size)
+        assertEquals(1, state.selectedRunSteps.size)
+        assertEquals(30, state.selectedRunUsage?.totalTokens)
+        assertEquals("r1", state.selectedRunMetrics?.id)
+        assertEquals("org-1", state.selectedRunMetrics?.organizationId)
+        assertEquals("provider-1", state.selectedRunSteps.first().providerId)
+        assertEquals("positive", state.selectedRunSteps.first().feedback)
     }
 
     @Test
     fun `inspectStep loads metrics trace and messages`() = runTest {
+        awaitSuccessState()
         viewModel.inspectRun("r1")
+        awaitSuccessState()
 
         viewModel.inspectStep("step-1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("step-1", state.data.selectedStep?.id)
-        assertEquals(1, state.data.selectedStepMessages.size)
-        assertEquals(500L, state.data.selectedStepMetrics?.stepNs)
-        assertEquals("step-1", state.data.selectedStepTrace?.stepId)
+        val state = awaitSuccessState()
+        assertEquals("step-1", state.selectedStep?.id)
+        assertEquals(1, state.selectedStepMessages.size)
+        assertEquals(500L, state.selectedStepMetrics?.stepNs)
+        assertEquals("step-1", state.selectedStepTrace?.stepId)
     }
 
     @Test
     fun `updateStepFeedback refreshes selected step`() = runTest {
+        awaitSuccessState()
         viewModel.inspectRun("r1")
+        awaitSuccessState()
         viewModel.inspectStep("step-1")
+        awaitSuccessState()
 
         viewModel.updateStepFeedback("step-1", "negative")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("negative", state.data.selectedStep?.feedback)
-        assertEquals("negative", state.data.selectedRunSteps.first().feedback)
+        val state = awaitSuccessState()
+        assertEquals("negative", state.selectedStep?.feedback)
+        assertEquals("negative", state.selectedRunSteps.first().feedback)
     }
 
     @Test
     fun `cancelRun updates selected run state`() = runTest {
+        awaitSuccessState()
         viewModel.inspectRun("r1")
+        awaitSuccessState()
 
         viewModel.cancelRun("r1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals("cancelled", state.data.selectedRun?.status)
+        val state = awaitSuccessState()
+        assertEquals("cancelled", state.selectedRun?.status)
     }
 
     @Test
     fun `cancelRun removes cancelled run from active-only list`() = runTest {
         viewModel.toggleActiveOnly(true)
+        awaitSuccessState()
         viewModel.inspectRun("r1")
+        awaitSuccessState()
 
         viewModel.cancelRun("r1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertTrue(state.data.runs.isEmpty())
-        assertEquals(null, state.data.selectedRun)
+        val state = awaitSuccessState()
+        assertTrue(state.runs.isEmpty())
+        assertEquals(null, state.selectedRun)
     }
 
     @Test
     fun `deleteRun removes run from list`() = runTest {
+        awaitSuccessState()
         viewModel.deleteRun("r1")
 
-        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
-        assertEquals(1, state.data.runs.size)
-        assertEquals("r2", state.data.runs.first().id)
+        val state = awaitSuccessState()
+        assertEquals(1, state.runs.size)
+        assertEquals("r2", state.runs.first().id)
+    }
+
+    private suspend fun awaitSuccessState(): RunMonitorUiState {
+        return viewModel.uiState.first { it is UiState.Success }.let { (it as UiState.Success).data }
     }
 }
 
