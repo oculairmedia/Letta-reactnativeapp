@@ -75,6 +75,7 @@ class EditAgentViewModel @Inject constructor(
 
     @Volatile private var originalBlocks: Map<String, EditableBlock> = emptyMap()
     @Volatile private var originalEmbedding: String = ""
+    @Volatile private var originalProviderType: String = ""
 
     init {
         loadAgent()
@@ -116,6 +117,11 @@ class EditAgentViewModel @Inject constructor(
                     ?: agent.embeddingConfig?.embeddingModel
                     ?: ""
                 originalEmbedding = resolvedEmbedding
+                val resolvedProviderType = agent.modelSettings?.providerType
+                    ?: agent.llmConfig?.modelEndpointType
+                    ?: agent.llmConfig?.providerName
+                    ?: ""
+                originalProviderType = resolvedProviderType
                 _uiState.value = UiState.Success(
                     EditAgentUiState(
                         agent = agent,
@@ -129,7 +135,7 @@ class EditAgentViewModel @Inject constructor(
                         tags = agent.tags,
                         attachedTools = agent.tools,
                         availableTools = availableTools,
-                        providerType = agent.modelSettings?.providerType ?: agent.llmConfig?.modelEndpointType ?: "",
+                        providerType = resolvedProviderType,
                         temperature = agent.modelSettings?.temperature?.toFloat() ?: agent.llmConfig?.temperature?.toFloat() ?: 1.0f,
                         maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: agent.llmConfig?.maxTokens ?: 4096,
                         parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: agent.llmConfig?.parallelToolCalls ?: true,
@@ -325,6 +331,7 @@ class EditAgentViewModel @Inject constructor(
             try {
                 val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 val embeddingChanged = state.embedding != originalEmbedding
+                val providerTypeChanged = state.providerType != originalProviderType
                 agentRepository.updateAgent(
                     agentId,
                     AgentUpdateParams(
@@ -336,7 +343,7 @@ class EditAgentViewModel @Inject constructor(
                         tags = state.tags,
                         enableSleeptime = state.enableSleeptime,
                         modelSettings = com.letta.mobile.data.model.ModelSettings(
-                            providerType = state.providerType.ifBlank { null },
+                            providerType = if (providerTypeChanged) state.providerType.ifBlank { null } else null,
                             temperature = state.temperature.toDouble(),
                             maxOutputTokens = state.maxOutputTokens,
                             parallelToolCalls = state.parallelToolCalls,
