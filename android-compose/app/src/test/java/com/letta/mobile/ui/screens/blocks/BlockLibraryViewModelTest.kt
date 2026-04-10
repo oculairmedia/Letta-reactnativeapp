@@ -293,9 +293,8 @@ class BlockLibraryViewModelTest {
             deletedBlockIds.add(blockId)
             allBlocks = allBlocks.filterNot { it.id == blockId }
         }
-        override suspend fun attachBlock(agentId: String, blockId: String): Block {
+        override suspend fun attachBlock(agentId: String, blockId: String) {
             attachedPairs.add(agentId to blockId)
-            return Block(id = blockId, label = "stub", value = "")
         }
         override suspend fun detachBlock(agentId: String, blockId: String) {
             detachedPairs.add(agentId to blockId)

@@ -296,9 +296,8 @@ class EditAgentViewModelTest {
             )
         }
 
-        override suspend fun attachBlock(agentId: String, blockId: String): Block {
+        override suspend fun attachBlock(agentId: String, blockId: String) {
             attachedExistingBlockIds.add(blockId)
-            return TestData.block(id = blockId, label = "attached", value = "value")
         }
 
         override suspend fun detachBlock(agentId: String, blockId: String) {
