@@ -4,8 +4,13 @@ import com.letta.mobile.data.api.ApiException
 import com.letta.mobile.data.api.ToolApi
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.ToolCreateParams
+import com.letta.mobile.data.model.ToolSchemaGenerateParams
 import com.letta.mobile.data.model.ToolUpdateParams
 import io.mockk.mockk
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class FakeToolApi : ToolApi(mockk(relaxed = true)) {
     var tools = mutableListOf<Tool>()
@@ -57,10 +62,13 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
         val index = tools.indexOfFirst { it.id == toolId }
         if (index == -1) throw ApiException(404, "Not found")
         val current = tools[index]
+        val updatedName = params.jsonSchema?.schemaName() ?: current.name
         val updated = current.copy(
-            name = params.name ?: current.name,
+            name = updatedName,
             description = params.description ?: current.description,
             sourceCode = params.sourceCode ?: current.sourceCode,
+            sourceType = params.sourceType ?: current.sourceType,
+            jsonSchema = params.jsonSchema ?: current.jsonSchema,
             tags = params.tags ?: current.tags,
         )
         tools[index] = updated
@@ -76,17 +84,19 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
     }
 
     override suspend fun upsertTool(params: ToolCreateParams): Tool {
-        calls.add("upsertTool:${params.name}")
+        val toolName = params.jsonSchema?.schemaName() ?: deriveToolName(params.sourceCode)
+        calls.add("upsertTool:$toolName")
         if (shouldFail) throw ApiException(500, "Server error")
-        val existingIndex = tools.indexOfFirst { it.name == params.name }
+        val existingIndex = tools.indexOfFirst { it.name == toolName }
         val tool = Tool(
             id = if (existingIndex >= 0) tools[existingIndex].id else "new-${tools.size}",
-            name = params.name,
+            name = toolName,
             description = params.description,
             sourceCode = params.sourceCode,
             tags = params.tags ?: emptyList(),
             toolType = if (existingIndex >= 0) tools[existingIndex].toolType else "custom",
-            sourceType = if (existingIndex >= 0) tools[existingIndex].sourceType else "python",
+            sourceType = params.sourceType.ifBlank { if (existingIndex >= 0) tools[existingIndex].sourceType ?: "python" else "python" },
+            jsonSchema = params.jsonSchema ?: buildJsonObject { put("name", toolName) },
         )
         if (existingIndex >= 0) {
             tools[existingIndex] = tool
@@ -94,5 +104,31 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
             tools.add(tool)
         }
         return tool
+    }
+
+    override suspend fun generateJsonSchema(params: ToolSchemaGenerateParams): JsonObject {
+        calls.add("generateJsonSchema:${params.sourceType}")
+        if (shouldFail) throw ApiException(500, "Server error")
+        val toolName = deriveToolName(params.code)
+        return buildJsonObject {
+            put("name", toolName)
+            put("description", "Generated schema for $toolName")
+        }
+    }
+
+    private fun JsonObject.schemaName(): String? = this["name"]?.jsonPrimitive?.content
+
+    private fun deriveToolName(sourceCode: String): String {
+        val pythonMatch = Regex("""def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(""").find(sourceCode)
+        if (pythonMatch != null) {
+            return pythonMatch.groupValues[1]
+        }
+
+        val typescriptMatch = Regex("""function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(""").find(sourceCode)
+        if (typescriptMatch != null) {
+            return typescriptMatch.groupValues[1]
+        }
+
+        return "generated_tool"
     }
 }
