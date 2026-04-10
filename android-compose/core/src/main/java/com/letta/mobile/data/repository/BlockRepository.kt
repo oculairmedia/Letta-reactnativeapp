@@ -37,8 +37,8 @@ class BlockRepository @Inject constructor(
         blockApi.deleteBlock(blockId)
     }
 
-    override suspend fun attachBlock(agentId: String, blockId: String): Block {
-        return blockApi.attachBlock(agentId, blockId)
+    override suspend fun attachBlock(agentId: String, blockId: String) {
+        blockApi.attachBlock(agentId, blockId)
     }
 
     override suspend fun detachBlock(agentId: String, blockId: String) {

@@ -19,7 +19,7 @@ open class BlockApi @Inject constructor(
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.get("$baseUrl/v1/agents/$agentId/blocks/$blockLabel")
+        val response = client.get("$baseUrl/v1/agents/$agentId/core-memory/blocks/$blockLabel")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
@@ -30,7 +30,7 @@ open class BlockApi @Inject constructor(
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.patch("$baseUrl/v1/agents/$agentId/blocks/$blockLabel") {
+        val response = client.patch("$baseUrl/v1/agents/$agentId/core-memory/blocks/$blockLabel") {
             contentType(ContentType.Application.Json)
             setBody(params)
         }
@@ -94,22 +94,21 @@ open class BlockApi @Inject constructor(
         }
     }
 
-    open suspend fun attachBlock(agentId: String, blockId: String): Block {
+    open suspend fun attachBlock(agentId: String, blockId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.post("$baseUrl/v1/agents/$agentId/blocks/$blockId/attach")
+        val response = client.patch("$baseUrl/v1/agents/$agentId/core-memory/blocks/attach/$blockId")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
-        return response.body()
     }
 
     open suspend fun detachBlock(agentId: String, blockId: String) {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.post("$baseUrl/v1/agents/$agentId/blocks/$blockId/detach")
+        val response = client.patch("$baseUrl/v1/agents/$agentId/core-memory/blocks/detach/$blockId")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
@@ -119,7 +118,7 @@ open class BlockApi @Inject constructor(
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.get("$baseUrl/v1/agents/$agentId/blocks")
+        val response = client.get("$baseUrl/v1/agents/$agentId/core-memory/blocks")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
