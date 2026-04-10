@@ -36,11 +36,14 @@ data class Run(
 @Serializable
 data class RunMetrics(
     val id: String,
+    @SerialName("organization_id") val organizationId: String? = null,
     @SerialName("agent_id") val agentId: String? = null,
+    @SerialName("project_id") val projectId: String? = null,
     @SerialName("run_start_ns") val runStartNs: Long? = null,
     @SerialName("run_ns") val runNs: Long? = null,
     @SerialName("num_steps") val numSteps: Int? = null,
     @SerialName("tools_used") val toolsUsed: List<String> = emptyList(),
+    @SerialName("template_id") val templateId: String? = null,
     @SerialName("base_template_id") val baseTemplateId: String? = null,
 )
 
@@ -48,17 +51,28 @@ data class RunMetrics(
 data class RunStep(
     val id: String,
     val origin: String? = null,
+    @SerialName("organization_id") val organizationId: String? = null,
+    @SerialName("provider_id") val providerId: String? = null,
     @SerialName("run_id") val runId: String? = null,
     @SerialName("agent_id") val agentId: String? = null,
     @SerialName("provider_name") val providerName: String? = null,
     @SerialName("provider_category") val providerCategory: String? = null,
     val model: String? = null,
+    @SerialName("model_endpoint") val modelEndpoint: String? = null,
+    @SerialName("context_window_limit") val contextWindowLimit: Int? = null,
     @SerialName("prompt_tokens") val promptTokens: Int? = null,
     @SerialName("completion_tokens") val completionTokens: Int? = null,
     @SerialName("total_tokens") val totalTokens: Int? = null,
+    @SerialName("completion_tokens_details") val completionTokensDetails: Map<String, JsonElement> = emptyMap(),
     @SerialName("trace_id") val traceId: String? = null,
     @SerialName("stop_reason") val stopReason: String? = null,
+    val tags: List<String> = emptyList(),
+    val tid: String? = null,
+    val messages: List<LettaMessage> = emptyList(),
+    val feedback: String? = null,
+    @SerialName("project_id") val projectId: String? = null,
     @SerialName("error_type") val errorType: String? = null,
+    @SerialName("error_data") val errorData: Map<String, JsonElement> = emptyMap(),
     val status: String? = null,
 )
 
