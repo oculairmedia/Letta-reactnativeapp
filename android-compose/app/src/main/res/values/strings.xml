@@ -185,6 +185,10 @@
     <string name="screen_mcp_tool_execution_stdout_label">Stdout</string>
     <string name="screen_mcp_tool_execution_stderr_label">Stderr</string>
     <string name="screen_mcp_tool_execution_fingerprint">Sandbox fingerprint: %1$s</string>
+    <string name="screen_mcp_connect_phone_title">Connect Phone Bridge</string>
+    <string name="screen_mcp_connect_phone_body">Use a Hermes-style bridge relay to expose Android control tools through Letta MCP. We’ll prefill the server form for an HTTP bridge so you only need the relay URL and any auth token.</string>
+    <string name="screen_mcp_connect_phone_action">Connect Phone</string>
+    <string name="screen_mcp_connect_phone_default_name">Android Phone Bridge</string>
     <string name="screen_tools_empty_attached">No tools attached</string>
     <string name="screen_blocks_empty_available">No reusable blocks available</string>
     <string name="screen_settings_model_section">Model Settings</string>

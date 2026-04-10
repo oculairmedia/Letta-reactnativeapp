@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -110,8 +111,10 @@ fun McpScreen(
     viewModel: McpViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val defaultPhoneBridgeName = stringResource(R.string.screen_mcp_connect_phone_default_name)
     var showServerDialog by remember { mutableStateOf(false) }
     var editingServer by remember { mutableStateOf<McpServer?>(null) }
+    var initialFormOverride by remember { mutableStateOf<McpServerFormState?>(null) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -157,9 +160,19 @@ fun McpScreen(
             is UiState.Success -> McpContent(
                 state = state.data,
                 onTabSelected = { viewModel.selectTab(it) },
+                onConnectPhone = {
+                    editingServer = null
+                    initialFormOverride = McpServerFormState(
+                        serverName = defaultPhoneBridgeName,
+                        transportType = MCP_TYPE_STREAMABLE_HTTP,
+                        authHeader = "Authorization",
+                    )
+                    showServerDialog = true
+                },
                 onDeleteServer = { viewModel.deleteServer(it.id) },
                 onEditServer = {
                     editingServer = it
+                    initialFormOverride = null
                     showServerDialog = true
                 },
                 onCheckServer = viewModel::checkServer,
@@ -172,19 +185,23 @@ fun McpScreen(
     if (showServerDialog) {
         ServerFormDialog(
             initialServer = editingServer,
+            initialFormStateOverride = initialFormOverride,
             onDismiss = {
                 showServerDialog = false
                 editingServer = null
+                initialFormOverride = null
             },
             onCreate = { params ->
                 viewModel.addServer(params)
                 showServerDialog = false
                 editingServer = null
+                initialFormOverride = null
             },
             onUpdate = { serverId, params ->
                 viewModel.updateServer(serverId, params)
                 showServerDialog = false
                 editingServer = null
+                initialFormOverride = null
             },
         )
     }
@@ -194,6 +211,7 @@ fun McpScreen(
 private fun McpContent(
     state: McpUiState,
     onTabSelected: (Int) -> Unit,
+    onConnectPhone: () -> Unit,
     onDeleteServer: (McpServer) -> Unit,
     onEditServer: (McpServer) -> Unit,
     onCheckServer: (String) -> Unit,
@@ -224,6 +242,7 @@ private fun McpContent(
                 servers = state.servers,
                 serverTools = state.serverTools,
                 serverChecks = state.serverChecks,
+                onConnectPhone = onConnectPhone,
                 onDeleteServer = onDeleteServer,
                 onEditServer = onEditServer,
                 onCheckServer = onCheckServer,
@@ -267,32 +286,71 @@ private fun ServersTab(
     servers: List<McpServer>,
     serverTools: Map<String, List<Tool>>,
     serverChecks: Map<String, McpServerCheckState>,
+    onConnectPhone: () -> Unit,
     onDeleteServer: (McpServer) -> Unit,
     onEditServer: (McpServer) -> Unit,
     onCheckServer: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (servers.isEmpty()) {
-        EmptyState(
-            icon = Icons.Default.Storage,
-            message = stringResource(R.string.screen_mcp_empty),
-            modifier = modifier.fillMaxSize(),
+    Column(modifier = modifier.fillMaxSize()) {
+        PhoneBridgeCard(
+            onConnectPhone = onConnectPhone,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         )
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+
+        if (servers.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.Storage,
+                message = stringResource(R.string.screen_mcp_empty),
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(servers, key = { it.id }) { server ->
+                    ServerCard(
+                        server = server,
+                        tools = serverTools[server.id] ?: emptyList(),
+                        checkState = serverChecks[server.id],
+                        onEdit = { onEditServer(server) },
+                        onDelete = { onDeleteServer(server) },
+                        onCheck = { onCheckServer(server.id) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneBridgeCard(
+    onConnectPhone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(servers, key = { it.id }) { server ->
-                ServerCard(
-                    server = server,
-                    tools = serverTools[server.id] ?: emptyList(),
-                    checkState = serverChecks[server.id],
-                    onEdit = { onEditServer(server) },
-                    onDelete = { onDeleteServer(server) },
-                    onCheck = { onCheckServer(server.id) },
-                )
+            Text(
+                text = stringResource(R.string.screen_mcp_connect_phone_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.screen_mcp_connect_phone_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onConnectPhone) {
+                Text(stringResource(R.string.screen_mcp_connect_phone_action))
             }
         }
     }
@@ -640,11 +698,14 @@ private fun ServerCard(
 @Composable
 private fun ServerFormDialog(
     initialServer: McpServer?,
+    initialFormStateOverride: McpServerFormState? = null,
     onDismiss: () -> Unit,
     onCreate: (McpServerCreateParams) -> Unit,
     onUpdate: (String, McpServerUpdateParams) -> Unit,
 ) {
-    var formState by remember(initialServer) { mutableStateOf(initialFormState(initialServer)) }
+    var formState by remember(initialServer, initialFormStateOverride) {
+        mutableStateOf(initialFormStateOverride ?: initialFormState(initialServer))
+    }
     val validationMessage = validateForm(formState)
 
     AlertDialog(
