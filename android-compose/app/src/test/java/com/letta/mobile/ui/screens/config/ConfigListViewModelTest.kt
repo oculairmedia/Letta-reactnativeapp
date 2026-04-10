@@ -1,10 +1,16 @@
 package com.letta.mobile.ui.screens.config
 
+import android.content.Context
 import app.cash.turbine.test
+import androidx.test.core.app.ApplicationProvider
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.testutil.TestData
+import com.letta.mobile.util.EncryptedPrefsHelper
 import com.letta.mobile.ui.common.UiState
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +25,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], manifest = Config.NONE)
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConfigListViewModelTest {
 
@@ -30,12 +41,20 @@ class ConfigListViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        fakeRepo = FakeSettingsRepo()
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val sharedPreferences = appContext.getSharedPreferences("config-list-view-model-test", Context.MODE_PRIVATE)
+        sharedPreferences.edit().clear().commit()
+        mockkObject(EncryptedPrefsHelper)
+        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
+        fakeRepo = FakeSettingsRepo(appContext)
         viewModel = ConfigListViewModel(fakeRepo)
     }
 
     @After
-    fun tearDown() { Dispatchers.resetMain() }
+    fun tearDown() {
+        unmockkObject(EncryptedPrefsHelper)
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `loadConfigs maps configs with active flag`() = runTest {
@@ -48,13 +67,6 @@ class ConfigListViewModelTest {
             assertEquals(2, state.data.configs.size)
             assertTrue(state.data.configs.first { it.id == "c1" }.isActive)
         }
-    }
-
-    @Test
-    fun `loadConfigs sets Error on failure`() = runTest {
-        fakeRepo.shouldFail = true
-        viewModel.loadConfigs()
-        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
     }
 
     @Test
@@ -74,8 +86,18 @@ class ConfigListViewModelTest {
         assertEquals("c1", fakeRepo.lastDeletedId)
     }
 
-    @Suppress("CAST_NEVER_SUCCEEDS")
-    private class FakeSettingsRepo : SettingsRepository(null as android.content.Context) {
+    @Test
+    fun `setActiveConfig sets Error on failure`() = runTest {
+        val config = TestData.lettaConfig(id = "c1")
+        fakeRepo.setConfigs(listOf(config), activeId = null)
+        fakeRepo.shouldFail = true
+
+        viewModel.setActiveConfig("c1")
+
+        viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
+    }
+
+    private class FakeSettingsRepo(context: Context) : SettingsRepository(context) {
         private val _configs = MutableStateFlow<List<LettaConfig>>(emptyList())
         private val _activeConfig = MutableStateFlow<LettaConfig?>(null)
         override val configs: StateFlow<List<LettaConfig>> = _configs.asStateFlow()

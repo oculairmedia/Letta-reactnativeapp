@@ -1,13 +1,16 @@
 package com.letta.mobile.ui.screens.config
 
+import android.content.Context
 import app.cash.turbine.test
+import androidx.test.core.app.ApplicationProvider
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
+import com.letta.mobile.data.model.ThemePreset
 import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.util.EncryptedPrefsHelper
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,12 +18,20 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], manifest = Config.NONE)
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConfigViewModelTest {
 
@@ -31,12 +42,18 @@ class ConfigViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        fakeRepository = FakeSettingsRepository()
+        val appContext = ApplicationProvider.getApplicationContext<Context>()
+        val sharedPreferences = appContext.getSharedPreferences("config-view-model-test", Context.MODE_PRIVATE)
+        sharedPreferences.edit().clear().commit()
+        mockkObject(EncryptedPrefsHelper)
+        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
+        fakeRepository = FakeSettingsRepository(appContext)
         viewModel = ConfigViewModel(fakeRepository)
     }
 
     @After
     fun tearDown() {
+        unmockkObject(EncryptedPrefsHelper)
         Dispatchers.resetMain()
     }
 
@@ -53,7 +70,9 @@ class ConfigViewModelTest {
             assertEquals(ServerMode.CLOUD, successState.mode)
             assertEquals("", successState.serverUrl)
             assertEquals("", successState.apiToken)
-            assertEquals(true, successState.isDarkTheme)
+            assertEquals(AppTheme.SYSTEM, successState.theme)
+            assertEquals(ThemePreset.DEFAULT, successState.themePreset)
+            assertEquals(false, successState.amoledDarkMode)
         }
     }
 
@@ -248,22 +267,56 @@ class ConfigViewModelTest {
         fakeRepository.setActiveConfig(null)
         viewModel.loadConfig()
 
-        viewModel.updateTheme(false)
+        viewModel.updateTheme(AppTheme.DARK)
 
         viewModel.uiState.test {
             val state = awaitItem()
             assertTrue(state is UiState.Success)
             val successState = (state as UiState.Success).data
-            assertEquals(false, successState.isDarkTheme)
+            assertEquals(AppTheme.DARK, successState.theme)
         }
     }
 
-    private class FakeSettingsRepository : SettingsRepository(null!!) {
+    @Test
+    fun updateThemePreset_updatesStateCorrectly() = runTest {
+        fakeRepository.setActiveConfig(null)
+        viewModel.loadConfig()
+
+        viewModel.updateThemePreset(ThemePreset.SAKURA)
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state is UiState.Success)
+            val successState = (state as UiState.Success).data
+            assertEquals(ThemePreset.SAKURA, successState.themePreset)
+        }
+    }
+
+    @Test
+    fun updateAmoledDarkMode_updatesStateCorrectly() = runTest {
+        fakeRepository.setActiveConfig(null)
+        viewModel.loadConfig()
+
+        viewModel.updateAmoledDarkMode(true)
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state is UiState.Success)
+            val successState = (state as UiState.Success).data
+            assertEquals(true, successState.amoledDarkMode)
+        }
+    }
+
+    private class FakeSettingsRepository(context: Context) : SettingsRepository(context) {
         private val _activeConfig = MutableStateFlow<LettaConfig?>(null)
         override val activeConfig: StateFlow<LettaConfig?> = _activeConfig.asStateFlow()
 
         private val _configs = MutableStateFlow<List<LettaConfig>>(emptyList())
         override val configs: StateFlow<List<LettaConfig>> = _configs.asStateFlow()
+
+        private val themeFlow = MutableStateFlow(AppTheme.SYSTEM)
+        private val themePresetFlow = MutableStateFlow(ThemePreset.DEFAULT)
+        private val amoledDarkModeFlow = MutableStateFlow(false)
 
         private var savedConfig: LettaConfig? = null
 
@@ -272,14 +325,6 @@ class ConfigViewModelTest {
         }
 
         fun getSavedConfig(): LettaConfig? = savedConfig
-
-        override fun getConfigs(): Flow<List<LettaConfig>> {
-            throw UnsupportedOperationException()
-        }
-
-        override fun getActiveConfig(): Flow<LettaConfig?> {
-            throw UnsupportedOperationException()
-        }
 
         override suspend fun saveConfig(config: LettaConfig) {
             savedConfig = config
@@ -294,20 +339,22 @@ class ConfigViewModelTest {
             _configs.value = updatedConfigs
         }
 
-        override suspend fun setActiveConfigId(id: String) {
-            throw UnsupportedOperationException()
-        }
-
-        override suspend fun deleteConfig(id: String) {
-            throw UnsupportedOperationException()
-        }
-
-        override fun getTheme(): Flow<AppTheme> {
-            throw UnsupportedOperationException()
-        }
+        override fun getTheme() = themeFlow
 
         override suspend fun setTheme(theme: AppTheme) {
-            throw UnsupportedOperationException()
+            themeFlow.value = theme
+        }
+
+        override fun getThemePreset() = themePresetFlow
+
+        override suspend fun setThemePreset(themePreset: ThemePreset) {
+            themePresetFlow.value = themePreset
+        }
+
+        override fun getAmoledDarkMode() = amoledDarkModeFlow
+
+        override suspend fun setAmoledDarkMode(enabled: Boolean) {
+            amoledDarkModeFlow.value = enabled
         }
     }
 }

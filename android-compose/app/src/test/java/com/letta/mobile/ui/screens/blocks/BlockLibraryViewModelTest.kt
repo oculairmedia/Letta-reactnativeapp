@@ -250,8 +250,14 @@ class BlockLibraryViewModelTest {
         }
 
         override suspend fun getBlocks(agentId: String): List<Block> = emptyList()
+        override suspend fun retrieveBlock(blockId: String): Block =
+            allBlocks.firstOrNull { it.id == blockId } ?: throw IllegalArgumentException("Unknown block $blockId")
+
+        override suspend fun countBlocks(): Int = allBlocks.size
+
         override suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block =
             Block(id = "stub", label = blockLabel, value = params.value ?: "")
+
         override suspend fun updateGlobalBlock(
             blockId: String,
             params: BlockUpdateParams,
@@ -296,8 +302,17 @@ class BlockLibraryViewModelTest {
         override suspend fun attachBlock(agentId: String, blockId: String) {
             attachedPairs.add(agentId to blockId)
         }
+
         override suspend fun detachBlock(agentId: String, blockId: String) {
             detachedPairs.add(agentId to blockId)
         }
+
+        override suspend fun listAgentsForBlock(blockId: String): List<Agent> = emptyList()
+
+        override suspend fun attachIdentityToBlock(blockId: String, identityId: String): Block =
+            retrieveBlock(blockId)
+
+        override suspend fun detachIdentityFromBlock(blockId: String, identityId: String): Block =
+            retrieveBlock(blockId)
     }
 }
