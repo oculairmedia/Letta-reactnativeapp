@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 
@@ -86,85 +87,76 @@ private fun ConfigContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = stringResource(R.string.screen_config_server_section),
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = state.mode == ServerMode.CLOUD,
-                onClick = { onModeChange(ServerMode.CLOUD) },
-                label = { Text(stringResource(R.string.common_cloud)) },
-                modifier = Modifier.weight(1f)
+        CardGroup(title = { Text(stringResource(R.string.screen_config_server_section)) }) {
+            item(
+                headlineContent = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = state.mode == ServerMode.CLOUD,
+                            onClick = { onModeChange(ServerMode.CLOUD) },
+                            label = { Text(stringResource(R.string.common_cloud)) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        FilterChip(
+                            selected = state.mode == ServerMode.SELF_HOSTED,
+                            onClick = { onModeChange(ServerMode.SELF_HOSTED) },
+                            label = { Text(stringResource(R.string.common_self_hosted)) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                },
             )
-            FilterChip(
-                selected = state.mode == ServerMode.SELF_HOSTED,
-                onClick = { onModeChange(ServerMode.SELF_HOSTED) },
-                label = { Text(stringResource(R.string.common_self_hosted)) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        if (state.mode == ServerMode.SELF_HOSTED) {
-            OutlinedTextField(
-                value = state.serverUrl,
-                onValueChange = onServerUrlChange,
-                label = { Text(stringResource(R.string.common_server_url)) },
-                placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = {
-                    Icon(Icons.Default.Link, null)
-                }
-            )
-        }
-
-        OutlinedTextField(
-            value = state.apiToken,
-            onValueChange = onApiTokenChange,
-            label = { Text(stringResource(R.string.common_api_token)) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = {
-                Icon(Icons.Default.Key, null)
+            if (state.mode == ServerMode.SELF_HOSTED) {
+                item(
+                    headlineContent = {
+                        OutlinedTextField(
+                            value = state.serverUrl,
+                            onValueChange = onServerUrlChange,
+                            label = { Text(stringResource(R.string.common_server_url)) },
+                            placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Link, null) },
+                        )
+                    },
+                )
             }
-        )
-
-        HorizontalDivider()
-
-        Text(
-            text = stringResource(R.string.screen_config_appearance_section),
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.common_dark_theme),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Switch(
-                checked = state.isDarkTheme,
-                onCheckedChange = onThemeChange
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.apiToken,
+                        onValueChange = onApiTokenChange,
+                        label = { Text(stringResource(R.string.common_api_token)) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = { Icon(Icons.Default.Key, null) },
+                    )
+                },
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        CardGroup(title = { Text(stringResource(R.string.screen_config_appearance_section)) }) {
+            item(
+                headlineContent = { Text(stringResource(R.string.common_dark_theme)) },
+                trailingContent = {
+                    Switch(
+                        checked = state.isDarkTheme,
+                        onCheckedChange = onThemeChange,
+                    )
+                },
+            )
+        }
 
-        Button(
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Save, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.action_save_configuration))
+        CardGroup {
+            item(
+                onClick = onSave,
+                headlineContent = { Text(stringResource(R.string.action_save_configuration)) },
+                leadingContent = { Icon(Icons.Default.Save, contentDescription = null) },
+            )
         }
     }
 }

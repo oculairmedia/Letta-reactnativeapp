@@ -62,7 +62,7 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.54")
 
     // Compose runtime for @Stable and @Immutable annotations
-    implementation("androidx.compose.runtime:runtime:1.7.6")
+    implementation("androidx.compose.runtime:runtime:1.8.3")
 
     implementation("io.ktor:ktor-client-core:3.0.3")
     implementation("io.ktor:ktor-client-okhttp:3.0.3")

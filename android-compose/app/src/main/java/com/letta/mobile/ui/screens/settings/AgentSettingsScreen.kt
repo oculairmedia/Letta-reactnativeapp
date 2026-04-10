@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 
@@ -94,193 +95,189 @@ private fun SettingsContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = stringResource(R.string.screen_settings_operational_section),
-            style = MaterialTheme.typography.titleMedium
-        )
-
         if (state.agentType.isNotBlank()) {
-            OutlinedTextField(
-                value = state.agentType,
-                onValueChange = {},
-                label = { Text(stringResource(R.string.common_type)) },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        Text(
-            text = stringResource(R.string.screen_settings_model_section),
-            style = MaterialTheme.typography.titleMedium
-        )
-        
-        OutlinedTextField(
-            value = state.agent?.model ?: stringResource(R.string.screen_settings_no_model),
-            onValueChange = {},
-            label = { Text(stringResource(R.string.common_model)) },
-            readOnly = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Text(
-            text = stringResource(R.string.screen_settings_context_window_limit, state.contextWindow),
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        HorizontalDivider()
-
-        Text(
-            text = stringResource(R.string.screen_settings_temperature_value, state.temperature),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Slider(
-            value = state.temperature,
-            onValueChange = onTemperatureChange,
-            valueRange = 0f..2f,
-            steps = 19
-        )
-
-        OutlinedTextField(
-            value = state.maxTokens.toString(),
-            onValueChange = { 
-                it.toIntOrNull()?.let { value -> onMaxTokensChange(value) }
-            },
-            label = { Text(stringResource(R.string.common_max_output_tokens)) },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.common_parallel_tool_calls),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Switch(
-                checked = state.parallelToolCalls,
-                onCheckedChange = onParallelToolCallsChange
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.common_enable_sleeptime),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Switch(
-                checked = state.enableSleeptime,
-                onCheckedChange = onSleeptimeChange
-            )
-        }
-
-        HorizontalDivider()
-
-        Text(
-            text = stringResource(R.string.screen_agent_memory_blocks_section),
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        OutlinedTextField(
-            value = state.personaBlock,
-            onValueChange = onPersonaChange,
-            label = { Text(stringResource(R.string.common_persona)) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3
-        )
-
-        OutlinedTextField(
-            value = state.humanBlock,
-            onValueChange = onHumanChange,
-            label = { Text(stringResource(R.string.common_human)) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3
-        )
-
-        HorizontalDivider()
-
-        Text(
-            text = stringResource(R.string.common_system_prompt),
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        OutlinedTextField(
-            value = state.systemPrompt,
-            onValueChange = onSystemPromptChange,
-            label = { Text(stringResource(R.string.common_system_prompt)) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 5
-        )
-
-        HorizontalDivider()
-
-        Text(
-            text = stringResource(R.string.common_tags),
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            state.agent?.tags?.forEach { tag ->
-                AssistChip(
-                    onClick = {},
-                    label = { Text(tag) }
+            CardGroup(title = { Text(stringResource(R.string.screen_settings_operational_section)) }) {
+                item(
+                    headlineContent = { Text(stringResource(R.string.common_type)) },
+                    trailingContent = {
+                        Text(
+                            text = state.agentType,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = stringResource(R.string.screen_settings_admin_actions_section),
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Button(
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.action_save_settings))
-        }
-
-        OutlinedButton(
-            onClick = onExport,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(Icons.Default.Share, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.action_export_agent))
-        }
-
-        OutlinedButton(
-            onClick = { showResetDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
+        CardGroup(title = { Text(stringResource(R.string.screen_settings_model_section)) }) {
+            item(
+                headlineContent = { Text(stringResource(R.string.common_model)) },
+                supportingContent = {
+                    Text(state.agent?.model ?: stringResource(R.string.screen_settings_no_model))
+                },
             )
-        ) {
-            Icon(Icons.Default.Refresh, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.action_reset_messages))
+            item(
+                headlineContent = { Text(stringResource(R.string.common_context_window)) },
+                trailingContent = {
+                    Text(
+                        text = state.contextWindow.toString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
 
-        OutlinedButton(
-            onClick = { showDeleteDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
+        CardGroup(title = { Text(stringResource(R.string.screen_settings_temperature_value, state.temperature)) }) {
+            item(
+                headlineContent = {
+                    Slider(
+                        value = state.temperature,
+                        onValueChange = onTemperatureChange,
+                        valueRange = 0f..2f,
+                        steps = 19,
+                    )
+                },
             )
-        ) {
-            Icon(Icons.Default.Delete, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.screen_agents_dialog_delete_title))
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.maxTokens.toString(),
+                        onValueChange = { text ->
+                            text.toIntOrNull()?.let { value -> onMaxTokensChange(value) }
+                        },
+                        label = { Text(stringResource(R.string.common_max_output_tokens)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                },
+            )
+            item(
+                headlineContent = { Text(stringResource(R.string.common_parallel_tool_calls)) },
+                trailingContent = {
+                    Switch(
+                        checked = state.parallelToolCalls,
+                        onCheckedChange = onParallelToolCallsChange,
+                    )
+                },
+            )
+            item(
+                headlineContent = { Text(stringResource(R.string.common_enable_sleeptime)) },
+                trailingContent = {
+                    Switch(
+                        checked = state.enableSleeptime,
+                        onCheckedChange = onSleeptimeChange,
+                    )
+                },
+            )
+        }
+
+        CardGroup(title = { Text(stringResource(R.string.screen_agent_memory_blocks_section)) }) {
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.personaBlock,
+                        onValueChange = onPersonaChange,
+                        label = { Text(stringResource(R.string.common_persona)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                },
+            )
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.humanBlock,
+                        onValueChange = onHumanChange,
+                        label = { Text(stringResource(R.string.common_human)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                },
+            )
+        }
+
+        CardGroup(title = { Text(stringResource(R.string.common_system_prompt)) }) {
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.systemPrompt,
+                        onValueChange = onSystemPromptChange,
+                        label = { Text(stringResource(R.string.common_system_prompt)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 5,
+                    )
+                },
+            )
+        }
+
+        if (!state.agent?.tags.isNullOrEmpty()) {
+            CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
+                item(
+                    headlineContent = {
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            state.agent?.tags?.forEach { tag ->
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text(tag) },
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+        }
+
+        CardGroup(title = { Text(stringResource(R.string.screen_settings_admin_actions_section)) }) {
+            item(
+                onClick = onSave,
+                headlineContent = { Text(stringResource(R.string.action_save_settings)) },
+                leadingContent = { Icon(Icons.Default.Check, contentDescription = null) },
+            )
+            item(
+                onClick = onExport,
+                headlineContent = { Text(stringResource(R.string.action_export_agent)) },
+                leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
+            )
+            item(
+                onClick = { showResetDialog = true },
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.action_reset_messages),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+            )
+            item(
+                onClick = { showDeleteDialog = true },
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.screen_agents_dialog_delete_title),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+            )
         }
     }
 
