@@ -3,7 +3,11 @@ package com.letta.mobile.ui.screens.chat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -43,9 +45,6 @@ import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import com.letta.mobile.ui.components.Accordions
-import com.letta.mobile.ui.components.ActionSheet
-import com.letta.mobile.ui.components.ActionSheetItem
-import com.letta.mobile.ui.components.MessageActionButton
 import com.letta.mobile.ui.components.MessageBubbleShape
 import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.components.ThinkingSection
@@ -53,6 +52,7 @@ import com.letta.mobile.ui.theme.chatColors
 import com.letta.mobile.ui.theme.chatDimens
 import com.letta.mobile.ui.theme.chatTypography
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ChatMessageItem(
     message: UiMessage,
@@ -63,6 +63,12 @@ internal fun ChatMessageItem(
     val isUser = message.role == "user"
     val showAvatar = groupPosition == GroupPosition.First || groupPosition == GroupPosition.None
     val avatarSpacer = Modifier.width(32.dp)
+    val context = LocalContext.current
+    val copyLabel = stringResource(R.string.action_copy)
+    val copyText = remember(message) { buildMessageCopyText(message) }
+    val onLongClick: (() -> Unit)? = if (copyText.isNotBlank()) {
+        { copyToClipboard(context, copyLabel, copyText) }
+    } else null
 
     if (message.isReasoning) {
         Row(
@@ -79,10 +85,6 @@ internal fun ChatMessageItem(
                 MessageReasoning(
                     message = message,
                     isStreaming = isStreaming,
-                )
-                MessageActions(
-                    message = message,
-                    alignEnd = false,
                 )
             }
         }
@@ -111,10 +113,7 @@ internal fun ChatMessageItem(
                 message = message,
                 groupPosition = groupPosition,
                 isStreaming = isStreaming,
-            )
-            MessageActions(
-                message = message,
-                alignEnd = isUser,
+                onLongClick = onLongClick,
             )
         }
 
@@ -129,11 +128,13 @@ internal fun ChatMessageItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubbleSurface(
     message: UiMessage,
     groupPosition: GroupPosition,
     isStreaming: Boolean,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val isUser = message.role == "user"
     val isLastAssistant = isStreaming && message.role == "assistant"
@@ -142,12 +143,21 @@ private fun MessageBubbleSurface(
     val dimens = MaterialTheme.chatDimens
     val typo = MaterialTheme.chatTypography
     val renderer = remember(message.role, message.toolCalls) { resolveRenderer(message) }
+    val bubbleShape = MessageBubbleShape(radius = 12.dp, isFromUser = isUser, groupPosition = groupPosition)
 
     Surface(
-        shape = MessageBubbleShape(radius = 12.dp, isFromUser = isUser, groupPosition = groupPosition),
+        shape = bubbleShape,
         color = style.containerColor,
         border = BorderStroke(dimens.bubbleBorderWidth, style.borderColor),
         tonalElevation = 0.dp,
+        modifier = if (onLongClick != null) {
+            Modifier
+                .clip(bubbleShape)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongClick,
+                )
+        } else Modifier,
     ) {
         Column(
             modifier = Modifier.padding(
@@ -215,59 +225,6 @@ internal fun MessageAvatar(
                 )
             }
         }
-    }
-}
-
-@Composable
-internal fun MessageActions(
-    message: UiMessage,
-    alignEnd: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val copyLabel = stringResource(R.string.action_copy)
-    val copyText = remember(message) { buildMessageCopyText(message) }
-    var showSheet by remember(message.id) { mutableStateOf(false) }
-
-    if (copyText.isBlank()) return
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        horizontalArrangement = if (alignEnd) Arrangement.End else Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MessageActionButton(
-            label = copyLabel,
-            icon = Icons.Default.ContentCopy,
-            onClick = { copyToClipboard(context, copyLabel, copyText) },
-        )
-        IconButton(
-            onClick = { showSheet = true },
-            modifier = Modifier.size(28.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-
-    ActionSheet(
-        show = showSheet,
-        onDismiss = { showSheet = false },
-        title = message.role.replaceFirstChar { it.uppercase() },
-    ) {
-        ActionSheetItem(
-            text = copyLabel,
-            icon = Icons.Default.ContentCopy,
-            onClick = {
-                showSheet = false
-                copyToClipboard(context, copyLabel, copyText)
-            },
-        )
     }
 }
 
@@ -389,4 +346,7 @@ private fun copyToClipboard(
 ) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(context, context.getString(R.string.action_copied), Toast.LENGTH_SHORT).show()
+    }
 }

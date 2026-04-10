@@ -410,6 +410,7 @@
     <string name="screen_about_clear_data_dialog_message">This will remove all server configurations and cached data. You will need to set up the app again.</string>
     <string name="screen_about_clear_data_confirm">Clear Data</string>
     <string name="action_copy">Copy</string>
+    <string name="action_copied">Copied to clipboard</string>
     <string name="action_regenerate">Regenerate</string>
     <string name="screen_models_no_models">No models available</string>
 
