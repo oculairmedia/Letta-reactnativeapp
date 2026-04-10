@@ -11,12 +11,19 @@ data class ApprovalRequest(
 @Serializable
 data class ApprovalResponse(
     val approvals: List<ApprovalReturn>,
+    val approve: Boolean? = null,
+    @SerialName("approval_request_id") val approvalRequestId: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable
 data class ApprovalReturn(
     @SerialName("tool_call_id") val toolCallId: String,
-    val approve: Boolean,
+    val approve: Boolean? = null,
     val reason: String? = null,
     val type: String = "approval",
+    @SerialName("tool_return") val toolReturn: String? = null,
+    val status: String? = null,
+    val stdout: List<String>? = null,
+    val stderr: List<String>? = null,
 )

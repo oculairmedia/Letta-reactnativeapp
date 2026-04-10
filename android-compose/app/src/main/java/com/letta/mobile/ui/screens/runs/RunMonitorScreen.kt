@@ -381,15 +381,17 @@ private fun RunDetailDialog(
 
 private fun messageSummary(message: LettaMessage): String {
     return when (message) {
+        is com.letta.mobile.data.model.SystemMessage -> message.content
         is com.letta.mobile.data.model.UserMessage -> message.content
         is com.letta.mobile.data.model.AssistantMessage -> message.content
         is com.letta.mobile.data.model.ReasoningMessage -> message.reasoning
-        is com.letta.mobile.data.model.ToolCallMessage -> message.toolCall.name
+        is com.letta.mobile.data.model.ToolCallMessage -> message.effectiveToolCalls.firstOrNull()?.name.orEmpty()
         is com.letta.mobile.data.model.ToolReturnMessage -> message.toolReturn.funcResponse.orEmpty()
-        is com.letta.mobile.data.model.ApprovalRequestMessage -> message.toolCalls?.joinToString { it.name }.orEmpty()
+        is com.letta.mobile.data.model.ApprovalRequestMessage -> message.effectiveToolCalls.joinToString { it.name.orEmpty() }
         is com.letta.mobile.data.model.ApprovalResponseMessage -> message.approvals?.joinToString { it.status.orEmpty() }.orEmpty()
         is com.letta.mobile.data.model.HiddenReasoningMessage -> message.hiddenReasoning.orEmpty()
         is com.letta.mobile.data.model.EventMessage -> message.eventType
+        is com.letta.mobile.data.model.PingMessage -> message.messageType
         is com.letta.mobile.data.model.UnknownMessage -> message.messageType
     }
 }

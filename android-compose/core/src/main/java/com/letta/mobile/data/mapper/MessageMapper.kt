@@ -36,9 +36,9 @@ fun LettaMessage.toAppMessage(): AppMessage? {
             id = id,
             date = date?.toInstant() ?: Instant.now(),
             messageType = MessageType.TOOL_CALL,
-            content = toolCall.arguments,
-            toolName = toolCall.name,
-            toolCallId = toolCall.effectiveId
+            content = effectiveToolCalls.firstOrNull()?.arguments.orEmpty(),
+            toolName = effectiveToolCalls.firstOrNull()?.name,
+            toolCallId = effectiveToolCalls.firstOrNull()?.effectiveId
         )
         is ToolReturnMessage -> AppMessage(
             id = id,

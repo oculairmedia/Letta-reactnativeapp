@@ -14,7 +14,9 @@ import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageCreate
 import com.letta.mobile.data.model.MessageCreateRequest
 import com.letta.mobile.data.model.MessageType
+import com.letta.mobile.data.model.PingMessage
 import com.letta.mobile.data.model.ReasoningMessage
+import com.letta.mobile.data.model.SystemMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UnknownMessage
@@ -27,6 +29,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -131,9 +135,9 @@ open class MessageRepository @Inject constructor(
                 id = id,
                 date = date?.let { parseDate(it) } ?: Instant.now(),
                 messageType = MessageType.TOOL_CALL,
-                content = toolCall.arguments,
-                toolName = toolCall.name,
-                toolCallId = toolCall.effectiveId
+                content = effectiveToolCalls.firstOrNull()?.arguments.orEmpty(),
+                toolName = effectiveToolCalls.firstOrNull()?.name,
+                toolCallId = effectiveToolCalls.firstOrNull()?.effectiveId
             )
             is ToolReturnMessage -> AppMessage(
                 id = id,
@@ -191,10 +195,10 @@ open class MessageRepository @Inject constructor(
                 runId = runId,
                 stepId = stepId,
                 otid = otid,
-                summary = toolCall.name,
+                summary = effectiveToolCalls.firstOrNull()?.name ?: "Tool call",
                 detailLines = baseDetails + listOf(
-                    "Tool Call ID" to toolCall.effectiveId,
-                    "Arguments" to toolCall.arguments,
+                    "Tool Call ID" to (effectiveToolCalls.firstOrNull()?.effectiveId ?: ""),
+                    "Arguments" to (effectiveToolCalls.firstOrNull()?.arguments ?: ""),
                 ) + listOfNotNull(senderId?.let { "Sender ID" to it }),
             )
             is ToolReturnMessage -> ConversationInspectorMessage(
@@ -223,8 +227,8 @@ open class MessageRepository @Inject constructor(
                 otid = otid,
                 summary = "Approval request",
                 detailLines = baseDetails + buildList {
-                    add("Tool Call Count" to (toolCalls?.size ?: 0).toString())
-                    toolCalls?.forEachIndexed { index, toolCall ->
+                    add("Tool Call Count" to effectiveToolCalls.size.toString())
+                    effectiveToolCalls.forEachIndexed { index, toolCall ->
                         add("Tool ${index + 1}" to "${toolCall.name}: ${toolCall.arguments}")
                     }
                     senderId?.let { add("Sender ID" to it) }
@@ -240,6 +244,9 @@ open class MessageRepository @Inject constructor(
                 summary = "Approval response",
                 detailLines = baseDetails + buildList {
                     add("Approval Count" to (approvals?.size ?: 0).toString())
+                    approve?.let { add("Approved" to it.toString()) }
+                    approvalRequestId?.let { add("Approval Request ID" to it) }
+                    reason?.let { add("Reason" to it) }
                     approvals?.forEachIndexed { index, approval ->
                         add(
                             "Approval ${index + 1}" to listOfNotNull(
@@ -247,6 +254,8 @@ open class MessageRepository @Inject constructor(
                                 approval.type,
                                 approval.toolCallId,
                                 approval.toolReturn,
+                                approval.approve?.toString(),
+                                approval.reason,
                             ).joinToString(" • ")
                         )
                     }
@@ -277,9 +286,29 @@ open class MessageRepository @Inject constructor(
                 summary = eventType,
                 detailLines = baseDetails + buildList {
                     add("Event Type" to eventType)
-                    eventData?.forEach { (key, value) -> add(key to value) }
+                    eventData?.forEach { (key, value) -> add(key to value.toString()) }
                     senderId?.let { add("Sender ID" to it) }
                 },
+            )
+            is SystemMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = content.ifBlank { "System message" },
+                detailLines = baseDetails + listOfNotNull(senderId?.let { "Sender ID" to it }),
+            )
+            is PingMessage -> ConversationInspectorMessage(
+                id = id,
+                messageType = messageType,
+                date = date,
+                runId = runId,
+                stepId = stepId,
+                otid = otid,
+                summary = "Ping",
+                detailLines = baseDetails,
             )
             is UnknownMessage -> ConversationInspectorMessage(
                 id = id,
@@ -321,9 +350,12 @@ open class MessageRepository @Inject constructor(
         try {
             val request = MessageCreateRequest(
                 messages = listOf(
-                    MessageCreate(
-                        role = "user",
-                        content = text
+                    json.encodeToJsonElement(
+                        MessageCreate.serializer(),
+                        MessageCreate(
+                            role = "user",
+                            content = JsonPrimitive(text)
+                        )
                     )
                 ),
                 streaming = true

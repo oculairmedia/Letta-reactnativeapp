@@ -107,13 +107,14 @@ class MessageProcessor @Inject constructor(
                         }
 
                         is ToolCallMessage -> {
+                            val firstToolCall = lettaMessage.effectiveToolCalls.firstOrNull()
                             val appMessage = AppMessage(
                                 id = lettaMessage.id,
                                 date = parseInstant(lettaMessage.date),
                                 messageType = MessageType.TOOL_CALL,
-                                content = lettaMessage.toolCall.arguments,
-                                toolName = lettaMessage.toolCall.name,
-                                toolCallId = lettaMessage.toolCall.effectiveId
+                                content = firstToolCall?.arguments.orEmpty(),
+                                toolName = firstToolCall?.name,
+                                toolCallId = firstToolCall?.effectiveId
                             )
                             messages.add(appMessage)
                             onEmit(appMessage)
@@ -132,9 +133,11 @@ class MessageProcessor @Inject constructor(
                         }
 
                         is ApprovalRequestMessage -> {
-                            lettaMessage.toolCalls?.forEach { toolCall ->
-                                if (clientToolRegistry.isClientTool(toolCall.name)) {
-                                    val result = clientToolRegistry.execute(toolCall.name, toolCall.arguments)
+                            lettaMessage.effectiveToolCalls.forEach { toolCall ->
+                                val toolName = toolCall.name ?: return@forEach
+                                val arguments = toolCall.arguments ?: return@forEach
+                                if (clientToolRegistry.isClientTool(toolName)) {
+                                    val result = clientToolRegistry.execute(toolName, arguments)
                                 }
                             }
                         }
@@ -149,6 +152,12 @@ class MessageProcessor @Inject constructor(
                         }
 
                         is HiddenReasoningMessage -> {
+                        }
+
+                        is SystemMessage -> {
+                        }
+
+                        is PingMessage -> {
                         }
 
                         is UnknownMessage -> {
