@@ -199,22 +199,24 @@ private fun ChatContent(
                         val showDate = prevDate != null && prevDate != currentDate
 
                         item(key = "${message.id}-$index") {
-                            val spacing = when {
-                                message.isReasoning -> 10.dp
+                            // reverseLayout = true: top = space below (toward newer),
+                            // bottom = space above (toward older)
+                            val spacingBelow = when {
                                 position == GroupPosition.Middle || position == GroupPosition.Last -> 2.dp
                                 else -> 6.dp
                             }
+                            val spacingAbove = if (message.isReasoning) 12.dp else 0.dp
                             if (chatMode == "debug") {
                                 DebugMessageCard(
                                     message = message,
-                                    modifier = Modifier.padding(top = spacing),
+                                    modifier = Modifier.padding(top = spacingBelow, bottom = spacingAbove),
                                 )
                             } else {
                                 ChatMessageItem(
                                     message = message,
                                     groupPosition = position,
                                     isStreaming = state.isStreaming,
-                                    modifier = Modifier.padding(top = spacing),
+                                    modifier = Modifier.padding(top = spacingBelow, bottom = spacingAbove),
                                 )
                             }
                         }
