@@ -42,6 +42,17 @@ open class ToolApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun countTools(): Int {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/tools/count")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
     open suspend fun createTool(params: ToolCreateParams): Tool {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
