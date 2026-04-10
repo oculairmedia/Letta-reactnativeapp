@@ -7,7 +7,7 @@ import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunMetrics
 import com.letta.mobile.data.model.RunListParams
-import com.letta.mobile.data.model.RunStep
+import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.UsageStatistics
 import io.mockk.mockk
 
@@ -16,7 +16,7 @@ class FakeRunApi : RunApi(mockk(relaxed = true)) {
     var runMessages = mutableMapOf<String, List<LettaMessage>>()
     var runUsage = mutableMapOf<String, UsageStatistics>()
     var runMetrics = mutableMapOf<String, RunMetrics>()
-    var runSteps = mutableMapOf<String, List<RunStep>>()
+    var runSteps = mutableMapOf<String, List<Step>>()
     var shouldFail = false
     val calls = mutableListOf<String>()
 
@@ -76,11 +76,11 @@ class FakeRunApi : RunApi(mockk(relaxed = true)) {
         after: String?,
         limit: Int?,
         order: String?,
-    ): List<RunStep> {
+    ): List<Step> {
         calls.add("listRunSteps:$runId")
         if (shouldFail) throw ApiException(500, "Server error")
         return runSteps[runId] ?: listOf(
-            RunStep(
+            Step(
                 id = "step-1",
                 origin = "sdk",
                 organizationId = "org-1",

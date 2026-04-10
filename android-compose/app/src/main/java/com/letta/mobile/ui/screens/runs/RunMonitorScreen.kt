@@ -47,9 +47,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.data.model.LettaMessage
-import com.letta.mobile.data.model.RunMetrics
-import com.letta.mobile.data.model.RunStep
+import com.letta.mobile.data.model.ProviderTrace
 import com.letta.mobile.data.model.Run
+import com.letta.mobile.data.model.RunMetrics
+import com.letta.mobile.data.model.Step
+import com.letta.mobile.data.model.StepMetrics
 import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
@@ -164,6 +166,7 @@ fun RunMonitorScreen(
             usage = state?.selectedRunUsage,
             metrics = state?.selectedRunMetrics,
             steps = state?.selectedRunSteps.orEmpty(),
+            onInspectStep = viewModel::inspectStep,
             onDismiss = { viewModel.clearSelectedRun() },
             onCancel = if (run.isTerminalStatus()) null else {
                 {
@@ -177,6 +180,21 @@ fun RunMonitorScreen(
                     deleteTarget = run
                 }
             } else null,
+        )
+    }
+
+    val selectedStep = (uiState as? UiState.Success)?.data?.selectedStep
+    selectedStep?.let { step ->
+        val state = (uiState as? UiState.Success)?.data
+        StepDetailDialog(
+            step = step,
+            messages = state?.selectedStepMessages.orEmpty(),
+            metrics = state?.selectedStepMetrics,
+            trace = state?.selectedStepTrace,
+            onDismiss = { viewModel.clearSelectedStep() },
+            onSetPositiveFeedback = { viewModel.updateStepFeedback(step.id, "positive") },
+            onSetNegativeFeedback = { viewModel.updateStepFeedback(step.id, "negative") },
+            onClearFeedback = { viewModel.updateStepFeedback(step.id, null) },
         )
     }
 
@@ -292,7 +310,8 @@ private fun RunDetailDialog(
     messages: List<LettaMessage>,
     usage: UsageStatistics?,
     metrics: RunMetrics?,
-    steps: List<RunStep>,
+    steps: List<Step>,
+    onInspectStep: (String) -> Unit,
     onDismiss: () -> Unit,
     onCancel: (() -> Unit)?,
     onDelete: (() -> Unit)?,
@@ -372,7 +391,13 @@ private fun RunDetailDialog(
                 if (steps.isNotEmpty()) {
                     Text(stringResource(R.string.screen_runs_steps_title), style = MaterialTheme.typography.labelLarge)
                     steps.take(5).forEach { step ->
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Card(onClick = { onInspectStep(step.id) }) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
                             Text(
                                 text = buildString {
                                     append(step.id)
@@ -382,6 +407,11 @@ private fun RunDetailDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(R.string.screen_runs_step_inspect_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                             step.origin?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
                             step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it), style = MaterialTheme.typography.bodySmall) }
@@ -424,6 +454,7 @@ private fun RunDetailDialog(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            }
                         }
                     }
                 }
@@ -454,6 +485,110 @@ private fun RunDetailDialog(
                 if (onDelete != null) {
                     TextButton(onClick = onDelete) {
                         Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
+}
+
+@Composable
+private fun StepDetailDialog(
+    step: Step,
+    messages: List<LettaMessage>,
+    metrics: StepMetrics?,
+    trace: ProviderTrace?,
+    onDismiss: () -> Unit,
+    onSetPositiveFeedback: () -> Unit,
+    onSetNegativeFeedback: () -> Unit,
+    onClearFeedback: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(step.id, fontFamily = FontFamily.Monospace) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                step.status?.let { Text(stringResource(R.string.screen_runs_status_label, it)) }
+                step.feedback?.let { Text(stringResource(R.string.screen_runs_step_feedback_label, it)) }
+                step.origin?.let { Text(stringResource(R.string.screen_runs_step_origin_label, it)) }
+                step.runId?.let { Text(stringResource(R.string.screen_runs_step_run_label, it)) }
+                step.agentId?.let { Text(stringResource(R.string.screen_runs_agent_label, it)) }
+                step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it)) }
+                step.providerCategory?.let { Text(stringResource(R.string.screen_runs_step_provider_category_label, it)) }
+                step.providerId?.let { Text(stringResource(R.string.screen_runs_step_provider_id_label, it)) }
+                step.model?.let { Text(stringResource(R.string.screen_runs_step_model_label, it)) }
+                step.modelEndpoint?.let { Text(stringResource(R.string.screen_runs_step_model_endpoint_label, it)) }
+                step.contextWindowLimit?.let { Text(stringResource(R.string.screen_runs_step_context_window_limit_label, it)) }
+                step.promptTokens?.let { Text(stringResource(R.string.screen_runs_step_prompt_tokens_label, it)) }
+                step.completionTokens?.let { Text(stringResource(R.string.screen_runs_step_completion_tokens_label, it)) }
+                step.totalTokens?.let { Text(stringResource(R.string.screen_runs_step_total_tokens_label, it)) }
+                step.traceId?.let { Text(stringResource(R.string.screen_runs_step_trace_id_label, it)) }
+                step.tid?.let { Text(stringResource(R.string.screen_runs_step_tid_label, it)) }
+                step.stopReason?.let { Text(stringResource(R.string.screen_runs_stop_reason_label, it)) }
+                if (step.tags.isNotEmpty()) {
+                    Text(stringResource(R.string.screen_runs_step_tags_label, step.tags.joinToString(", ")))
+                }
+                step.errorType?.let { Text(stringResource(R.string.screen_runs_step_error_type_label, it)) }
+                if (step.completionTokensDetails.isNotEmpty()) {
+                    Text(stringResource(R.string.screen_runs_step_completion_details_label, step.completionTokensDetails.toSortedDisplayString()))
+                }
+                if (step.errorData.isNotEmpty()) {
+                    Text(stringResource(R.string.screen_runs_step_error_data_label, step.errorData.toSortedDisplayString()))
+                }
+                metrics?.let {
+                    Text(stringResource(R.string.screen_runs_step_metrics_title), style = MaterialTheme.typography.labelLarge)
+                    it.organizationId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_organization_label, value)) }
+                    it.providerId?.let { value -> Text(stringResource(R.string.screen_runs_step_provider_id_label, value)) }
+                    it.runId?.let { value -> Text(stringResource(R.string.screen_runs_step_run_label, value)) }
+                    it.agentId?.let { value -> Text(stringResource(R.string.screen_runs_agent_label, value)) }
+                    it.stepStartNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_start_ns_label, value)) }
+                    it.llmRequestStartNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_llm_request_start_label, value)) }
+                    it.llmRequestNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_llm_request_label, value)) }
+                    it.toolExecutionNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_tool_execution_label, value)) }
+                    it.stepNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_step_ns_label, value)) }
+                    it.templateId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_template_label, value)) }
+                    it.baseTemplateId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_base_template_label, value)) }
+                    it.projectId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_project_label, value)) }
+                }
+                trace?.let {
+                    Text(stringResource(R.string.screen_runs_step_trace_title), style = MaterialTheme.typography.labelLarge)
+                    it.createdAt?.let { value -> Text(stringResource(R.string.screen_runs_step_trace_created_label, value)) }
+                    if (it.requestJson.isNotEmpty()) {
+                        Text(stringResource(R.string.screen_runs_step_trace_request_label, it.requestJson.toSortedDisplayString()))
+                    }
+                    if (it.responseJson.isNotEmpty()) {
+                        Text(stringResource(R.string.screen_runs_step_trace_response_label, it.responseJson.toSortedDisplayString()))
+                    }
+                }
+                if (messages.isNotEmpty()) {
+                    Text(stringResource(R.string.screen_runs_step_messages_title), style = MaterialTheme.typography.labelLarge)
+                    messages.takeLast(8).forEach { message ->
+                        Text(
+                            text = stringResource(R.string.screen_runs_message_entry, message.messageType, messageSummary(message)),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onSetPositiveFeedback) {
+                    Text(stringResource(R.string.screen_runs_step_feedback_positive_action))
+                }
+                TextButton(onClick = onSetNegativeFeedback) {
+                    Text(stringResource(R.string.screen_runs_step_feedback_negative_action), color = MaterialTheme.colorScheme.error)
+                }
+                if (step.feedback != null) {
+                    TextButton(onClick = onClearFeedback) {
+                        Text(stringResource(R.string.screen_runs_step_feedback_clear_action))
                     }
                 }
             }

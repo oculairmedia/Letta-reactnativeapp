@@ -5,7 +5,7 @@ import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunCancelParams
 import com.letta.mobile.data.model.RunListParams
 import com.letta.mobile.data.model.RunMetrics
-import com.letta.mobile.data.model.RunStep
+import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.UsageStatistics
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -109,7 +109,7 @@ open class RunApi @Inject constructor(
         after: String? = null,
         limit: Int? = null,
         order: String? = null,
-    ): List<RunStep> {
+    ): List<Step> {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 

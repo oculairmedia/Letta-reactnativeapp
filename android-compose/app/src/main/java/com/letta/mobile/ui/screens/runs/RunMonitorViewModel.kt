@@ -3,12 +3,16 @@ package com.letta.mobile.ui.screens.runs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.LettaMessage
+import com.letta.mobile.data.model.ProviderTrace
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunListParams
 import com.letta.mobile.data.model.RunMetrics
-import com.letta.mobile.data.model.RunStep
+import com.letta.mobile.data.model.Step
+import com.letta.mobile.data.model.StepFeedbackUpdateParams
+import com.letta.mobile.data.model.StepMetrics
 import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.data.repository.RunRepository
+import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,13 +31,18 @@ data class RunMonitorUiState(
     val selectedRunMessages: List<LettaMessage> = emptyList(),
     val selectedRunUsage: UsageStatistics? = null,
     val selectedRunMetrics: RunMetrics? = null,
-    val selectedRunSteps: List<RunStep> = emptyList(),
+    val selectedRunSteps: List<Step> = emptyList(),
+    val selectedStep: Step? = null,
+    val selectedStepMessages: List<LettaMessage> = emptyList(),
+    val selectedStepMetrics: StepMetrics? = null,
+    val selectedStepTrace: ProviderTrace? = null,
     val operationError: String? = null,
 )
 
 @HiltViewModel
 class RunMonitorViewModel @Inject constructor(
     private val runRepository: RunRepository,
+    private val stepRepository: StepRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<RunMonitorUiState>>(UiState.Loading)
@@ -62,6 +71,10 @@ class RunMonitorViewModel @Inject constructor(
                         selectedRunUsage = current?.selectedRunUsage,
                         selectedRunMetrics = current?.selectedRunMetrics,
                         selectedRunSteps = current?.selectedRunSteps.orEmpty(),
+                        selectedStep = current?.selectedStep,
+                        selectedStepMessages = current?.selectedStepMessages.orEmpty(),
+                        selectedStepMetrics = current?.selectedStepMetrics,
+                        selectedStepTrace = current?.selectedStepTrace,
                         operationError = current?.operationError,
                     )
                 )
@@ -111,11 +124,68 @@ class RunMonitorViewModel @Inject constructor(
                         selectedRunUsage = usage,
                         selectedRunMetrics = metrics,
                         selectedRunSteps = steps,
+                        selectedStep = null,
+                        selectedStepMessages = emptyList(),
+                        selectedStepMetrics = null,
+                        selectedStepTrace = null,
                         operationError = null,
                     )
                 )
             } catch (e: Exception) {
                 setOperationError(mapErrorToUserMessage(e, "Failed to load run details"))
+            }
+        }
+    }
+
+    fun inspectStep(stepId: String) {
+        viewModelScope.launch {
+            val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
+            try {
+                val step = stepRepository.getStep(stepId)
+                val stepMessages = stepRepository.getStepMessages(stepId)
+                val stepMetrics = stepRepository.getStepMetrics(stepId)
+                val stepTrace = stepRepository.getStepTrace(stepId)
+                val updatedSteps = current.selectedRunSteps.map { existing -> if (existing.id == step.id) step else existing }
+                _uiState.value = UiState.Success(
+                    current.copy(
+                        selectedRunSteps = updatedSteps,
+                        selectedStep = step,
+                        selectedStepMessages = stepMessages,
+                        selectedStepMetrics = stepMetrics,
+                        selectedStepTrace = stepTrace,
+                        operationError = null,
+                    )
+                )
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to load step details"))
+            }
+        }
+    }
+
+    fun updateStepFeedback(stepId: String, feedback: String?) {
+        viewModelScope.launch {
+            val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
+            val targetStep = current.selectedStep?.takeIf { it.id == stepId }
+                ?: current.selectedRunSteps.firstOrNull { it.id == stepId }
+                ?: return@launch
+            try {
+                val updatedStep = stepRepository.updateStepFeedback(
+                    stepId = stepId,
+                    params = StepFeedbackUpdateParams(
+                        feedback = feedback,
+                        tags = targetStep.tags.takeIf { it.isNotEmpty() },
+                    ),
+                )
+                val refreshedSteps = current.selectedRunSteps.map { existing -> if (existing.id == updatedStep.id) updatedStep else existing }
+                _uiState.value = UiState.Success(
+                    current.copy(
+                        selectedRunSteps = refreshedSteps,
+                        selectedStep = if (current.selectedStep?.id == updatedStep.id) updatedStep else current.selectedStep,
+                        operationError = null,
+                    )
+                )
+            } catch (e: Exception) {
+                setOperationError(mapErrorToUserMessage(e, "Failed to update step feedback"))
             }
         }
     }
@@ -132,6 +202,10 @@ class RunMonitorViewModel @Inject constructor(
                     current.copy(
                         runs = refreshedRuns,
                         selectedRun = if (current.activeOnly && refreshedRun.status !in setOf("created", "running")) null else refreshedRun,
+                        selectedStep = null,
+                        selectedStepMessages = emptyList(),
+                        selectedStepMetrics = null,
+                        selectedStepTrace = null,
                         operationError = null,
                     )
                 )
@@ -154,6 +228,10 @@ class RunMonitorViewModel @Inject constructor(
                         selectedRunUsage = if (current.selectedRun?.id == runId) null else current.selectedRunUsage,
                         selectedRunMetrics = if (current.selectedRun?.id == runId) null else current.selectedRunMetrics,
                         selectedRunSteps = if (current.selectedRun?.id == runId) emptyList() else current.selectedRunSteps,
+                        selectedStep = if (current.selectedRun?.id == runId) null else current.selectedStep,
+                        selectedStepMessages = if (current.selectedRun?.id == runId) emptyList() else current.selectedStepMessages,
+                        selectedStepMetrics = if (current.selectedRun?.id == runId) null else current.selectedStepMetrics,
+                        selectedStepTrace = if (current.selectedRun?.id == runId) null else current.selectedStepTrace,
                         operationError = null,
                     )
                 )
@@ -172,6 +250,22 @@ class RunMonitorViewModel @Inject constructor(
                 selectedRunUsage = null,
                 selectedRunMetrics = null,
                 selectedRunSteps = emptyList(),
+                selectedStep = null,
+                selectedStepMessages = emptyList(),
+                selectedStepMetrics = null,
+                selectedStepTrace = null,
+            )
+        )
+    }
+
+    fun clearSelectedStep() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(
+            current.copy(
+                selectedStep = null,
+                selectedStepMessages = emptyList(),
+                selectedStepMetrics = null,
+                selectedStepTrace = null,
             )
         )
     }

@@ -5,7 +5,7 @@ import com.letta.mobile.data.api.RunApi
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunListParams
 import com.letta.mobile.data.model.RunMetrics
-import com.letta.mobile.data.model.RunStep
+import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.UsageStatistics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +41,7 @@ class RunRepository @Inject constructor(
         return runApi.retrieveRunMetrics(runId)
     }
 
-    suspend fun getRunSteps(runId: String): List<RunStep> {
+    suspend fun getRunSteps(runId: String): List<Step> {
         return runApi.listRunSteps(runId = runId, order = "desc")
     }
 

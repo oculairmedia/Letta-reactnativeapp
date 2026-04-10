@@ -3,7 +3,9 @@ package com.letta.mobile.ui.screens.runs
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunRequestConfig
 import com.letta.mobile.data.repository.RunRepository
+import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.testutil.FakeRunApi
+import com.letta.mobile.testutil.FakeStepApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -21,13 +23,16 @@ class RunMonitorViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeApi: FakeRunApi
+    private lateinit var fakeStepApi: FakeStepApi
     private lateinit var repository: RunRepository
+    private lateinit var stepRepository: StepRepository
     private lateinit var viewModel: RunMonitorViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeApi = FakeRunApi()
+        fakeStepApi = FakeStepApi()
         fakeApi.runs.addAll(
             listOf(
                 sampleRun("r1", "running"),
@@ -35,7 +40,8 @@ class RunMonitorViewModelTest {
             )
         )
         repository = RunRepository(fakeApi)
-        viewModel = RunMonitorViewModel(repository)
+        stepRepository = StepRepository(fakeStepApi)
+        viewModel = RunMonitorViewModel(repository, stepRepository)
     }
 
     @After
@@ -84,6 +90,31 @@ class RunMonitorViewModelTest {
         assertEquals("org-1", state.data.selectedRunMetrics?.organizationId)
         assertEquals("provider-1", state.data.selectedRunSteps.first().providerId)
         assertEquals("positive", state.data.selectedRunSteps.first().feedback)
+    }
+
+    @Test
+    fun `inspectStep loads metrics trace and messages`() = runTest {
+        viewModel.inspectRun("r1")
+
+        viewModel.inspectStep("step-1")
+
+        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
+        assertEquals("step-1", state.data.selectedStep?.id)
+        assertEquals(1, state.data.selectedStepMessages.size)
+        assertEquals(500L, state.data.selectedStepMetrics?.stepNs)
+        assertEquals("step-1", state.data.selectedStepTrace?.stepId)
+    }
+
+    @Test
+    fun `updateStepFeedback refreshes selected step`() = runTest {
+        viewModel.inspectRun("r1")
+        viewModel.inspectStep("step-1")
+
+        viewModel.updateStepFeedback("step-1", "negative")
+
+        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
+        assertEquals("negative", state.data.selectedStep?.feedback)
+        assertEquals("negative", state.data.selectedRunSteps.first().feedback)
     }
 
     @Test
