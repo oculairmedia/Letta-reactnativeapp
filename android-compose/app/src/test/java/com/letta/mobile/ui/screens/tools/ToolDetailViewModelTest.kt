@@ -82,7 +82,6 @@ class ToolDetailViewModelTest {
         val viewModel = ToolDetailViewModel(savedState, fakeToolApi, toolRepository, agentRepository)
 
         viewModel.updateTool(
-            name = "my_tool_v2",
             description = "Updated",
             sourceCode = "def my_tool_v2():\n    return 'updated'",
             tags = listOf("admin")
@@ -94,6 +93,7 @@ class ToolDetailViewModelTest {
             assertEquals("my_tool_v2", state.data.name)
             assertEquals("Updated", state.data.description)
         }
+        assertTrue(fakeToolApi.calls.contains("generateJsonSchema:python"))
     }
 
     @Test

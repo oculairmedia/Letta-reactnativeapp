@@ -5,6 +5,8 @@ import com.letta.mobile.testutil.TestData
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -67,7 +69,6 @@ class ToolRepositoryTest {
     fun `upsertTool creates and refreshes`() = runTest {
         val tool = repository.upsertTool(
             com.letta.mobile.data.model.ToolCreateParams(
-                name = "new_tool",
                 sourceCode = "def new_tool():\n    return 'ok'",
             )
         )
@@ -89,13 +90,18 @@ class ToolRepositoryTest {
             "t1",
             com.letta.mobile.data.model.ToolUpdateParams(
                 description = "new",
-                sourceCode = "def tool_one():\n    return 'new'",
+                sourceCode = "def tool_one_v2():\n    return 'new'",
+                sourceType = "python",
+                jsonSchema = buildJsonObject { put("name", "tool_one_v2") },
             )
         )
 
         assertEquals("new", updated.description)
+        assertEquals("tool_one_v2", updated.name)
         assertTrue(fakeApi.calls.contains("updateTool:t1"))
-        assertEquals("new", repository.getTools().first().first().description)
+        val cachedTool = repository.getTools().first().first()
+        assertEquals("new", cachedTool.description)
+        assertEquals("tool_one_v2", cachedTool.name)
     }
 
     @Test
