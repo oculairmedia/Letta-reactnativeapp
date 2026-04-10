@@ -10,6 +10,7 @@ import com.letta.mobile.data.local.AgentEntity
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.paging.AgentPagingSource
 import com.letta.mobile.data.repository.api.IAgentRepository
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +59,8 @@ class AgentRepository @Inject constructor(
             pagingSourceFactory = { AgentPagingSource(agentApi, tags) }
         ).flow
     }
+
+    override suspend fun countAgents(): Int = agentApi.countAgents()
 
     override suspend fun refreshAgents() {
         val fresh = agentApi.listAgents(limit = 1000)
@@ -109,6 +112,24 @@ class AgentRepository @Inject constructor(
 
     override suspend fun exportAgent(id: String): String {
         return agentApi.exportAgent(id)
+    }
+
+    override suspend fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String?,
+        projectId: String?,
+        stripMessages: Boolean?,
+    ): ImportedAgentsResponse {
+        val response = agentApi.importAgent(
+            fileName = fileName,
+            fileBytes = fileBytes,
+            overrideName = overrideName,
+            projectId = projectId,
+            stripMessages = stripMessages,
+        )
+        refreshAgents()
+        return response
     }
 
     private fun updateAgentInCache(agent: Agent) {

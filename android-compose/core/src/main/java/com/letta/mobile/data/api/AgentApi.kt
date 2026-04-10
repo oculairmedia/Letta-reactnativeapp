@@ -5,6 +5,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.client.request.forms.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +37,17 @@ open class AgentApi @Inject constructor(
         val baseUrl = apiClient.getBaseUrl()
 
         val response = client.get("$baseUrl/v1/agents/$agentId")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun countAgents(): Int {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/agents/count")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
@@ -85,6 +97,34 @@ open class AgentApi @Inject constructor(
         val baseUrl = apiClient.getBaseUrl()
 
         val response = client.get("$baseUrl/v1/agents/$agentId/export")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String? = null,
+        projectId: String? = null,
+        stripMessages: Boolean? = null,
+    ): ImportedAgentsResponse {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.submitFormWithBinaryData(
+            url = "$baseUrl/v1/agents/import",
+            formData = formData {
+                append("file", fileBytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                    append(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                })
+                overrideName?.let { append("override_name", it) }
+                projectId?.let { append("project_id", it) }
+                stripMessages?.let { append("strip_messages", it.toString()) }
+            }
+        )
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }

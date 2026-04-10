@@ -13,6 +13,8 @@ import com.letta.mobile.data.model.HiddenReasoningMessage
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageCreate
 import com.letta.mobile.data.model.MessageCreateRequest
+import com.letta.mobile.data.model.MessageSearchRequest
+import com.letta.mobile.data.model.MessageSearchResult
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.model.PingMessage
 import com.letta.mobile.data.model.ReasoningMessage
@@ -104,6 +106,14 @@ open class MessageRepository @Inject constructor(
     fun getMessages(agentId: String, conversationId: String? = null): Flow<List<AppMessage>> = flow {
         val messages = fetchMessages(agentId, conversationId)
         emit(messages)
+    }
+
+    suspend fun cancelMessage(agentId: String, runIds: List<String>? = null): Map<String, String> {
+        return messageApi.cancelMessage(agentId = agentId, runIds = runIds)
+    }
+
+    suspend fun searchMessages(request: MessageSearchRequest): List<MessageSearchResult> {
+        return messageApi.searchMessages(request)
     }
 
     open suspend fun fetchConversationInspectorMessages(conversationId: String): List<ConversationInspectorMessage> {

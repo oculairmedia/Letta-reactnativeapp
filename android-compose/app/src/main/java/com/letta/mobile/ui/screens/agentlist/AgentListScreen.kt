@@ -26,7 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -128,7 +128,7 @@ fun AgentListScreen(
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                         }
                     },
                     actions = {

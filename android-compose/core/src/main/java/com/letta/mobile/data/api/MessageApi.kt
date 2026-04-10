@@ -96,4 +96,32 @@ open class MessageApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun cancelMessage(agentId: String, runIds: List<String>? = null): Map<String, String> {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.post("$baseUrl/v1/agents/$agentId/messages/cancel") {
+            contentType(ContentType.Application.Json)
+            setBody(CancelAgentRunRequest(runIds = runIds))
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun searchMessages(request: MessageSearchRequest): List<MessageSearchResult> {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.post("$baseUrl/v1/agents/messages/search") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
 }
