@@ -77,6 +77,41 @@ class RunMonitorViewModelTest {
 
         val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
         assertEquals("r1", state.data.selectedRun?.id)
+        assertEquals(1, state.data.selectedRunMessages.size)
+        assertEquals(1, state.data.selectedRunSteps.size)
+        assertEquals(30, state.data.selectedRunUsage?.totalTokens)
+        assertEquals("r1", state.data.selectedRunMetrics?.id)
+    }
+
+    @Test
+    fun `cancelRun updates selected run state`() = runTest {
+        viewModel.inspectRun("r1")
+
+        viewModel.cancelRun("r1")
+
+        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
+        assertEquals("cancelled", state.data.selectedRun?.status)
+    }
+
+    @Test
+    fun `cancelRun removes cancelled run from active-only list`() = runTest {
+        viewModel.toggleActiveOnly(true)
+        viewModel.inspectRun("r1")
+
+        viewModel.cancelRun("r1")
+
+        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
+        assertTrue(state.data.runs.isEmpty())
+        assertEquals(null, state.data.selectedRun)
+    }
+
+    @Test
+    fun `deleteRun removes run from list`() = runTest {
+        viewModel.deleteRun("r1")
+
+        val state = viewModel.uiState.value as com.letta.mobile.ui.common.UiState.Success
+        assertEquals(1, state.data.runs.size)
+        assertEquals("r2", state.data.runs.first().id)
     }
 }
 
