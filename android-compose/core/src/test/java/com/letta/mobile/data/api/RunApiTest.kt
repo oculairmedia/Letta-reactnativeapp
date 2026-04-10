@@ -105,12 +105,19 @@ class RunApiTest {
         var url: String? = null
         val api = createApi { req ->
             url = req.url.toString()
-            respond("""{"id":"r1","num_steps":2,"run_ns":1000}""", HttpStatusCode.OK, jsonHeaders)
+            respond(
+                """{"id":"r1","organization_id":"org-1","project_id":"proj-1","num_steps":2,"run_start_ns":50,"run_ns":1000,"template_id":"tpl-1","tools_used":["tool-1"]}""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
         }
 
-        api.retrieveRunMetrics("r1")
+        val result = api.retrieveRunMetrics("r1")
 
         assertTrue(url!!.contains("/v1/runs/r1/metrics"))
+        assertEquals("org-1", result.organizationId)
+        assertEquals("proj-1", result.projectId)
+        assertEquals("tpl-1", result.templateId)
     }
 
     @Test
@@ -118,14 +125,21 @@ class RunApiTest {
         var url: String? = null
         val api = createApi { req ->
             url = req.url.toString()
-            respond("[]", HttpStatusCode.OK, jsonHeaders)
+            respond(
+                """[{"id":"step-1","run_id":"r1","provider_id":"provider-1","model_endpoint":"https://api.example.com/v1","feedback":"positive","status":"completed"}]""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
         }
 
-        api.listRunSteps("r1", limit = 10, order = "desc")
+        val result = api.listRunSteps("r1", limit = 10, order = "desc")
 
         assertTrue(url!!.contains("/v1/runs/r1/steps"))
         assertTrue(url!!.contains("limit=10"))
         assertTrue(url!!.contains("order=desc"))
+        assertEquals("provider-1", result.first().providerId)
+        assertEquals("https://api.example.com/v1", result.first().modelEndpoint)
+        assertEquals("positive", result.first().feedback)
     }
 
     @Test

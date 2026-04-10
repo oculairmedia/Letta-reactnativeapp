@@ -56,7 +56,18 @@ class FakeRunApi : RunApi(mockk(relaxed = true)) {
     override suspend fun retrieveRunMetrics(runId: String): RunMetrics {
         calls.add("retrieveRunMetrics:$runId")
         if (shouldFail) throw ApiException(500, "Server error")
-        return runMetrics[runId] ?: RunMetrics(id = runId, numSteps = 1, runNs = 1000L, toolsUsed = listOf("tool-1"))
+        return runMetrics[runId] ?: RunMetrics(
+            id = runId,
+            organizationId = "org-1",
+            agentId = "agent-1",
+            projectId = "project-1",
+            runStartNs = 100L,
+            numSteps = 1,
+            runNs = 1000L,
+            toolsUsed = listOf("tool-1"),
+            templateId = "template-1",
+            baseTemplateId = "base-template-1",
+        )
     }
 
     override suspend fun listRunSteps(
@@ -68,7 +79,31 @@ class FakeRunApi : RunApi(mockk(relaxed = true)) {
     ): List<RunStep> {
         calls.add("listRunSteps:$runId")
         if (shouldFail) throw ApiException(500, "Server error")
-        return runSteps[runId] ?: listOf(RunStep(id = "step-1", runId = runId, status = "completed", model = "model-1"))
+        return runSteps[runId] ?: listOf(
+            RunStep(
+                id = "step-1",
+                origin = "sdk",
+                organizationId = "org-1",
+                providerId = "provider-1",
+                runId = runId,
+                agentId = "agent-1",
+                providerName = "OpenAI",
+                providerCategory = "llm",
+                model = "model-1",
+                modelEndpoint = "https://api.example.com/v1",
+                contextWindowLimit = 128000,
+                promptTokens = 10,
+                completionTokens = 20,
+                totalTokens = 30,
+                traceId = "trace-1",
+                stopReason = "stop",
+                tags = listOf("tool-call"),
+                tid = "txn-1",
+                feedback = "positive",
+                projectId = "project-1",
+                status = "completed",
+            )
+        )
     }
 
     override suspend fun cancelRun(agentId: String, runId: String): Map<String, String> {

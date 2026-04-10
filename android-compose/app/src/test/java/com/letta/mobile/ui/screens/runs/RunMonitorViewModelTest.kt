@@ -81,6 +81,9 @@ class RunMonitorViewModelTest {
         assertEquals(1, state.data.selectedRunSteps.size)
         assertEquals(30, state.data.selectedRunUsage?.totalTokens)
         assertEquals("r1", state.data.selectedRunMetrics?.id)
+        assertEquals("org-1", state.data.selectedRunMetrics?.organizationId)
+        assertEquals("provider-1", state.data.selectedRunSteps.first().providerId)
+        assertEquals("positive", state.data.selectedRunSteps.first().feedback)
     }
 
     @Test

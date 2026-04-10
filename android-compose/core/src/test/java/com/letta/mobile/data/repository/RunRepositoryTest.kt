@@ -70,7 +70,22 @@ class RunRepositoryTest {
         val result = repository.getRunMetrics("r1")
 
         assertEquals("r1", result.id)
+        assertEquals("org-1", result.organizationId)
+        assertEquals("template-1", result.templateId)
         assertTrue(fakeApi.calls.contains("retrieveRunMetrics:r1"))
+    }
+
+    @Test
+    fun `getRunSteps delegates richer step payloads`() = runTest {
+        fakeApi.runs.add(sampleRun("r1", "a1"))
+
+        val result = repository.getRunSteps("r1")
+
+        assertEquals(1, result.size)
+        assertEquals("provider-1", result.first().providerId)
+        assertEquals("https://api.example.com/v1", result.first().modelEndpoint)
+        assertEquals("positive", result.first().feedback)
+        assertTrue(fakeApi.calls.contains("listRunSteps:r1"))
     }
 
     @Test
