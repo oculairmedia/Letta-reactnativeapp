@@ -313,7 +313,6 @@ private fun MessageInputBar(
                 },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text(stringResource(R.string.screen_chat_input_hint)) },
-                enabled = !isStreaming,
                 maxLines = 4,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     imeAction = androidx.compose.ui.text.input.ImeAction.Send,
