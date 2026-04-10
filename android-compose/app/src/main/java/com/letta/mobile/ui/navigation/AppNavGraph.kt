@@ -23,11 +23,13 @@ import com.letta.mobile.ui.screens.config.ConfigScreen
 import com.letta.mobile.ui.screens.conversations.ConversationsScreen
 import com.letta.mobile.ui.screens.editagent.EditAgentScreen
 import com.letta.mobile.ui.screens.folders.FolderAdminScreen
+import com.letta.mobile.ui.screens.groups.GroupAdminScreen
 import com.letta.mobile.ui.screens.identities.IdentityListScreen
 import com.letta.mobile.ui.screens.jobs.JobMonitorScreen
 import com.letta.mobile.ui.screens.mcp.McpScreen
 import com.letta.mobile.ui.screens.mcp.McpServerToolsScreen
 import com.letta.mobile.ui.screens.models.ModelBrowserScreen
+import com.letta.mobile.ui.screens.providers.ProviderAdminScreen
 import com.letta.mobile.ui.screens.runs.RunMonitorScreen
 import com.letta.mobile.ui.screens.schedules.ScheduleListScreen
 import com.letta.mobile.ui.screens.templates.TemplatesScreen
@@ -94,6 +96,12 @@ fun AppNavGraph() {
                 },
                 onNavigateToFolders = {
                     navController.navigate("folders")
+                },
+                onNavigateToGroups = {
+                    navController.navigate("groups")
+                },
+                onNavigateToProviders = {
+                    navController.navigate("providers")
                 },
                 onNavigateToBlocks = {
                     navController.navigate("blocks")
@@ -171,6 +179,18 @@ fun AppNavGraph() {
 
         composable("folders") {
             FolderAdminScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("groups") {
+            GroupAdminScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("providers") {
+            ProviderAdminScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }

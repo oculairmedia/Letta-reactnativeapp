@@ -91,6 +91,8 @@ fun ConversationsScreen(
     onNavigateToTemplates: () -> Unit = {},
     onNavigateToArchives: () -> Unit = {},
     onNavigateToFolders: () -> Unit = {},
+    onNavigateToGroups: () -> Unit = {},
+    onNavigateToProviders: () -> Unit = {},
     onNavigateToBlocks: () -> Unit = {},
     onNavigateToIdentities: () -> Unit = {},
     onNavigateToSchedules: () -> Unit = {},
@@ -140,6 +142,16 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_folders)) },
                             onClick = { showOverflowMenu = false; onNavigateToFolders() },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.ManageSearch, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.screen_nav_groups)) },
+                            onClick = { showOverflowMenu = false; onNavigateToGroups() },
+                            leadingIcon = { Icon(Icons.Default.ForkRight, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.screen_nav_providers)) },
+                            onClick = { showOverflowMenu = false; onNavigateToProviders() },
+                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.screen_nav_blocks)) },
