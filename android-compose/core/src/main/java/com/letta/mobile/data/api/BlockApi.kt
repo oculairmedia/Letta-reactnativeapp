@@ -26,6 +26,28 @@ open class BlockApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun retrieveBlock(blockId: String): Block {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/blocks/$blockId")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun countBlocks(): Int {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/blocks/count")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
     open suspend fun updateAgentBlock(agentId: String, blockLabel: String, params: BlockUpdateParams): Block {
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
@@ -140,6 +162,50 @@ open class BlockApi @Inject constructor(
             parameter("limit", limit)
             parameter("offset", offset)
         }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun listAgentsForBlock(
+        blockId: String,
+        limit: Int? = null,
+        before: String? = null,
+        after: String? = null,
+        order: String? = null,
+    ): List<Agent> {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.get("$baseUrl/v1/blocks/$blockId/agents") {
+            parameter("limit", limit)
+            parameter("before", before)
+            parameter("after", after)
+            parameter("order", order)
+        }
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun attachIdentityToBlock(blockId: String, identityId: String): Block {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.patch("$baseUrl/v1/blocks/$blockId/identities/attach/$identityId")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
+        return response.body()
+    }
+
+    open suspend fun detachIdentityFromBlock(blockId: String, identityId: String): Block {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl()
+
+        val response = client.patch("$baseUrl/v1/blocks/$blockId/identities/detach/$identityId")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
