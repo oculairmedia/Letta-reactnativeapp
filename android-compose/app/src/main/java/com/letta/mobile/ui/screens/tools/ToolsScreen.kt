@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.screens.tools
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -54,6 +56,8 @@ private fun ToolsContent(
     onRemoveTool: (Tool) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedTool by remember { mutableStateOf<Tool?>(null) }
+
     if (state.tools.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Build,
@@ -72,77 +76,79 @@ private fun ToolsContent(
             ) { tool ->
                 ToolCard(
                     tool = tool,
-                    onRemove = { onRemoveTool(tool) }
+                    onClick = { selectedTool = tool },
+                    onRemove = { onRemoveTool(tool) },
                 )
             }
         }
     }
+
+    selectedTool?.let { tool ->
+        ToolDetailDialog(
+            tool = tool,
+            onDismiss = { selectedTool = null },
+        )
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ToolCard(
     tool: Tool,
+    onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showRemoveDialog by remember { mutableStateOf(false) }
+    val truncatedDesc = tool.description?.take(80)?.let {
+        if ((tool.description?.length ?: 0) > 80) "$it..." else it
+    }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showRemoveDialog = true },
+            ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Build,
-                        contentDescription = "Tool",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = tool.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                truncatedDesc?.let { desc ->
                     Text(
-                        text = tool.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                
-                tool.description?.let { description ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = description,
+                        text = desc,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                tool.toolType?.let { toolType ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                text = toolType,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-
-            IconButton(onClick = { showRemoveDialog = true }) {
-                Icon(Icons.Default.Close, "Remove")
-            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 
@@ -155,6 +161,52 @@ private fun ToolCard(
         onConfirm = { showRemoveDialog = false; onRemove() },
         onDismiss = { showRemoveDialog = false },
         destructive = true,
+    )
+}
+
+@Composable
+private fun ToolDetailDialog(
+    tool: Tool,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(tool.name)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                tool.description?.let { desc ->
+                    Text(text = desc, style = MaterialTheme.typography.bodyMedium)
+                }
+                tool.toolType?.let { type ->
+                    Row {
+                        Text(
+                            text = stringResource(R.string.common_type) + ": ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(text = type, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (tool.tags.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.common_tags) + ": " + tool.tags.joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
     )
 }
 
@@ -178,32 +230,21 @@ private fun ToolCardSkeleton(modifier: Modifier = Modifier) {
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(color)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    ShimmerBox(widthFraction = 0.5f, height = 16.dp)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                ShimmerBox(widthFraction = 0.8f, height = 12.dp)
-                Spacer(modifier = Modifier.height(8.dp))
-                ShimmerBox(widthFraction = 0.25f, height = 24.dp, cornerRadius = 12.dp)
-            }
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(20.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(color)
             )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                ShimmerBox(widthFraction = 0.5f, height = 14.dp)
+                Spacer(modifier = Modifier.height(4.dp))
+                ShimmerBox(widthFraction = 0.8f, height = 12.dp)
+            }
         }
     }
 }

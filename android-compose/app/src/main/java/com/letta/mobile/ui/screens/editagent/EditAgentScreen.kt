@@ -18,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Save
@@ -50,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -496,6 +499,7 @@ private fun EditAgentContent(
         HorizontalDivider()
 
         var toolsExpanded by remember { mutableStateOf(true) }
+        var selectedTool by remember { mutableStateOf<Tool?>(null) }
         Accordions(
             title = stringResource(R.string.common_tools),
             subtitle = stringResource(R.string.screen_agent_edit_attached_tools_count, state.attachedTools.size),
@@ -504,7 +508,7 @@ private fun EditAgentContent(
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (state.attachedTools.isEmpty()) {
                     Text(
@@ -516,6 +520,7 @@ private fun EditAgentContent(
                     state.attachedTools.forEach { tool ->
                         AttachedToolRow(
                             tool = tool,
+                            onClick = { selectedTool = tool },
                             onDetach = { onDetachTool(tool.id) },
                         )
                     }
@@ -530,6 +535,13 @@ private fun EditAgentContent(
                     Text(stringResource(R.string.screen_agent_edit_attach_tools))
                 }
             }
+        }
+
+        selectedTool?.let { tool ->
+            ToolDetailDialog(
+                tool = tool,
+                onDismiss = { selectedTool = null },
+            )
         }
 
         HorizontalDivider()
@@ -622,28 +634,114 @@ private fun EditAgentContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AttachedToolRow(
     tool: Tool,
+    onClick: () -> Unit,
     onDetach: () -> Unit,
 ) {
+    var showDetachDialog by remember { mutableStateOf(false) }
+    val truncatedDesc = tool.description?.take(80)?.let {
+        if ((tool.description?.length ?: 0) > 80) "$it..." else it
+    }
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showDetachDialog = true },
+            )
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = Icons.Default.Build,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(tool.name, style = MaterialTheme.typography.bodyMedium)
-            tool.description?.let { description ->
+            Text(
+                text = tool.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            truncatedDesc?.let { desc ->
                 Text(
-                    text = description,
+                    text = desc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        TextButton(onClick = onDetach) {
-            Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
-        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
+
+    ConfirmDialog(
+        show = showDetachDialog,
+        title = stringResource(R.string.screen_tools_dialog_remove_title),
+        message = stringResource(R.string.screen_tools_dialog_remove_confirm, tool.name),
+        confirmText = stringResource(R.string.action_remove),
+        dismissText = stringResource(R.string.action_cancel),
+        onConfirm = { showDetachDialog = false; onDetach() },
+        onDismiss = { showDetachDialog = false },
+        destructive = true,
+    )
+}
+
+@Composable
+private fun ToolDetailDialog(
+    tool: Tool,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(tool.name)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                tool.description?.let { desc ->
+                    Text(text = desc, style = MaterialTheme.typography.bodyMedium)
+                }
+                tool.toolType?.let { type ->
+                    Row {
+                        Text(
+                            text = stringResource(R.string.common_type) + ": ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(text = type, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (tool.tags.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.common_tags) + ": " + tool.tags.joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
 }
