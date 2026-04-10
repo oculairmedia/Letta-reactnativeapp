@@ -2,6 +2,8 @@ package com.letta.mobile.ui.screens.agentlist
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Star
@@ -36,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +50,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -55,6 +62,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,6 +106,7 @@ fun AgentListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var showGrid by rememberSaveable { mutableStateOf(false) }
 
     val filteredAgents = remember(uiState.agents, uiState.searchQuery) {
         viewModel.getFilteredAgents()
@@ -152,6 +161,24 @@ fun AgentListScreen(
                         },
                     )
                 }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = !showGrid,
+                        onClick = { showGrid = false },
+                        label = { Text(stringResource(R.string.screen_agents_view_list)) },
+                    )
+                    FilterChip(
+                        selected = showGrid,
+                        onClick = { showGrid = true },
+                        label = { Text(stringResource(R.string.screen_agents_view_grid)) },
+                    )
+                }
             }
         },
         floatingActionButton = {
@@ -181,35 +208,64 @@ fun AgentListScreen(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            contentPadding = PaddingValues(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            if (favoriteAgent != null && uiState.searchQuery.isBlank()) {
-                                item(
-                                    key = "favorite-${favoriteAgent.id}",
-                                    span = { GridItemSpan(3) },
-                                ) {
-                                    FavoriteAgentCard(
-                                        agent = favoriteAgent,
-                                        onClick = { onNavigateToAgent(favoriteAgent.id) },
-                                        onEdit = { onNavigateToEditAgent(favoriteAgent.id) },
-                                        onUnfavorite = { viewModel.toggleFavorite(favoriteAgent.id) },
+                        if (showGrid) {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                contentPadding = PaddingValues(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                if (favoriteAgent != null && uiState.searchQuery.isBlank()) {
+                                    item(
+                                        key = "favorite-${favoriteAgent.id}",
+                                        span = { GridItemSpan(3) },
+                                    ) {
+                                        FavoriteAgentCard(
+                                            agent = favoriteAgent,
+                                            onClick = { onNavigateToAgent(favoriteAgent.id) },
+                                            onEdit = { onNavigateToEditAgent(favoriteAgent.id) },
+                                            onUnfavorite = { viewModel.toggleFavorite(favoriteAgent.id) },
+                                        )
+                                    }
+                                }
+
+                                items(gridAgents, key = { it.id }) { agent ->
+                                    CompactAgentCard(
+                                        agent = agent,
+                                        isFavorite = agent.id == uiState.favoriteAgentId,
+                                        onClick = { onNavigateToAgent(agent.id) },
+                                        onLongPress = { onNavigateToEditAgent(agent.id) },
+                                        onDelete = { viewModel.deleteAgent(agent.id) },
+                                        onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
                                     )
                                 }
                             }
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                if (favoriteAgent != null && uiState.searchQuery.isBlank()) {
+                                    item(key = "favorite-${favoriteAgent.id}") {
+                                        FavoriteAgentCard(
+                                            agent = favoriteAgent,
+                                            onClick = { onNavigateToAgent(favoriteAgent.id) },
+                                            onEdit = { onNavigateToEditAgent(favoriteAgent.id) },
+                                            onUnfavorite = { viewModel.toggleFavorite(favoriteAgent.id) },
+                                        )
+                                    }
+                                }
 
-                            items(gridAgents, key = { it.id }) { agent ->
-                                AgentCard(
-                                    agent = agent,
-                                    isFavorite = agent.id == uiState.favoriteAgentId,
-                                    onClick = { onNavigateToAgent(agent.id) },
-                                    onLongPress = { onNavigateToEditAgent(agent.id) },
-                                    onDelete = { viewModel.deleteAgent(agent.id) },
-                                    onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
-                                )
+                                lazyItems(gridAgents, key = { it.id }) { agent ->
+                                    AgentCard(
+                                        agent = agent,
+                                        isFavorite = agent.id == uiState.favoriteAgentId,
+                                        onClick = { onNavigateToAgent(agent.id) },
+                                        onLongPress = { onNavigateToEditAgent(agent.id) },
+                                        onDelete = { viewModel.deleteAgent(agent.id) },
+                                        onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -366,7 +422,7 @@ private fun InfoChip(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun AgentCard(
     agent: Agent,
@@ -385,11 +441,12 @@ private fun AgentCard(
         val hue = (agent.id.hashCode().and(0xFF)) * 360f / 256f
         android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.3f, 0.9f))
     }
+    val toolCount = agent.tools.size
+    val blockCount = agent.blocks.size
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(110.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
@@ -397,42 +454,95 @@ private fun AgentCard(
                     showContextMenu = true
                 },
             ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(18.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .background(Color(agentColor))
-            )
-            Column(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(agentColor),
             ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = agent.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = agent.model ?: "No model",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.SmartToy,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = agent.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (isFavorite) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    IconButton(onClick = { showContextMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = null)
+                    }
+                }
+
+                agent.description?.takeIf { it.isNotBlank() }?.let { description ->
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AgentMetaChip(text = agent.model ?: "No model")
+                    AgentMetaChip(text = "$toolCount ${stringResource(R.string.common_tools)}")
+                    AgentMetaChip(text = "$blockCount memory")
+                    agent.embedding?.takeIf { it.isNotBlank() }?.let { embedding ->
+                        AgentMetaChip(text = embedding)
+                    }
+                    if (agent.enableSleeptime == true) {
+                        AgentMetaChip(text = "Sleep")
+                    }
+                    agent.tags.take(3).forEach { tag ->
+                        AgentTagChip(tag = tag)
+                    }
+                    if (agent.tags.size > 3) {
+                        AgentMetaChip(text = "+${agent.tags.size - 3}")
+                    }
+                }
+
+                agent.createdAt?.let { createdAt ->
+                    Text(
+                        text = "Created ${com.letta.mobile.util.formatRelativeTime(createdAt)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-
     }
 
     ActionSheet(
@@ -468,6 +578,145 @@ private fun AgentCard(
         onDismiss = { showDeleteDialog = false },
         destructive = true,
     )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CompactAgentCard(
+    agent: Agent,
+    isFavorite: Boolean = false,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    onDelete: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showContextMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val agentColor = remember(agent.id) {
+        val hue = (agent.id.hashCode().and(0xFF)) * 360f / 256f
+        android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.3f, 0.9f))
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showContextMenu = true
+                },
+            ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .background(Color(agentColor)),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SmartToy,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = agent.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = agent.model ?: "No model",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+
+    ActionSheet(
+        show = showContextMenu,
+        onDismiss = { showContextMenu = false },
+        title = agent.name,
+    ) {
+        ActionSheetItem(
+            text = if (isFavorite) "Remove Favorite" else "Set as Favorite",
+            icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            onClick = { showContextMenu = false; onToggleFavorite() },
+        )
+        ActionSheetItem(
+            text = stringResource(R.string.action_edit),
+            icon = Icons.Default.Edit,
+            onClick = { showContextMenu = false; onLongPress() },
+        )
+        ActionSheetItem(
+            text = stringResource(R.string.action_delete),
+            icon = Icons.Default.Delete,
+            onClick = { showContextMenu = false; showDeleteDialog = true },
+            destructive = true,
+        )
+    }
+
+    ConfirmDialog(
+        show = showDeleteDialog,
+        title = stringResource(R.string.screen_agents_dialog_delete_title),
+        message = stringResource(R.string.screen_agents_dialog_delete_confirm, agent.name),
+        confirmText = stringResource(R.string.action_delete),
+        dismissText = stringResource(R.string.action_cancel),
+        onConfirm = { showDeleteDialog = false; onDelete() },
+        onDismiss = { showDeleteDialog = false },
+        destructive = true,
+    )
+}
+
+@Composable
+private fun AgentMetaChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun AgentTagChip(tag: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Text(
+            text = tag,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
