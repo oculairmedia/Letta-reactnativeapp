@@ -23,7 +23,6 @@ import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
-import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +30,7 @@ import com.letta.mobile.ui.components.ShimmerCard
 fun TemplatesScreen(
     onNavigateBack: () -> Unit,
     onNavigateToAgent: (String) -> Unit,
+    onNavigateToAgentList: () -> Unit,
     viewModel: TemplatesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -65,6 +65,7 @@ fun TemplatesScreen(
                         onNavigateToAgent(agentId)
                     }
                 },
+                onNavigateToAgentList = onNavigateToAgentList,
                 modifier = Modifier.padding(paddingValues)
             )
         }
@@ -74,31 +75,84 @@ fun TemplatesScreen(
 @Composable
 private fun TemplatesContent(
     state: TemplatesUiState,
-    onTemplateClick: (AgentTemplate) -> Unit,
+    onTemplateClick: (StarterAgentTemplate) -> Unit,
+    onNavigateToAgentList: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (state.templates.isEmpty()) {
-        EmptyState(
-            icon = Icons.Default.Apps,
-            message = stringResource(R.string.screen_templates_empty),
-            modifier = modifier.fillMaxSize()
+    Column(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        StarterAgentsInfoCard(
+            onNavigateToAgentList = onNavigateToAgentList,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         )
-    } else {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+
+        if (state.templates.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.Apps,
+                message = stringResource(R.string.screen_templates_empty),
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = state.templates,
+                    key = { it.id }
+                ) { template ->
+                    TemplateCard(
+                        template = template,
+                        onClick = { onTemplateClick(template) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StarterAgentsInfoCard(
+    onNavigateToAgentList: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(
-                items = state.templates,
-                key = { it.id }
-            ) { template ->
-                TemplateCard(
-                    template = template,
-                    onClick = { onTemplateClick(template) }
-                )
+            Text(
+                text = stringResource(R.string.screen_templates_info_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                text = stringResource(R.string.screen_templates_info_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                text = stringResource(R.string.screen_templates_info_reusable),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = onNavigateToAgentList) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.screen_templates_manage_agents_action))
+                }
             }
         }
     }
@@ -107,7 +161,7 @@ private fun TemplatesContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TemplateCard(
-    template: AgentTemplate,
+    template: StarterAgentTemplate,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -125,11 +179,9 @@ private fun TemplateCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.SmartToy,
-                contentDescription = "Template",
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
+            Text(
+                text = template.icon,
+                style = MaterialTheme.typography.displaySmall,
             )
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -151,6 +203,13 @@ private fun TemplateCard(
                 textAlign = TextAlign.Center,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            AssistChip(
+                onClick = onClick,
+                label = { Text(template.tags.last()) },
             )
         }
     }

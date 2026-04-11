@@ -13,22 +13,45 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
-data class AgentTemplate(
+data class StarterAgentTemplate(
     val id: String,
     val name: String,
     val description: String,
-    val icon: String
+    val icon: String,
+    val systemPrompt: String,
+    val tags: List<String>,
 )
 
 @androidx.compose.runtime.Immutable
 data class TemplatesUiState(
-    val templates: List<AgentTemplate> = emptyList()
+    val templates: List<StarterAgentTemplate> = emptyList()
 )
 
 private val BUILTIN_TEMPLATES = listOf(
-    AgentTemplate("default", "Default Agent", "A general-purpose conversational agent", "\uD83E\uDD16"),
-    AgentTemplate("coder", "Coding Assistant", "An agent specialized in programming tasks", "\uD83D\uDCBB"),
-    AgentTemplate("writer", "Writing Assistant", "An agent for creative and professional writing", "\u270D\uFE0F"),
+    StarterAgentTemplate(
+        id = "default",
+        name = "Default Agent",
+        description = "A balanced assistant for everyday questions, planning, and coordination.",
+        icon = "\uD83E\uDD16",
+        systemPrompt = "You are a helpful general-purpose Letta assistant. Be concise, reliable, and proactive about clarifying the next useful step.",
+        tags = listOf("starter", "general"),
+    ),
+    StarterAgentTemplate(
+        id = "coder",
+        name = "Coding Assistant",
+        description = "A starter tuned for debugging, implementation planning, and developer workflows.",
+        icon = "\uD83D\uDCBB",
+        systemPrompt = "You are a coding-focused Letta assistant. Prefer precise reasoning, concrete implementation steps, and code-aware troubleshooting.",
+        tags = listOf("starter", "coding"),
+    ),
+    StarterAgentTemplate(
+        id = "writer",
+        name = "Writing Assistant",
+        description = "A starter for drafting, editing, summarizing, and shaping tone across written work.",
+        icon = "\u270D\uFE0F",
+        systemPrompt = "You are a writing-focused Letta assistant. Help shape drafts, improve clarity, and adapt tone to the audience while preserving intent.",
+        tags = listOf("starter", "writing"),
+    ),
 )
 
 @HiltViewModel
@@ -59,7 +82,13 @@ class TemplatesViewModel @Inject constructor(
             try {
                 val template = BUILTIN_TEMPLATES.find { it.id == templateId } ?: return@launch
                 val agent = agentRepository.createAgent(
-                    AgentCreateParams(name = template.name, description = template.description)
+                    AgentCreateParams(
+                        name = template.name,
+                        description = template.description,
+                        system = template.systemPrompt,
+                        tags = template.tags,
+                        includeBaseTools = true,
+                    )
                 )
                 onSuccess(agent.id)
             } catch (e: Exception) {

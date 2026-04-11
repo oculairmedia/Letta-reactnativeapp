@@ -8,7 +8,7 @@
     <string name="common_chat">Chat</string>
     <string name="common_tools">Tools</string>
     <string name="common_mcp">MCP</string>
-    <string name="common_templates">Templates</string>
+    <string name="common_templates">Starter Agents</string>
     
     <string name="action_search">Search</string>
     <string name="action_refresh">Refresh</string>
@@ -54,8 +54,12 @@
     <string name="common_dark_theme">Dark Theme</string>
     <string name="common_light_theme">Light Theme</string>
     
-    <string name="screen_templates_title">Agent Templates</string>
-    <string name="screen_templates_empty">No templates available</string>
+    <string name="screen_templates_title">Starter Agents</string>
+    <string name="screen_templates_empty">No starter agents available</string>
+    <string name="screen_templates_info_title">Quick starts, not server templates</string>
+    <string name="screen_templates_info_body">These cards create local starter agents with sensible defaults. Real Letta template administration depends on server support and may be limited to cloud or admin-only deployments.</string>
+    <string name="screen_templates_info_reusable">For reusable configurations today, use Agent clone/export/import from the Agents and Settings screens.</string>
+    <string name="screen_templates_manage_agents_action">Manage Agents</string>
     <string name="screen_agents_dialog_delete_title">Delete Agent</string>
     <string name="screen_agents_dialog_delete_confirm">Are you sure you want to delete %1$s?</string>
     <string name="screen_agents_dialog_create_title">Create Agent</string>
@@ -260,7 +264,7 @@
     <string name="screen_conversations_message_inspector_title">Message Inspector</string>
     <string name="screen_conversations_message_inspector_empty">No messages available for this conversation</string>
     <string name="screen_conversations_created_label">Created %1$s</string>
-    <string name="screen_nav_templates">Templates</string>
+    <string name="screen_nav_templates">Starter Agents</string>
     <string name="screen_nav_archives">Archives</string>
     <string name="screen_nav_folders">Folders</string>
     <string name="screen_nav_groups">Groups</string>

@@ -192,7 +192,10 @@ fun AppNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToAgent = { agentId ->
                     navController.navigate("agent/$agentId/chat")
-                }
+                },
+                onNavigateToAgentList = {
+                    navController.navigate("agentList")
+                },
             )
         }
 

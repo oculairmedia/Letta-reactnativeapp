@@ -51,6 +51,7 @@ class TemplatesViewModelTest {
             val state = awaitItem() as UiState.Success
             assertTrue(state.data.templates.isNotEmpty())
             assertEquals(3, state.data.templates.size)
+            assertEquals(listOf("starter", "general"), state.data.templates.first().tags)
         }
     }
 
@@ -59,6 +60,9 @@ class TemplatesViewModelTest {
         var capturedId = ""
         viewModel.createFromTemplate("default") { capturedId = it }
         assertTrue(capturedId.isNotEmpty())
+        assertEquals(true, fakeRepo.lastCreateParams?.includeBaseTools)
+        assertEquals(listOf("starter", "general"), fakeRepo.lastCreateParams?.tags)
+        assertTrue(fakeRepo.lastCreateParams?.system?.contains("general-purpose Letta assistant") == true)
     }
 
     @Test
@@ -72,11 +76,13 @@ class TemplatesViewModelTest {
         private val _agents = MutableStateFlow<List<Agent>>(emptyList())
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         var shouldFail = false
+        var lastCreateParams: AgentCreateParams? = null
 
         override suspend fun refreshAgents() {}
         override fun getAgent(id: String): Flow<Agent> = flow { emit(TestData.agent()) }
         override suspend fun createAgent(params: AgentCreateParams): Agent {
             if (shouldFail) throw Exception("Create failed")
+            lastCreateParams = params
             return TestData.agent(id = "new-1", name = params.name ?: "Unnamed")
         }
         override suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent = TestData.agent()
