@@ -132,6 +132,9 @@ dependencies {
     implementation("androidx.paging:paging-runtime-ktx:3.3.5")
     implementation("androidx.paging:paging-compose:3.3.5")
 
+    // Background sync
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

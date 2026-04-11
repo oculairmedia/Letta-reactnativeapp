@@ -1,8 +1,10 @@
 package com.letta.mobile.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavType
@@ -10,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.letta.mobile.NotificationNavigationTarget
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.screens.about.AboutScreen
 import com.letta.mobile.ui.screens.agentlist.AgentListScreen
@@ -54,12 +57,30 @@ class NavViewModel @Inject constructor(
 }
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    notificationTarget: NotificationNavigationTarget? = null,
+    onNotificationTargetConsumed: () -> Unit = {},
+) {
     val navViewModel: NavViewModel = hiltViewModel()
     val hasConfig by navViewModel.hasConfig.collectAsState(initial = true)
 
-    val startDestination = if (hasConfig) "home" else "config"
+    val initialNotificationRoute = remember { notificationTarget?.route }
+    val startDestination = when {
+        hasConfig && initialNotificationRoute != null -> initialNotificationRoute
+        hasConfig -> "home"
+        else -> "config"
+    }
     val navController = rememberNavController()
+
+    LaunchedEffect(notificationTarget?.route) {
+        val route = notificationTarget?.route ?: return@LaunchedEffect
+        if (route != startDestination) {
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+        }
+        onNotificationTargetConsumed()
+    }
 
     NavHost(
         navController = navController,

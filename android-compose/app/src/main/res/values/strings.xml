@@ -121,6 +121,10 @@
     <string name="screen_chat_input_hint">Type a message…</string>
     <string name="screen_chat_empty">Start a conversation</string>
     <string name="screen_chat_title">Agent Chat</string>
+    <string name="channel_notifications_name">Agent updates</string>
+    <string name="channel_notifications_description">Background delivery for new Letta messages</string>
+    <string name="channel_notifications_fallback_title">Letta update</string>
+    <string name="channel_notifications_fallback_text">Open the conversation to see the latest update.</string>
     <string name="screen_chat_config_section">Agent Configuration</string>
     <string name="screen_chat_model_config_section">Model Config</string>
     <string name="common_context_window">Context Window</string>
