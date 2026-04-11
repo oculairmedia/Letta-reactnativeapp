@@ -47,6 +47,10 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -232,8 +236,7 @@ private fun JobCard(
             ) {
                 Text(
                     text = job.id,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.weight(1f),
                 )
                 if (job.isTerminalStatus()) {
@@ -257,7 +260,7 @@ private fun JobCard(
             job.agentId?.let { agentId ->
                 Text(
                     text = stringResource(R.string.screen_jobs_agent_label, agentId),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -266,7 +269,7 @@ private fun JobCard(
             job.userId?.let { userId ->
                 Text(
                     text = stringResource(R.string.screen_jobs_user_label, userId),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -275,7 +278,7 @@ private fun JobCard(
             job.createdAt?.let { createdAt ->
                 Text(
                     text = stringResource(R.string.screen_jobs_created_label, formatRelativeTime(createdAt)),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -292,28 +295,28 @@ private fun JobDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(job.id, fontFamily = FontFamily.Monospace) },
+        title = { Text(job.id, style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                job.status?.let { Text(stringResource(R.string.screen_jobs_status_label, it)) }
-                job.jobType?.let { Text(stringResource(R.string.screen_jobs_type_label, it)) }
-                job.stopReason?.let { Text(stringResource(R.string.screen_jobs_stop_reason_label, it)) }
-                job.agentId?.let { Text(stringResource(R.string.screen_jobs_agent_label, it)) }
-                job.userId?.let { Text(stringResource(R.string.screen_jobs_user_label, it)) }
-                job.createdAt?.let { Text(stringResource(R.string.screen_jobs_created_exact_label, it)) }
-                job.completedAt?.let { Text(stringResource(R.string.screen_jobs_completed_label, it)) }
-                job.callbackUrl?.let { Text(stringResource(R.string.screen_jobs_callback_label, it)) }
-                job.callbackSentAt?.let { Text(stringResource(R.string.screen_jobs_callback_sent_at_label, it)) }
-                job.callbackStatusCode?.let { Text(stringResource(R.string.screen_jobs_callback_status_label, it)) }
-                job.callbackError?.let { Text(stringResource(R.string.screen_jobs_callback_error_label, it)) }
-                job.totalDurationNs?.let { Text(stringResource(R.string.screen_jobs_total_duration_label, it)) }
-                job.ttftNs?.let { Text(stringResource(R.string.screen_jobs_ttft_label, it)) }
+                job.status?.let { Text(stringResource(R.string.screen_jobs_status_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.jobType?.let { Text(stringResource(R.string.screen_jobs_type_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.stopReason?.let { Text(stringResource(R.string.screen_jobs_stop_reason_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.agentId?.let { Text(stringResource(R.string.screen_jobs_agent_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.userId?.let { Text(stringResource(R.string.screen_jobs_user_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.createdAt?.let { Text(stringResource(R.string.screen_jobs_created_exact_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                job.completedAt?.let { Text(stringResource(R.string.screen_jobs_completed_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                job.callbackUrl?.let { Text(stringResource(R.string.screen_jobs_callback_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.callbackSentAt?.let { Text(stringResource(R.string.screen_jobs_callback_sent_at_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                job.callbackStatusCode?.let { Text(stringResource(R.string.screen_jobs_callback_status_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                job.callbackError?.let { Text(stringResource(R.string.screen_jobs_callback_error_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                job.totalDurationNs?.let { Text(stringResource(R.string.screen_jobs_total_duration_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                job.ttftNs?.let { Text(stringResource(R.string.screen_jobs_ttft_label, it), style = MaterialTheme.typography.listItemMetadata) }
                 if (job.metadata.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_jobs_metadata_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_jobs_metadata_title), style = MaterialTheme.typography.dialogSectionHeading)
                     job.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
                         Text(
                             text = "$key: $value",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis,
                         )

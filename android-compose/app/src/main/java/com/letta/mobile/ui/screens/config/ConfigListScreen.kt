@@ -22,6 +22,7 @@ import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.listItemHeadline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,7 +154,7 @@ private fun ConfigCard(
                 Text(
                     text = if (config.mode == ServerMode.CLOUD) stringResource(R.string.common_letta_cloud) 
                            else config.url,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.listItemHeadline,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

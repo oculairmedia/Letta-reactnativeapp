@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.ui.icons.LettaIconSizing
 
 @Composable
 fun MessageActionButton(
@@ -30,7 +31,7 @@ fun MessageActionButton(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(LettaIconSizing.Inline),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.width(4.dp))

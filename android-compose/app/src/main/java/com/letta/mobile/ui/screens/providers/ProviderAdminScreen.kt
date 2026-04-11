@@ -46,6 +46,8 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.ui.icons.LettaIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -245,10 +247,10 @@ private fun ProviderCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(provider.name, style = MaterialTheme.typography.titleMedium)
+                    Text(provider.name, style = MaterialTheme.typography.listItemHeadline)
                     provider.baseUrl?.takeIf { it.isNotBlank() }?.let {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(it, style = MaterialTheme.typography.listItemSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Row {
@@ -281,16 +283,16 @@ private fun ProviderDetailDialog(
         title = { Text(provider.name, fontFamily = FontFamily.Monospace) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                provider.id?.let { Text(stringResource(R.string.screen_providers_id_label, it), style = MaterialTheme.typography.bodySmall) }
-                Text(stringResource(R.string.screen_providers_type_label, provider.providerType), style = MaterialTheme.typography.bodySmall)
-                provider.providerCategory?.let { Text(stringResource(R.string.screen_providers_category_label, it), style = MaterialTheme.typography.bodySmall) }
-                provider.baseUrl?.let { Text(stringResource(R.string.screen_providers_base_url_label, it), style = MaterialTheme.typography.bodySmall) }
-                provider.region?.let { Text(stringResource(R.string.screen_providers_region_label, it), style = MaterialTheme.typography.bodySmall) }
-                provider.organizationId?.let { Text(stringResource(R.string.screen_providers_organization_label, it), style = MaterialTheme.typography.bodySmall) }
-                provider.updatedAt?.let { Text(stringResource(R.string.screen_providers_updated_label, it), style = MaterialTheme.typography.bodySmall) }
-                Text(stringResource(R.string.screen_providers_secret_present_label, provider.apiKey.isNullOrBlank().not()), style = MaterialTheme.typography.bodySmall)
+                provider.id?.let { Text(stringResource(R.string.screen_providers_id_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                Text(stringResource(R.string.screen_providers_type_label, provider.providerType), style = MaterialTheme.typography.listItemSupporting)
+                provider.providerCategory?.let { Text(stringResource(R.string.screen_providers_category_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                provider.baseUrl?.let { Text(stringResource(R.string.screen_providers_base_url_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                provider.region?.let { Text(stringResource(R.string.screen_providers_region_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                provider.organizationId?.let { Text(stringResource(R.string.screen_providers_organization_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                provider.updatedAt?.let { Text(stringResource(R.string.screen_providers_updated_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                Text(stringResource(R.string.screen_providers_secret_present_label, provider.apiKey.isNullOrBlank().not()), style = MaterialTheme.typography.listItemSupporting)
                 provider.accessKey?.takeIf { it.isNotBlank() }?.let {
-                    Text(stringResource(R.string.screen_providers_access_key_present_label, true), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.screen_providers_access_key_present_label, true), style = MaterialTheme.typography.listItemSupporting)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onEdit) { Text(stringResource(R.string.screen_providers_edit_title)) }

@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -42,6 +44,8 @@ data class CustomColors(
     val iconSecondary: Color = Color.Unspecified,
     val iconAccent: Color = Color.Unspecified,
 
+    val listItemContainerColor: Color = Color.Unspecified,
+
     // Borders
     val borderDefault: Color = Color.Unspecified,
     val borderFocused: Color = Color.Unspecified,
@@ -54,3 +58,7 @@ val MaterialTheme.customColors: CustomColors
     @Composable
     @ReadOnlyComposable
     get() = LocalCustomColors.current
+
+val CustomColors.listItemColors: ListItemColors
+    @Composable
+    get() = ListItemDefaults.colors(containerColor = listItemContainerColor)

@@ -23,6 +23,8 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +123,7 @@ private fun SettingsContent(
                     trailingContent = {
                         Text(
                             text = state.agentType,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
@@ -139,11 +141,11 @@ private fun SettingsContent(
             item(
                 headlineContent = { Text(stringResource(R.string.common_context_window)) },
                 trailingContent = {
-                    Text(
-                        text = state.contextWindow.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                        Text(
+                            text = state.contextWindow.toString(),
+                            style = MaterialTheme.typography.listItemMetadata,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                 },
             )
         }
@@ -392,19 +394,19 @@ private fun ToolDetailDialog(
                 tool.description?.let { desc ->
                     Text(
                         text = desc,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.listItemSupporting,
                     )
                 }
                 tool.toolType?.let { type ->
                     Row {
                         Text(
                             text = stringResource(R.string.common_type) + ": ",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
                             text = type,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.listItemSupporting,
                         )
                     }
                 }
@@ -412,7 +414,7 @@ private fun ToolDetailDialog(
                     Column {
                         Text(
                             text = stringResource(R.string.common_tags),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -476,7 +478,7 @@ private fun CloneAgentDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = stringResource(R.string.screen_settings_clone_dialog_helper),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.listItemSupporting,
                 )
                 OutlinedTextField(
                     value = cloneName,
@@ -491,10 +493,10 @@ private fun CloneAgentDialog(
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.listItemSupporting)
                         Text(
                             stringResource(R.string.screen_agents_import_override_tools_helper),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -506,10 +508,10 @@ private fun CloneAgentDialog(
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.listItemSupporting)
                         Text(
                             stringResource(R.string.screen_agents_import_strip_messages_helper),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

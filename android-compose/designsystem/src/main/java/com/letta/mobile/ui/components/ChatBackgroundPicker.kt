@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -98,7 +99,7 @@ private fun BackgroundSwatch(
                 Icon(
                     LettaIcons.Check,
                     contentDescription = "Selected",
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(LettaIconSizing.Inline),
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }

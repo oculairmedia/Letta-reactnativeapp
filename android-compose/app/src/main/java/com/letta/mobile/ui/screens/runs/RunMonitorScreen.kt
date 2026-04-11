@@ -53,6 +53,10 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.util.formatRelativeTime
 import kotlinx.serialization.json.JsonElement
 import com.letta.mobile.ui.icons.LettaIcons
@@ -255,8 +259,7 @@ private fun RunCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = run.id,
-                style = MaterialTheme.typography.titleSmall,
-                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -269,16 +272,16 @@ private fun RunCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.screen_runs_agent_label, run.agentId),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.screen_runs_agent_label, run.agentId),
+                    style = MaterialTheme.typography.listItemSupporting,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             run.conversationId?.let { conversationId ->
                 Text(
                     text = stringResource(R.string.screen_runs_conversation_label, conversationId),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -287,7 +290,7 @@ private fun RunCard(
             run.createdAt?.let { createdAt ->
                 Text(
                     text = stringResource(R.string.screen_runs_created_label, formatRelativeTime(createdAt)),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -316,34 +319,34 @@ private fun RunDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(run.id, fontFamily = FontFamily.Monospace) },
+        title = { Text(run.id, style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                run.status?.let { Text(stringResource(R.string.screen_runs_status_label, it)) }
-                run.stopReason?.let { Text(stringResource(R.string.screen_runs_stop_reason_label, it)) }
-                Text(stringResource(R.string.screen_runs_agent_label, run.agentId))
-                run.conversationId?.let { Text(stringResource(R.string.screen_runs_conversation_label, it)) }
-                run.createdAt?.let { Text(stringResource(R.string.screen_runs_created_exact_label, it)) }
-                run.completedAt?.let { Text(stringResource(R.string.screen_runs_completed_label, it)) }
-                run.callbackUrl?.let { Text(stringResource(R.string.screen_runs_callback_label, it)) }
-                run.callbackSentAt?.let { Text(stringResource(R.string.screen_runs_callback_sent_label, it)) }
-                run.callbackStatusCode?.let { Text(stringResource(R.string.screen_runs_callback_status_label, it)) }
-                run.callbackError?.let { Text(stringResource(R.string.screen_runs_callback_error_label, it)) }
-                run.totalDurationNs?.let { Text(stringResource(R.string.screen_runs_total_duration_label, it)) }
-                run.ttftNs?.let { Text(stringResource(R.string.screen_runs_ttft_label, it)) }
+                run.status?.let { Text(stringResource(R.string.screen_runs_status_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                run.stopReason?.let { Text(stringResource(R.string.screen_runs_stop_reason_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                Text(stringResource(R.string.screen_runs_agent_label, run.agentId), style = MaterialTheme.typography.listItemSupporting)
+                run.conversationId?.let { Text(stringResource(R.string.screen_runs_conversation_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                run.createdAt?.let { Text(stringResource(R.string.screen_runs_created_exact_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                run.completedAt?.let { Text(stringResource(R.string.screen_runs_completed_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                run.callbackUrl?.let { Text(stringResource(R.string.screen_runs_callback_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                run.callbackSentAt?.let { Text(stringResource(R.string.screen_runs_callback_sent_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                run.callbackStatusCode?.let { Text(stringResource(R.string.screen_runs_callback_status_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                run.callbackError?.let { Text(stringResource(R.string.screen_runs_callback_error_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                run.totalDurationNs?.let { Text(stringResource(R.string.screen_runs_total_duration_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                run.ttftNs?.let { Text(stringResource(R.string.screen_runs_ttft_label, it), style = MaterialTheme.typography.listItemMetadata) }
                 if (run.metadata.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_metadata_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_runs_metadata_title), style = MaterialTheme.typography.dialogSectionHeading)
                     run.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
                         Text(
                             text = "$key: ${value.toDisplayString()}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
                 run.requestConfig?.let { config ->
-                    Text(stringResource(R.string.screen_runs_request_config_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_runs_request_config_title), style = MaterialTheme.typography.dialogSectionHeading)
                     config.assistantMessageToolName?.let {
                         Text(stringResource(R.string.screen_runs_request_config_assistant_tool_name_label, it))
                     }
@@ -358,13 +361,13 @@ private fun RunDetailDialog(
                     }
                 }
                 usage?.let {
-                    Text(stringResource(R.string.screen_runs_usage_title), style = MaterialTheme.typography.labelLarge)
-                    Text(stringResource(R.string.screen_runs_usage_prompt_tokens_label, it.promptTokens ?: 0))
-                    Text(stringResource(R.string.screen_runs_usage_completion_tokens_label, it.completionTokens ?: 0))
-                    Text(stringResource(R.string.screen_runs_usage_total_tokens_label, it.totalTokens ?: 0))
+                    Text(stringResource(R.string.screen_runs_usage_title), style = MaterialTheme.typography.dialogSectionHeading)
+                    Text(stringResource(R.string.screen_runs_usage_prompt_tokens_label, it.promptTokens ?: 0), style = MaterialTheme.typography.listItemSupporting)
+                    Text(stringResource(R.string.screen_runs_usage_completion_tokens_label, it.completionTokens ?: 0), style = MaterialTheme.typography.listItemSupporting)
+                    Text(stringResource(R.string.screen_runs_usage_total_tokens_label, it.totalTokens ?: 0), style = MaterialTheme.typography.listItemSupporting)
                 }
                 metrics?.let {
-                    Text(stringResource(R.string.screen_runs_metrics_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_runs_metrics_title), style = MaterialTheme.typography.dialogSectionHeading)
                     it.organizationId?.let { organizationId ->
                         Text(stringResource(R.string.screen_runs_metrics_organization_label, organizationId))
                     }
@@ -387,7 +390,7 @@ private fun RunDetailDialog(
                     }
                 }
                 if (steps.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_steps_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_runs_steps_title), style = MaterialTheme.typography.dialogSectionHeading)
                     steps.take(5).forEach { step ->
                         Card(onClick = { onInspectStep(step.id) }) {
                             Column(
@@ -402,33 +405,33 @@ private fun RunDetailDialog(
                                     step.status?.let { append(" • ").append(it) }
                                     step.model?.let { append(" • ").append(it) }
                                 },
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.listItemSupporting,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = stringResource(R.string.screen_runs_step_inspect_hint),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.listItemMetadata,
                                 color = MaterialTheme.colorScheme.primary,
                             )
-                            step.origin?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
-                            step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.providerCategory?.let { Text(stringResource(R.string.screen_runs_step_provider_category_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.providerId?.let { Text(stringResource(R.string.screen_runs_step_provider_id_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.modelEndpoint?.let { Text(stringResource(R.string.screen_runs_step_model_endpoint_label, it), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                            step.contextWindowLimit?.let { Text(stringResource(R.string.screen_runs_step_context_window_limit_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.promptTokens?.let { Text(stringResource(R.string.screen_runs_step_prompt_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.completionTokens?.let { Text(stringResource(R.string.screen_runs_step_completion_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.totalTokens?.let { Text(stringResource(R.string.screen_runs_step_total_tokens_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.traceId?.let { Text(stringResource(R.string.screen_runs_step_trace_id_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.tid?.let { Text(stringResource(R.string.screen_runs_step_tid_label, it), style = MaterialTheme.typography.bodySmall) }
-                            step.feedback?.let { Text(stringResource(R.string.screen_runs_step_feedback_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.origin?.let { Text(text = it, style = MaterialTheme.typography.listItemSupporting) }
+                            step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                            step.providerCategory?.let { Text(stringResource(R.string.screen_runs_step_provider_category_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                            step.providerId?.let { Text(stringResource(R.string.screen_runs_step_provider_id_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                            step.modelEndpoint?.let { Text(stringResource(R.string.screen_runs_step_model_endpoint_label, it), style = MaterialTheme.typography.listItemSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                            step.contextWindowLimit?.let { Text(stringResource(R.string.screen_runs_step_context_window_limit_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.promptTokens?.let { Text(stringResource(R.string.screen_runs_step_prompt_tokens_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.completionTokens?.let { Text(stringResource(R.string.screen_runs_step_completion_tokens_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.totalTokens?.let { Text(stringResource(R.string.screen_runs_step_total_tokens_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.traceId?.let { Text(stringResource(R.string.screen_runs_step_trace_id_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.tid?.let { Text(stringResource(R.string.screen_runs_step_tid_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                            step.feedback?.let { Text(stringResource(R.string.screen_runs_step_feedback_label, it), style = MaterialTheme.typography.listItemMetadata) }
                             if (step.tags.isNotEmpty()) {
-                                Text(stringResource(R.string.screen_runs_step_tags_label, step.tags.joinToString(", ")), style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.screen_runs_step_tags_label, step.tags.joinToString(", ")), style = MaterialTheme.typography.listItemSupporting)
                             }
-                            step.errorType?.let { Text(stringResource(R.string.screen_runs_step_error_type_label, it), style = MaterialTheme.typography.bodySmall) }
+                            step.errorType?.let { Text(stringResource(R.string.screen_runs_step_error_type_label, it), style = MaterialTheme.typography.listItemSupporting) }
                             if (step.messages.isNotEmpty()) {
-                                Text(stringResource(R.string.screen_runs_step_messages_count_label, step.messages.size), style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.screen_runs_step_messages_count_label, step.messages.size), style = MaterialTheme.typography.listItemMetadata)
                             }
                             if (step.completionTokensDetails.isNotEmpty()) {
                                 Text(
@@ -436,7 +439,7 @@ private fun RunDetailDialog(
                                         R.string.screen_runs_step_completion_details_label,
                                         step.completionTokensDetails.toSortedDisplayString(),
                                     ),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.listItemSupporting,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -447,7 +450,7 @@ private fun RunDetailDialog(
                                         R.string.screen_runs_step_error_data_label,
                                         step.errorData.toSortedDisplayString(),
                                     ),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.listItemSupporting,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -457,7 +460,7 @@ private fun RunDetailDialog(
                     }
                 }
                 if (messages.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_messages_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_runs_messages_title), style = MaterialTheme.typography.dialogSectionHeading)
                     messages.takeLast(5).forEach { message ->
                         Text(
                             text = stringResource(
@@ -465,7 +468,7 @@ private fun RunDetailDialog(
                                 message.messageType,
                                 messageSummary(message),
                             ),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )

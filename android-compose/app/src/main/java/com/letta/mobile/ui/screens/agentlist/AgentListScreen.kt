@@ -90,7 +90,11 @@ import com.letta.mobile.ui.components.ShimmerGrid
 import com.letta.mobile.ui.navigation.optionalSharedElement
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.screens.tools.ToolPickerDialog
+import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -415,7 +419,7 @@ private fun FavoriteAgentCard(
             agent.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 Text(
                     text = desc,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = subtleColor,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -463,7 +467,7 @@ private fun FavoriteAgentCard(
                     if (tags.size > 4) {
                         Text(
                             "+${tags.size - 4}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = subtleColor,
                             modifier = Modifier.align(Alignment.CenterVertically),
                         )
@@ -474,7 +478,7 @@ private fun FavoriteAgentCard(
             agent.createdAt?.let { created ->
                 Text(
                     text = "Created ${com.letta.mobile.util.formatRelativeTime(created)}",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = subtleColor.copy(alpha = 0.5f),
                     modifier = Modifier.padding(top = 6.dp),
                 )
@@ -490,10 +494,10 @@ private fun InfoChip(
     color: androidx.compose.ui.graphics.Color,
 ) {
     Column {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.6f))
+        Text(text = label, style = MaterialTheme.typography.listItemMetadata, color = color.copy(alpha = 0.6f))
         Text(
             text = value,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.listItemSupporting,
             color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -573,7 +577,7 @@ private fun AgentCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = agent.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.listItemHeadline,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -583,7 +587,7 @@ private fun AgentCard(
                             imageVector = LettaIcons.Favorite,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(LettaIconSizing.Inline),
                         )
                     }
                     IconButton(onClick = { showContextMenu = true }) {
@@ -594,7 +598,7 @@ private fun AgentCard(
                 agent.description?.takeIf { it.isNotBlank() }?.let { description ->
                     Text(
                         text = description,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.listItemSupporting,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -625,7 +629,7 @@ private fun AgentCard(
                 agent.createdAt?.let { createdAt ->
                     Text(
                         text = "Created ${com.letta.mobile.util.formatRelativeTime(createdAt)}",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.listItemMetadata,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -731,13 +735,13 @@ private fun CompactAgentCard(
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = agent.name,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.listItemHeadline,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = agent.model ?: "No model",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -791,7 +795,7 @@ private fun AgentMetaChip(text: String) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.listItemMetadata,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -808,7 +812,7 @@ private fun AgentTagChip(tag: String) {
         Text(
             text = tag,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.listItemMetadata,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

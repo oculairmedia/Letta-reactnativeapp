@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
+import com.letta.mobile.ui.theme.customColors
+import com.letta.mobile.ui.theme.listItemColors
 
 private val CardGroupCorner = 20.dp
 private val CardGroupItemSpacing = 2.dp
@@ -73,9 +75,7 @@ class CardGroupScope {
 /** Default [ListItemColors] for card group items using [MaterialTheme.colorScheme.surfaceBright]. */
 object CardGroupDefaults {
     val listItemColors: ListItemColors
-        @Composable get() = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceBright
-        )
+        @Composable get() = MaterialTheme.customColors.listItemColors
 }
 
 @Composable

@@ -48,6 +48,10 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.util.formatRelativeTime
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -217,8 +221,7 @@ private fun MessageBatchCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = batch.id,
-                style = MaterialTheme.typography.titleSmall,
-                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,14 +236,14 @@ private fun MessageBatchCard(
             batch.createdAt?.let { createdAt ->
                 Text(
                     text = stringResource(R.string.screen_message_batches_created_label, formatRelativeTime(createdAt)),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             batch.agentId?.let { agentId ->
                 Text(
                     text = stringResource(R.string.screen_message_batches_agent_label, agentId),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -249,7 +252,7 @@ private fun MessageBatchCard(
             batch.stopReason?.let { stopReason ->
                 Text(
                     text = stringResource(R.string.screen_message_batches_stop_reason_label, stopReason),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -268,31 +271,31 @@ private fun MessageBatchDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(batch.id, fontFamily = FontFamily.Monospace) },
+        title = { Text(batch.id, style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                batch.status?.let { Text(stringResource(R.string.screen_message_batches_status_label, it)) }
-                batch.jobType?.let { Text(stringResource(R.string.screen_message_batches_type_label, it)) }
-                batch.stopReason?.let { Text(stringResource(R.string.screen_message_batches_stop_reason_label, it)) }
-                batch.agentId?.let { Text(stringResource(R.string.screen_message_batches_agent_label, it)) }
-                batch.userId?.let { Text(stringResource(R.string.screen_message_batches_user_label, it)) }
-                batch.createdAt?.let { Text(stringResource(R.string.screen_message_batches_created_exact_label, it)) }
-                batch.completedAt?.let { Text(stringResource(R.string.screen_message_batches_completed_label, it)) }
-                batch.callbackUrl?.let { Text(stringResource(R.string.screen_message_batches_callback_label, it)) }
-                batch.callbackSentAt?.let { Text(stringResource(R.string.screen_message_batches_callback_sent_at_label, it)) }
-                batch.callbackStatusCode?.let { Text(stringResource(R.string.screen_message_batches_callback_status_label, it)) }
-                batch.callbackError?.let { Text(stringResource(R.string.screen_message_batches_callback_error_label, it)) }
-                batch.totalDurationNs?.let { Text(stringResource(R.string.screen_message_batches_total_duration_label, it)) }
-                batch.ttftNs?.let { Text(stringResource(R.string.screen_message_batches_ttft_label, it)) }
+                batch.status?.let { Text(stringResource(R.string.screen_message_batches_status_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.jobType?.let { Text(stringResource(R.string.screen_message_batches_type_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.stopReason?.let { Text(stringResource(R.string.screen_message_batches_stop_reason_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.agentId?.let { Text(stringResource(R.string.screen_message_batches_agent_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.userId?.let { Text(stringResource(R.string.screen_message_batches_user_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.createdAt?.let { Text(stringResource(R.string.screen_message_batches_created_exact_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                batch.completedAt?.let { Text(stringResource(R.string.screen_message_batches_completed_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                batch.callbackUrl?.let { Text(stringResource(R.string.screen_message_batches_callback_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.callbackSentAt?.let { Text(stringResource(R.string.screen_message_batches_callback_sent_at_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                batch.callbackStatusCode?.let { Text(stringResource(R.string.screen_message_batches_callback_status_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                batch.callbackError?.let { Text(stringResource(R.string.screen_message_batches_callback_error_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                batch.totalDurationNs?.let { Text(stringResource(R.string.screen_message_batches_total_duration_label, it), style = MaterialTheme.typography.listItemMetadata) }
+                batch.ttftNs?.let { Text(stringResource(R.string.screen_message_batches_ttft_label, it), style = MaterialTheme.typography.listItemMetadata) }
                 if (batch.metadata.isNotEmpty()) {
                     Text(
                         stringResource(R.string.screen_message_batches_metadata_title),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.dialogSectionHeading,
                     )
                     batch.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
                         Text(
                             text = "$key: ${value.toDisplayString()}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             maxLines = 4,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -300,12 +303,12 @@ private fun MessageBatchDetailDialog(
                 }
                 Text(
                     stringResource(R.string.screen_message_batches_messages_title),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.dialogSectionHeading,
                 )
                 if (messages.isEmpty()) {
                     Text(
                         text = stringResource(R.string.screen_message_batches_messages_empty),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemSupporting,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
@@ -351,12 +354,12 @@ private fun BatchMessageCard(message: BatchMessage) {
             ) {
                 Text(
                     text = message.role ?: stringResource(R.string.screen_message_batches_message_unknown_role),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.listItemMetadata,
                 )
                 message.createdAt?.let {
                     Text(
                         text = it,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemMetadata,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -371,35 +374,35 @@ private fun BatchMessageCard(message: BatchMessage) {
                         }
                     }
                 },
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.listItemSupporting,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
             message.agentId?.let {
                 Text(
                     text = stringResource(R.string.screen_message_batches_agent_label, it),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             message.runId?.let {
                 Text(
                     text = stringResource(R.string.screen_message_batches_message_run_label, it),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             message.stepId?.let {
                 Text(
                     text = stringResource(R.string.screen_message_batches_message_step_label, it),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             message.batchItemId?.let {
                 Text(
                     text = stringResource(R.string.screen_message_batches_message_batch_item_label, it),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemMetadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

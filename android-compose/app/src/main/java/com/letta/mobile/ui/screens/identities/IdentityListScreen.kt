@@ -50,6 +50,11 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemMetadataMonospace
+import com.letta.mobile.ui.theme.listItemSupporting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -268,13 +273,12 @@ private fun IdentityCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(identity.name, style = MaterialTheme.typography.titleMedium)
+                    Text(identity.name, style = MaterialTheme.typography.listItemHeadline)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = identity.identifierKey,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemMetadataMonospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontFamily = FontFamily.Monospace,
                     )
                 }
                 Row {
@@ -322,18 +326,18 @@ private fun IdentityDetailDialog(
         title = { Text(identity.name) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.screen_identities_identifier_label, identity.identifierKey), fontFamily = FontFamily.Monospace)
-                Text(stringResource(R.string.screen_identities_type_label, identity.identityType))
-                identity.projectId?.let { Text(stringResource(R.string.screen_identities_project_label, it)) }
-                identity.organizationId?.let { Text(stringResource(R.string.screen_identities_organization_label, it)) }
-                Text(stringResource(R.string.screen_identities_agent_count_label, identity.agentIds.size))
-                Text(stringResource(R.string.screen_identities_block_count_label, identity.blockIds.size))
+                Text(stringResource(R.string.screen_identities_identifier_label, identity.identifierKey), style = MaterialTheme.typography.listItemMetadataMonospace)
+                Text(stringResource(R.string.screen_identities_type_label, identity.identityType), style = MaterialTheme.typography.listItemSupporting)
+                identity.projectId?.let { Text(stringResource(R.string.screen_identities_project_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                identity.organizationId?.let { Text(stringResource(R.string.screen_identities_organization_label, it), style = MaterialTheme.typography.listItemSupporting) }
+                Text(stringResource(R.string.screen_identities_agent_count_label, identity.agentIds.size), style = MaterialTheme.typography.listItemMetadata)
+                Text(stringResource(R.string.screen_identities_block_count_label, identity.blockIds.size), style = MaterialTheme.typography.listItemMetadata)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(stringResource(R.string.common_agents), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.common_agents), style = MaterialTheme.typography.dialogSectionHeading)
                 if (identity.agentIds.isEmpty()) {
                     Text(
                         text = stringResource(R.string.screen_identities_no_linked_agents),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemSupporting,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
@@ -343,7 +347,7 @@ private fun IdentityDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(agent.name, style = MaterialTheme.typography.bodySmall)
+                            Text(agent.name, style = MaterialTheme.typography.listItemSupporting)
                             TextButton(onClick = { onDetachAgent(agent.id) }) {
                                 Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
                             }
@@ -355,7 +359,7 @@ private fun IdentityDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(agentId, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                            Text(agentId, style = MaterialTheme.typography.listItemMetadataMonospace)
                             TextButton(onClick = { onDetachAgent(agentId) }) {
                                 Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
                             }
@@ -363,36 +367,35 @@ private fun IdentityDetailDialog(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(stringResource(R.string.screen_identities_blocks_title), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.screen_identities_blocks_title), style = MaterialTheme.typography.dialogSectionHeading)
                 if (identity.blockIds.isEmpty()) {
                     Text(
                         text = stringResource(R.string.screen_identities_no_linked_blocks),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemSupporting,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     identity.blockIds.forEach { blockId ->
                         Text(
                             text = blockId,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.listItemMetadataMonospace,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                     Text(
                         text = stringResource(R.string.screen_identities_blocks_manage_hint),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.listItemSupporting,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (identity.properties.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(stringResource(R.string.screen_identities_properties_title), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.screen_identities_properties_title), style = MaterialTheme.typography.dialogSectionHeading)
                     identity.properties.forEach { property ->
                         Text(
                             text = "${property.key}: ${property.value}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )

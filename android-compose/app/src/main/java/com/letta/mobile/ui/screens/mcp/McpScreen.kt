@@ -77,6 +77,10 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemHeadline
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
 
 private const val MCP_TYPE_STDIO = "stdio"
 private const val MCP_TYPE_SSE = "sse"
@@ -337,11 +341,11 @@ private fun PhoneBridgeCard(
         ) {
             Text(
                 text = stringResource(R.string.screen_mcp_connect_phone_title),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.listItemHeadline,
             )
             Text(
                 text = stringResource(R.string.screen_mcp_connect_phone_body),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.listItemSupporting,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Button(onClick = onConnectPhone) {
@@ -373,7 +377,7 @@ private fun ToolCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = tool.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.listItemHeadline,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -382,7 +386,7 @@ private fun ToolCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.listItemSupporting,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -446,7 +450,7 @@ private fun ServerCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = server.serverName,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.listItemHeadline,
                         )
                         server.effectiveServerType()?.let { serverType ->
                             Spacer(modifier = Modifier.width(8.dp))
@@ -461,7 +465,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = url,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -473,13 +477,13 @@ private fun ServerCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = stringResource(R.string.screen_mcp_server_command),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.listItemMetadata,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = command,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.listItemSupporting,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -490,7 +494,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = args.joinToString(" "),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -501,7 +505,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_created, createdAt),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -510,7 +514,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_updated, updatedAt),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -519,7 +523,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_auth_header, authHeader),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -528,7 +532,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_token_present),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -537,7 +541,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_custom_headers_count, headers.size),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -546,7 +550,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_env_count, env.size),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -555,7 +559,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_organization, organizationId),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -566,7 +570,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_created_by, createdById),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -577,7 +581,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_updated_by, lastUpdatedById),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -588,7 +592,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_metadata_count, server.metadata.size),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -597,7 +601,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = stringResource(R.string.screen_mcp_server_tools_count, tools.size),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -609,7 +613,7 @@ private fun ServerCard(
                             checkState?.isReachable == false -> stringResource(R.string.screen_mcp_server_unreachable)
                             else -> stringResource(R.string.screen_mcp_server_unchecked)
                         },
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.listItemMetadata,
                         color = when (checkState?.isReachable) {
                             true -> MaterialTheme.colorScheme.primary
                             false -> MaterialTheme.colorScheme.error
@@ -620,7 +624,7 @@ private fun ServerCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = message,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -647,7 +651,7 @@ private fun ServerCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = stringResource(R.string.screen_mcp_server_discovered_tools),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.dialogSectionHeading,
                 )
                 tools.forEach { tool ->
                     Row(
@@ -656,12 +660,12 @@ private fun ServerCard(
                     ) {
                         Text(
                             text = "• ${tool.name}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.listItemSupporting,
                         )
                         tool.description?.let { desc ->
                             Text(
                                 text = " - $desc",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.listItemSupporting,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

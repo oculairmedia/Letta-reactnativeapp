@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -50,6 +51,10 @@ import com.letta.mobile.ui.components.ThinkingSection
 import com.letta.mobile.ui.theme.chatColors
 import com.letta.mobile.ui.theme.chatDimens
 import com.letta.mobile.ui.theme.chatTypography
+import com.letta.mobile.ui.theme.dialogSectionHeading
+import com.letta.mobile.ui.theme.listItemMetadata
+import com.letta.mobile.ui.theme.listItemSupporting
+import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 
 private fun UiMessage.displayRoleLabel(defaultLabel: String): String {
@@ -228,7 +233,7 @@ internal fun MessageAvatar(
                     imageVector = icon,
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(LettaIconSizing.Inline),
                 )
             } else {
                 Text(
@@ -280,6 +285,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
     val codeStyle = MaterialTheme.chatTypography.codeBlock
 
     Card(
+        modifier = Modifier.animateContentSize(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
         ),
@@ -296,7 +302,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = display.label,
-                    style = codeStyle,
+                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -306,14 +312,14 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                     Icon(
                         imageVector = LettaIcons.Error,
                         contentDescription = "Error",
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(LettaIconSizing.Inline),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 } else if (toolCall.result != null) {
                     Icon(
                         imageVector = LettaIcons.CheckCircle,
                         contentDescription = "Success",
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(LettaIconSizing.Inline),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
@@ -337,7 +343,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                     // Tool name
                     Text(
                         text = toolCall.name,
-                        style = codeStyle,
+                        style = MaterialTheme.typography.listItemMetadata.copy(fontFamily = codeStyle.fontFamily),
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
@@ -345,7 +351,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                     display.detailLine?.let { detail ->
                         Text(
                             text = detail,
-                            style = codeStyle,
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -356,13 +362,13 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Arguments",
-                            style = codeStyle,
+                            style = MaterialTheme.typography.dialogSectionHeading.copy(fontFamily = codeStyle.fontFamily),
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                         Text(
                             text = toolCall.arguments,
-                            style = codeStyle,
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 6,
                             overflow = TextOverflow.Ellipsis,
@@ -373,7 +379,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (isError) "Error" else "Result",
-                            style = codeStyle,
+                            style = MaterialTheme.typography.dialogSectionHeading.copy(fontFamily = codeStyle.fontFamily),
                             fontWeight = FontWeight.SemiBold,
                             color = if (isError) {
                                 MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
@@ -383,7 +389,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         )
                         Text(
                             text = result,
-                            style = codeStyle,
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
                             color = if (isError) {
                                 MaterialTheme.colorScheme.error
                             } else {

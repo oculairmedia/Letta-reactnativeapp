@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.ui.icons.LettaIconSizing
 
 enum class ConnectionState {
     Online,
@@ -66,7 +67,7 @@ fun ConnectionStatusBanner(
         ) {
             if (state == ConnectionState.Reconnecting) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(LettaIconSizing.Status),
                     strokeWidth = 1.5.dp,
                     color = textColor,
                 )

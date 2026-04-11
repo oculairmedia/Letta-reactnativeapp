@@ -62,6 +62,7 @@ import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.ModelDropdown
 import com.letta.mobile.ui.screens.tools.ToolPickerDialog
+import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -404,7 +405,7 @@ private fun EditAgentContent(
                     onClick = { showAddBlockDialog = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.screen_agent_edit_add_memory_block))
                 }
@@ -412,7 +413,7 @@ private fun EditAgentContent(
                     onClick = { showAttachBlockDialog = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.screen_agent_edit_attach_existing_block))
                 }
@@ -521,7 +522,7 @@ private fun EditAgentContent(
                     onClick = { showToolPicker = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.screen_agent_edit_attach_tools))
                 }

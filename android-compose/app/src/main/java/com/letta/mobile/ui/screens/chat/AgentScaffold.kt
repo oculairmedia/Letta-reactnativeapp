@@ -63,6 +63,7 @@ import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.util.ConnectivityMonitor
 import com.letta.mobile.ui.navigation.optionalSharedElement
 import kotlinx.coroutines.launch
+import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,7 +134,7 @@ fun AgentScaffold(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(LettaIconSizing.Toolbar)
                                     .optionalSharedElement("agent_avatar_$agentId"),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -152,7 +153,7 @@ fun AgentScaffold(
                                     Icon(
                                         LettaIcons.ArrowDropDown,
                                         contentDescription = "Switch conversation",
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(LettaIconSizing.Inline),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -224,7 +225,7 @@ private fun ConversationPickerSheet(
                 onClick = onNewConversation,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.screen_conversations_new_action))
             }

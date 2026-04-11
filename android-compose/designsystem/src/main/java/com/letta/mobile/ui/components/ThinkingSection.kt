@@ -3,6 +3,7 @@ package com.letta.mobile.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,12 @@ fun ThinkingSection(
         isExpanded = true
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .padding(vertical = 4.dp)
+    ) {
         Row(
             modifier = Modifier.clickable { isExpanded = !isExpanded }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
