@@ -3,7 +3,9 @@ package com.letta.mobile.data.mapper
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.testutil.TestData
 import io.kotest.core.spec.style.WordSpec
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
 
@@ -61,6 +63,192 @@ class MessageMapperTest : WordSpec({
 
         "preserve id" {
             TestData.appMessage(id = "unique-id-123").toUiMessage().id shouldBe "unique-id-123"
+        }
+
+        "always produce toolCalls for TOOL_CALL even without name" {
+            val uiMsg = TestData.appMessage(
+                messageType = MessageType.TOOL_CALL,
+                content = "{}",
+                toolName = null,
+                toolCallId = "tc-x"
+            ).toUiMessage()
+            uiMsg.toolCalls.shouldNotBeNull()
+            uiMsg.toolCalls!! shouldHaveSize 1
+            uiMsg.toolCalls!!.first().name shouldBe "tool"
+        }
+
+        "always produce toolCalls for TOOL_RETURN even without name" {
+            val uiMsg = TestData.appMessage(
+                messageType = MessageType.TOOL_RETURN,
+                content = "result data",
+                toolName = null,
+                toolCallId = "tc-y"
+            ).toUiMessage()
+            uiMsg.toolCalls.shouldNotBeNull()
+            uiMsg.toolCalls!! shouldHaveSize 1
+            uiMsg.toolCalls!!.first().name shouldBe "tool"
+            uiMsg.toolCalls!!.first().result shouldBe "result data"
+        }
+    }
+
+    "List<AppMessage>.toUiMessages" should {
+        "merge TOOL_CALL and matching TOOL_RETURN into single card" {
+            val messages = listOf(
+                TestData.appMessage(id = "m1", messageType = MessageType.USER, content = "search for cats"),
+                TestData.appMessage(
+                    id = "m2",
+                    messageType = MessageType.TOOL_CALL,
+                    content = "{\"query\": \"cats\"}",
+                    toolName = "web_search",
+                    toolCallId = "tc-1"
+                ),
+                TestData.appMessage(
+                    id = "m3",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "Found 10 results about cats",
+                    toolName = "web_search",
+                    toolCallId = "tc-1"
+                ),
+                TestData.appMessage(id = "m4", messageType = MessageType.ASSISTANT, content = "Here are cat results"),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 3
+            ui[0].role shouldBe "user"
+            ui[1].role shouldBe "tool"
+            ui[1].toolCalls.shouldNotBeNull()
+            ui[1].toolCalls!! shouldHaveSize 1
+            val tc = ui[1].toolCalls!!.first()
+            tc.name shouldBe "web_search"
+            tc.arguments shouldBe "{\"query\": \"cats\"}"
+            tc.result shouldBe "Found 10 results about cats"
+            ui[2].role shouldBe "assistant"
+        }
+
+        "promote send_message tool to assistant bubble" {
+            val messages = listOf(
+                TestData.appMessage(id = "m1", messageType = MessageType.USER, content = "Hello"),
+                TestData.appMessage(
+                    id = "m2",
+                    messageType = MessageType.TOOL_CALL,
+                    content = "{\"message\": \"Hi there, how can I help?\"}",
+                    toolName = "send_message",
+                    toolCallId = "tc-sm"
+                ),
+                TestData.appMessage(
+                    id = "m3",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "None",
+                    toolName = "send_message",
+                    toolCallId = "tc-sm"
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 2
+            ui[0].role shouldBe "user"
+            ui[1].role shouldBe "assistant"
+            ui[1].content shouldBe "Hi there, how can I help?"
+        }
+
+        "render orphaned TOOL_RETURN as standalone tool card" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "orphan result",
+                    toolName = "archival_memory_search",
+                    toolCallId = "tc-orphan"
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "tool"
+            ui[0].toolCalls.shouldNotBeNull()
+            ui[0].toolCalls!! shouldHaveSize 1
+            ui[0].toolCalls!!.first().name shouldBe "archival_memory_search"
+            ui[0].toolCalls!!.first().result shouldBe "orphan result"
+        }
+
+        "handle TOOL_CALL without matching TOOL_RETURN" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1",
+                    messageType = MessageType.TOOL_CALL,
+                    content = "{\"key\": \"val\"}",
+                    toolName = "core_memory_append",
+                    toolCallId = "tc-no-return"
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "tool"
+            val tc = ui[0].toolCalls!!.first()
+            tc.name shouldBe "core_memory_append"
+            tc.arguments shouldBe "{\"key\": \"val\"}"
+            tc.result.shouldBeNull()
+        }
+
+        "pass through user, assistant, reasoning unchanged" {
+            val messages = listOf(
+                TestData.appMessage(id = "m1", messageType = MessageType.USER, content = "hello"),
+                TestData.appMessage(id = "m2", messageType = MessageType.ASSISTANT, content = "hi"),
+                TestData.appMessage(id = "m3", messageType = MessageType.REASONING, content = "thinking"),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 3
+            ui[0].role shouldBe "user"
+            ui[1].role shouldBe "assistant"
+            ui[2].role shouldBe "assistant"
+            ui[2].isReasoning shouldBe true
+        }
+
+        "handle orphaned send_message TOOL_RETURN as assistant message" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "Hi from agent",
+                    toolName = "send_message",
+                    toolCallId = "tc-sm-orphan"
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "assistant"
+            ui[0].content shouldBe "Hi from agent"
+        }
+
+        "handle multiple tool call-return pairs" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1", messageType = MessageType.TOOL_CALL,
+                    content = "{}", toolName = "archival_memory_search", toolCallId = "tc-1"
+                ),
+                TestData.appMessage(
+                    id = "m2", messageType = MessageType.TOOL_RETURN,
+                    content = "results A", toolName = "archival_memory_search", toolCallId = "tc-1"
+                ),
+                TestData.appMessage(
+                    id = "m3", messageType = MessageType.TOOL_CALL,
+                    content = "{}", toolName = "core_memory_append", toolCallId = "tc-2"
+                ),
+                TestData.appMessage(
+                    id = "m4", messageType = MessageType.TOOL_RETURN,
+                    content = "OK", toolName = "core_memory_append", toolCallId = "tc-2"
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 2
+            ui[0].toolCalls!!.first().name shouldBe "archival_memory_search"
+            ui[0].toolCalls!!.first().result shouldBe "results A"
+            ui[1].toolCalls!!.first().name shouldBe "core_memory_append"
+            ui[1].toolCalls!!.first().result shouldBe "OK"
         }
     }
 })

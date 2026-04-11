@@ -184,11 +184,7 @@ private fun MessageBubbleSurface(
         ) {
             if (groupPosition == GroupPosition.First || groupPosition == GroupPosition.None) {
                 Text(
-                    text = if (message.role == "tool" && !message.toolCalls.isNullOrEmpty()) {
-                        message.displayRoleLabel(style.roleLabel)
-                    } else {
-                        style.roleLabel
-                    },
+                    text = message.displayRoleLabel(style.roleLabel),
                     style = typo.roleLabel,
                     color = style.roleColor,
                 )

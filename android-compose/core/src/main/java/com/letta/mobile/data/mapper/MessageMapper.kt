@@ -79,6 +79,127 @@ private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCall
     }
 }
 
+fun List<AppMessage>.toUiMessages(): List<UiMessage> {
+    val returnsByCallId = mutableMapOf<String, AppMessage>()
+    for (msg in this) {
+        if (msg.messageType == MessageType.TOOL_RETURN && !msg.toolCallId.isNullOrBlank()) {
+            returnsByCallId[msg.toolCallId] = msg
+        }
+    }
+
+    val consumedReturnIds = mutableSetOf<String>()
+
+    val result = mutableListOf<UiMessage>()
+    for (msg in this) {
+        when (msg.messageType) {
+            MessageType.TOOL_CALL -> {
+                val matchedReturn = msg.toolCallId?.let(returnsByCallId::get)
+                if (matchedReturn != null) {
+                    consumedReturnIds.add(matchedReturn.id)
+                }
+                val name = msg.toolName
+                val arguments = msg.content
+                val returnContent = matchedReturn?.content
+
+                // send_message is Letta's reply tool — promote to assistant bubble
+                if (name == "send_message" && returnContent != null) {
+                    val visibleText = extractSendMessageText(arguments, returnContent)
+                    if (visibleText.isNotBlank()) {
+                        result.add(UiMessage(
+                            id = msg.id,
+                            role = "assistant",
+                            content = visibleText,
+                            timestamp = msg.date.toString(),
+                        ))
+                        continue
+                    }
+                }
+
+                val toolCall = UiToolCall(
+                    name = name ?: "tool",
+                    arguments = arguments,
+                    result = returnContent,
+                )
+                result.add(UiMessage(
+                    id = msg.id,
+                    role = "tool",
+                    content = "",
+                    timestamp = msg.date.toString(),
+                    toolCalls = listOf(toolCall),
+                ))
+            }
+
+            MessageType.TOOL_RETURN -> {
+                if (msg.id in consumedReturnIds) continue
+                val name = msg.toolName ?: "tool"
+
+                if (name == "send_message" && msg.content.isNotBlank()) {
+                    result.add(UiMessage(
+                        id = msg.id,
+                        role = "assistant",
+                        content = msg.content,
+                        timestamp = msg.date.toString(),
+                    ))
+                    continue
+                }
+
+                val toolCall = UiToolCall(
+                    name = name,
+                    arguments = "",
+                    result = msg.content.ifBlank { null },
+                )
+                result.add(UiMessage(
+                    id = msg.id,
+                    role = "tool",
+                    content = "",
+                    timestamp = msg.date.toString(),
+                    toolCalls = listOf(toolCall),
+                ))
+            }
+
+            MessageType.USER -> result.add(msg.toUiMessage())
+            MessageType.ASSISTANT -> result.add(msg.toUiMessage())
+            MessageType.REASONING -> result.add(msg.toUiMessage())
+        }
+    }
+    return result
+}
+
+private fun extractSendMessageText(arguments: String, returnContent: String): String {
+    return try {
+        val msgStart = arguments.indexOf("\"message\"")
+        if (msgStart < 0) return returnContent
+        val colonIdx = arguments.indexOf(':', msgStart)
+        if (colonIdx < 0) return returnContent
+        val valStart = arguments.indexOf('"', colonIdx + 1)
+        if (valStart < 0) return returnContent
+        var i = valStart + 1
+        val sb = StringBuilder()
+        while (i < arguments.length) {
+            val c = arguments[i]
+            if (c == '\\' && i + 1 < arguments.length) {
+                val next = arguments[i + 1]
+                when (next) {
+                    '"' -> sb.append('"')
+                    '\\' -> sb.append('\\')
+                    'n' -> sb.append('\n')
+                    't' -> sb.append('\t')
+                    else -> { sb.append('\\'); sb.append(next) }
+                }
+                i += 2
+            } else if (c == '"') {
+                break
+            } else {
+                sb.append(c)
+                i++
+            }
+        }
+        sb.toString().ifBlank { returnContent }
+    } catch (_: Exception) {
+        returnContent
+    }
+}
+
 fun AppMessage.toUiMessage(): UiMessage {
     val role = when (messageType) {
         MessageType.USER -> "user"
@@ -88,17 +209,17 @@ fun AppMessage.toUiMessage(): UiMessage {
         MessageType.TOOL_RETURN -> "tool"
     }
     val toolCalls = when {
-        messageType == MessageType.TOOL_CALL && toolName != null -> {
-            listOf(UiToolCall(name = toolName, arguments = content, result = null))
+        messageType == MessageType.TOOL_CALL -> {
+            listOf(UiToolCall(name = toolName ?: "tool", arguments = content, result = null))
         }
-        messageType == MessageType.TOOL_RETURN && toolName != null -> {
-            listOf(UiToolCall(name = toolName, arguments = "", result = content))
+        messageType == MessageType.TOOL_RETURN -> {
+            listOf(UiToolCall(name = toolName ?: "tool", arguments = "", result = content.ifBlank { null }))
         }
         else -> null
     }
     val displayContent = when {
-        messageType == MessageType.TOOL_CALL && toolCalls != null -> ""
-        messageType == MessageType.TOOL_RETURN && toolCalls != null -> ""
+        messageType == MessageType.TOOL_CALL -> ""
+        messageType == MessageType.TOOL_RETURN -> ""
         else -> content
     }
 

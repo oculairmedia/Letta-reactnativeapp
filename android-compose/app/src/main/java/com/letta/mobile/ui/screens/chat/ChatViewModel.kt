@@ -3,11 +3,10 @@ package com.letta.mobile.ui.screens.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.letta.mobile.data.mapper.toUiMessage
+import com.letta.mobile.data.mapper.toUiMessages
 import com.letta.mobile.data.model.AppMessage
 
 import com.letta.mobile.data.model.UiMessage
-import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -99,7 +98,7 @@ class ChatViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(agentName = agent.name)
 
                 val appMessages = messageRepository.getMessages(agentId, activeConversationId).first()
-                val messages = appMessages.map { it.toUiMessage() }
+                val messages = appMessages.toUiMessages()
                 if (messages.isNotEmpty()) hasSummary = true
                 _uiState.value = _uiState.value.copy(
                     messages = messages, isLoadingMessages = false
@@ -162,7 +161,7 @@ class ChatViewModel @Inject constructor(
                             _uiState.value = _uiState.value.copy(isAgentTyping = true)
                         }
                         is StreamState.Streaming -> {
-                            val newMessages = state.messages.map { it.toUiMessage() }
+                            val newMessages = state.messages.toUiMessages()
                             _uiState.value = _uiState.value.copy(
                                 messages = existingMessages + newMessages,
                                 isStreaming = true,
@@ -179,7 +178,7 @@ class ChatViewModel @Inject constructor(
                         }
                         is StreamState.Complete -> {
                             pendingToolsMap.clear()
-                            val newMessages = state.messages.map { it.toUiMessage() }
+                            val newMessages = state.messages.toUiMessages()
                             _uiState.value = _uiState.value.copy(
                                 messages = existingMessages + newMessages,
                                 isStreaming = false,
@@ -203,7 +202,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val appMessages = messageRepository.fetchMessages(agentId, activeConversationId)
-                val messages = appMessages.map { it.toUiMessage() }
+                val messages = appMessages.toUiMessages()
                 if (messages.isNotEmpty()) {
                     _uiState.value = _uiState.value.copy(messages = messages)
                 }
