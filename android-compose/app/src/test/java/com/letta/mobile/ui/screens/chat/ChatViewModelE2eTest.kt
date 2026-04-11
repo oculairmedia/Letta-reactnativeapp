@@ -27,6 +27,7 @@ import io.mockk.mockk
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -84,11 +85,14 @@ class ChatViewModelE2eTest {
             vm.sendMessage("Hello agent")
             advanceUntilIdle()
 
-            assertEquals(2, vm.uiState.value.messages.size)
-            assertEquals("Hello agent", vm.uiState.value.messages[0].content)
-            assertEquals("Hi from stream", vm.uiState.value.messages[1].content)
-            assertFalse(vm.uiState.value.isStreaming)
-            assertFalse(vm.uiState.value.isAgentTyping)
+            val state = vm.uiState.first {
+                it.messages.size == 2 && !it.isStreaming && !it.isAgentTyping
+            }
+            assertEquals(2, state.messages.size)
+            assertEquals("Hello agent", state.messages[0].content)
+            assertEquals("Hi from stream", state.messages[1].content)
+            assertFalse(state.isStreaming)
+            assertFalse(state.isAgentTyping)
             assertEquals("", vm.inputText.value)
         } finally {
             Dispatchers.resetMain()
