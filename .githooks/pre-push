@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/android-compose"
+
+if [ -z "${JAVA_HOME:-}" ]; then
+  printf '%s\n' "JAVA_HOME is not set. Point it at Android Studio's bundled JBR before pushing." >&2
+  exit 1
+fi
+
+./gradlew :app:compileDebugKotlin
