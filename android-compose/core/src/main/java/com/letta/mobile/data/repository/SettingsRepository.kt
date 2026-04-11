@@ -52,6 +52,7 @@ class SettingsRepository @Inject constructor(
         val THEME = stringPreferencesKey("theme")
         val THEME_PRESET = stringPreferencesKey("theme_preset")
         val AMOLED_DARK_MODE = booleanPreferencesKey("amoled_dark_mode")
+        val CHAT_BACKGROUND = stringPreferencesKey("chat_background")
         val FAVORITE_AGENT_ID = stringPreferencesKey("favorite_agent_id")
         val ADMIN_AGENT_ID = stringPreferencesKey("admin_agent_id")
     }
@@ -183,6 +184,16 @@ class SettingsRepository @Inject constructor(
     suspend fun setAmoledDarkMode(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[Keys.AMOLED_DARK_MODE] = enabled
+        }
+    }
+
+    fun getChatBackgroundKey(): Flow<String> = dataStore.data.map { prefs ->
+        prefs[Keys.CHAT_BACKGROUND] ?: "default"
+    }
+
+    suspend fun setChatBackgroundKey(key: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.CHAT_BACKGROUND] = key
         }
     }
 

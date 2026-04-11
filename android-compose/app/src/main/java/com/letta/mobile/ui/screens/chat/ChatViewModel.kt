@@ -11,12 +11,17 @@ import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.model.ConversationUpdateParams
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
+import com.letta.mobile.ui.theme.ChatBackground
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,6 +51,7 @@ class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val agentRepository: AgentRepository,
     private val conversationRepository: ConversationRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     val agentId: String = savedStateHandle.get<String>("agentId") ?: ""
@@ -57,6 +63,16 @@ class ChatViewModel @Inject constructor(
 
     private val _inputText = MutableStateFlow("")
     val inputText: StateFlow<String> = _inputText.asStateFlow()
+
+    val chatBackground: StateFlow<ChatBackground> = settingsRepository.getChatBackgroundKey()
+        .map { ChatBackground.fromKey(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatBackground.Default)
+
+    fun setChatBackground(background: ChatBackground) {
+        viewModelScope.launch {
+            settingsRepository.setChatBackgroundKey(background.key)
+        }
+    }
 
     private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     private var hasSummary = false

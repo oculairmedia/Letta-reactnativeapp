@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.domain.ClientToolRegistry
 import com.letta.mobile.domain.MessageProcessor
 import io.ktor.client.HttpClient
@@ -68,11 +69,15 @@ class ChatViewModelE2eTest {
             coEvery { conversationRepo.refreshConversations("agent-1") } returns Unit
             every { agentRepo.getAgent("agent-1") } returns flowOf(Agent(id = "agent-1", name = "Agent One"))
 
+            val settingsRepo = mockk<SettingsRepository>(relaxed = true)
+            every { settingsRepo.getChatBackgroundKey() } returns flowOf("default")
+
             val vm = ChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1", "conversationId" to "conv-1")),
                 messageRepository,
                 agentRepo,
                 conversationRepo,
+                settingsRepo,
             )
             advanceUntilIdle()
 
@@ -125,11 +130,15 @@ class ChatViewModelE2eTest {
             }
             every { agentRepo.getAgent("agent-1") } returns flowOf(Agent(id = "agent-1", name = "Agent One"))
 
+            val settingsRepo = mockk<SettingsRepository>(relaxed = true)
+            every { settingsRepo.getChatBackgroundKey() } returns flowOf("default")
+
             val vm = ChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1")),
                 messageRepository,
                 agentRepo,
                 conversationRepo,
+                settingsRepo,
             )
             advanceUntilIdle()
 

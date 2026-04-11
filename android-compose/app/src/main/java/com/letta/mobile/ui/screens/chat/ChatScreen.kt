@@ -1,5 +1,6 @@
 package com.letta.mobile.ui.screens.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ import com.letta.mobile.ui.components.DateSeparator
 import com.letta.mobile.ui.components.MessageSkeletonList
 import com.letta.mobile.ui.components.StarterPrompts
 import com.letta.mobile.ui.theme.LettaChatTheme
+import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.ui.components.ScrollToBottomFab
 import com.letta.mobile.ui.components.TypingIndicator
 import kotlinx.coroutines.launch
@@ -61,13 +63,20 @@ import java.time.LocalDate
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
+    chatBackground: ChatBackground = ChatBackground.Default,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
 
+    val backgroundModifier = when (chatBackground) {
+        is ChatBackground.Default -> Modifier
+        is ChatBackground.SolidColor -> Modifier.background(chatBackground.color)
+        is ChatBackground.Gradient -> Modifier.background(chatBackground.toBrush())
+    }
+
     LettaChatTheme {
-    Column(modifier = modifier.fillMaxSize().imePadding()) {
+    Column(modifier = modifier.fillMaxSize().then(backgroundModifier).imePadding()) {
         if (state.isLoadingMessages && state.messages.isEmpty()) {
             MessageSkeletonList(modifier = Modifier.weight(1f))
         } else if (state.error != null && state.messages.isEmpty()) {

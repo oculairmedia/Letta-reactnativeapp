@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.testutil.TestData
 import io.mockk.coEvery
@@ -35,6 +36,7 @@ class ChatViewModelTest {
     private lateinit var messageRepository: MessageRepository
     private lateinit var agentRepository: AgentRepository
     private lateinit var conversationRepository: ConversationRepository
+    private lateinit var settingsRepository: SettingsRepository
     private val testDispatcher = UnconfinedTestDispatcher()
     private var messages: List<AppMessage> = emptyList()
     private var streamStates: List<StreamState> = emptyList()
@@ -45,6 +47,9 @@ class ChatViewModelTest {
         messageRepository = mockk(relaxed = true)
         agentRepository = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
+        settingsRepository = mockk(relaxed = true)
+
+        every { settingsRepository.getChatBackgroundKey() } returns flowOf("default")
 
         every { messageRepository.getMessages(any(), any()) } answers { flowOf(messages) }
         coEvery { messageRepository.fetchMessages(any(), any()) } answers { messages }
@@ -77,7 +82,7 @@ class ChatViewModelTest {
             set("agentId", agentId)
             conversationId?.let { set("conversationId", it) }
         }
-        return ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository)
+        return ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
     }
 
     @Test

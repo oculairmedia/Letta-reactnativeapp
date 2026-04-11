@@ -67,8 +67,10 @@ import androidx.compose.runtime.LaunchedEffect
 import com.letta.mobile.R
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
+import com.letta.mobile.ui.components.ChatBackgroundPicker
 import com.letta.mobile.ui.components.ConnectionState
 import com.letta.mobile.ui.components.ConnectionStatusBanner
+import com.letta.mobile.ui.theme.ChatBackground
 
 import com.letta.mobile.util.ConnectivityMonitor
 import kotlinx.coroutines.launch
@@ -87,6 +89,7 @@ fun AgentScaffold(
     val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showConversationPicker by remember { mutableStateOf(false) }
+    val chatBackground by viewModel.chatBackground.collectAsStateWithLifecycle()
 
     val agentName = uiState.agentName
     val agentId = viewModel.agentId
@@ -104,6 +107,8 @@ fun AgentScaffold(
                     agentName = agentName,
                     agentId = agentId,
                     messageCount = uiState.messages.size,
+                    chatBackground = chatBackground,
+                    onChatBackgroundChange = { viewModel.setChatBackground(it) },
                     onEditAgent = {
                         scope.launch { drawerState.close() }
                         onNavigateToSettings(agentId)
@@ -165,7 +170,10 @@ fun AgentScaffold(
                 )
             },
         ) { paddingValues ->
-            ChatScreen(modifier = Modifier.padding(paddingValues).fillMaxSize())
+            ChatScreen(
+                modifier = Modifier.padding(paddingValues).fillMaxSize(),
+                chatBackground = chatBackground,
+            )
         }
     }
 
@@ -277,6 +285,8 @@ private fun DrawerContent(
     agentName: String,
     agentId: String,
     messageCount: Int,
+    chatBackground: ChatBackground,
+    onChatBackgroundChange: (ChatBackground) -> Unit,
     onEditAgent: () -> Unit,
     onArchivalMemory: () -> Unit,
     onTools: () -> Unit = {},
@@ -344,6 +354,13 @@ private fun DrawerContent(
             label = { Text("Reset Messages") },
             selected = false,
             onClick = onResetMessages,
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        ChatBackgroundPicker(
+            selected = chatBackground,
+            onSelect = onChatBackgroundChange,
         )
 
         Spacer(modifier = Modifier.weight(1f))
