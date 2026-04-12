@@ -16,3 +16,5 @@ fun Modifier.optionalSharedElement(key: String): Modifier {
         )
     }
 }
+
+fun agentAvatarSharedElementKey(agentId: String): String = "agent_avatar_$agentId"

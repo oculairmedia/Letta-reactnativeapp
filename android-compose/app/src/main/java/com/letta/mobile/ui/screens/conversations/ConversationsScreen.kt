@@ -72,6 +72,7 @@ import com.letta.mobile.ui.theme.sectionTitle
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.navigation.agentAvatarSharedElementKey
 import com.letta.mobile.ui.navigation.optionalSharedElement
 import java.time.Instant
 import java.time.LocalDate
@@ -388,7 +389,7 @@ private fun ConversationCard(
                     contentDescription = "Agent",
                     modifier = Modifier
                         .size(LettaIconSizing.Inline)
-                        .optionalSharedElement("agent_avatar_${conversation.agentId}"),
+                        .optionalSharedElement(agentAvatarSharedElementKey(conversation.agentId)),
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.width(4.dp))

@@ -62,6 +62,7 @@ import com.letta.mobile.ui.components.ConnectionStatusBanner
 import com.letta.mobile.ui.theme.ChatBackground
 
 import com.letta.mobile.util.ConnectivityMonitor
+import com.letta.mobile.ui.navigation.agentAvatarSharedElementKey
 import com.letta.mobile.ui.navigation.optionalSharedElement
 import kotlinx.coroutines.launch
 import com.letta.mobile.ui.icons.LettaIconSizing
@@ -217,7 +218,7 @@ private fun AgentConversationHeader(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .size(LettaIconSizing.Toolbar)
-                    .optionalSharedElement("agent_avatar_$agentId"),
+                    .optionalSharedElement(agentAvatarSharedElementKey(agentId)),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
