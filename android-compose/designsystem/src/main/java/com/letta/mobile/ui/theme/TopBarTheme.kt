@@ -9,6 +9,12 @@ object LettaTopBarDefaults {
     fun scaffoldContainerColor() = MaterialTheme.colorScheme.surfaceContainer
 
     @Composable
+    fun topAppBarColors() = TopAppBarDefaults.topAppBarColors(
+        containerColor = scaffoldContainerColor(),
+        scrolledContainerColor = scaffoldContainerColor(),
+    )
+
+    @Composable
     fun largeTopAppBarColors() = TopAppBarDefaults.largeTopAppBarColors(
         containerColor = scaffoldContainerColor(),
         scrolledContainerColor = scaffoldContainerColor(),
