@@ -148,21 +148,6 @@ private fun ChatContent(
             }
     }
 
-    // Scroll to a specific message when navigating from search results
-    LaunchedEffect(scrollToMessageId, state.messages.size) {
-        if (scrollToMessageId == null || hasScrolledToTarget || state.messages.isEmpty()) return@LaunchedEffect
-        val targetIndex = state.messages.indexOfFirst { it.id == scrollToMessageId }
-        if (targetIndex >= 0) {
-            // In reversed layout, the index is inverted
-            val reversedIndex = state.messages.size - 1 - targetIndex
-            listState.scrollToItem(reversedIndex)
-            highlightedMessageId = scrollToMessageId
-            hasScrolledToTarget = true
-            delay(2000)
-            highlightedMessageId = null
-        }
-    }
-
     val dedupedMessages = remember(state.messages, chatMode) {
         val result = mutableListOf<UiMessage>()
         var lastReasoningContent: String? = null
@@ -212,6 +197,30 @@ private fun ChatContent(
             )
         } else {
             val reversed = remember(groupedMessages) { groupedMessages.asReversed() }
+
+            // Scroll to a specific message when navigating from search results
+            LaunchedEffect(scrollToMessageId, reversed.size) {
+                if (scrollToMessageId == null || hasScrolledToTarget || reversed.isEmpty()) return@LaunchedEffect
+                val targetIdx = reversed.indexOfFirst { (msg, _) -> msg.id == scrollToMessageId }
+                if (targetIdx >= 0) {
+                    // Calculate the actual LazyColumn item index accounting for
+                    // the typing indicator and date separators before the target
+                    var lazyIndex = if (state.isStreaming) 1 else 0
+                    for (j in 0 until targetIdx) {
+                        lazyIndex++ // message item
+                        // check if a date separator was emitted after this item
+                        val prevDate = reversed.getOrNull(j + 1)?.first?.timestamp?.take(10)
+                        val curDate = reversed[j].first.timestamp.take(10)
+                        if (prevDate != null && prevDate != curDate) lazyIndex++
+                    }
+                    listState.scrollToItem(lazyIndex)
+                    highlightedMessageId = scrollToMessageId
+                    hasScrolledToTarget = true
+                    delay(2000)
+                    highlightedMessageId = null
+                }
+            }
+
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(
                     state = listState,

@@ -242,6 +242,7 @@ private fun HomeContent(
                 state.pinnedAgents.forEach { pinned ->
                     PinnedAgentCard(
                         name = pinned.name,
+                        onClick = { onNavigateToChat(pinned.id, null) },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
                 }
@@ -377,39 +378,48 @@ private fun FavoriteAgentCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PinnedAgentCard(
     name: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 LettaIcons.Agent,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.screen_home_pinned_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                )
+            }
             Icon(
                 LettaIcons.Pin,
                 contentDescription = "Pinned",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -501,7 +511,8 @@ private fun SearchResultsContent(
     onMessageClick: (ParsedSearchMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val highlightColor = MaterialTheme.colorScheme.primaryContainer
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+    val highlightTextColor = MaterialTheme.colorScheme.primary
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -535,14 +546,14 @@ private fun SearchResultsContent(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = highlightMatches(agent.name, searchQuery, highlightColor),
+                                text = highlightMatches(agent.name, searchQuery, highlightColor, highlightTextColor),
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             agent.description?.let { desc ->
                                 Text(
-                                    text = highlightMatches(desc, searchQuery, highlightColor),
+                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -587,7 +598,7 @@ private fun SearchResultsContent(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = highlightMatches(msg.content ?: "", searchQuery, highlightColor),
+                            text = highlightMatches(msg.content ?: "", searchQuery, highlightColor, highlightTextColor),
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
@@ -628,6 +639,7 @@ private fun highlightMatches(
     text: String,
     query: String,
     highlightColor: Color,
+    matchTextColor: Color = Color.Unspecified,
 ) = buildAnnotatedString {
     if (query.isBlank()) {
         append(text)
@@ -636,14 +648,22 @@ private fun highlightMatches(
     val lowerText = text.lowercase()
     val lowerQuery = query.trim().lowercase()
     var cursor = 0
+    var matched = false
     while (cursor < text.length) {
         val matchIndex = lowerText.indexOf(lowerQuery, cursor)
         if (matchIndex < 0) {
             append(text.substring(cursor))
             break
         }
+        matched = true
         append(text.substring(cursor, matchIndex))
-        withStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.SemiBold)) {
+        withStyle(
+            SpanStyle(
+                background = highlightColor,
+                fontWeight = FontWeight.Bold,
+                color = if (matchTextColor != Color.Unspecified) matchTextColor else Color.Unspecified,
+            )
+        ) {
             append(text.substring(matchIndex, matchIndex + lowerQuery.length))
         }
         cursor = matchIndex + lowerQuery.length
