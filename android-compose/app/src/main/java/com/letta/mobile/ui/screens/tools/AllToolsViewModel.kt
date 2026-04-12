@@ -9,6 +9,9 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +20,7 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class AllToolsUiState(
-    val tools: List<Tool> = emptyList(),
+    val tools: ImmutableList<Tool> = persistentListOf(),
     val mcpToolIds: Set<String> = emptySet(),
     val searchQuery: String = "",
     val selectedTags: Set<String> = emptySet(),
@@ -59,7 +62,7 @@ class AllToolsViewModel @Inject constructor(
 
                 _uiState.value = UiState.Success(
                     AllToolsUiState(
-                        tools = regularTools,
+                        tools = regularTools.toImmutableList(),
                         mcpToolIds = emptySet(),
                         searchQuery = searchQuery,
                         selectedTags = selectedTags,
@@ -92,7 +95,7 @@ class AllToolsViewModel @Inject constructor(
 
                 _uiState.value = UiState.Success(
                     latestState.copy(
-                        tools = mcpTools + dedupedRegular,
+                        tools = (mcpTools + dedupedRegular).toImmutableList(),
                         mcpToolIds = mcpToolIds,
                         isLoadingMcpTools = false,
                     )
@@ -130,7 +133,7 @@ class AllToolsViewModel @Inject constructor(
 
                 _uiState.value = UiState.Success(
                     latestState.copy(
-                        tools = latestState.tools + dedupedNew,
+                        tools = (latestState.tools + dedupedNew).toImmutableList(),
                         isLoadingMore = false,
                         hasMorePages = newPage.size >= PAGE_SIZE,
                         currentOffset = maxOf(latestState.currentOffset, requestedOffset + newPage.size),
@@ -164,7 +167,7 @@ class AllToolsViewModel @Inject constructor(
 
     fun getFilteredTools(): List<Tool> {
         val currentState = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
-        var result = currentState.tools
+        var result: List<Tool> = currentState.tools
 
         if (currentState.selectedTags.isNotEmpty()) {
             result = result.filter { tool ->

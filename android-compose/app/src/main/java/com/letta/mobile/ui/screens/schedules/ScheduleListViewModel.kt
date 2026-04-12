@@ -11,6 +11,9 @@ import com.letta.mobile.data.repository.ScheduleRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,9 +23,9 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class ScheduleListUiState(
-    val agents: List<Agent> = emptyList(),
+    val agents: ImmutableList<Agent> = persistentListOf(),
     val selectedAgentId: String? = null,
-    val schedules: List<ScheduledMessage> = emptyList(),
+    val schedules: ImmutableList<ScheduledMessage> = persistentListOf(),
     val scheduleAdminAvailable: Boolean = true,
     val scheduleAdminMessage: String? = null,
 )
@@ -45,14 +48,14 @@ class ScheduleListViewModel @Inject constructor(
             _uiState.value = UiState.Loading
             try {
                 agentRepository.refreshAgents()
-                val agents = agentRepository.agents.value
+                val agents = agentRepository.agents.value.toImmutableList()
                 val selectedAgentId = (_uiState.value as? UiState.Success)?.data?.selectedAgentId
                     ?: agents.firstOrNull()?.id
                 val schedules = if (selectedAgentId != null) {
                     scheduleRepository.refreshSchedules(selectedAgentId)
-                    scheduleRepository.getSchedules(selectedAgentId).first()
+                    scheduleRepository.getSchedules(selectedAgentId).first().toImmutableList()
                 } else {
-                    emptyList()
+                    persistentListOf()
                 }
                 _uiState.value = UiState.Success(
                     ScheduleListUiState(
@@ -67,9 +70,9 @@ class ScheduleListViewModel @Inject constructor(
                 if (e.isScheduleAdminUnavailable()) {
                     _uiState.value = UiState.Success(
                         ScheduleListUiState(
-                            agents = agentRepository.agents.value,
+                            agents = agentRepository.agents.value.toImmutableList(),
                             selectedAgentId = agentRepository.agents.value.firstOrNull()?.id,
-                            schedules = emptyList(),
+                            schedules = persistentListOf(),
                             scheduleAdminAvailable = false,
                             scheduleAdminMessage = SCHEDULE_ADMIN_UNAVAILABLE_MESSAGE,
                         )
@@ -86,7 +89,7 @@ class ScheduleListViewModel @Inject constructor(
             val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
             try {
                 scheduleRepository.refreshSchedules(agentId)
-                val schedules = scheduleRepository.getSchedules(agentId).first()
+                val schedules = scheduleRepository.getSchedules(agentId).first().toImmutableList()
                 _uiState.value = UiState.Success(
                     current.copy(
                         selectedAgentId = agentId,
@@ -100,7 +103,7 @@ class ScheduleListViewModel @Inject constructor(
                     _uiState.value = UiState.Success(
                         current.copy(
                             selectedAgentId = agentId,
-                            schedules = emptyList(),
+                            schedules = persistentListOf(),
                             scheduleAdminAvailable = false,
                             scheduleAdminMessage = SCHEDULE_ADMIN_UNAVAILABLE_MESSAGE,
                         )
@@ -117,7 +120,7 @@ class ScheduleListViewModel @Inject constructor(
             val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
             try {
                 scheduleRepository.createSchedule(agentId, params)
-                val schedules = scheduleRepository.getSchedules(agentId).first()
+                val schedules = scheduleRepository.getSchedules(agentId).first().toImmutableList()
                 _uiState.value = UiState.Success(
                     current.copy(
                         selectedAgentId = agentId,
@@ -131,7 +134,7 @@ class ScheduleListViewModel @Inject constructor(
                     _uiState.value = UiState.Success(
                         current.copy(
                             selectedAgentId = agentId,
-                            schedules = emptyList(),
+                            schedules = persistentListOf(),
                             scheduleAdminAvailable = false,
                             scheduleAdminMessage = SCHEDULE_ADMIN_UNAVAILABLE_MESSAGE,
                         )
@@ -149,13 +152,13 @@ class ScheduleListViewModel @Inject constructor(
             val agentId = current.selectedAgentId ?: return@launch
             try {
                 scheduleRepository.deleteSchedule(agentId, scheduledMessageId)
-                val schedules = scheduleRepository.getSchedules(agentId).first()
+                val schedules = scheduleRepository.getSchedules(agentId).first().toImmutableList()
                 _uiState.value = UiState.Success(current.copy(schedules = schedules))
             } catch (e: Exception) {
                 if (e.isScheduleAdminUnavailable()) {
                     _uiState.value = UiState.Success(
                         current.copy(
-                            schedules = emptyList(),
+                            schedules = persistentListOf(),
                             scheduleAdminAvailable = false,
                             scheduleAdminMessage = SCHEDULE_ADMIN_UNAVAILABLE_MESSAGE,
                         )

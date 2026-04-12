@@ -8,6 +8,9 @@ import com.letta.mobile.data.repository.JobRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +19,7 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class JobMonitorUiState(
-    val jobs: List<Job> = emptyList(),
+    val jobs: ImmutableList<Job> = persistentListOf(),
     val searchQuery: String = "",
     val activeOnly: Boolean = false,
     val selectedJob: Job? = null,
@@ -45,7 +48,7 @@ class JobMonitorViewModel @Inject constructor(
                 jobRepository.refreshJobs(JobListParams(active = activeOnly.takeIf { it }, order = "desc"))
                 _uiState.value = UiState.Success(
                     JobMonitorUiState(
-                        jobs = jobRepository.jobs.value,
+                        jobs = jobRepository.jobs.value.toImmutableList(),
                         searchQuery = searchQuery,
                         activeOnly = activeOnly,
                         selectedJob = current?.selectedJob,
@@ -109,7 +112,7 @@ class JobMonitorViewModel @Inject constructor(
                 }
                 _uiState.value = UiState.Success(
                     current.copy(
-                        jobs = refreshedJobs,
+                        jobs = refreshedJobs.toImmutableList(),
                         selectedJob = refreshedSelectedJob,
                         operationError = null,
                     )
@@ -127,7 +130,7 @@ class JobMonitorViewModel @Inject constructor(
                 jobRepository.deleteJob(jobId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        jobs = current.jobs.filterNot { it.id == jobId },
+                        jobs = current.jobs.filterNot { it.id == jobId }.toImmutableList(),
                         selectedJob = if (current.selectedJob?.id == jobId) null else current.selectedJob,
                         operationError = null,
                     )

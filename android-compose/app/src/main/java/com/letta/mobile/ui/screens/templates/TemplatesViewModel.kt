@@ -6,6 +6,9 @@ import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,22 +22,22 @@ data class StarterAgentTemplate(
     val description: String,
     val icon: String,
     val systemPrompt: String,
-    val tags: List<String>,
+    val tags: ImmutableList<String>,
 )
 
 @androidx.compose.runtime.Immutable
 data class TemplatesUiState(
-    val templates: List<StarterAgentTemplate> = emptyList()
+    val templates: ImmutableList<StarterAgentTemplate> = persistentListOf()
 )
 
-private val BUILTIN_TEMPLATES = listOf(
+private val BUILTIN_TEMPLATES = persistentListOf(
     StarterAgentTemplate(
         id = "default",
         name = "Default Agent",
         description = "A balanced assistant for everyday questions, planning, and coordination.",
         icon = "\uD83E\uDD16",
         systemPrompt = "You are a helpful general-purpose Letta assistant. Be concise, reliable, and proactive about clarifying the next useful step.",
-        tags = listOf("starter", "general"),
+        tags = persistentListOf("starter", "general"),
     ),
     StarterAgentTemplate(
         id = "coder",
@@ -42,7 +45,7 @@ private val BUILTIN_TEMPLATES = listOf(
         description = "A starter tuned for debugging, implementation planning, and developer workflows.",
         icon = "\uD83D\uDCBB",
         systemPrompt = "You are a coding-focused Letta assistant. Prefer precise reasoning, concrete implementation steps, and code-aware troubleshooting.",
-        tags = listOf("starter", "coding"),
+        tags = persistentListOf("starter", "coding"),
     ),
     StarterAgentTemplate(
         id = "writer",
@@ -50,7 +53,7 @@ private val BUILTIN_TEMPLATES = listOf(
         description = "A starter for drafting, editing, summarizing, and shaping tone across written work.",
         icon = "\u270D\uFE0F",
         systemPrompt = "You are a writing-focused Letta assistant. Help shape drafts, improve clarity, and adapt tone to the audience while preserving intent.",
-        tags = listOf("starter", "writing"),
+        tags = persistentListOf("starter", "writing"),
     ),
 )
 

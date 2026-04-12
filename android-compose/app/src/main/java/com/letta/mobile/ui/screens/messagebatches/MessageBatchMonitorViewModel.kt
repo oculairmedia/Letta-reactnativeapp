@@ -9,6 +9,9 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,11 +19,11 @@ import kotlinx.coroutines.launch
 
 @androidx.compose.runtime.Immutable
 data class MessageBatchMonitorUiState(
-    val batches: List<Job> = emptyList(),
+    val batches: ImmutableList<Job> = persistentListOf(),
     val searchQuery: String = "",
     val activeOnly: Boolean = false,
     val selectedBatch: Job? = null,
-    val selectedBatchMessages: List<BatchMessage> = emptyList(),
+    val selectedBatchMessages: ImmutableList<BatchMessage> = persistentListOf(),
     val operationError: String? = null,
 )
 
@@ -47,14 +50,14 @@ class MessageBatchMonitorViewModel @Inject constructor(
                 }
                 _uiState.value = UiState.Success(
                     MessageBatchMonitorUiState(
-                        batches = batches,
+                        batches = batches.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         activeOnly = current?.activeOnly ?: false,
                         selectedBatch = selectedBatch,
                         selectedBatchMessages = if (selectedBatch?.id == current?.selectedBatch?.id) {
-                            current?.selectedBatchMessages.orEmpty()
+                            current?.selectedBatchMessages ?: persistentListOf()
                         } else {
-                            emptyList()
+                            persistentListOf()
                         },
                     )
                 )
@@ -104,9 +107,9 @@ class MessageBatchMonitorViewModel @Inject constructor(
                 val messages = messageRepository.listBatchMessages(batchId).messages
                 _uiState.value = UiState.Success(
                     current.copy(
-                        batches = current.batches.replaceBatch(batch),
+                        batches = current.batches.replaceBatch(batch).toImmutableList(),
                         selectedBatch = batch,
-                        selectedBatchMessages = messages,
+                        selectedBatchMessages = messages.toImmutableList(),
                         operationError = null,
                     )
                 )
@@ -124,13 +127,13 @@ class MessageBatchMonitorViewModel @Inject constructor(
                 val refreshedBatch = messageRepository.retrieveBatch(batchId)
                 val refreshedBatches = messageRepository.listBatches().sortedByDescending { it.createdAt.orEmpty() }
                 val refreshedMessages = if (current.selectedBatch?.id == batchId) {
-                    messageRepository.listBatchMessages(batchId).messages
+                    messageRepository.listBatchMessages(batchId).messages.toImmutableList()
                 } else {
                     current.selectedBatchMessages
                 }
                 _uiState.value = UiState.Success(
                     current.copy(
-                        batches = refreshedBatches.replaceBatch(refreshedBatch),
+                        batches = refreshedBatches.replaceBatch(refreshedBatch).toImmutableList(),
                         selectedBatch = if (current.selectedBatch?.id == batchId) refreshedBatch else current.selectedBatch,
                         selectedBatchMessages = refreshedMessages,
                         operationError = null,
@@ -144,7 +147,7 @@ class MessageBatchMonitorViewModel @Inject constructor(
 
     fun clearSelectedBatch() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(current.copy(selectedBatch = null, selectedBatchMessages = emptyList()))
+        _uiState.value = UiState.Success(current.copy(selectedBatch = null, selectedBatchMessages = persistentListOf()))
     }
 
     fun clearOperationError() {

@@ -12,6 +12,9 @@ import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,12 +23,12 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class FolderAdminUiState(
-    val folders: List<Folder> = emptyList(),
+    val folders: ImmutableList<Folder> = persistentListOf(),
     val searchQuery: String = "",
     val selectedFolder: Folder? = null,
-    val selectedFolderAgents: List<String> = emptyList(),
-    val selectedFolderFiles: List<FileMetadata> = emptyList(),
-    val selectedFolderPassages: List<Passage> = emptyList(),
+    val selectedFolderAgents: ImmutableList<String> = persistentListOf(),
+    val selectedFolderFiles: ImmutableList<FileMetadata> = persistentListOf(),
+    val selectedFolderPassages: ImmutableList<Passage> = persistentListOf(),
     val folderMetadata: OrganizationSourcesStats? = null,
     val operationError: String? = null,
 )
@@ -56,14 +59,14 @@ class FolderAdminViewModel @Inject constructor(
                 }
                 _uiState.value = UiState.Success(
                     FolderAdminUiState(
-                        folders = folders,
+                        folders = folders.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedFolder = current?.selectedFolder?.let { selected ->
                             folders.firstOrNull { it.id == selected.id } ?: selected
                         },
-                        selectedFolderAgents = current?.selectedFolderAgents.orEmpty(),
-                        selectedFolderFiles = current?.selectedFolderFiles.orEmpty(),
-                        selectedFolderPassages = current?.selectedFolderPassages.orEmpty(),
+                        selectedFolderAgents = current?.selectedFolderAgents ?: persistentListOf(),
+                        selectedFolderFiles = current?.selectedFolderFiles ?: persistentListOf(),
+                        selectedFolderPassages = current?.selectedFolderPassages ?: persistentListOf(),
                         folderMetadata = metadata,
                     )
                 )
@@ -99,11 +102,11 @@ class FolderAdminViewModel @Inject constructor(
                 val passages = folderRepository.listFolderPassages(folderId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        folders = current.folders.replaceFolder(folder),
+                        folders = current.folders.replaceFolder(folder).toImmutableList(),
                         selectedFolder = folder,
-                        selectedFolderAgents = agents,
-                        selectedFolderFiles = files,
-                        selectedFolderPassages = passages,
+                        selectedFolderAgents = agents.toImmutableList(),
+                        selectedFolderFiles = files.toImmutableList(),
+                        selectedFolderPassages = passages.toImmutableList(),
                         operationError = null,
                     )
                 )
@@ -127,7 +130,7 @@ class FolderAdminViewModel @Inject constructor(
                 if (current != null) {
                     _uiState.value = UiState.Success(
                         current.copy(
-                            folders = current.folders.replaceFolder(folder),
+                            folders = current.folders.replaceFolder(folder).toImmutableList(),
                             operationError = null,
                         )
                     )
@@ -155,7 +158,7 @@ class FolderAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        folders = current.folders.replaceFolder(folder),
+                        folders = current.folders.replaceFolder(folder).toImmutableList(),
                         selectedFolder = if (current.selectedFolder?.id == folderId) folder else current.selectedFolder,
                         operationError = null,
                     )
@@ -177,11 +180,11 @@ class FolderAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        folders = current.folders.filterNot { it.id == folderId },
+                        folders = current.folders.filterNot { it.id == folderId }.toImmutableList(),
                         selectedFolder = if (current.selectedFolder?.id == folderId) null else current.selectedFolder,
-                        selectedFolderAgents = if (current.selectedFolder?.id == folderId) emptyList() else current.selectedFolderAgents,
-                        selectedFolderFiles = if (current.selectedFolder?.id == folderId) emptyList() else current.selectedFolderFiles,
-                        selectedFolderPassages = if (current.selectedFolder?.id == folderId) emptyList() else current.selectedFolderPassages,
+                        selectedFolderAgents = if (current.selectedFolder?.id == folderId) persistentListOf() else current.selectedFolderAgents,
+                        selectedFolderFiles = if (current.selectedFolder?.id == folderId) persistentListOf() else current.selectedFolderFiles,
+                        selectedFolderPassages = if (current.selectedFolder?.id == folderId) persistentListOf() else current.selectedFolderPassages,
                         operationError = null,
                     )
                 )
@@ -196,9 +199,9 @@ class FolderAdminViewModel @Inject constructor(
         _uiState.value = UiState.Success(
             current.copy(
                 selectedFolder = null,
-                selectedFolderAgents = emptyList(),
-                selectedFolderFiles = emptyList(),
-                selectedFolderPassages = emptyList(),
+                selectedFolderAgents = persistentListOf(),
+                selectedFolderFiles = persistentListOf(),
+                selectedFolderPassages = persistentListOf(),
             )
         )
     }

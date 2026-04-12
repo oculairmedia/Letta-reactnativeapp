@@ -65,6 +65,11 @@ android {
     }
 }
 
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose_compiler")
+    metricsDestination = layout.buildDirectory.dir("compose_compiler")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
@@ -126,6 +131,9 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    // Immutable collections for Compose stability
+    implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8")
 
     // Fuzzy search
     implementation("me.xdrop:fuzzywuzzy:1.4.0")

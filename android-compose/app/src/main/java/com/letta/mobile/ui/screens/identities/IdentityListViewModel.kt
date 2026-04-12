@@ -11,6 +11,9 @@ import com.letta.mobile.data.repository.IdentityRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,10 +22,10 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class IdentityListUiState(
-    val identities: List<Identity> = emptyList(),
+    val identities: ImmutableList<Identity> = persistentListOf(),
     val searchQuery: String = "",
     val selectedIdentity: Identity? = null,
-    val knownAgents: List<Agent> = emptyList(),
+    val knownAgents: ImmutableList<Agent> = persistentListOf(),
     val operationError: String? = null,
 )
 
@@ -47,12 +50,12 @@ class IdentityListViewModel @Inject constructor(
                 identityRepository.refreshIdentities()
                 _uiState.value = UiState.Success(
                     IdentityListUiState(
-                        identities = identityRepository.identities.value,
+                        identities = identityRepository.identities.value.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedIdentity = current?.selectedIdentity?.let { selected ->
                             identityRepository.identities.value.firstOrNull { it.id == selected.id } ?: selected
                         },
-                        knownAgents = current?.knownAgents.orEmpty(),
+                        knownAgents = current?.knownAgents ?: persistentListOf(),
                     )
                 )
             } catch (e: Exception) {
@@ -91,7 +94,7 @@ class IdentityListViewModel @Inject constructor(
 
     fun clearSelectedIdentity() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(current.copy(selectedIdentity = null, knownAgents = emptyList()))
+        _uiState.value = UiState.Success(current.copy(selectedIdentity = null, knownAgents = persistentListOf()))
     }
 
     fun clearOperationError() {
@@ -118,7 +121,7 @@ class IdentityListViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        identities = current.identities.replaceIdentity(updated),
+                        identities = current.identities.replaceIdentity(updated).toImmutableList(),
                         selectedIdentity = if (current.selectedIdentity?.id == identityId) updated else current.selectedIdentity,
                         operationError = null,
                     )
@@ -140,7 +143,7 @@ class IdentityListViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        identities = current.identities.filterNot { it.id == identityId },
+                        identities = current.identities.filterNot { it.id == identityId }.toImmutableList(),
                         selectedIdentity = if (current.selectedIdentity?.id == identityId) null else current.selectedIdentity,
                         operationError = null,
                     )
@@ -184,9 +187,9 @@ class IdentityListViewModel @Inject constructor(
         }
         _uiState.value = UiState.Success(
             current.copy(
-                identities = current.identities.replaceIdentity(identity),
+                identities = current.identities.replaceIdentity(identity).toImmutableList(),
                 selectedIdentity = identity,
-                knownAgents = knownAgents,
+                knownAgents = knownAgents.toImmutableList(),
                 operationError = null,
             )
         )

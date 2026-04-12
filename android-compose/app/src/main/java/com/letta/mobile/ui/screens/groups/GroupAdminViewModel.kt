@@ -12,6 +12,9 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,10 +22,10 @@ import kotlinx.coroutines.launch
 
 @androidx.compose.runtime.Immutable
 data class GroupAdminUiState(
-    val groups: List<Group> = emptyList(),
+    val groups: ImmutableList<Group> = persistentListOf(),
     val searchQuery: String = "",
     val selectedGroup: Group? = null,
-    val selectedMessages: List<LettaMessage> = emptyList(),
+    val selectedMessages: ImmutableList<LettaMessage> = persistentListOf(),
     val operationError: String? = null,
     val operationMessage: String? = null,
 )
@@ -48,12 +51,12 @@ class GroupAdminViewModel @Inject constructor(
                 val groups = groupRepository.groups.value
                 _uiState.value = UiState.Success(
                     GroupAdminUiState(
-                        groups = groups,
+                        groups = groups.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedGroup = current?.selectedGroup?.let { selected ->
                             groups.firstOrNull { it.id == selected.id } ?: selected
                         },
-                        selectedMessages = current?.selectedMessages.orEmpty(),
+                        selectedMessages = current?.selectedMessages ?: persistentListOf(),
                     )
                 )
             } catch (e: Exception) {
@@ -87,9 +90,9 @@ class GroupAdminViewModel @Inject constructor(
                 val messages = groupRepository.listGroupMessages(groupId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        groups = current.groups.replaceGroup(group),
+                        groups = current.groups.replaceGroup(group).toImmutableList(),
                         selectedGroup = group,
-                        selectedMessages = messages,
+                        selectedMessages = messages.toImmutableList(),
                         operationError = null,
                         operationMessage = null,
                     )
@@ -123,7 +126,7 @@ class GroupAdminViewModel @Inject constructor(
                 if (current != null) {
                     _uiState.value = UiState.Success(
                         current.copy(
-                            groups = current.groups.replaceGroup(group),
+                            groups = current.groups.replaceGroup(group).toImmutableList(),
                             operationError = null,
                             operationMessage = null,
                         )
@@ -162,7 +165,7 @@ class GroupAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        groups = current.groups.replaceGroup(group),
+                        groups = current.groups.replaceGroup(group).toImmutableList(),
                         selectedGroup = if (current.selectedGroup?.id == groupId) group else current.selectedGroup,
                         operationError = null,
                         operationMessage = null,
@@ -186,9 +189,9 @@ class GroupAdminViewModel @Inject constructor(
                 val deletingSelected = current.selectedGroup?.id == groupId
                 _uiState.value = UiState.Success(
                     current.copy(
-                        groups = current.groups.filterNot { it.id == groupId },
+                        groups = current.groups.filterNot { it.id == groupId }.toImmutableList(),
                         selectedGroup = if (deletingSelected) null else current.selectedGroup,
-                        selectedMessages = if (deletingSelected) emptyList() else current.selectedMessages,
+                        selectedMessages = if (deletingSelected) persistentListOf() else current.selectedMessages,
                         operationError = null,
                         operationMessage = null,
                     )
@@ -225,7 +228,7 @@ class GroupAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        selectedMessages = emptyList(),
+                        selectedMessages = persistentListOf(),
                         operationError = null,
                         operationMessage = "Messages reset",
                     )
@@ -239,7 +242,7 @@ class GroupAdminViewModel @Inject constructor(
 
     fun clearSelectedGroup() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(current.copy(selectedGroup = null, selectedMessages = emptyList(), operationMessage = null))
+        _uiState.value = UiState.Success(current.copy(selectedGroup = null, selectedMessages = persistentListOf(), operationMessage = null))
     }
 
     fun clearOperationError() {

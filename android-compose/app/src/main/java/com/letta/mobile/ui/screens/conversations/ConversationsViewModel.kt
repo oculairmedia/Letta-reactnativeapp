@@ -12,6 +12,9 @@ import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,13 +33,13 @@ data class ConversationDisplay(
 
 @androidx.compose.runtime.Immutable
 data class ConversationsUiState(
-    val conversations: List<ConversationDisplay> = emptyList(),
-    val agents: List<Agent> = emptyList(),
+    val conversations: ImmutableList<ConversationDisplay> = persistentListOf(),
+    val agents: ImmutableList<Agent> = persistentListOf(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val searchQuery: String = "",
     val selectedConversation: ConversationDisplay? = null,
-    val inspectorMessages: List<ConversationInspectorMessage> = emptyList(),
+    val inspectorMessages: ImmutableList<ConversationInspectorMessage> = persistentListOf(),
     val inspectorError: String? = null,
     val recompilePreview: String? = null,
     val error: String? = null,
@@ -66,7 +69,7 @@ class ConversationsViewModel @Inject constructor(
                 pinnedConversationIds = pinnedIds
                 val selectedConversation = _uiState.value.selectedConversation
                 _uiState.value = _uiState.value.copy(
-                    conversations = applyPinnedState(_uiState.value.conversations),
+                    conversations = applyPinnedState(_uiState.value.conversations).toImmutableList(),
                     selectedConversation = selectedConversation?.let {
                         it.copy(isPinned = it.conversation.id in pinnedIds)
                     },
@@ -80,8 +83,8 @@ class ConversationsViewModel @Inject constructor(
         val cachedConversations = allConversationsRepository.conversations.value
         if (cachedConversations.isNotEmpty()) {
             _uiState.value = _uiState.value.copy(
-                conversations = applyPinnedState(cachedConversations.map { it.toDisplay() }),
-                agents = cachedAgents,
+                conversations = applyPinnedState(cachedConversations.map { it.toDisplay() }).toImmutableList(),
+                agents = cachedAgents.toImmutableList(),
                 isLoading = false,
             )
         }
@@ -102,8 +105,8 @@ class ConversationsViewModel @Inject constructor(
                     .associate { it.id to it.name }
                     .toMutableMap()
                 _uiState.value = _uiState.value.copy(
-                    conversations = applyPinnedState(allConversationsRepository.conversations.value.map { it.toDisplay() }),
-                    agents = agentRepository.agents.value,
+                    conversations = applyPinnedState(allConversationsRepository.conversations.value.map { it.toDisplay() }).toImmutableList(),
+                    agents = agentRepository.agents.value.toImmutableList(),
                     isLoading = false,
                     error = null,
                 )
@@ -123,8 +126,8 @@ class ConversationsViewModel @Inject constructor(
             try {
                 allConversationsRepository.refresh()
                 _uiState.value = _uiState.value.copy(
-                    conversations = applyPinnedState(allConversationsRepository.conversations.value.map { it.toDisplay() }),
-                    agents = agentRepository.agents.value,
+                    conversations = applyPinnedState(allConversationsRepository.conversations.value.map { it.toDisplay() }).toImmutableList(),
+                    agents = agentRepository.agents.value.toImmutableList(),
                     isRefreshing = false,
                 )
             } catch (e: Exception) {
@@ -139,7 +142,7 @@ class ConversationsViewModel @Inject constructor(
             try {
                 allConversationsRepository.handleOptimisticDelete(conversationId)
                 _uiState.value = _uiState.value.copy(
-                    conversations = _uiState.value.conversations.filter { it.conversation.id != conversationId },
+                    conversations = _uiState.value.conversations.filter { it.conversation.id != conversationId }.toImmutableList(),
                     selectedConversation = if (_uiState.value.selectedConversation?.conversation?.id == conversationId) null else _uiState.value.selectedConversation,
                 )
                 conversationRepository.deleteConversation(conversationId, display.conversation.agentId)
@@ -164,7 +167,7 @@ class ConversationsViewModel @Inject constructor(
                         if (it.conversation.id == conversationId) {
                             it.copy(conversation = it.conversation.copy(summary = newName))
                         } else it
-                    },
+                    }.toImmutableList(),
                     selectedConversation = selectedConversation?.takeIf { it.conversation.id == conversationId }
                         ?.copy(conversation = selectedConversation.conversation.copy(summary = newName))
                         ?: selectedConversation,
@@ -196,7 +199,7 @@ class ConversationsViewModel @Inject constructor(
                 }
                 _uiState.value = _uiState.value.copy(
                     selectedConversation = display.copy(conversation = conversation),
-                    inspectorMessages = inspectorResult.getOrDefault(emptyList()),
+                    inspectorMessages = inspectorResult.getOrDefault(emptyList()).toImmutableList(),
                     inspectorError = inspectorResult.exceptionOrNull()?.message,
                     recompilePreview = null,
                 )
@@ -204,7 +207,7 @@ class ConversationsViewModel @Inject constructor(
                 Log.w("ConversationsVM", "Admin detail load failed", e)
                 _uiState.value = _uiState.value.copy(
                     selectedConversation = null,
-                    inspectorMessages = emptyList(),
+                    inspectorMessages = persistentListOf(),
                     inspectorError = e.message,
                 )
             }
@@ -214,7 +217,7 @@ class ConversationsViewModel @Inject constructor(
     fun closeConversationAdmin() {
         _uiState.value = _uiState.value.copy(
             selectedConversation = null,
-            inspectorMessages = emptyList(),
+            inspectorMessages = persistentListOf(),
             inspectorError = null,
             recompilePreview = null,
         )
@@ -229,7 +232,7 @@ class ConversationsViewModel @Inject constructor(
                         if (it.conversation.id == display.conversation.id) {
                             it.copy(conversation = it.conversation.copy(archived = archived))
                         } else it
-                    },
+                    }.toImmutableList(),
                     selectedConversation = _uiState.value.selectedConversation?.takeIf { it.conversation.id == display.conversation.id }
                         ?.copy(conversation = display.conversation.copy(archived = archived))
                         ?: _uiState.value.selectedConversation,
@@ -268,7 +271,7 @@ class ConversationsViewModel @Inject constructor(
                 onSuccess(conversation.id)
                 allConversationsRepository.handleOptimisticUpdate(conversation)
                 _uiState.value = _uiState.value.copy(
-                    conversations = applyPinnedState(_uiState.value.conversations + conversation.toDisplay())
+                    conversations = applyPinnedState(_uiState.value.conversations + conversation.toDisplay()).toImmutableList()
                 )
             } catch (e: Exception) {
                 Log.w("ConversationsVM", "Create failed", e)
@@ -287,7 +290,7 @@ class ConversationsViewModel @Inject constructor(
             }
             pinnedConversationIds = updatedPinnedIds
             _uiState.value = _uiState.value.copy(
-                conversations = applyPinnedState(_uiState.value.conversations, updatedPinnedIds),
+                conversations = applyPinnedState(_uiState.value.conversations, updatedPinnedIds).toImmutableList(),
                 selectedConversation = _uiState.value.selectedConversation?.takeIf {
                     it.conversation.id == display.conversation.id
                 }?.copy(isPinned = nextPinned) ?: _uiState.value.selectedConversation,

@@ -16,6 +16,9 @@ import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,16 +27,16 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class RunMonitorUiState(
-    val runs: List<Run> = emptyList(),
+    val runs: ImmutableList<Run> = persistentListOf(),
     val searchQuery: String = "",
     val activeOnly: Boolean = false,
     val selectedRun: Run? = null,
-    val selectedRunMessages: List<LettaMessage> = emptyList(),
+    val selectedRunMessages: ImmutableList<LettaMessage> = persistentListOf(),
     val selectedRunUsage: UsageStatistics? = null,
     val selectedRunMetrics: RunMetrics? = null,
-    val selectedRunSteps: List<Step> = emptyList(),
+    val selectedRunSteps: ImmutableList<Step> = persistentListOf(),
     val selectedStep: Step? = null,
-    val selectedStepMessages: List<LettaMessage> = emptyList(),
+    val selectedStepMessages: ImmutableList<LettaMessage> = persistentListOf(),
     val selectedStepMetrics: StepMetrics? = null,
     val selectedStepTrace: ProviderTrace? = null,
     val operationError: String? = null,
@@ -63,16 +66,16 @@ class RunMonitorViewModel @Inject constructor(
                 runRepository.refreshRuns(RunListParams(active = activeOnly.takeIf { it }))
                 _uiState.value = UiState.Success(
                     RunMonitorUiState(
-                        runs = runRepository.runs.value,
+                        runs = runRepository.runs.value.toImmutableList(),
                         searchQuery = searchQuery,
                         activeOnly = activeOnly,
                         selectedRun = selectedRun,
-                        selectedRunMessages = current?.selectedRunMessages.orEmpty(),
+                        selectedRunMessages = current?.selectedRunMessages ?: persistentListOf(),
                         selectedRunUsage = current?.selectedRunUsage,
                         selectedRunMetrics = current?.selectedRunMetrics,
-                        selectedRunSteps = current?.selectedRunSteps.orEmpty(),
+                        selectedRunSteps = current?.selectedRunSteps ?: persistentListOf(),
                         selectedStep = current?.selectedStep,
-                        selectedStepMessages = current?.selectedStepMessages.orEmpty(),
+                        selectedStepMessages = current?.selectedStepMessages ?: persistentListOf(),
                         selectedStepMetrics = current?.selectedStepMetrics,
                         selectedStepTrace = current?.selectedStepTrace,
                         operationError = current?.operationError,
@@ -120,12 +123,12 @@ class RunMonitorViewModel @Inject constructor(
                 _uiState.value = UiState.Success(
                     current.copy(
                         selectedRun = run,
-                        selectedRunMessages = messages,
+                        selectedRunMessages = messages.toImmutableList(),
                         selectedRunUsage = usage,
                         selectedRunMetrics = metrics,
-                        selectedRunSteps = steps,
+                        selectedRunSteps = steps.toImmutableList(),
                         selectedStep = null,
-                        selectedStepMessages = emptyList(),
+                        selectedStepMessages = persistentListOf(),
                         selectedStepMetrics = null,
                         selectedStepTrace = null,
                         operationError = null,
@@ -148,9 +151,9 @@ class RunMonitorViewModel @Inject constructor(
                 val updatedSteps = current.selectedRunSteps.map { existing -> if (existing.id == step.id) step else existing }
                 _uiState.value = UiState.Success(
                     current.copy(
-                        selectedRunSteps = updatedSteps,
+                        selectedRunSteps = updatedSteps.toImmutableList(),
                         selectedStep = step,
-                        selectedStepMessages = stepMessages,
+                        selectedStepMessages = stepMessages.toImmutableList(),
                         selectedStepMetrics = stepMetrics,
                         selectedStepTrace = stepTrace,
                         operationError = null,
@@ -179,7 +182,7 @@ class RunMonitorViewModel @Inject constructor(
                 val refreshedSteps = current.selectedRunSteps.map { existing -> if (existing.id == updatedStep.id) updatedStep else existing }
                 _uiState.value = UiState.Success(
                     current.copy(
-                        selectedRunSteps = refreshedSteps,
+                        selectedRunSteps = refreshedSteps.toImmutableList(),
                         selectedStep = if (current.selectedStep?.id == updatedStep.id) updatedStep else current.selectedStep,
                         operationError = null,
                     )
@@ -200,10 +203,10 @@ class RunMonitorViewModel @Inject constructor(
                     .filterNot { current.activeOnly && it.status !in setOf("created", "running") }
                 _uiState.value = UiState.Success(
                     current.copy(
-                        runs = refreshedRuns,
+                        runs = refreshedRuns.toImmutableList(),
                         selectedRun = if (current.activeOnly && refreshedRun.status !in setOf("created", "running")) null else refreshedRun,
                         selectedStep = null,
-                        selectedStepMessages = emptyList(),
+                        selectedStepMessages = persistentListOf(),
                         selectedStepMetrics = null,
                         selectedStepTrace = null,
                         operationError = null,
@@ -222,14 +225,14 @@ class RunMonitorViewModel @Inject constructor(
                 runRepository.deleteRun(runId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        runs = current.runs.filterNot { it.id == runId },
+                        runs = current.runs.filterNot { it.id == runId }.toImmutableList(),
                         selectedRun = if (current.selectedRun?.id == runId) null else current.selectedRun,
-                        selectedRunMessages = if (current.selectedRun?.id == runId) emptyList() else current.selectedRunMessages,
+                        selectedRunMessages = if (current.selectedRun?.id == runId) persistentListOf() else current.selectedRunMessages,
                         selectedRunUsage = if (current.selectedRun?.id == runId) null else current.selectedRunUsage,
                         selectedRunMetrics = if (current.selectedRun?.id == runId) null else current.selectedRunMetrics,
-                        selectedRunSteps = if (current.selectedRun?.id == runId) emptyList() else current.selectedRunSteps,
+                        selectedRunSteps = if (current.selectedRun?.id == runId) persistentListOf() else current.selectedRunSteps,
                         selectedStep = if (current.selectedRun?.id == runId) null else current.selectedStep,
-                        selectedStepMessages = if (current.selectedRun?.id == runId) emptyList() else current.selectedStepMessages,
+                        selectedStepMessages = if (current.selectedRun?.id == runId) persistentListOf() else current.selectedStepMessages,
                         selectedStepMetrics = if (current.selectedRun?.id == runId) null else current.selectedStepMetrics,
                         selectedStepTrace = if (current.selectedRun?.id == runId) null else current.selectedStepTrace,
                         operationError = null,
@@ -246,12 +249,12 @@ class RunMonitorViewModel @Inject constructor(
         _uiState.value = UiState.Success(
             current.copy(
                 selectedRun = null,
-                selectedRunMessages = emptyList(),
+                selectedRunMessages = persistentListOf(),
                 selectedRunUsage = null,
                 selectedRunMetrics = null,
-                selectedRunSteps = emptyList(),
+                selectedRunSteps = persistentListOf(),
                 selectedStep = null,
-                selectedStepMessages = emptyList(),
+                selectedStepMessages = persistentListOf(),
                 selectedStepMetrics = null,
                 selectedStepTrace = null,
             )
@@ -263,7 +266,7 @@ class RunMonitorViewModel @Inject constructor(
         _uiState.value = UiState.Success(
             current.copy(
                 selectedStep = null,
-                selectedStepMessages = emptyList(),
+                selectedStepMessages = persistentListOf(),
                 selectedStepMetrics = null,
                 selectedStepTrace = null,
             )

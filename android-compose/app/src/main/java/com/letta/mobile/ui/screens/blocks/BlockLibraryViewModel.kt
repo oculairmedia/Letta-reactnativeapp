@@ -12,6 +12,9 @@ import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,13 +23,13 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class BlockLibraryUiState(
-    val blocks: List<Block> = emptyList(),
+    val blocks: ImmutableList<Block> = persistentListOf(),
     val searchQuery: String = "",
     val filterLabel: String? = null,
     val filterTemplate: Boolean? = null,
     val operationError: String? = null,
     val agentsByBlock: Map<String, List<Agent>> = emptyMap(),
-    val allAgents: List<Agent> = emptyList(),
+    val allAgents: ImmutableList<Agent> = persistentListOf(),
 )
 
 @HiltViewModel
@@ -57,7 +60,7 @@ class BlockLibraryViewModel @Inject constructor(
                 )
                 _uiState.value = UiState.Success(
                     BlockLibraryUiState(
-                        blocks = blocks,
+                        blocks = blocks.toImmutableList(),
                         searchQuery = searchQuery,
                         filterLabel = filterLabel,
                         filterTemplate = filterTemplate,
@@ -93,7 +96,7 @@ class BlockLibraryViewModel @Inject constructor(
             }
             .groupBy({ it.first }, { it.second })
         _uiState.value = UiState.Success(
-            currentState.copy(agentsByBlock = agentsByBlock, allAgents = agents)
+            currentState.copy(agentsByBlock = agentsByBlock, allAgents = agents.toImmutableList())
         )
     }
 

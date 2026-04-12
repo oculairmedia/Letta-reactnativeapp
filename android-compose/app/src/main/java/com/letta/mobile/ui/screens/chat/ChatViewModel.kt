@@ -15,6 +15,9 @@ import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.ui.theme.ChatBackground
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,11 +38,11 @@ data class PendingToolCall(
 )
 
 data class ChatUiState(
-    val messages: List<UiMessage> = emptyList(),
+    val messages: ImmutableList<UiMessage> = persistentListOf(),
     val isLoadingMessages: Boolean = true,
     val isStreaming: Boolean = false,
     val isAgentTyping: Boolean = false,
-    val pendingTools: List<PendingToolCall> = emptyList(),
+    val pendingTools: ImmutableList<PendingToolCall> = persistentListOf(),
     val agentName: String = "",
     val error: String? = null,
     val promptTokens: Int? = null,
@@ -127,7 +130,7 @@ class ChatViewModel @Inject constructor(
             if (requestedConversationId == activeConversationId) {
                 _uiState.value = _uiState.value.copy(
                     agentName = cachedAgent?.name ?: _uiState.value.agentName,
-                    messages = if (cachedMessages.isNotEmpty()) cachedMessages.toUiMessages() else _uiState.value.messages,
+                    messages = if (cachedMessages.isNotEmpty()) cachedMessages.toUiMessages().toImmutableList() else _uiState.value.messages,
                     isLoadingMessages = cachedMessages.isEmpty(),
                     error = null,
                 )
@@ -150,7 +153,7 @@ class ChatViewModel @Inject constructor(
             val messages = appMessages.toUiMessages()
             if (messages.isNotEmpty()) hasSummary = true
             _uiState.value = _uiState.value.copy(
-                messages = messages, isLoadingMessages = false
+                messages = messages.toImmutableList(), isLoadingMessages = false
             )
         } catch (e: Exception) {
             if (requestedConversationId != activeConversationId) {
@@ -176,7 +179,7 @@ class ChatViewModel @Inject constructor(
                 timestamp = java.time.Instant.now().toString(),
             )
             _inputText.value = ""
-            val existingMessages = _uiState.value.messages + userMessage
+            val existingMessages = (_uiState.value.messages + userMessage).toImmutableList()
             _uiState.value = _uiState.value.copy(
                 messages = existingMessages,
                 isStreaming = true,
@@ -218,7 +221,7 @@ class ChatViewModel @Inject constructor(
                         is StreamState.Streaming -> {
                             val newMessages = state.messages.toUiMessages()
                             _uiState.value = _uiState.value.copy(
-                                messages = existingMessages + newMessages,
+                                messages = (existingMessages + newMessages).toImmutableList(),
                                 isStreaming = true,
                                 isAgentTyping = false,
                             )
@@ -228,17 +231,17 @@ class ChatViewModel @Inject constructor(
                             pendingToolsMap[state.toolName] = toolCall
                             _uiState.value = _uiState.value.copy(
                                 isAgentTyping = true,
-                                pendingTools = pendingToolsMap.values.toList(),
+                                pendingTools = pendingToolsMap.values.toImmutableList(),
                             )
                         }
                         is StreamState.Complete -> {
                             pendingToolsMap.clear()
                             val newMessages = state.messages.toUiMessages()
                             _uiState.value = _uiState.value.copy(
-                                messages = existingMessages + newMessages,
+                                messages = (existingMessages + newMessages).toImmutableList(),
                                 isStreaming = false,
                                 isAgentTyping = false,
-                                pendingTools = emptyList(),
+                                pendingTools = persistentListOf(),
                             )
                             reloadMessagesFromServer()
                         }
@@ -263,7 +266,7 @@ class ChatViewModel @Inject constructor(
                 }
                 val messages = appMessages.toUiMessages()
                 if (messages.isNotEmpty()) {
-                    _uiState.value = _uiState.value.copy(messages = messages)
+                    _uiState.value = _uiState.value.copy(messages = messages.toImmutableList())
                 }
             } catch (e: Exception) {
                 android.util.Log.w("ChatViewModel", "Silent reload failed", e)
@@ -275,7 +278,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 messageRepository.resetMessages(agentId)
-                _uiState.value = _uiState.value.copy(messages = emptyList())
+                _uiState.value = _uiState.value.copy(messages = persistentListOf())
             } catch (e: Exception) {
                 android.util.Log.w("ChatViewModel", "Failed to reset messages", e)
             }

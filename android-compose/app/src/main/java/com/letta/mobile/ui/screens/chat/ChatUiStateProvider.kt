@@ -4,8 +4,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.UiState
+import kotlinx.collections.immutable.persistentListOf
 
-val sampleMessages = listOf(
+val sampleMessages = persistentListOf(
     UiMessage(id = "1", role = "user", content = "Hello! Can you help me?", timestamp = "2024-03-15T10:00:00Z"),
     UiMessage(id = "2", role = "assistant", content = "Of course! I'd be happy to help. What would you like to know?", timestamp = "2024-03-15T10:00:05Z"),
     UiMessage(id = "3", role = "user", content = "What is Kotlin?", timestamp = "2024-03-15T10:01:00Z"),

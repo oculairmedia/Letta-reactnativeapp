@@ -19,6 +19,9 @@ import com.letta.mobile.data.repository.api.IBlockRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.FlowPreview
@@ -45,14 +48,14 @@ data class DashboardUiState(
     val isUsageLoading: Boolean = true,
     val favoriteAgentId: String? = null,
     val favoriteAgentName: String? = null,
-    val pinnedAgents: List<PinnedAgent> = emptyList(),
+    val pinnedAgents: ImmutableList<PinnedAgent> = persistentListOf(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
     val isSearchActive: Boolean = false,
-    val agentResults: List<Agent> = emptyList(),
-    val messageResults: List<ParsedSearchMessage> = emptyList(),
-    val toolResults: List<Tool> = emptyList(),
-    val blockResults: List<Block> = emptyList(),
+    val agentResults: ImmutableList<Agent> = persistentListOf(),
+    val messageResults: ImmutableList<ParsedSearchMessage> = persistentListOf(),
+    val toolResults: ImmutableList<Tool> = persistentListOf(),
+    val blockResults: ImmutableList<Block> = persistentListOf(),
     val error: String? = null,
 )
 
@@ -129,7 +132,7 @@ class DashboardViewModel @Inject constructor(
                     val agent = agentRepository.getCachedAgent(id)
                     if (agent != null) PinnedAgent(agent.id, agent.name) else null
                 }
-                _uiState.value = _uiState.value.copy(pinnedAgents = pinned)
+                _uiState.value = _uiState.value.copy(pinnedAgents = pinned.toImmutableList())
             }
         }
     }
@@ -147,10 +150,10 @@ class DashboardViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             searchQuery = "",
             isSearchActive = false,
-            agentResults = emptyList(),
-            messageResults = emptyList(),
-            toolResults = emptyList(),
-            blockResults = emptyList(),
+            agentResults = persistentListOf(),
+            messageResults = persistentListOf(),
+            toolResults = persistentListOf(),
+            blockResults = persistentListOf(),
         )
     }
 
@@ -162,10 +165,10 @@ class DashboardViewModel @Inject constructor(
                 .collect { query ->
                     if (query.isBlank()) {
                         _uiState.value = _uiState.value.copy(
-                            agentResults = emptyList(),
-                            messageResults = emptyList(),
-                            toolResults = emptyList(),
-                            blockResults = emptyList(),
+                            agentResults = persistentListOf(),
+                            messageResults = persistentListOf(),
+                            toolResults = persistentListOf(),
+                            blockResults = persistentListOf(),
                             isSearching = false,
                         )
                         return@collect
@@ -188,9 +191,9 @@ class DashboardViewModel @Inject constructor(
                             block.value.lowercase().contains(q)
                     }
                     _uiState.value = _uiState.value.copy(
-                        agentResults = agents,
-                        toolResults = tools,
-                        blockResults = blocks,
+                        agentResults = agents.toImmutableList(),
+                        toolResults = tools.toImmutableList(),
+                        blockResults = blocks.toImmutableList(),
                         isSearching = true,
                     )
 
@@ -203,7 +206,7 @@ class DashboardViewModel @Inject constructor(
                             )
                         )
                         _uiState.value = _uiState.value.copy(
-                            messageResults = results.map { it.toParsed() },
+                            messageResults = results.map { it.toParsed() }.toImmutableList(),
                             isSearching = false,
                         )
                     } catch (e: Exception) {

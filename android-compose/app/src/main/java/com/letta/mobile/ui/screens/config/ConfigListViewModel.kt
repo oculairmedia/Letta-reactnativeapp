@@ -6,6 +6,9 @@ import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +25,7 @@ data class ServerConfig(
 
 @androidx.compose.runtime.Immutable
 data class ConfigListUiState(
-    val configs: List<ServerConfig> = emptyList()
+    val configs: ImmutableList<ServerConfig> = persistentListOf()
 )
 
 @HiltViewModel
@@ -51,7 +54,7 @@ class ConfigListViewModel @Inject constructor(
                         isActive = it.id == activeId
                     )
                 }
-                _uiState.value = UiState.Success(ConfigListUiState(configs = serverConfigs))
+                _uiState.value = UiState.Success(ConfigListUiState(configs = serverConfigs.toImmutableList()))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load configs")
             }

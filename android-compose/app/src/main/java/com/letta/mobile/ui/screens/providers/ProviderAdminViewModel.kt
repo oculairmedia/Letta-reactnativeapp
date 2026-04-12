@@ -10,6 +10,9 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @androidx.compose.runtime.Immutable
 data class ProviderAdminUiState(
-    val providers: List<Provider> = emptyList(),
+    val providers: ImmutableList<Provider> = persistentListOf(),
     val searchQuery: String = "",
     val selectedProvider: Provider? = null,
     val operationError: String? = null,
@@ -45,7 +48,7 @@ class ProviderAdminViewModel @Inject constructor(
                 val providers = providerRepository.providers.value
                 _uiState.value = UiState.Success(
                     ProviderAdminUiState(
-                        providers = providers,
+                        providers = providers.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedProvider = current?.selectedProvider?.let { selected ->
                             providers.firstOrNull { it.id == selected.id } ?: selected
@@ -83,7 +86,7 @@ class ProviderAdminViewModel @Inject constructor(
                 val provider = providerRepository.getProvider(providerId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        providers = current.providers.replaceProvider(provider),
+                        providers = current.providers.replaceProvider(provider).toImmutableList(),
                         selectedProvider = provider,
                         operationError = null,
                         operationMessage = null,
@@ -120,7 +123,7 @@ class ProviderAdminViewModel @Inject constructor(
                 if (current != null) {
                     _uiState.value = UiState.Success(
                         current.copy(
-                            providers = current.providers.replaceProvider(provider),
+                            providers = current.providers.replaceProvider(provider).toImmutableList(),
                             operationError = null,
                             operationMessage = null,
                         )
@@ -157,7 +160,7 @@ class ProviderAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        providers = current.providers.replaceProvider(provider),
+                        providers = current.providers.replaceProvider(provider).toImmutableList(),
                         selectedProvider = if (current.selectedProvider?.id == providerId) provider else current.selectedProvider,
                         operationError = null,
                         operationMessage = null,
@@ -181,7 +184,7 @@ class ProviderAdminViewModel @Inject constructor(
                 val deletingSelected = current.selectedProvider?.id == providerId
                 _uiState.value = UiState.Success(
                     current.copy(
-                        providers = current.providers.filterNot { it.id == providerId },
+                        providers = current.providers.filterNot { it.id == providerId }.toImmutableList(),
                         selectedProvider = if (deletingSelected) null else current.selectedProvider,
                         operationError = null,
                         operationMessage = null,

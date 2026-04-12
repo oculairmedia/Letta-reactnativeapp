@@ -7,6 +7,9 @@ import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +19,7 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class ToolsUiState(
-    val tools: List<Tool> = emptyList()
+    val tools: ImmutableList<Tool> = persistentListOf()
 )
 
 @HiltViewModel
@@ -40,7 +43,7 @@ class ToolsViewModel @Inject constructor(
             try {
                 toolRepository.refreshTools()
                 val tools = toolRepository.getTools().first()
-                _uiState.value = UiState.Success(ToolsUiState(tools = tools))
+                _uiState.value = UiState.Success(ToolsUiState(tools = tools.toImmutableList()))
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to load tools")
             }

@@ -13,6 +13,9 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,8 +117,8 @@ class ToolDetailViewModel @Inject constructor(
                 agentRepository.refreshAgentsIfStale(AGENT_ATTACHMENT_CACHE_TTL_MS)
                 val agents = agentRepository.agents.value
                 _agentState.value = ToolAgentAttachmentUiState(
-                    attachedAgents = agents.filter { agent -> agent.tools.any { it.id == toolId } },
-                    availableAgents = agents.filter { agent -> agent.tools.none { it.id == toolId } },
+                    attachedAgents = agents.filter { agent -> agent.tools.any { it.id == toolId } }.toImmutableList(),
+                    availableAgents = agents.filter { agent -> agent.tools.none { it.id == toolId } }.toImmutableList(),
                 )
             } catch (e: Exception) {
                 _deleteState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to load agent attachments"))
@@ -148,6 +151,6 @@ class ToolDetailViewModel @Inject constructor(
 
 @androidx.compose.runtime.Immutable
 data class ToolAgentAttachmentUiState(
-    val attachedAgents: List<Agent> = emptyList(),
-    val availableAgents: List<Agent> = emptyList(),
+    val attachedAgents: ImmutableList<Agent> = persistentListOf(),
+    val availableAgents: ImmutableList<Agent> = persistentListOf(),
 )

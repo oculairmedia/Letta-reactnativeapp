@@ -12,6 +12,9 @@ import com.letta.mobile.data.repository.ArchiveRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,11 +23,11 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class ArchiveAdminUiState(
-    val archives: List<Archive> = emptyList(),
+    val archives: ImmutableList<Archive> = persistentListOf(),
     val searchQuery: String = "",
     val selectedArchive: Archive? = null,
-    val selectedArchiveAgents: List<Agent> = emptyList(),
-    val allAgents: List<Agent> = emptyList(),
+    val selectedArchiveAgents: ImmutableList<Agent> = persistentListOf(),
+    val allAgents: ImmutableList<Agent> = persistentListOf(),
     val operationError: String? = null,
 )
 
@@ -52,13 +55,13 @@ class ArchiveAdminViewModel @Inject constructor(
                 val allAgents = agentRepository.agents.value
                 _uiState.value = UiState.Success(
                     ArchiveAdminUiState(
-                        archives = archives,
+                        archives = archives.toImmutableList(),
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedArchive = current?.selectedArchive?.let { selected ->
                             archives.firstOrNull { it.id == selected.id } ?: selected
                         },
-                        selectedArchiveAgents = current?.selectedArchiveAgents.orEmpty(),
-                        allAgents = allAgents,
+                        selectedArchiveAgents = current?.selectedArchiveAgents.orEmpty().toImmutableList(),
+                        allAgents = allAgents.toImmutableList(),
                     )
                 )
             } catch (e: Exception) {
@@ -91,9 +94,9 @@ class ArchiveAdminViewModel @Inject constructor(
                 val agents = archiveRepository.listAgentsForArchive(archiveId)
                 _uiState.value = UiState.Success(
                     current.copy(
-                        archives = current.archives.replaceArchive(archive),
+                        archives = current.archives.replaceArchive(archive).toImmutableList(),
                         selectedArchive = archive,
-                        selectedArchiveAgents = agents,
+                        selectedArchiveAgents = agents.toImmutableList(),
                         operationError = null,
                     )
                 )
@@ -117,7 +120,7 @@ class ArchiveAdminViewModel @Inject constructor(
                 if (current != null) {
                     _uiState.value = UiState.Success(
                         current.copy(
-                            archives = current.archives.replaceArchive(archive),
+                            archives = current.archives.replaceArchive(archive).toImmutableList(),
                             operationError = null,
                         )
                     )
@@ -144,7 +147,7 @@ class ArchiveAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        archives = current.archives.replaceArchive(archive),
+                        archives = current.archives.replaceArchive(archive).toImmutableList(),
                         selectedArchive = if (current.selectedArchive?.id == archiveId) archive else current.selectedArchive,
                         operationError = null,
                     )
@@ -166,9 +169,9 @@ class ArchiveAdminViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        archives = current.archives.filterNot { it.id == archiveId },
+                        archives = current.archives.filterNot { it.id == archiveId }.toImmutableList(),
                         selectedArchive = if (current.selectedArchive?.id == archiveId) null else current.selectedArchive,
-                        selectedArchiveAgents = if (current.selectedArchive?.id == archiveId) emptyList() else current.selectedArchiveAgents,
+                        selectedArchiveAgents = if (current.selectedArchive?.id == archiveId) persistentListOf() else current.selectedArchiveAgents,
                         operationError = null,
                     )
                 )
@@ -209,7 +212,7 @@ class ArchiveAdminViewModel @Inject constructor(
 
     fun clearSelectedArchive() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(current.copy(selectedArchive = null, selectedArchiveAgents = emptyList()))
+        _uiState.value = UiState.Success(current.copy(selectedArchive = null, selectedArchiveAgents = persistentListOf()))
     }
 
     fun clearOperationError() {

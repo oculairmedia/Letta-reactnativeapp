@@ -7,6 +7,9 @@ import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,8 +18,8 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class ModelBrowserUiState(
-    val models: List<LlmModel> = emptyList(),
-    val embeddingModels: List<EmbeddingModel> = emptyList(),
+    val models: ImmutableList<LlmModel> = persistentListOf(),
+    val embeddingModels: ImmutableList<EmbeddingModel> = persistentListOf(),
     val searchQuery: String = "",
     val selectedProvider: String? = null,
     val selectedTab: ModelTab = ModelTab.LLM,
@@ -46,8 +49,8 @@ class ModelBrowserViewModel @Inject constructor(
                 modelRepository.refreshEmbeddingModels()
                 _uiState.value = UiState.Success(
                     ModelBrowserUiState(
-                        models = modelRepository.llmModels.value,
-                        embeddingModels = modelRepository.embeddingModels.value,
+                        models = modelRepository.llmModels.value.toImmutableList(),
+                        embeddingModels = modelRepository.embeddingModels.value.toImmutableList(),
                     )
                 )
             } catch (e: Exception) {

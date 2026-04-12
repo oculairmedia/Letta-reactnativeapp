@@ -15,6 +15,9 @@ import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +37,7 @@ data class AgentSettingsUiState(
     val humanBlock: String = "",
     val systemPrompt: String = "",
     val enableSleeptime: Boolean = false,
-    val tools: List<Tool> = emptyList(),
+    val tools: ImmutableList<Tool> = persistentListOf(),
     val secrets: Map<String, String> = emptyMap(),
     val isCloning: Boolean = false,
 )
@@ -80,7 +83,7 @@ class AgentSettingsViewModel @Inject constructor(
                         humanBlock = human,
                         systemPrompt = agent.system ?: "",
                         enableSleeptime = agent.enableSleeptime ?: false,
-                        tools = agent.tools,
+                        tools = agent.tools.toImmutableList(),
                         secrets = agent.secrets.associate { it.key to (it.value ?: "") },
                     )
                 )

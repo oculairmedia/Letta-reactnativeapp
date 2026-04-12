@@ -7,6 +7,9 @@ import com.letta.mobile.data.model.Passage
 import com.letta.mobile.data.repository.PassageRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +18,7 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class ArchivalUiState(
-    val passages: List<Passage> = emptyList(),
+    val passages: ImmutableList<Passage> = persistentListOf(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
     val filterHasSource: Boolean = false,
@@ -44,10 +47,10 @@ class ArchivalViewModel @Inject constructor(
             try {
                 passageRepository.refreshPassages(agentId)
                 val passages = passageRepository.getPassages(agentId).value
-                _uiState.value = UiState.Success(ArchivalUiState(passages = passages))
+                _uiState.value = UiState.Success(ArchivalUiState(passages = passages.toImmutableList()))
             } catch (e: Exception) {
                 android.util.Log.w("ArchivalVM", "Failed to load passages", e)
-                _uiState.value = UiState.Success(ArchivalUiState(passages = emptyList()))
+                _uiState.value = UiState.Success(ArchivalUiState(passages = persistentListOf()))
             }
         }
     }
@@ -63,7 +66,7 @@ class ArchivalViewModel @Inject constructor(
                     passageRepository.searchArchival(agentId, query)
                 }
                 _uiState.value = UiState.Success(current.copy(
-                    passages = results, searchQuery = query, isSearching = false
+                    passages = results.toImmutableList(), searchQuery = query, isSearching = false
                 ))
             } catch (e: Exception) {
                 _uiState.value = UiState.Success(current.copy(isSearching = false))
@@ -89,7 +92,7 @@ class ArchivalViewModel @Inject constructor(
                 val current = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(
                     current.copy(
-                        passages = current.passages.filter { it.id != passageId },
+                        passages = current.passages.filter { it.id != passageId }.toImmutableList(),
                         selectedPassage = if (current.selectedPassage?.id == passageId) null else current.selectedPassage,
                     )
                 )

@@ -13,6 +13,9 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +35,7 @@ data class McpToolRunState(
 @androidx.compose.runtime.Immutable
 data class McpServerToolsUiState(
     val server: McpServer,
-    val tools: List<Tool> = emptyList(),
+    val tools: ImmutableList<Tool> = persistentListOf(),
     val isRefreshing: Boolean = false,
     val refreshSummary: McpServerResyncResult? = null,
     val toolRunState: McpToolRunState = McpToolRunState(),
@@ -157,7 +160,7 @@ class McpServerToolsViewModel @Inject constructor(
         val tools = mcpServerRepository.getServerTools(serverId).first()
         return McpServerToolsUiState(
             server = server,
-            tools = tools,
+            tools = tools.toImmutableList(),
             refreshSummary = previous?.refreshSummary,
             toolRunState = previous?.toolRunState ?: McpToolRunState(),
         )

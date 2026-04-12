@@ -11,6 +11,9 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,8 +37,8 @@ data class McpToolParent(
 @androidx.compose.runtime.Immutable
 data class McpUiState(
     val selectedTab: Int = 0,
-    val servers: List<McpServer> = emptyList(),
-    val allTools: List<Tool> = emptyList(),
+    val servers: ImmutableList<McpServer> = persistentListOf(),
+    val allTools: ImmutableList<Tool> = persistentListOf(),
     val serverTools: Map<String, List<Tool>> = emptyMap(),
     val serverChecks: Map<String, McpServerCheckState> = emptyMap(),
     val toolParents: Map<String, McpToolParent> = emptyMap(),
@@ -81,8 +84,8 @@ class McpViewModel @Inject constructor(
                 val allTools = toolRepository.getTools().first()
                 _uiState.value = UiState.Success(
                     McpUiState(
-                        servers = servers,
-                        allTools = allTools,
+                        servers = servers.toImmutableList(),
+                        allTools = allTools.toImmutableList(),
                         serverTools = serverToolsMap,
                         serverChecks = currentChecks,
                         toolParents = toolParents,

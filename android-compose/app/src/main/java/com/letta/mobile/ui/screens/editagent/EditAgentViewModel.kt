@@ -14,6 +14,9 @@ import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,11 +43,11 @@ data class EditAgentUiState(
     val description: String = "",
     val model: String = "",
     val embedding: String = "",
-    val blocks: List<EditableBlock> = emptyList(),
+    val blocks: ImmutableList<EditableBlock> = persistentListOf(),
     val systemPrompt: String = "",
-    val tags: List<String> = emptyList(),
-    val attachedTools: List<Tool> = emptyList(),
-    val availableTools: List<Tool> = emptyList(),
+    val tags: ImmutableList<String> = persistentListOf(),
+    val attachedTools: ImmutableList<Tool> = persistentListOf(),
+    val availableTools: ImmutableList<Tool> = persistentListOf(),
     val providerType: String = "",
     val temperature: Float = 1.0f,
     val maxOutputTokens: Int = 4096,
@@ -130,11 +133,11 @@ class EditAgentViewModel @Inject constructor(
                         description = agent.description ?: "",
                         model = agent.model ?: "",
                         embedding = resolvedEmbedding,
-                        blocks = editableBlocks,
+                        blocks = editableBlocks.toImmutableList(),
                         systemPrompt = agent.system ?: "",
-                        tags = agent.tags,
-                        attachedTools = agent.tools,
-                        availableTools = availableTools,
+                        tags = agent.tags.toImmutableList(),
+                        attachedTools = agent.tools.toImmutableList(),
+                        availableTools = availableTools.toImmutableList(),
                         providerType = resolvedProviderType,
                         temperature = agent.modelSettings?.temperature?.toFloat() ?: agent.llmConfig?.temperature?.toFloat() ?: 1.0f,
                         maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: agent.llmConfig?.maxTokens ?: 4096,
@@ -185,7 +188,7 @@ class EditAgentViewModel @Inject constructor(
         _uiState.value = UiState.Success(currentState.copy(
             blocks = currentState.blocks.map {
                 if (it.label == blockLabel) it.copy(value = value) else it
-            }
+            }.toImmutableList()
         ))
     }
 
@@ -194,7 +197,7 @@ class EditAgentViewModel @Inject constructor(
         _uiState.value = UiState.Success(currentState.copy(
             blocks = currentState.blocks.map {
                 if (it.label == blockLabel) it.copy(description = description) else it
-            }
+            }.toImmutableList()
         ))
     }
 
@@ -203,7 +206,7 @@ class EditAgentViewModel @Inject constructor(
         _uiState.value = UiState.Success(currentState.copy(
             blocks = currentState.blocks.map {
                 if (it.label == blockLabel) it.copy(limit = limit) else it
-            }
+            }.toImmutableList()
         ))
     }
 
@@ -243,7 +246,7 @@ class EditAgentViewModel @Inject constructor(
                 blockRepository.detachBlock(agentId, blockId)
                 val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
                 _uiState.value = UiState.Success(currentState.copy(
-                    blocks = currentState.blocks.filter { it.id != blockId }
+                    blocks = currentState.blocks.filter { it.id != blockId }.toImmutableList()
                 ))
             } catch (e: Exception) {
                 android.util.Log.w("EditAgentVM", "Failed to delete block", e)
@@ -254,12 +257,12 @@ class EditAgentViewModel @Inject constructor(
     fun addTag(tag: String) {
         val currentState = (_uiState.value as? UiState.Success)?.data ?: return
         if (tag.isBlank() || currentState.tags.contains(tag)) return
-        _uiState.value = UiState.Success(currentState.copy(tags = currentState.tags + tag))
+        _uiState.value = UiState.Success(currentState.copy(tags = (currentState.tags + tag).toImmutableList()))
     }
 
     fun removeTag(tag: String) {
         val currentState = (_uiState.value as? UiState.Success)?.data ?: return
-        _uiState.value = UiState.Success(currentState.copy(tags = currentState.tags - tag))
+        _uiState.value = UiState.Success(currentState.copy(tags = (currentState.tags - tag).toImmutableList()))
     }
 
     fun updateEmbedding(value: String) {

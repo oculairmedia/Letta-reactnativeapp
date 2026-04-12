@@ -15,6 +15,9 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,10 +27,10 @@ import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
 data class AgentListUiState(
-    val agents: List<Agent> = emptyList(),
-    val availableTools: List<Tool> = emptyList(),
-    val llmModels: List<LlmModel> = emptyList(),
-    val embeddingModels: List<EmbeddingModel> = emptyList(),
+    val agents: ImmutableList<Agent> = persistentListOf(),
+    val availableTools: ImmutableList<Tool> = persistentListOf(),
+    val llmModels: ImmutableList<LlmModel> = persistentListOf(),
+    val embeddingModels: ImmutableList<EmbeddingModel> = persistentListOf(),
     val favoriteAgentId: String? = null,
     val pinnedAgentIds: Set<String> = emptySet(),
     val searchQuery: String = "",
@@ -57,7 +60,7 @@ class AgentListViewModel @Inject constructor(
         val cached = agentRepository.agents.value
         if (cached.isNotEmpty()) {
             _uiState.value = _uiState.value.copy(
-                agents = cached,
+                agents = cached.toImmutableList(),
                 favoriteAgentId = settingsRepository.favoriteAgentId.value,
                 isLoading = false,
             )
@@ -81,7 +84,7 @@ class AgentListViewModel @Inject constructor(
             try {
                 toolRepository.refreshToolsIfStale(LIST_CACHE_TTL_MS)
                 _uiState.value = _uiState.value.copy(
-                    availableTools = toolRepository.getTools().first(),
+                    availableTools = toolRepository.getTools().first().toImmutableList(),
                 )
             } catch (_: Exception) {
                 Log.w("AgentListViewModel", "Failed to load available tools")
@@ -95,8 +98,8 @@ class AgentListViewModel @Inject constructor(
                 modelRepository.refreshLlmModels()
                 modelRepository.refreshEmbeddingModels()
                 _uiState.value = _uiState.value.copy(
-                    llmModels = modelRepository.llmModels.value,
-                    embeddingModels = modelRepository.embeddingModels.value,
+                    llmModels = modelRepository.llmModels.value.toImmutableList(),
+                    embeddingModels = modelRepository.embeddingModels.value.toImmutableList(),
                 )
             } catch (_: Exception) {
                 Log.w("AgentListViewModel", "Failed to load available models")
@@ -112,7 +115,7 @@ class AgentListViewModel @Inject constructor(
             try {
                 agentRepository.refreshAgentsIfStale(LIST_CACHE_TTL_MS)
                 _uiState.value = _uiState.value.copy(
-                    agents = agentRepository.agents.value,
+                    agents = agentRepository.agents.value.toImmutableList(),
                     favoriteAgentId = settingsRepository.favoriteAgentId.value,
                     isLoading = false,
                 )
@@ -131,7 +134,7 @@ class AgentListViewModel @Inject constructor(
             try {
                 agentRepository.refreshAgents()
                 _uiState.value = _uiState.value.copy(
-                    agents = agentRepository.agents.value,
+                    agents = agentRepository.agents.value.toImmutableList(),
                     favoriteAgentId = settingsRepository.favoriteAgentId.value,
                     isRefreshing = false,
                 )
@@ -150,7 +153,7 @@ class AgentListViewModel @Inject constructor(
 
     fun getFilteredAgents(): List<Agent> {
         val state = _uiState.value
-        var result = state.agents
+        var result: List<Agent> = state.agents
 
         if (state.selectedTags.isNotEmpty()) {
             result = result.filter { agent ->
@@ -197,7 +200,7 @@ class AgentListViewModel @Inject constructor(
                     settingsRepository.setFavoriteAgentId(null)
                 }
                 _uiState.value = _uiState.value.copy(
-                    agents = agentRepository.agents.value,
+                    agents = agentRepository.agents.value.toImmutableList(),
                     favoriteAgentId = if (wasFavorite) null else _uiState.value.favoriteAgentId,
                 )
                 onComplete()
@@ -262,7 +265,7 @@ class AgentListViewModel @Inject constructor(
                 )
                 _uiState.value = _uiState.value.copy(
                     isImporting = false,
-                    agents = agentRepository.agents.value,
+                    agents = agentRepository.agents.value.toImmutableList(),
                 )
                 onSuccess(response)
             } catch (e: Exception) {
