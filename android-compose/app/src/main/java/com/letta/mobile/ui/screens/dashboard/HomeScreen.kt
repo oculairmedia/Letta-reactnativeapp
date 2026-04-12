@@ -1,6 +1,11 @@
 package com.letta.mobile.ui.screens.dashboard
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,7 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -150,6 +156,27 @@ private fun HomeContent(
             onClear = onClearSearch,
         )
 
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = state.serverUrl,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
         if (state.isSearchActive) {
             SearchResultsContent(
                 agentResults = state.agentResults,
@@ -170,96 +197,91 @@ private fun HomeContent(
                 modifier = Modifier.weight(1f),
             )
         } else {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                StatCard(
-                    label = "Agents",
-                    value = state.agentCount?.toString(),
-                    icon = LettaIcons.People,
-                    onClick = onNavigateToAgents,
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Chats",
-                    value = state.conversationCount?.toString(),
-                    icon = LettaIcons.Chat,
-                    onClick = onNavigateToConversations,
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Tools",
-                    value = state.toolCount?.toString(),
-                    icon = LettaIcons.Tool,
-                    onClick = onNavigateToTools,
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Blocks",
-                    value = state.blockCount?.toString(),
-                    icon = LettaIcons.ViewModule,
-                    onClick = onNavigateToBlocks,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                ),
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = state.serverUrl,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    StatCard(
+                        label = "Agents",
+                        value = state.agentCount?.toString(),
+                        icon = LettaIcons.People,
+                        onClick = onNavigateToAgents,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatCard(
+                        label = "Chats",
+                        value = state.conversationCount?.toString(),
+                        icon = LettaIcons.Chat,
+                        onClick = onNavigateToConversations,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatCard(
+                        label = "Tools",
+                        value = state.toolCount?.toString(),
+                        icon = LettaIcons.Tool,
+                        onClick = onNavigateToTools,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatCard(
+                        label = "Blocks",
+                        value = state.blockCount?.toString(),
+                        icon = LettaIcons.ViewModule,
+                        onClick = onNavigateToBlocks,
                         modifier = Modifier.weight(1f),
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            FavoriteAgentCard(
-                favoriteAgentId = state.favoriteAgentId,
-                favoriteAgentName = state.favoriteAgentName,
-                onNavigateToChat = { onNavigateToChat(it, null) },
-                onSetFavorite = onNavigateToAgents,
-            )
-
-            if (state.pinnedAgents.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
-                state.pinnedAgents.forEach { pinned ->
-                    PinnedAgentCard(
-                        name = pinned.name,
-                        onClick = { onNavigateToChat(pinned.id, null) },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                    )
+
+                FavoriteAgentCard(
+                    favoriteAgentId = state.favoriteAgentId,
+                    favoriteAgentName = state.favoriteAgentName,
+                    onNavigateToChat = { onNavigateToChat(it, null) },
+                    onSetFavorite = onNavigateToAgents,
+                )
+
+                if (state.pinnedAgents.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    state.pinnedAgents.forEach { pinned ->
+                        PinnedAgentCard(
+                            name = pinned.name,
+                            onClick = { onNavigateToChat(pinned.id, null) },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
             if (state.favoriteAgentId != null) {
+                val scrimColor = MaterialTheme.colorScheme.surface
                 var homeChatText by remember { mutableStateOf("") }
-                LettaInputBar(
-                    text = homeChatText,
-                    onTextChange = { homeChatText = it },
-                    onSend = { message ->
-                        onNavigateToChat(state.favoriteAgentId, message)
-                        homeChatText = ""
-                    },
-                    placeholder = stringResource(R.string.screen_home_chat_placeholder),
-                    sendContentDescription = stringResource(R.string.action_send_message),
-                    maxLines = 1,
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    scrimColor.copy(alpha = 0f),
+                                    scrimColor,
+                                ),
+                            )
+                        ),
+                ) {
+                    LettaInputBar(
+                        text = homeChatText,
+                        onTextChange = { homeChatText = it },
+                        onSend = { message ->
+                            onNavigateToChat(state.favoriteAgentId, message)
+                            homeChatText = ""
+                        },
+                        placeholder = stringResource(R.string.screen_home_chat_placeholder),
+                        sendContentDescription = stringResource(R.string.action_send_message),
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -542,14 +564,12 @@ private fun SearchResultsContent(
 
         if (isSearching) {
             item(key = "loading") {
+                @OptIn(ExperimentalMaterial3ExpressiveApi::class)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                    )
+                    LoadingIndicator()
                 }
             }
         }

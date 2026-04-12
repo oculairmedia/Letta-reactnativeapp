@@ -16,7 +16,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.LaunchedEffect
@@ -210,9 +211,9 @@ fun AllToolsScreen(
                                                 .padding(16.dp),
                                             contentAlignment = Alignment.Center,
                                         ) {
-                                            CircularProgressIndicator(
+                                            @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                                            LoadingIndicator(
                                                 modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.dp,
                                             )
                                         }
                                     }
@@ -253,9 +254,9 @@ private fun McpLoadingBanner(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CircularProgressIndicator(
+            @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+            LoadingIndicator(
                 modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
             )
             Column {
                 Text(

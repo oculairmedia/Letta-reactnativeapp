@@ -14,7 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,9 +71,9 @@ fun ConnectionStatusBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (state == ConnectionState.Reconnecting) {
-                CircularProgressIndicator(
+                @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+                LoadingIndicator(
                     modifier = Modifier.size(LettaIconSizing.Status),
-                    strokeWidth = 1.5.dp,
                     color = textColor,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
