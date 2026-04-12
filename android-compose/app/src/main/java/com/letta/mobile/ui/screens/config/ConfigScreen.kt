@@ -21,6 +21,7 @@ import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LettaTopBarDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,9 +34,11 @@ fun ConfigScreen(
     val snackbar = LocalSnackbarDispatcher.current
 
     Scaffold(
+        containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.common_settings)) },
+                colors = LettaTopBarDefaults.topAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))

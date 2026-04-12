@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.letta.mobile.R
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LettaTopBarDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,9 +41,11 @@ fun AboutScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.screen_about_title)) },
+                colors = LettaTopBarDefaults.topAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(LettaIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))

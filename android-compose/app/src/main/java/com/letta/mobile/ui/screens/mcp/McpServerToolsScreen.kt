@@ -56,6 +56,7 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LettaTopBarDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,12 +78,14 @@ fun McpServerToolsScreen(
     }
 
     Scaffold(
+        containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
             TopAppBar(
                 title = {
                     val serverName = (uiState as? UiState.Success)?.data?.server?.serverName
                     Text(serverName ?: stringResource(R.string.screen_mcp_server_tools_title))
                 },
+                colors = LettaTopBarDefaults.topAppBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
