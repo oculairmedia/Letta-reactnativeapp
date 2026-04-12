@@ -182,8 +182,13 @@ class AgentListViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 agentRepository.deleteAgent(agentId)
+                val wasFavorite = _uiState.value.favoriteAgentId == agentId
+                if (wasFavorite) {
+                    settingsRepository.setFavoriteAgentId(null)
+                }
                 _uiState.value = _uiState.value.copy(
-                    agents = _uiState.value.agents.filter { it.id != agentId }
+                    agents = agentRepository.agents.value,
+                    favoriteAgentId = if (wasFavorite) null else _uiState.value.favoriteAgentId,
                 )
                 onComplete()
             } catch (e: Exception) {

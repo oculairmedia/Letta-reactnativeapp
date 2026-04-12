@@ -18,6 +18,7 @@ import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -259,5 +260,28 @@ class AgentListViewModelTest {
         viewModel = AgentListViewModel(agentRepository, settingsRepository, toolRepository, modelRepository)
 
         assertEquals(2, viewModel.getFilteredAgents().size)
+    }
+
+    @Test
+    fun `deleteAgent removes deleted agent from ui state immediately`() = runTest {
+        val agentsFlow = MutableStateFlow(
+            listOf(
+                Agent(id = "a1", name = "Agent1"),
+                Agent(id = "a2", name = "Agent2"),
+            )
+        )
+        every { agentRepository.agents } returns agentsFlow
+        every { settingsRepository.favoriteAgentId } returns MutableStateFlow("a1")
+        coEvery { agentRepository.deleteAgent("a1") } answers {
+            agentsFlow.value = agentsFlow.value.filterNot { it.id == "a1" }
+        }
+        viewModel = AgentListViewModel(agentRepository, settingsRepository, toolRepository, modelRepository)
+
+        viewModel.deleteAgent("a1")
+
+        assertEquals(listOf("a2"), viewModel.uiState.value.agents.map { it.id })
+        assertEquals(null, viewModel.uiState.value.favoriteAgentId)
+        coVerify(exactly = 1) { agentRepository.deleteAgent("a1") }
+        io.mockk.verify(exactly = 1) { settingsRepository.setFavoriteAgentId(null) }
     }
 }
