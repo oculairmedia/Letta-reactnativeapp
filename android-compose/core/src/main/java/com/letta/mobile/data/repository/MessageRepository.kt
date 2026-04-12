@@ -292,7 +292,10 @@ open class MessageRepository @Inject constructor(
                 summary = eventType,
                 detailLines = baseDetails + buildList {
                     add("Event Type" to eventType)
-                    eventData?.forEach { (key, value) -> add(key to value.toString()) }
+                    eventData?.forEach { (key, value) ->
+                        val rendered = (value as? JsonPrimitive)?.content ?: value.toString()
+                        add(key to rendered)
+                    }
                     senderId?.let { add("Sender ID" to it) }
                 },
             )

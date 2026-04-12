@@ -180,6 +180,11 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
                 req.method == HttpMethod.Post && url.contains("/v1/conversations/$streamConversationId/messages") -> {
                     respond(ByteReadChannel(ssePayload.toByteArray()), HttpStatusCode.OK, sseHeaders)
                 }
+                req.method == HttpMethod.Get && url.contains("/v1/agents/") && url.contains("/messages") && req.url.parameters["conversation_id"] == streamConversationId -> {
+                    onConversationMessagesRequest?.invoke(req.url.parameters["order"])
+                    val body = overrideGetResponse?.invoke() ?: conversationMessagesJson
+                    respond(body, HttpStatusCode.OK, jsonHeaders)
+                }
                 req.method == HttpMethod.Get && url.contains("/v1/conversations/$streamConversationId/messages") -> {
                     onConversationMessagesRequest?.invoke(req.url.parameters["order"])
                     val body = overrideGetResponse?.invoke() ?: conversationMessagesJson
