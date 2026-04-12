@@ -18,3 +18,12 @@ val Typography.listItemMetadataMonospace: TextStyle
 
 val Typography.dialogSectionHeading: TextStyle
     get() = labelLarge
+
+val Typography.sectionTitle: TextStyle
+    get() = titleSmallEmphasized
+
+val Typography.chatBubbleSender: TextStyle
+    get() = labelMediumEmphasized
+
+val Typography.statValue: TextStyle
+    get() = headlineMedium

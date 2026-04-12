@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,10 +74,7 @@ fun LettaChatTheme(
 
     val chatTypography = ChatTypography(
         messageBody = MaterialTheme.typography.bodyMedium,
-        roleLabel = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.4.sp,
-        ),
+        roleLabel = MaterialTheme.typography.chatBubbleSender.copy(letterSpacing = 0.4.sp),
         codeBlock = TextStyle(
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
