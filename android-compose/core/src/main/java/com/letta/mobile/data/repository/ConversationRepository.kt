@@ -19,6 +19,7 @@ class ConversationRepository @Inject constructor(
     private val conversationApi: ConversationApi,
 ) : IConversationRepository {
     private val _conversationsByAgent = MutableStateFlow<Map<String, List<Conversation>>>(emptyMap())
+    private val lastRefreshAtMillisByAgent = mutableMapOf<String, Long>()
 
     override fun getConversations(agentId: String): Flow<List<Conversation>> {
         return _conversationsByAgent.map { it[agentId] ?: emptyList() }
@@ -29,6 +30,20 @@ class ConversationRepository @Inject constructor(
         _conversationsByAgent.update { current -> current.toMutableMap().apply {
                     put(agentId, conversations)
                 } }
+        lastRefreshAtMillisByAgent[agentId] = System.currentTimeMillis()
+    }
+
+    fun getCachedConversations(agentId: String): List<Conversation> = _conversationsByAgent.value[agentId] ?: emptyList()
+
+    fun hasFreshConversations(agentId: String, maxAgeMs: Long): Boolean {
+        val lastRefreshAt = lastRefreshAtMillisByAgent[agentId] ?: return false
+        return getCachedConversations(agentId).isNotEmpty() && System.currentTimeMillis() - lastRefreshAt <= maxAgeMs
+    }
+
+    suspend fun refreshConversationsIfStale(agentId: String, maxAgeMs: Long): Boolean {
+        if (hasFreshConversations(agentId, maxAgeMs)) return false
+        refreshConversations(agentId)
+        return true
     }
 
     override suspend fun getConversation(id: String): Conversation {
@@ -38,7 +53,10 @@ class ConversationRepository @Inject constructor(
     override suspend fun createConversation(agentId: String, summary: String?): Conversation {
         val params = ConversationCreateParams(agentId = agentId, summary = summary)
         val conversation = conversationApi.createConversation(params)
-        refreshConversations(agentId)
+        _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, listOf(conversation) + (get(agentId) ?: emptyList()).filterNot { it.id == conversation.id })
+                } }
+        lastRefreshAtMillisByAgent[agentId] = System.currentTimeMillis()
         return conversation
     }
 
@@ -58,7 +76,6 @@ class ConversationRepository @Inject constructor(
             throw e
         }
 
-        refreshConversations(agentId)
     }
 
     override suspend fun updateConversation(id: String, agentId: String, summary: String) {
@@ -75,15 +92,16 @@ class ConversationRepository @Inject constructor(
 
         try {
             val params = ConversationUpdateParams(summary = summary)
-            conversationApi.updateConversation(id, params)
+            val updated = conversationApi.updateConversation(id, params)
+            _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                        put(agentId, optimisticList.map { if (it.id == updated.id) updated else it })
+                    } }
         } catch (e: Exception) {
             _conversationsByAgent.update { current -> current.toMutableMap().apply {
                         put(agentId, snapshot)
                     } }
             throw e
         }
-
-        refreshConversations(agentId)
     }
 
     override suspend fun setConversationArchived(id: String, agentId: String, archived: Boolean) {
@@ -100,15 +118,16 @@ class ConversationRepository @Inject constructor(
 
         try {
             val params = ConversationUpdateParams(archived = archived)
-            conversationApi.updateConversation(id, params)
+            val updated = conversationApi.updateConversation(id, params)
+            _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                        put(agentId, optimisticList.map { if (it.id == updated.id) updated else it })
+                    } }
         } catch (e: Exception) {
             _conversationsByAgent.update { current -> current.toMutableMap().apply {
                         put(agentId, snapshot)
                     } }
             throw e
         }
-
-        refreshConversations(agentId)
     }
 
     override suspend fun cancelConversation(id: String, agentId: String?) {
@@ -121,7 +140,10 @@ class ConversationRepository @Inject constructor(
 
     override suspend fun forkConversation(id: String, agentId: String): Conversation {
         val conversation = conversationApi.forkConversation(id, agentId)
-        refreshConversations(agentId)
+        _conversationsByAgent.update { current -> current.toMutableMap().apply {
+                    put(agentId, listOf(conversation) + (get(agentId) ?: emptyList()).filterNot { it.id == conversation.id })
+                } }
+        lastRefreshAtMillisByAgent[agentId] = System.currentTimeMillis()
         return conversation
     }
 }

@@ -58,9 +58,20 @@ class FakeConversationApi : ConversationApi(mockk(relaxed = true)) {
         if (shouldFail) throw ApiException(500, "Server error")
         val index = conversations.indexOfFirst { it.id == conversationId }
         if (index < 0) throw ApiException(404, "Not found")
-        val updated = conversations[index].copy(summary = params.summary)
+        val current = conversations[index]
+        val updated = current.copy(
+            summary = params.summary ?: current.summary,
+            archived = params.archived ?: current.archived,
+            lastMessageAt = params.lastMessageAt ?: current.lastMessageAt,
+        )
         conversations[index] = updated
         return updated
+    }
+
+    override suspend fun getConversation(conversationId: String): Conversation {
+        calls.add("getConversation:$conversationId")
+        if (shouldFail) throw ApiException(500, "Server error")
+        return conversations.find { it.id == conversationId } ?: throw ApiException(404, "Not found")
     }
 
     override suspend fun forkConversation(conversationId: String, agentId: String?): Conversation {

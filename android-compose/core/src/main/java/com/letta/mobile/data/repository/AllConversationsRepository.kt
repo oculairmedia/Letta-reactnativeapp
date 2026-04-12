@@ -20,6 +20,7 @@ class AllConversationsRepository @Inject constructor(
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
 
     private var currentCursor: String? = null
+    private var lastRefreshAtMillis: Long = 0L
 
     suspend fun loadNextPage() {
         if (!_hasMore.value) return
@@ -48,6 +49,17 @@ class AllConversationsRepository @Inject constructor(
         _conversations.update { emptyList() }
         _hasMore.update { true }
         loadNextPage()
+        lastRefreshAtMillis = System.currentTimeMillis()
+    }
+
+    fun hasFreshConversations(maxAgeMs: Long): Boolean {
+        return _conversations.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
+    }
+
+    suspend fun refreshIfStale(maxAgeMs: Long): Boolean {
+        if (hasFreshConversations(maxAgeMs)) return false
+        refresh()
+        return true
     }
 
     fun handleOptimisticUpdate(conversation: Conversation) {

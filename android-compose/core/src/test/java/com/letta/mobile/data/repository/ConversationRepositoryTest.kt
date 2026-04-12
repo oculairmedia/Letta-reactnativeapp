@@ -37,11 +37,24 @@ class ConversationRepositoryTest {
     }
 
     @Test
+    fun `refreshConversationsIfStale skips fresh cache`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "1", agentId = "a1"))
+
+        repository.refreshConversations("a1")
+        fakeApi.calls.clear()
+
+        repository.refreshConversationsIfStale("a1", maxAgeMs = 60_000)
+
+        assertTrue(fakeApi.calls.none { it == "listConversations" })
+    }
+
+    @Test
     fun `createConversation adds to list and returns new conversation`() = runTest {
         val conv = repository.createConversation("a1", "Test summary")
 
         assertEquals("a1", conv.agentId)
         assertTrue(fakeApi.calls.any { it.startsWith("createConversation") })
+        assertTrue(repository.getConversations("a1").first().any { it.id == conv.id })
     }
 
     @Test
@@ -108,6 +121,7 @@ class ConversationRepositoryTest {
 
         assertTrue(forked.id.startsWith("fork-"))
         assertTrue(fakeApi.calls.any { it.startsWith("forkConversation") })
+        assertTrue(repository.getConversations("a1").first().any { it.id == forked.id })
     }
 
     @Test
