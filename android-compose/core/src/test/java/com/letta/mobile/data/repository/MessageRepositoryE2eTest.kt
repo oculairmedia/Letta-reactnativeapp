@@ -28,7 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class MessageRepositoryE2eTest {
+class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     @Test
     fun `sendMessage processes SSE stream through real repository stack`() = runTest {
@@ -174,7 +174,7 @@ class MessageRepositoryE2eTest {
     ): MessageRepository {
         val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
         val sseHeaders = headersOf(HttpHeaders.ContentType, "text/event-stream")
-        val client = HttpClient(MockEngine { req ->
+        val client = trackClient(HttpClient(MockEngine { req ->
             val url = req.url.toString()
             when {
                 req.method == HttpMethod.Post && url.contains("/v1/conversations/$streamConversationId/messages") -> {
@@ -186,12 +186,9 @@ class MessageRepositoryE2eTest {
                     respond(body, HttpStatusCode.OK, jsonHeaders)
                 }
                 else -> respond("[]", HttpStatusCode.OK, jsonHeaders)
-            }
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            } }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
 
         val apiClient = mockk<LettaApiClient> {
             coEvery { getClient() } returns client

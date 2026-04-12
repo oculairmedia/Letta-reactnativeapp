@@ -25,7 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AgentApiTest {
+class AgentApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
     private val json = Json { ignoreUnknownKeys = true }
@@ -42,15 +42,12 @@ class AgentApiTest {
     fun `listAgents sends GET to correct endpoint`() = runTest {
         var capturedMethod: HttpMethod? = null
         var capturedUrl: String? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
             capturedUrl = request.url.toString()
-            respond("""[{"id":"1","name":"Agent1"}]""", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("""[{"id":"1","name":"Agent1"}]""", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         val agents = api.listAgents()
         assertEquals(HttpMethod.Get, capturedMethod)
@@ -62,14 +59,11 @@ class AgentApiTest {
     @Test
     fun `getAgent sends GET with agent ID`() = runTest {
         var capturedUrl: String? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
-            respond("""{"id":"a1","name":"MyAgent"}""", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("""{"id":"a1","name":"MyAgent"}""", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         val agent = api.getAgent("a1")
         assertTrue(capturedUrl!!.contains("/v1/agents/a1"))
@@ -79,14 +73,11 @@ class AgentApiTest {
     @Test
     fun `createAgent sends POST with body`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
-            respond("""{"id":"new-1","name":"NewAgent"}""", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("""{"id":"new-1","name":"NewAgent"}""", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         val agent = api.createAgent(AgentCreateParams(name = "NewAgent"))
         assertEquals(HttpMethod.Post, capturedMethod)
@@ -96,14 +87,11 @@ class AgentApiTest {
     @Test
     fun `updateAgent sends PATCH`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
-            respond("""{"id":"a1","name":"Updated"}""", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("""{"id":"a1","name":"Updated"}""", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         val agent = api.updateAgent("a1", AgentUpdateParams(name = "Updated"))
         assertEquals(HttpMethod.Patch, capturedMethod)
@@ -113,14 +101,11 @@ class AgentApiTest {
     @Test
     fun `deleteAgent sends DELETE`() = runTest {
         var capturedMethod: HttpMethod? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
-            respond("", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         api.deleteAgent("a1")
         assertEquals(HttpMethod.Delete, capturedMethod)
@@ -128,26 +113,18 @@ class AgentApiTest {
 
     @Test(expected = ApiException::class)
     fun `listAgents throws ApiException on 500`() = runTest {
-        val client = HttpClient(MockEngine {
-            respond("""{"error":"server error"}""", HttpStatusCode.InternalServerError, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+        val client = trackClient(HttpClient(MockEngine { respond("""{"error":"server error"}""", HttpStatusCode.InternalServerError, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         api.listAgents()
     }
 
     @Test(expected = ApiException::class)
     fun `getAgent throws ApiException on 404`() = runTest {
-        val client = HttpClient(MockEngine {
-            respond("""{"error":"not found"}""", HttpStatusCode.NotFound, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+        val client = trackClient(HttpClient(MockEngine { respond("""{"error":"not found"}""", HttpStatusCode.NotFound, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         api.getAgent("nonexistent")
     }
@@ -155,14 +132,11 @@ class AgentApiTest {
     @Test
     fun `listAgents passes limit and offset parameters`() = runTest {
         var capturedUrl: String? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
-            respond("[]", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("[]", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
         api.listAgents(limit = 10, offset = 20)
         assertTrue(capturedUrl!!.contains("limit=10"))
@@ -173,15 +147,12 @@ class AgentApiTest {
     fun `importAgent sends multipart form with safety toggles`() = runTest {
         var capturedUrl: String? = null
         var capturedMethod: HttpMethod? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
             capturedMethod = request.method
-            respond("""{"agent_ids":["a2"]}""", HttpStatusCode.OK, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("""{"agent_ids":["a2"]}""", HttpStatusCode.OK, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
 
         val response = api.importAgent(
@@ -201,15 +172,12 @@ class AgentApiTest {
     fun `attachArchive sends PATCH to agent archive attach endpoint`() = runTest {
         var capturedMethod: HttpMethod? = null
         var capturedUrl: String? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
             capturedUrl = request.url.toString()
-            respond("", HttpStatusCode.NoContent, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("", HttpStatusCode.NoContent, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
 
         api.attachArchive("agent-1", "archive-1")
@@ -222,15 +190,12 @@ class AgentApiTest {
     fun `detachArchive sends PATCH to agent archive detach endpoint`() = runTest {
         var capturedMethod: HttpMethod? = null
         var capturedUrl: String? = null
-        val client = HttpClient(MockEngine { request ->
+        val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
             capturedUrl = request.url.toString()
-            respond("", HttpStatusCode.NoContent, jsonHeaders)
-        }) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; isLenient = true })
-            }
-        }
+            respond("", HttpStatusCode.NoContent, jsonHeaders) }) { install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
+        } })
         val api = createApi(client)
 
         api.detachArchive("agent-1", "archive-1")

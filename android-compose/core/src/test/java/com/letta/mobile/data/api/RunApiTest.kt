@@ -22,14 +22,12 @@ import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class RunApiTest {
+class RunApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
 
     private fun createApi(handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData)): RunApi {
-        val client = HttpClient(MockEngine(handler)) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; isLenient = true }) }
-        }
+        val client = trackClient(HttpClient(MockEngine(handler)) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; isLenient = true }) } })
         val apiClient = mockk<LettaApiClient> {
             coEvery { getClient() } returns client
             every { getBaseUrl() } returns "http://test"
