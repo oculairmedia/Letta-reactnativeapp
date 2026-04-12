@@ -44,14 +44,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
-        )
-    }
-
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -70,6 +62,16 @@ android {
         getByName("test") {
             java.srcDir("${project(":core").projectDir}/src/testFixtures/java")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.addAll(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+        )
     }
 }
 
@@ -97,8 +99,8 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Hilt DI
-    implementation("com.google.dagger:hilt-android:2.54")
-    ksp("com.google.dagger:hilt-compiler:2.54")
+    implementation("com.google.dagger:hilt-android:2.58")
+    ksp("com.google.dagger:hilt-compiler:2.58")
 
     // Ktor HTTP client
     implementation("io.ktor:ktor-client-core:3.0.3")

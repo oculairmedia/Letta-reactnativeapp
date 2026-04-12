@@ -27,10 +27,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
     }
@@ -42,6 +38,12 @@ android {
                 it.useJUnitPlatform()
             }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -60,8 +62,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
-    implementation("com.google.dagger:hilt-android:2.54")
-    ksp("com.google.dagger:hilt-compiler:2.54")
+    implementation("com.google.dagger:hilt-android:2.58")
+    ksp("com.google.dagger:hilt-compiler:2.58")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

@@ -36,10 +36,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -57,9 +53,15 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
-    implementation("com.google.dagger:hilt-android:2.54")
-    ksp("com.google.dagger:hilt-compiler:2.54")
+    implementation("com.google.dagger:hilt-android:2.58")
+    ksp("com.google.dagger:hilt-compiler:2.58")
 
     // Compose runtime for @Stable and @Immutable annotations
     implementation("androidx.compose.runtime:runtime:1.8.3")
@@ -80,9 +82,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
 
-    api("androidx.room:room-runtime:2.6.1")
-    api("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    api("androidx.room:room-runtime:2.7.0")
+    api("androidx.room:room-ktx:2.7.0")
+    ksp("androidx.room:room-compiler:2.7.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

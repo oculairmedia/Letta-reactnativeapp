@@ -2,11 +2,11 @@ plugins {
     id("com.android.application") version "8.7.3" apply false
     id("com.android.library") version "8.7.3" apply false
     id("app.cash.paparazzi") version "1.3.5" apply false
-    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0" apply false
-    id("com.google.dagger.hilt.android") version "2.54" apply false
-    id("com.google.devtools.ksp") version "2.1.0-1.0.29" apply false
+    id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.20" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20" apply false
+    id("com.google.dagger.hilt.android") version "2.58" apply false
+    id("com.google.devtools.ksp") version "2.3.6" apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.7" apply false
-    id("org.jetbrains.kotlin.plugin.allopen") version "2.1.0" apply false
+    id("org.jetbrains.kotlin.plugin.allopen") version "2.3.20" apply false
 }
