@@ -7,6 +7,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 
 object SseParser {
+    private data class ProcessedEvent(
+        val message: LettaMessage? = null,
+        val isDone: Boolean = false,
+    )
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -14,28 +19,35 @@ object SseParser {
 
     fun parse(channel: ByteReadChannel): Flow<LettaMessage> = flow {
         val buffer = StringBuilder()
+        val lineReader = Utf8LineReader(channel)
+        var isDone = false
 
-        while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line() ?: break
+        while (!isDone) {
+            val line = lineReader.readLine() ?: break
 
             if (line.isEmpty()) {
                 val event = buffer.toString()
                 buffer.clear()
 
                 if (event.isNotBlank()) {
-                    processEvent(event)?.let { emit(it) }
+                    val processed = processEvent(event)
+                    if (processed.isDone) {
+                        isDone = true
+                    } else {
+                        processed.message?.let { emit(it) }
+                    }
                 }
             } else {
                 buffer.append(line).append("\n")
             }
         }
 
-        if (buffer.isNotBlank()) {
-            processEvent(buffer.toString())?.let { emit(it) }
+        if (!isDone && buffer.isNotBlank()) {
+            processEvent(buffer.toString()).message?.let { emit(it) }
         }
     }
 
-    private fun processEvent(event: String): LettaMessage? {
+    private fun processEvent(event: String): ProcessedEvent {
         val lines = event.lines()
 
         for (line in lines) {
@@ -43,21 +55,21 @@ object SseParser {
                 val data = line.substring(6).trim()
 
                 if (data == "[DONE]") {
-                    return null
+                    return ProcessedEvent(isDone = true)
                 }
 
                 if (data.startsWith("{")) {
                     return try {
                         val message = json.decodeFromString<LettaMessage>(data)
-                        if (message.messageType == "ping") null else message
+                        if (message.messageType == "ping") ProcessedEvent() else ProcessedEvent(message = message)
                     } catch (e: Exception) {
                         android.util.Log.w("SseParser", "Failed to parse SSE event: ${data.take(100)}", e)
-                        null
+                        ProcessedEvent()
                     }
                 }
             }
         }
 
-        return null
+        return ProcessedEvent()
     }
 }

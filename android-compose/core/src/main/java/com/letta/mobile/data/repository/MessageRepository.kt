@@ -28,8 +28,8 @@ import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UnknownMessage
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.data.paging.MessagePagingSource
+import com.letta.mobile.data.stream.Utf8LineReader
 import com.letta.mobile.domain.MessageProcessor
-import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -373,11 +373,12 @@ open class MessageRepository @Inject constructor(
             }
 
             val streamChannel = messageApi.sendConversationMessage(conversationId, request)
+            val lineReader = Utf8LineReader(streamChannel)
 
             val messages = mutableListOf<AppMessage>()
             val messageFlow = flow {
-                while (!streamChannel.isClosedForRead) {
-                    val line = streamChannel.readUTF8Line() ?: break
+                while (true) {
+                    val line = lineReader.readLine() ?: break
                     if (line.isBlank()) continue
                     
                     val cleaned = if (line.startsWith("data: ")) {
