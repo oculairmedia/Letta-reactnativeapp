@@ -75,10 +75,51 @@ Use these rules for all new UI work and UI refactors in this repo. The app alrea
 
 ### 5. Motion policy
 
-- Navigation transitions should be clear and low-surprise.
-- Shared-element motion is for stable content-to-content relationships, not for compensating for unstable layout changes.
-- Use expressive motion for polish on micro-interactions and emphasis **after** interaction geometry is correct.
-- Keep one motion language across the app: avoid introducing one-off transition behavior per screen.
+- Keep one motion language across the app: low-surprise navigation, stable shared elements, and small expressive accents inside content.
+- The app theme already uses `MaterialExpressiveTheme` with `MotionScheme.expressive()`, but navigation should still feel conservative and readable.
+- Fix geometry and state restoration before tuning motion. If a transition is glitchy, first verify stable anchors, scroll state, and consistent source/destination layout.
+
+#### Navigation transitions
+
+- Prefer the centralized drill transition pattern in `android-compose/app/src/main/java/com/letta/mobile/ui/navigation/AppNavGraph.kt` for drill-in screens.
+- Keep navigation transitions brief, directional, and consistent. Use the shared drill timing/constants instead of inventing per-screen durations or easing.
+- Do not add one-off route animations unless the navigation model is materially different and the exception is documented in the owning screen or issue.
+- When a screen does not need special treatment, prefer default navigation behavior over custom animation.
+
+#### Shared-element transitions
+
+- Shared elements must go through `optionalSharedElement()` so they degrade safely when no shared scopes are present.
+- Only use shared-element motion for stable content-to-content relationships such as list/grid items to detail headers.
+- Never anchor critical shared elements inside unstable or collapsing chrome such as `LargeFlexibleTopAppBar`, collapsing search bars, or transient toolbar content.
+- Prefer destination anchors in stable content surfaces like cards, rows, tiles, or fixed detail headers.
+- Shared-element keys must be deterministic and unique to the item identity.
+- If either side cannot provide stable bounds, remove the shared element and fall back to standard navigation motion.
+
+#### Sheets, drawers, and contextual surfaces
+
+- Use Material components such as `ModalBottomSheet`, `ActionSheet`, `ModalNavigationDrawer`, and dialogs for container motion instead of hand-rolled enter/exit animation.
+- Let container components own their default motion unless a reusable design-system wrapper needs a documented adjustment.
+- Contextual actions should appear from sheets or menus, not from bespoke animated overlays.
+
+#### Micro-interactions
+
+- Use expressive motion for local content changes only after layout geometry is correct.
+- Preferred patterns are small, reusable helpers like `AnimatedVisibility`, `animateContentSize`, and icon rotation for expand/collapse, banners, and inline affordances.
+- Keep micro-motion close to the component that owns the state change; avoid animating entire screens for small local updates.
+- Avoid stacking multiple animations on the same interaction unless they clearly reinforce hierarchy.
+
+#### Lazy lists, loading, and progressive data
+
+- Do not use motion to hide expensive loading or unstable list geometry.
+- For list/detail flows, preserve stable item identity and restore list/grid/top-app-bar state before adding polish.
+- Prefer progressive rendering when secondary data arrives later. Show primary content first and add lightweight status affordances, such as the MCP loading banner, instead of blocking the full screen.
+- Loading motion should communicate status, not delay access. Use existing shimmer/progress patterns and remove them as soon as content is ready.
+
+#### Decision rules
+
+- If motion clarifies spatial relationship or state change, keep it.
+- If motion competes with readability, causes layout jumps, or depends on fragile anchors, simplify or remove it.
+- Reuse existing repo patterns before adding a new motion treatment. New reusable motion behavior belongs in `android-compose/designsystem` or shared navigation helpers, not inside a single screen.
 
 ### 6. Surface and hierarchy rules
 
@@ -89,6 +130,8 @@ Use these rules for all new UI work and UI refactors in this repo. The app alrea
 ### 7. Typography rules
 
 - Use the existing repo typography tokens and extensions (`MaterialTheme.typography`, `listItemHeadline`, `listItemSupporting`, etc.) as the default.
+- Prefer semantic extensions from `TypeHierarchy.kt` such as `sectionTitle`, `chatBubbleSender`, and `statValue` over one-off styling in screens.
+- Do not add raw `fontWeight` overrides in feature UI when an existing typography token can express the hierarchy. Add or extend a semantic token first, then reuse it.
 - Introduce expressive or emphasized typography only for real hierarchy changes or hero moments, not as ad hoc styling.
 
 ### 8. Prefer in-repo patterns first
