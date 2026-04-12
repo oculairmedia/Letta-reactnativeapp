@@ -10,7 +10,7 @@
     <string name="common_mcp">MCP</string>
     <string name="common_templates">Starter Agents</string>
 
-    <string name="screen_home_search_placeholder">Search agents, messages, tools &amp; blocks\u2026</string>
+    <string name="screen_home_search_placeholder">Search</string>
     <string name="screen_home_chat_placeholder">Ask something\u2026</string>
     <string name="screen_home_set_favorite_prompt">Set a favourite agent to chat from here</string>
     <string name="screen_home_search_agents_section">Agents</string>
