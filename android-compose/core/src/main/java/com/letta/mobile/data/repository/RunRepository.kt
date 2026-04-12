@@ -25,6 +25,16 @@ class RunRepository @Inject constructor(
         _runs.value = runApi.listRuns(params)
     }
 
+    suspend fun getRecentRuns(limit: Int = 100): List<Run> {
+        return runApi.listRuns(
+            RunListParams(
+                limit = limit,
+                order = "desc",
+                orderBy = "created_at",
+            )
+        )
+    }
+
     suspend fun getRun(runId: String): Run {
         return runApi.retrieveRun(runId)
     }

@@ -18,10 +18,12 @@ class FakeRunApi : RunApi(mockk(relaxed = true)) {
     var runMetrics = mutableMapOf<String, RunMetrics>()
     var runSteps = mutableMapOf<String, List<Step>>()
     var shouldFail = false
+    var lastListParams: RunListParams? = null
     val calls = mutableListOf<String>()
 
     override suspend fun listRuns(params: RunListParams): List<Run> {
         calls.add("listRuns")
+        lastListParams = params
         if (shouldFail) throw ApiException(500, "Server error")
         return runs.filter { run ->
             (params.agentId == null || run.agentId == params.agentId) &&

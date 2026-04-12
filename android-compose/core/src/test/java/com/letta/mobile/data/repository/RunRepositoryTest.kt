@@ -3,6 +3,7 @@ package com.letta.mobile.data.repository
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.RunListParams
 import com.letta.mobile.data.model.RunRequestConfig
+import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.testutil.FakeRunApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -73,6 +74,35 @@ class RunRepositoryTest {
         assertEquals("org-1", result.organizationId)
         assertEquals("template-1", result.templateId)
         assertTrue(fakeApi.calls.contains("retrieveRunMetrics:r1"))
+    }
+
+    @Test
+    fun `getRecentRuns requests created at descending order`() = runTest {
+        fakeApi.runs.addAll(
+            listOf(
+                sampleRun("r1", "a1").copy(createdAt = "2026-04-12T12:00:00Z"),
+                sampleRun("r2", "a2").copy(createdAt = "2026-04-12T13:00:00Z"),
+            )
+        )
+
+        val result = repository.getRecentRuns(limit = 10)
+
+        assertEquals(2, result.size)
+        assertEquals("listRuns", fakeApi.calls.first())
+        assertEquals("desc", fakeApi.lastListParams?.order)
+        assertEquals("created_at", fakeApi.lastListParams?.orderBy)
+        assertEquals(10, fakeApi.lastListParams?.limit)
+    }
+
+    @Test
+    fun `getRunUsage delegates to api`() = runTest {
+        fakeApi.runs.add(sampleRun("r1", "a1"))
+        fakeApi.runUsage["r1"] = UsageStatistics(totalTokens = 1234)
+
+        val result = repository.getRunUsage("r1")
+
+        assertEquals(1234, result.totalTokens)
+        assertTrue(fakeApi.calls.contains("retrieveRunUsage:r1"))
     }
 
     @Test
