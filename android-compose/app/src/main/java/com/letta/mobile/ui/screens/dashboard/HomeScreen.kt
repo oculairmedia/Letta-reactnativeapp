@@ -28,13 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.statValue
 import com.letta.mobile.ui.theme.customColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +59,7 @@ fun HomeScreen(
             LargeFlexibleTopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Letta", fontWeight = FontWeight.Bold)
+                        Text("Letta")
                         if (uiState.isConnected) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
@@ -241,14 +241,12 @@ private fun StatCard(
             if (value != null) {
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.statValue,
                 )
             } else {
                 Text(
                     text = "—",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.statValue,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                 )
             }
