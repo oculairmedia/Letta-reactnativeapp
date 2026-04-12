@@ -22,9 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.sectionTitle
 
 @Composable
 fun ThinkingSection(
@@ -51,8 +51,7 @@ fun ThinkingSection(
         ) {
             Text(
                 text = if (inProgress) "Thinking\u2026" else "Show thinking",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.sectionTitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Icon(

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
 import com.letta.mobile.ui.theme.customColors
 import com.letta.mobile.ui.theme.listItemColors
+import com.letta.mobile.ui.theme.sectionTitle
 
 private val CardGroupCorner = 20.dp
 private val CardGroupItemSpacing = 2.dp
@@ -142,7 +143,7 @@ fun CardGroup(
     Column(modifier = modifier) {
         if (title != null) {
             CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                ProvideTextStyle(MaterialTheme.typography.titleSmallEmphasized) {
+                ProvideTextStyle(MaterialTheme.typography.sectionTitle) {
                     Box(modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)) {
                         title()
                     }
