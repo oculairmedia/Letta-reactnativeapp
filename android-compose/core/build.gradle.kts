@@ -78,7 +78,7 @@ dependencies {
 
     implementation("androidx.paging:paging-runtime-ktx:3.3.5")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
 
