@@ -90,6 +90,7 @@
     <string name="screen_tools_dialog_remove_title">Remove Tool</string>
     <string name="screen_tools_dialog_remove_confirm">Remove %1$s from this agent?</string>
     <string name="action_remove">Remove</string>
+    <string name="action_more">More</string>
     <string name="action_attach">Attach</string>
     <string name="screen_config_list_title">Saved Configurations</string>
     <string name="action_set_active">Set Active</string>
@@ -116,6 +117,10 @@
     <string name="common_name">Name</string>
     <string name="common_id">ID</string>
     <string name="common_provider">Provider</string>
+    <string name="common_status">Status</string>
+    <string name="common_metadata">Metadata</string>
+    <string name="common_created">Created</string>
+    <string name="common_updated">Updated</string>
     <string name="common_unknown">Unknown</string>
     <string name="common_value">Value</string>
     <string name="common_description">Description</string>
@@ -667,8 +672,10 @@
     <string name="screen_tool_detail_read_only">Inspect only</string>
     <string name="screen_tool_detail_editable">Editable custom tool</string>
     <string name="screen_tool_detail_attach_action">Attach to Agents</string>
+    <string name="screen_tool_detail_attach_agents_helper">Attach this tool to an agent to make it available in conversations and runs.</string>
     <string name="screen_tool_detail_no_attached_agents">No agents attached</string>
     <string name="screen_tool_detail_no_available_agents">No available agents to attach</string>
+    <string name="screen_tool_detail_overview_title">Overview</string>
     <string name="screen_tool_detail_tags_label">Tags (comma separated)</string>
     <string name="screen_tool_detail_edit_action">Edit tool</string>
     <string name="screen_tool_detail_delete_action">Delete tool</string>

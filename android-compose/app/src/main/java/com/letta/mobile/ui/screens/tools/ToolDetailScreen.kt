@@ -19,9 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,8 +49,12 @@ import com.letta.mobile.R
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.navigation.optionalSharedElement
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
@@ -67,6 +71,7 @@ fun ToolDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val agentState by viewModel.agentState.collectAsStateWithLifecycle()
     val deleteState by viewModel.deleteState.collectAsStateWithLifecycle()
+    var showActionSheet by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAttachDialog by remember { mutableStateOf(false) }
@@ -98,16 +103,8 @@ fun ToolDetailScreen(
                 actions = {
                     val tool = (uiState as? UiState.Success)?.data
                     if (tool != null) {
-                        IconButton(onClick = { showAttachDialog = true }) {
-                            Icon(LettaIcons.Tool, stringResource(R.string.screen_tool_detail_attach_action))
-                        }
-                        if (isEditableTool(tool)) {
-                            IconButton(onClick = { showEditDialog = true }) {
-                                Icon(LettaIcons.Edit, stringResource(R.string.screen_tool_detail_edit_action))
-                            }
-                            IconButton(onClick = { showDeleteDialog = true }) {
-                                Icon(LettaIcons.Delete, stringResource(R.string.screen_tool_detail_delete_action))
-                            }
+                        IconButton(onClick = { showActionSheet = true }) {
+                            Icon(LettaIcons.MoreVert, stringResource(R.string.action_more))
                         }
                     }
                 },
@@ -135,6 +132,42 @@ fun ToolDetailScreen(
     }
 
     val tool = (uiState as? UiState.Success)?.data
+    if (tool != null) {
+        ActionSheet(
+            show = showActionSheet,
+            onDismiss = { showActionSheet = false },
+            title = tool.name,
+        ) {
+            ActionSheetItem(
+                text = stringResource(R.string.screen_tool_detail_attach_action),
+                icon = LettaIcons.Tool,
+                onClick = {
+                    showActionSheet = false
+                    showAttachDialog = true
+                },
+            )
+            if (isEditableTool(tool)) {
+                ActionSheetItem(
+                    text = stringResource(R.string.screen_tool_detail_edit_action),
+                    icon = LettaIcons.Edit,
+                    onClick = {
+                        showActionSheet = false
+                        showEditDialog = true
+                    },
+                )
+                ActionSheetItem(
+                    text = stringResource(R.string.screen_tool_detail_delete_action),
+                    icon = LettaIcons.Delete,
+                    onClick = {
+                        showActionSheet = false
+                        showDeleteDialog = true
+                    },
+                    destructive = true,
+                )
+            }
+        }
+    }
+
     if (tool != null && showEditDialog) {
         EditToolDialog(
             tool = tool,
@@ -227,21 +260,20 @@ private fun ToolDetailContent(
         }
 
         item {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                tool.toolType?.let { type ->
-                    AssistChip(onClick = {}, label = { Text(type) })
-                }
+            CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_overview_title)) }) {
+                item(
+                    headlineContent = { Text(stringResource(R.string.common_type)) },
+                    supportingContent = { Text(tool.toolType ?: stringResource(R.string.common_unknown)) },
+                )
                 tool.sourceType?.let { sourceType ->
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text("${stringResource(R.string.screen_tool_detail_source_type)}: $sourceType")
-                        },
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_tool_detail_source_type)) },
+                        supportingContent = { Text(sourceType) },
                     )
                 }
-                AssistChip(
-                    onClick = {},
-                    label = {
+                item(
+                    headlineContent = { Text(stringResource(R.string.common_status)) },
+                    supportingContent = {
                         Text(
                             if (isEditableTool(tool)) {
                                 stringResource(R.string.screen_tool_detail_editable)
@@ -256,67 +288,74 @@ private fun ToolDetailContent(
 
         if (tool.tags.isNotEmpty()) {
             item {
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.common_tags),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tool.tags.forEach { tag ->
-                        AssistChip(onClick = {}, label = { Text(tag, style = MaterialTheme.typography.labelSmall) })
-                    }
+                CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
+                    item(
+                        headlineContent = {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                tool.tags.forEach { tag ->
+                                    AssistChip(onClick = {}, label = { Text(tag, style = MaterialTheme.typography.labelSmall) })
+                                }
+                            }
+                        },
+                    )
                 }
             }
         }
 
         if (tool.createdAt != null || tool.updatedAt != null) {
             item {
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(4.dp))
-                tool.createdAt?.let { ts ->
-                    Text(
-                        text = stringResource(R.string.screen_tool_detail_created, ts),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                tool.updatedAt?.let { ts ->
-                    Text(
-                        text = stringResource(R.string.screen_tool_detail_updated, ts),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                CardGroup(title = { Text(stringResource(R.string.common_metadata)) }) {
+                    tool.createdAt?.let { ts ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.common_created)) },
+                            supportingContent = { Text(ts) },
+                        )
+                    }
+                    tool.updatedAt?.let { ts ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.common_updated)) },
+                            supportingContent = { Text(ts) },
+                        )
+                    }
                 }
             }
         }
 
         item {
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.common_agents),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (attachedAgents.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.screen_tool_detail_no_attached_agents),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                attachedAgents.forEach { agent ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(agent.name, style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onDetachAgent(agent.id) }) {
-                            Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
-                        }
+            CardGroup(title = { Text(stringResource(R.string.common_agents)) }) {
+                if (attachedAgents.isEmpty()) {
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_tool_detail_no_attached_agents)) },
+                        supportingContent = {
+                            Text(
+                                text = stringResource(R.string.screen_tool_detail_attach_agents_helper),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                } else {
+                    attachedAgents.forEach { agent ->
+                        item(
+                            headlineContent = { Text(agent.name) },
+                            supportingContent = {
+                                Text(
+                                    text = agent.id,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    imageVector = LettaIcons.People,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                            trailingContent = {
+                                TextButton(onClick = { onDetachAgent(agent.id) }) {
+                                    Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -324,25 +363,33 @@ private fun ToolDetailContent(
 
         tool.jsonSchema?.let { schema ->
             item {
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(4.dp))
-                CollapsibleCodeBlock(
-                    title = stringResource(R.string.screen_tool_detail_json_schema),
-                    icon = LettaIcons.Schema,
-                    content = schema.toString(),
-                )
+                CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_json_schema)) }) {
+                    item(
+                        headlineContent = {
+                            CollapsibleCodeBlock(
+                                title = stringResource(R.string.screen_tool_detail_json_schema),
+                                icon = LettaIcons.Schema,
+                                content = schema.toString(),
+                            )
+                        },
+                    )
+                }
             }
         }
 
         tool.sourceCode?.let { code ->
             item {
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(4.dp))
-                CollapsibleCodeBlock(
-                    title = stringResource(R.string.screen_tool_detail_source_code),
-                    icon = LettaIcons.Code,
-                    content = code,
-                )
+                CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_source_code)) }) {
+                    item(
+                        headlineContent = {
+                            CollapsibleCodeBlock(
+                                title = stringResource(R.string.screen_tool_detail_source_code),
+                                icon = LettaIcons.Code,
+                                content = code,
+                            )
+                        },
+                    )
+                }
             }
         }
     }
@@ -356,10 +403,15 @@ private fun AgentAttachDialog(
 ) {
     var selection by remember(agents) { mutableStateOf(emptySet<String>()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.screen_tool_detail_attach_action)) },
-        text = {
+    MultiFieldInputDialog(
+        show = true,
+        title = stringResource(R.string.screen_tool_detail_attach_action),
+        confirmText = stringResource(R.string.action_attach),
+        dismissText = stringResource(R.string.action_cancel),
+        onDismiss = onDismiss,
+        confirmEnabled = selection.isNotEmpty(),
+        onConfirm = { onAttach(selection.toList()) },
+        content = {
             if (agents.isEmpty()) {
                 Text(
                     text = stringResource(R.string.screen_tool_detail_no_available_agents),
@@ -375,20 +427,12 @@ private fun AgentAttachDialog(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(agent.name, modifier = Modifier.weight(1f))
-                            Text(if (agent.id in selection) stringResource(R.string.action_remove) else stringResource(R.string.action_attach))
+                            Text(
+                                if (agent.id in selection) stringResource(R.string.action_remove) else stringResource(R.string.action_attach)
+                            )
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onAttach(selection.toList()) }, enabled = selection.isNotEmpty()) {
-                Text(stringResource(R.string.action_attach))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel))
             }
         },
     )
@@ -404,10 +448,21 @@ private fun EditToolDialog(
     var tagsText by remember(tool.id) { mutableStateOf(tool.tags.joinToString(", ")) }
     var sourceCode by remember(tool.id) { mutableStateOf(tool.sourceCode.orEmpty()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.screen_tool_detail_edit_title)) },
-        text = {
+    MultiFieldInputDialog(
+        show = true,
+        title = stringResource(R.string.screen_tool_detail_edit_title),
+        confirmText = stringResource(R.string.action_save),
+        dismissText = stringResource(R.string.action_cancel),
+        onDismiss = onDismiss,
+        confirmEnabled = sourceCode.isNotBlank(),
+        onConfirm = {
+            onSave(
+                description.trim().ifBlank { null },
+                sourceCode,
+                tagsText.split(',').map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { null },
+            )
+        },
+        content = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = description,
@@ -431,25 +486,6 @@ private fun EditToolDialog(
                     minLines = 8,
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onSave(
-                        description.trim().ifBlank { null },
-                        sourceCode,
-                        tagsText.split(',').map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { null },
-                    )
-                },
-                enabled = sourceCode.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel))
             }
         },
     )
