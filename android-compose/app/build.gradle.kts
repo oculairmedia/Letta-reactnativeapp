@@ -95,7 +95,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.navigation:navigation-compose:2.9.7")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Hilt DI
