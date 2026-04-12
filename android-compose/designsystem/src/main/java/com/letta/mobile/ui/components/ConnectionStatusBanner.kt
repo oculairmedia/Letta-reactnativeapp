@@ -2,6 +2,10 @@ package com.letta.mobile.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
@@ -36,8 +40,8 @@ fun ConnectionStatusBanner(
     AnimatedVisibility(
         visible = state != ConnectionState.Online,
         modifier = modifier,
-        enter = expandVertically(),
-        exit = shrinkVertically(),
+        enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }) + expandVertically(),
+        exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }) + shrinkVertically(),
     ) {
         val bgColor = when (state) {
             ConnectionState.Offline -> MaterialTheme.colorScheme.error
