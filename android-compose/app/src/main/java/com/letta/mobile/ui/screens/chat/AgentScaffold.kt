@@ -131,40 +131,11 @@ fun AgentScaffold(
             topBar = {
                 LargeFlexibleTopAppBar(
                     title = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable { showConversationPicker = true },
-                        ) {
-                            Icon(
-                                LettaIcons.Agent,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .size(LettaIconSizing.Toolbar)
-                                    .optionalSharedElement("agent_avatar_$agentId"),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = agentName.ifBlank { stringResource(R.string.screen_chat_title) },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (conversationId != null) "Conversation" else "Default",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Icon(
-                                        LettaIcons.ArrowDropDown,
-                                        contentDescription = "Switch conversation",
-                                        modifier = Modifier.size(LettaIconSizing.Inline),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
+                        Text(
+                            text = agentName.ifBlank { stringResource(R.string.screen_chat_title) },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     },
                     colors = LettaTopBarDefaults.largeTopAppBarColors(),
                     scrollBehavior = scrollBehavior,
@@ -181,10 +152,22 @@ fun AgentScaffold(
                 )
             },
         ) { paddingValues ->
-            ChatScreen(
-                modifier = Modifier.padding(paddingValues).fillMaxSize(),
-                chatBackground = chatBackground,
-            )
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize(),
+            ) {
+                AgentConversationHeader(
+                    agentId = agentId,
+                    agentName = agentName,
+                    conversationId = conversationId,
+                    onClick = { showConversationPicker = true },
+                )
+                ChatScreen(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    chatBackground = chatBackground,
+                )
+            }
         }
     }
 
@@ -202,6 +185,63 @@ fun AgentScaffold(
                 onSwitchConversation?.invoke(agentId, "")
             },
         )
+    }
+}
+
+@Composable
+private fun AgentConversationHeader(
+    agentId: String,
+    agentName: String,
+    conversationId: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                LettaIcons.Agent,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(LettaIconSizing.Toolbar)
+                    .optionalSharedElement("agent_avatar_$agentId"),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = agentName.ifBlank { stringResource(R.string.screen_chat_title) },
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (conversationId != null) "Conversation" else "Default",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        LettaIcons.ArrowDropDown,
+                        contentDescription = "Switch conversation",
+                        modifier = Modifier.size(LettaIconSizing.Inline),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
