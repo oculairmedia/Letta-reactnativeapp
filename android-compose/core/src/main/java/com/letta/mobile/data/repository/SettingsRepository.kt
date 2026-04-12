@@ -27,6 +27,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "letta_settings")
+private const val DEFAULT_CHAT_BACKGROUND_KEY = "default"
 
 @Singleton
 class SettingsRepository @Inject constructor(
@@ -186,6 +187,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setTheme(theme: AppTheme) {
         dataStore.edit { prefs ->
             prefs[Keys.THEME] = theme.name
+            prefs[Keys.CHAT_BACKGROUND] = DEFAULT_CHAT_BACKGROUND_KEY
         }
     }
 
@@ -193,6 +195,7 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs[Keys.THEME_PRESET] = themePreset.name
             prefs[Keys.AMOLED_DARK_MODE] = false
+            prefs[Keys.CHAT_BACKGROUND] = DEFAULT_CHAT_BACKGROUND_KEY
         }
     }
 
@@ -209,7 +212,7 @@ class SettingsRepository @Inject constructor(
     }
 
     fun getChatBackgroundKey(): Flow<String> = dataStore.data.map { prefs ->
-        prefs[Keys.CHAT_BACKGROUND] ?: "default"
+        prefs[Keys.CHAT_BACKGROUND] ?: DEFAULT_CHAT_BACKGROUND_KEY
     }
 
     fun getPinnedConversationIds(): Flow<Set<String>> = dataStore.data.map { prefs ->

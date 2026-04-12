@@ -5,13 +5,19 @@ import androidx.test.core.app.ApplicationProvider
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.util.EncryptedPrefsHelper
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,7 +35,19 @@ class SettingsRepositoryTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        val sharedPreferences = context.getSharedPreferences("settings-repository-test", Context.MODE_PRIVATE)
+        sharedPreferences.edit().clear().commit()
+        mockkObject(EncryptedPrefsHelper)
+        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
         repository = SettingsRepository(context)
+        runBlocking {
+            repository.clearAllData()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        unmockkObject(EncryptedPrefsHelper)
     }
 
     @Test
@@ -135,9 +153,11 @@ class SettingsRepositoryTest {
 
     @Test
     fun `setTheme persists theme`() = runTest {
+        repository.setChatBackgroundKey("solid_charcoal")
         repository.setTheme(AppTheme.DARK)
         val theme = repository.getTheme().first()
         assertEquals(AppTheme.DARK, theme)
+        assertEquals("default", repository.getChatBackgroundKey().first())
     }
 
     @Test
@@ -148,10 +168,12 @@ class SettingsRepositoryTest {
 
     @Test
     fun `setThemePreset persists preset`() = runTest {
+        repository.setChatBackgroundKey("gradient_night_sky")
         repository.setThemePreset(ThemePreset.AMOLED_BLACK)
 
         val preset = repository.getThemePreset().first()
         assertEquals(ThemePreset.AMOLED_BLACK, preset)
+        assertEquals("default", repository.getChatBackgroundKey().first())
     }
 
     @Test
