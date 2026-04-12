@@ -48,7 +48,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -69,6 +68,7 @@ import com.letta.mobile.ui.theme.listItemHeadline
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemMetadataMonospace
 import com.letta.mobile.ui.theme.listItemSupporting
+import com.letta.mobile.ui.theme.sectionTitle
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.icons.LettaIcons
@@ -395,7 +395,6 @@ private fun ConversationCard(
                 Text(
                     text = display.agentName,
                     style = MaterialTheme.typography.listItemSupporting,
-                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -488,9 +487,8 @@ private fun ConversationPinnedHeader() {
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = "Pinned",
-            style = MaterialTheme.typography.listItemMetadata,
+            style = MaterialTheme.typography.sectionTitle,
             color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
         )
     }
 }

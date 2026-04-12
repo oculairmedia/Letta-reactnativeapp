@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.R
@@ -48,14 +47,16 @@ import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import com.letta.mobile.ui.components.MessageBubbleShape
 import com.letta.mobile.ui.components.ThinkingSection
+import com.letta.mobile.ui.icons.LettaIconSizing
+import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.chatBubbleSender
 import com.letta.mobile.ui.theme.chatColors
 import com.letta.mobile.ui.theme.chatDimens
 import com.letta.mobile.ui.theme.chatTypography
 import com.letta.mobile.ui.theme.dialogSectionHeading
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemSupporting
-import com.letta.mobile.ui.icons.LettaIconSizing
-import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.sectionTitle
 
 private fun UiMessage.displayRoleLabel(defaultLabel: String): String {
     val toolCall = toolCalls?.singleOrNull()
@@ -238,8 +239,7 @@ internal fun MessageAvatar(
             } else {
                 Text(
                     text = "Y",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.chatBubbleSender,
                     color = contentColor,
                 )
             }
@@ -343,8 +343,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                     // Tool name
                     Text(
                         text = toolCall.name,
-                        style = MaterialTheme.typography.listItemMetadata.copy(fontFamily = codeStyle.fontFamily),
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
                     // Detail line (extracted from arguments)
@@ -362,8 +361,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Arguments",
-                            style = MaterialTheme.typography.dialogSectionHeading.copy(fontFamily = codeStyle.fontFamily),
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                         Text(
@@ -379,8 +377,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (isError) "Error" else "Result",
-                            style = MaterialTheme.typography.dialogSectionHeading.copy(fontFamily = codeStyle.fontFamily),
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily),
                             color = if (isError) {
                                 MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                             } else {
