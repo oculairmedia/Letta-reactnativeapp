@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -256,32 +254,18 @@ private fun HomeContent(
             }
 
             if (state.favoriteAgentId != null) {
-                val scrimColor = MaterialTheme.colorScheme.surface
                 var homeChatText by remember { mutableStateOf("") }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    scrimColor.copy(alpha = 0f),
-                                    scrimColor,
-                                ),
-                            )
-                        ),
-                ) {
-                    LettaInputBar(
-                        text = homeChatText,
-                        onTextChange = { homeChatText = it },
-                        onSend = { message ->
-                            onNavigateToChat(state.favoriteAgentId, message)
-                            homeChatText = ""
-                        },
-                        placeholder = stringResource(R.string.screen_home_chat_placeholder),
-                        sendContentDescription = stringResource(R.string.action_send_message),
-                        maxLines = 1,
-                    )
-                }
+                LettaInputBar(
+                    text = homeChatText,
+                    onTextChange = { homeChatText = it },
+                    onSend = { message ->
+                        onNavigateToChat(state.favoriteAgentId, message)
+                        homeChatText = ""
+                    },
+                    placeholder = stringResource(R.string.screen_home_chat_placeholder),
+                    sendContentDescription = stringResource(R.string.action_send_message),
+                    maxLines = 1,
+                )
             }
         }
     }
