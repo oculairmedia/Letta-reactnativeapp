@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.screens.dashboard
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -39,8 +41,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -54,6 +58,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.ParsedSearchMessage
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.LettaInputBar
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.customColors
@@ -69,6 +75,7 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToChat: (agentId: String, initialMessage: String?) -> Unit,
     onNavigateToChatMessage: (agentId: String, conversationId: String, messageId: String) -> Unit,
+    onNavigateToEditAgent: (agentId: String) -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -114,6 +121,9 @@ fun HomeScreen(
             onNavigateToBlocks = onNavigateToBlocks,
             onNavigateToChat = onNavigateToChat,
             onNavigateToChatMessage = onNavigateToChatMessage,
+            onNavigateToEditAgent = onNavigateToEditAgent,
+            onClearFavorite = viewModel::clearFavorite,
+            onUnpinAgent = viewModel::unpinAgent,
             modifier = Modifier.padding(paddingValues),
         )
     }
@@ -130,6 +140,9 @@ private fun HomeContent(
     onNavigateToBlocks: () -> Unit,
     onNavigateToChat: (String, String?) -> Unit,
     onNavigateToChatMessage: (String, String, String) -> Unit,
+    onNavigateToEditAgent: (String) -> Unit,
+    onClearFavorite: () -> Unit,
+    onUnpinAgent: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().imePadding()) {
@@ -239,6 +252,8 @@ private fun HomeContent(
                     favoriteAgentName = state.favoriteAgentName,
                     onNavigateToChat = { onNavigateToChat(it, null) },
                     onSetFavorite = onNavigateToAgents,
+                    onClearFavorite = onClearFavorite,
+                    onConfigure = { id -> onNavigateToEditAgent(id) },
                 )
 
                 if (state.pinnedAgents.isNotEmpty()) {
@@ -247,6 +262,8 @@ private fun HomeContent(
                         PinnedAgentCard(
                             name = pinned.name,
                             onClick = { onNavigateToChat(pinned.id, null) },
+                            onUnpin = { onUnpinAgent(pinned.id) },
+                            onConfigure = { onNavigateToEditAgent(pinned.id) },
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                         )
                     }
@@ -322,18 +339,32 @@ private fun UberSearchBar(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FavoriteAgentCard(
     favoriteAgentId: String?,
     favoriteAgentName: String?,
     onNavigateToChat: (String) -> Unit,
     onSetFavorite: () -> Unit,
+    onClearFavorite: () -> Unit,
+    onConfigure: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (favoriteAgentId != null && favoriteAgentName != null) {
+        var showMenu by remember { mutableStateOf(false) }
+        val haptic = LocalHapticFeedback.current
+
         Card(
-            onClick = { onNavigateToChat(favoriteAgentId) },
-            modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .combinedClickable(
+                    onClick = { onNavigateToChat(favoriteAgentId) },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showMenu = true
+                    },
+                ),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
             ),
@@ -361,6 +392,23 @@ private fun FavoriteAgentCard(
                     )
                 }
             }
+        }
+
+        ActionSheet(
+            show = showMenu,
+            onDismiss = { showMenu = false },
+            title = favoriteAgentName,
+        ) {
+            ActionSheetItem(
+                text = stringResource(R.string.action_configure_agent),
+                icon = LettaIcons.Edit,
+                onClick = { showMenu = false; onConfigure(favoriteAgentId) },
+            )
+            ActionSheetItem(
+                text = stringResource(R.string.action_remove_favorite),
+                icon = LettaIcons.FavoriteBorder,
+                onClick = { showMenu = false; onClearFavorite() },
+            )
         }
     } else {
         Card(
@@ -390,16 +438,28 @@ private fun FavoriteAgentCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PinnedAgentCard(
     name: String,
     onClick: () -> Unit,
+    onUnpin: () -> Unit,
+    onConfigure: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
     Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showMenu = true
+                },
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),
@@ -435,6 +495,23 @@ private fun PinnedAgentCard(
                 modifier = Modifier.size(14.dp),
             )
         }
+    }
+
+    ActionSheet(
+        show = showMenu,
+        onDismiss = { showMenu = false },
+        title = name,
+    ) {
+        ActionSheetItem(
+            text = stringResource(R.string.action_configure_agent),
+            icon = LettaIcons.Edit,
+            onClick = { showMenu = false; onConfigure() },
+        )
+        ActionSheetItem(
+            text = stringResource(R.string.action_unpin_agent),
+            icon = LettaIcons.PinOff,
+            onClick = { showMenu = false; onUnpin() },
+        )
     }
 }
 

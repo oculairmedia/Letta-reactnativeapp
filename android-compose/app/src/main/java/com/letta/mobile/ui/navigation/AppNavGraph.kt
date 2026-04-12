@@ -152,6 +152,9 @@ fun AppNavGraph(
                         "agent/$agentId/chat?conversationId=$conversationId&scrollToMessageId=$messageId"
                     )
                 },
+                onNavigateToEditAgent = { agentId ->
+                    navController.navigate("editAgent/$agentId")
+                },
             )
         }
 

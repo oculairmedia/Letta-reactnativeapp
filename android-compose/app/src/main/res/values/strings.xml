@@ -18,6 +18,9 @@
     <string name="screen_home_search_no_results">No results found</string>
     <string name="screen_home_favorite_subtitle">Your favourite agent</string>
     <string name="screen_home_pinned_subtitle">Pinned agent</string>
+    <string name="action_configure_agent">Configure</string>
+    <string name="action_remove_favorite">Remove Favourite</string>
+    <string name="action_unpin_agent">Unpin from Homepage</string>
 
     <string name="action_search">Search</string>
     <string name="action_refresh">Refresh</string>
