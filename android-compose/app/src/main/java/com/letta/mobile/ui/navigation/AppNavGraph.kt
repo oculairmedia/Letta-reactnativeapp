@@ -139,8 +139,18 @@ fun AppNavGraph(
                 onNavigateToTools = { navController.navigate("allTools") },
                 onNavigateToBlocks = { navController.navigate("blocks") },
                 onNavigateToSettings = { navController.navigate("config") },
-                onNavigateToChat = { agentId ->
-                    navController.navigate("agent/$agentId/chat")
+                onNavigateToChat = { agentId, initialMessage ->
+                    if (initialMessage != null) {
+                        val encoded = java.net.URLEncoder.encode(initialMessage, "UTF-8")
+                        navController.navigate("agent/$agentId/chat?initialMessage=$encoded")
+                    } else {
+                        navController.navigate("agent/$agentId/chat")
+                    }
+                },
+                onNavigateToChatMessage = { agentId, conversationId, messageId ->
+                    navController.navigate(
+                        "agent/$agentId/chat?conversationId=$conversationId&scrollToMessageId=$messageId"
+                    )
                 },
             )
         }
@@ -346,10 +356,12 @@ fun AppNavGraph(
         }
 
         composable(
-            route = "agent/{agentId}/chat?conversationId={conversationId}",
+            route = "agent/{agentId}/chat?conversationId={conversationId}&initialMessage={initialMessage}&scrollToMessageId={scrollToMessageId}",
             arguments = listOf(
                 navArgument("agentId") { type = NavType.StringType },
                 navArgument("conversationId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("initialMessage") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("scrollToMessageId") { type = NavType.StringType; nullable = true; defaultValue = null },
             ),
             enterTransition = drillInEnter,
             exitTransition = drillInExit,

@@ -36,6 +36,8 @@ import com.composables.icons.lucide.MessageCircle
 import com.composables.icons.lucide.MessageSquare
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.Pin
+import com.composables.icons.lucide.PinOff
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.RefreshCw
@@ -134,4 +136,8 @@ object LettaIcons {
     val Link: ImageVector get() = Lucide.Link
     val LinkOff: ImageVector get() = Lucide.Unlink
     val ExternalLink: ImageVector get() = Lucide.ExternalLink
+
+    // Pin
+    val Pin: ImageVector get() = Lucide.Pin
+    val PinOff: ImageVector get() = Lucide.PinOff
 }

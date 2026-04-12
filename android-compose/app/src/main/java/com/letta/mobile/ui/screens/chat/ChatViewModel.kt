@@ -61,6 +61,8 @@ class ChatViewModel @Inject constructor(
 
     val agentId: String = savedStateHandle.get<String>("agentId") ?: ""
     private var activeConversationId: String? = savedStateHandle.get<String>("conversationId")
+    private val initialMessage: String? = savedStateHandle.get<String>("initialMessage")
+    val scrollToMessageId: String? = savedStateHandle.get<String>("scrollToMessageId")
     val conversationId: String? get() = activeConversationId
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -107,43 +109,51 @@ class ChatViewModel @Inject constructor(
                     android.util.Log.w("ChatViewModel", "Failed to resolve conversation", e)
                 }
             }
-            loadMessages()
+            loadMessagesInternal()
+
+            initialMessage?.let { message ->
+                if (message.isNotBlank()) {
+                    sendMessage(message)
+                }
+            }
+        }
+    }
+
+    private suspend fun loadMessagesInternal() {
+        val cachedAgent = agentRepository.getCachedAgent(agentId)
+        val cachedMessages = messageRepository.getCachedMessages(agentId, activeConversationId)
+        if (cachedAgent != null || cachedMessages.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                agentName = cachedAgent?.name ?: _uiState.value.agentName,
+                messages = if (cachedMessages.isNotEmpty()) cachedMessages.toUiMessages() else _uiState.value.messages,
+                isLoadingMessages = cachedMessages.isEmpty(),
+                error = null,
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(isLoadingMessages = true)
+        }
+        try {
+            val (agent, appMessages) = supervisorScope {
+                val agentDeferred = async { agentRepository.getAgent(agentId).first() }
+                val messagesDeferred = async { messageRepository.fetchMessages(agentId, activeConversationId) }
+                agentDeferred.await() to messagesDeferred.await()
+            }
+            _uiState.value = _uiState.value.copy(agentName = agent.name)
+            val messages = appMessages.toUiMessages()
+            if (messages.isNotEmpty()) hasSummary = true
+            _uiState.value = _uiState.value.copy(
+                messages = messages, isLoadingMessages = false
+            )
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                isLoadingMessages = false,
+                error = e.message ?: "Failed to load messages",
+            )
         }
     }
 
     fun loadMessages() {
-        viewModelScope.launch {
-            val cachedAgent = agentRepository.getCachedAgent(agentId)
-            val cachedMessages = messageRepository.getCachedMessages(agentId, activeConversationId)
-            if (cachedAgent != null || cachedMessages.isNotEmpty()) {
-                _uiState.value = _uiState.value.copy(
-                    agentName = cachedAgent?.name ?: _uiState.value.agentName,
-                    messages = if (cachedMessages.isNotEmpty()) cachedMessages.toUiMessages() else _uiState.value.messages,
-                    isLoadingMessages = cachedMessages.isEmpty(),
-                    error = null,
-                )
-            } else {
-                _uiState.value = _uiState.value.copy(isLoadingMessages = true)
-            }
-            try {
-                val (agent, appMessages) = supervisorScope {
-                    val agentDeferred = async { agentRepository.getAgent(agentId).first() }
-                    val messagesDeferred = async { messageRepository.fetchMessages(agentId, activeConversationId) }
-                    agentDeferred.await() to messagesDeferred.await()
-                }
-                _uiState.value = _uiState.value.copy(agentName = agent.name)
-                val messages = appMessages.toUiMessages()
-                if (messages.isNotEmpty()) hasSummary = true
-                _uiState.value = _uiState.value.copy(
-                    messages = messages, isLoadingMessages = false
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoadingMessages = false,
-                    error = e.message ?: "Failed to load messages",
-                )
-            }
-        }
+        viewModelScope.launch { loadMessagesInternal() }
     }
 
     fun sendMessage(text: String) {

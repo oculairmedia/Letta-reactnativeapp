@@ -29,6 +29,7 @@ data class AgentListUiState(
     val llmModels: List<LlmModel> = emptyList(),
     val embeddingModels: List<EmbeddingModel> = emptyList(),
     val favoriteAgentId: String? = null,
+    val pinnedAgentIds: Set<String> = emptySet(),
     val searchQuery: String = "",
     val selectedTags: Set<String> = emptySet(),
     val isImporting: Boolean = false,
@@ -64,6 +65,15 @@ class AgentListViewModel @Inject constructor(
         loadAgents()
         loadAvailableTools()
         loadAvailableModels()
+        observePinnedAgents()
+    }
+
+    private fun observePinnedAgents() {
+        viewModelScope.launch {
+            settingsRepository.getPinnedAgentIds().collect { ids ->
+                _uiState.value = _uiState.value.copy(pinnedAgentIds = ids)
+            }
+        }
     }
 
     fun loadAvailableTools() {
@@ -202,6 +212,13 @@ class AgentListViewModel @Inject constructor(
         val newFav = if (current == agentId) null else agentId
         settingsRepository.setFavoriteAgentId(newFav)
         _uiState.value = _uiState.value.copy(favoriteAgentId = newFav)
+    }
+
+    fun togglePinned(agentId: String) {
+        viewModelScope.launch {
+            val isPinned = agentId in _uiState.value.pinnedAgentIds
+            settingsRepository.setAgentPinned(agentId, !isPinned)
+        }
     }
 
     fun clearError() {

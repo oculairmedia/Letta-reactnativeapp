@@ -58,6 +58,7 @@ import com.letta.mobile.ui.theme.LettaChatTheme
 import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.ui.components.ScrollToBottomFab
 import com.letta.mobile.ui.components.TypingIndicator
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import com.letta.mobile.ui.icons.LettaIcons
@@ -90,6 +91,7 @@ fun ChatScreen(
         } else {
             ChatContent(
                 state = state,
+                scrollToMessageId = viewModel.scrollToMessageId,
                 onSendMessage = { viewModel.sendMessage(it) },
                 onInputTextChange = { viewModel.updateInputText(it) },
                 modifier = Modifier.weight(1f),
@@ -109,6 +111,7 @@ fun ChatScreen(
 @Composable
 private fun ChatContent(
     state: ChatUiState,
+    scrollToMessageId: String? = null,
     onSendMessage: (String) -> Unit,
     onInputTextChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -116,6 +119,8 @@ private fun ChatContent(
     val listState = rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var chatMode by remember { mutableStateOf("interactive") }
+    var highlightedMessageId by remember { mutableStateOf<String?>(null) }
+    var hasScrolledToTarget by remember { mutableStateOf(false) }
 
     val messageCount by rememberUpdatedState(state.messages.size)
 
@@ -137,10 +142,25 @@ private fun ChatContent(
         snapshotFlow { messageCount }
             .distinctUntilChanged()
             .collect {
-                if (it > 0 && isAtBottom) {
+                if (it > 0 && isAtBottom && scrollToMessageId == null) {
                     listState.animateScrollToItem(0)
                 }
             }
+    }
+
+    // Scroll to a specific message when navigating from search results
+    LaunchedEffect(scrollToMessageId, state.messages.size) {
+        if (scrollToMessageId == null || hasScrolledToTarget || state.messages.isEmpty()) return@LaunchedEffect
+        val targetIndex = state.messages.indexOfFirst { it.id == scrollToMessageId }
+        if (targetIndex >= 0) {
+            // In reversed layout, the index is inverted
+            val reversedIndex = state.messages.size - 1 - targetIndex
+            listState.scrollToItem(reversedIndex)
+            highlightedMessageId = scrollToMessageId
+            hasScrolledToTarget = true
+            delay(2000)
+            highlightedMessageId = null
+        }
     }
 
     val dedupedMessages = remember(state.messages, chatMode) {
@@ -217,17 +237,27 @@ private fun ChatContent(
                                 else -> 6.dp
                             }
                             val spacingAbove = if (message.isReasoning) 12.dp else 0.dp
+                            val isHighlighted = message.id == highlightedMessageId
+                            val highlightModifier = if (isHighlighted) {
+                                Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                        RoundedCornerShape(12.dp),
+                                    )
+                            } else {
+                                Modifier
+                            }
                             if (chatMode == "debug") {
                                 DebugMessageCard(
                                     message = message,
-                                    modifier = Modifier.padding(top = spacingBelow, bottom = spacingAbove),
+                                    modifier = highlightModifier.padding(top = spacingBelow, bottom = spacingAbove),
                                 )
                             } else {
                                 ChatMessageItem(
                                     message = message,
                                     groupPosition = position,
                                     isStreaming = state.isStreaming,
-                                    modifier = Modifier.padding(top = spacingBelow, bottom = spacingAbove),
+                                    modifier = highlightModifier.padding(top = spacingBelow, bottom = spacingAbove),
                                 )
                             }
                         }

@@ -60,6 +60,7 @@ class SettingsRepository @Inject constructor(
         val FAVORITE_AGENT_ID = stringPreferencesKey("favorite_agent_id")
         val ADMIN_AGENT_ID = stringPreferencesKey("admin_agent_id")
         val PINNED_CONVERSATION_IDS = stringSetPreferencesKey("pinned_conversation_ids")
+        val PINNED_AGENT_IDS = stringSetPreferencesKey("pinned_agent_ids")
     }
 
     init {
@@ -226,6 +227,21 @@ class SettingsRepository @Inject constructor(
                 current + conversationId
             } else {
                 current - conversationId
+            }
+        }
+    }
+
+    fun getPinnedAgentIds(): Flow<Set<String>> = dataStore.data.map { prefs ->
+        prefs[Keys.PINNED_AGENT_IDS] ?: emptySet()
+    }
+
+    suspend fun setAgentPinned(agentId: String, pinned: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.PINNED_AGENT_IDS] ?: emptySet()
+            prefs[Keys.PINNED_AGENT_IDS] = if (pinned) {
+                current + agentId
+            } else {
+                current - agentId
             }
         }
     }

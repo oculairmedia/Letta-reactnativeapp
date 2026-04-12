@@ -315,10 +315,12 @@ fun AgentListScreen(
                                     CompactAgentCard(
                                         agent = agent,
                                         isFavorite = agent.id == uiState.favoriteAgentId,
+                                        isPinned = agent.id in uiState.pinnedAgentIds,
                                         onClick = { onNavigateToAgent(agent.id) },
                                         onLongPress = { onNavigateToEditAgent(agent.id) },
                                         onDelete = { viewModel.deleteAgent(agent.id) },
                                         onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
+                                        onTogglePinned = { viewModel.togglePinned(agent.id) },
                                     )
                                 }
                             }
@@ -343,10 +345,12 @@ fun AgentListScreen(
                                     AgentCard(
                                         agent = agent,
                                         isFavorite = agent.id == uiState.favoriteAgentId,
+                                        isPinned = agent.id in uiState.pinnedAgentIds,
                                         onClick = { onNavigateToAgent(agent.id) },
                                         onLongPress = { onNavigateToEditAgent(agent.id) },
                                         onDelete = { viewModel.deleteAgent(agent.id) },
                                         onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
+                                        onTogglePinned = { viewModel.togglePinned(agent.id) },
                                     )
                                 }
                             }
@@ -524,10 +528,12 @@ private fun InfoChip(
 private fun AgentCard(
     agent: Agent,
     isFavorite: Boolean = false,
+    isPinned: Boolean = false,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onTogglePinned: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
@@ -662,6 +668,11 @@ private fun AgentCard(
             onClick = { showContextMenu = false; onToggleFavorite() },
         )
         ActionSheetItem(
+            text = if (isPinned) "Unpin from Homepage" else "Pin to Homepage",
+            icon = if (isPinned) LettaIcons.PinOff else LettaIcons.Pin,
+            onClick = { showContextMenu = false; onTogglePinned() },
+        )
+        ActionSheetItem(
             text = stringResource(R.string.action_edit),
             icon = LettaIcons.Edit,
             onClick = { showContextMenu = false; onLongPress() },
@@ -691,10 +702,12 @@ private fun AgentCard(
 private fun CompactAgentCard(
     agent: Agent,
     isFavorite: Boolean = false,
+    isPinned: Boolean = false,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     onDelete: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onTogglePinned: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
@@ -774,6 +787,11 @@ private fun CompactAgentCard(
             text = if (isFavorite) "Remove Favorite" else "Set as Favorite",
             icon = if (isFavorite) LettaIcons.Favorite else LettaIcons.FavoriteBorder,
             onClick = { showContextMenu = false; onToggleFavorite() },
+        )
+        ActionSheetItem(
+            text = if (isPinned) "Unpin from Homepage" else "Pin to Homepage",
+            icon = if (isPinned) LettaIcons.PinOff else LettaIcons.Pin,
+            onClick = { showContextMenu = false; onTogglePinned() },
         )
         ActionSheetItem(
             text = stringResource(R.string.action_edit),
