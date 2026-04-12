@@ -46,6 +46,11 @@ data class CustomColors(
 
     val listItemContainerColor: Color = Color.Unspecified,
 
+    // Selection (complementary to primary — warm↔cool inversion)
+    val selectionContainer: Color = Color.Unspecified,
+    val onSelectionContainer: Color = Color.Unspecified,
+    val selectionIndicator: Color = Color.Unspecified,
+
     // Borders
     val borderDefault: Color = Color.Unspecified,
     val borderFocused: Color = Color.Unspecified,

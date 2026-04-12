@@ -1,6 +1,28 @@
 package com.letta.mobile.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import kotlin.math.abs
+
+/**
+ * Returns the complementary color by shifting the hue 180° on the color wheel.
+ * Warm colours become cool, greens become purple, reds become teal, etc.
+ * Saturation and lightness are preserved so the result stays theme-consistent.
+ */
+fun Color.complementary(): Color {
+    val r = red; val g = green; val b = blue
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val lightness = (max + min) / 2f
+    val saturation = if (delta == 0f) 0f else delta / (1f - abs(2f * lightness - 1f))
+    val hue = when {
+        delta == 0f -> 0f
+        max == r -> 60f * (((g - b) / delta).mod(6f))
+        max == g -> 60f * (((b - r) / delta) + 2f)
+        else -> 60f * (((r - g) / delta) + 4f)
+    }
+    return Color.hsl((hue + 180f).mod(360f), saturation.coerceIn(0f, 1f), lightness.coerceIn(0f, 1f), alpha)
+}
 
 val DarkSurface = Color(0xFF121212)
 val DarkSurfaceVariant = Color(0xFF1E1E1E)

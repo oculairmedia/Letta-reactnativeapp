@@ -186,7 +186,9 @@ private fun buildDarkScheme(
     surfaceContainerHighest = primaryContainer.copy(alpha = 0.85f),
 )
 
-private fun deriveCustomColors(colorScheme: ColorScheme): CustomColors = CustomColors(
+private fun deriveCustomColors(colorScheme: ColorScheme): CustomColors {
+    val complementary = colorScheme.primary.complementary()
+    return CustomColors(
     userBubbleBgColor = colorScheme.primaryContainer,
     agentBubbleBgColor = colorScheme.surfaceContainerLow,
     reasoningBubbleBgColor = colorScheme.tertiaryContainer.copy(alpha = 0.45f),
@@ -211,10 +213,14 @@ private fun deriveCustomColors(colorScheme: ColorScheme): CustomColors = CustomC
     iconSecondary = colorScheme.onSurfaceVariant,
     iconAccent = colorScheme.primary,
     listItemContainerColor = colorScheme.surfaceBright,
+    selectionContainer = complementary.copy(alpha = 0.15f),
+    onSelectionContainer = colorScheme.onSurface,
+    selectionIndicator = complementary,
     borderDefault = colorScheme.outlineVariant,
     borderFocused = colorScheme.primary,
     borderCritical = colorScheme.error,
 )
+}
 
 private val SakuraThemeColors = PresetThemeColors(
     lightScheme = buildLightScheme(

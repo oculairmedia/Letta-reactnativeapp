@@ -1,7 +1,9 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
@@ -43,13 +45,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +62,7 @@ import com.letta.mobile.R
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ChatBackgroundPicker
+import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ConnectionState
 import com.letta.mobile.ui.components.ConnectionStatusBanner
 import com.letta.mobile.ui.theme.ChatBackground
@@ -64,10 +70,14 @@ import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.util.ConnectivityMonitor
 import com.letta.mobile.ui.navigation.agentAvatarSharedElementKey
 import com.letta.mobile.ui.navigation.optionalSharedElement
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaTopBarDefaults
+import com.letta.mobile.ui.theme.customColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -245,7 +255,7 @@ private fun AgentConversationHeader(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationPickerSheet(
     agentId: String,
@@ -254,20 +264,51 @@ private fun ConversationPickerSheet(
     onConversationSelected: (String) -> Unit,
     onNewConversation: () -> Unit,
 ) {
-    val conversationRepo: ConversationRepository = hiltViewModel<ConversationPickerViewModel>().conversationRepository
+    val viewModel = hiltViewModel<ConversationPickerViewModel>()
+    val conversationRepo = viewModel.conversationRepository
     val conversations by conversationRepo.getConversations(agentId).collectAsStateWithLifecycle(emptyList())
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val isSelectionMode = selectedIds.isNotEmpty()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val selectionColors = MaterialTheme.customColors
 
     LaunchedEffect(agentId) {
         conversationRepo.refreshConversations(agentId)
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = {
+        viewModel.clearSelection()
+        onDismiss()
+    }) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.common_conversations),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (isSelectionMode) {
+                    Text(
+                        text = "${selectedIds.size} selected",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { showDeleteConfirm = true }) {
+                        Icon(
+                            LettaIcons.Delete,
+                            contentDescription = stringResource(R.string.action_delete),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.common_conversations),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
                 onClick = onNewConversation,
@@ -293,27 +334,57 @@ private fun ConversationPickerSheet(
                     modifier = Modifier.heightIn(max = 400.dp),
                 ) {
                     items(conversations, key = { it.id }) { conversation ->
-                        val isSelected = conversation.id == currentConversationId
+                        val isActive = conversation.id == currentConversationId
+                        val isChecked = conversation.id in selectedIds
+                        val containerColor = when {
+                            isChecked -> selectionColors.selectionContainer
+                            isActive -> MaterialTheme.colorScheme.primaryContainer
+                            else -> CardDefaults.cardColors().containerColor
+                        }
                         Card(
-                            onClick = { onConversationSelected(conversation.id) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = if (isSelected) CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            ) else CardDefaults.cardColors(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            viewModel.toggleSelection(conversation.id)
+                                        } else {
+                                            onConversationSelected(conversation.id)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.toggleSelection(conversation.id)
+                                    },
+                                ),
+                            colors = CardDefaults.cardColors(containerColor = containerColor),
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = conversation.summary ?: "Conversation",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                val timeText = formatRelativeTime(conversation.lastMessageAt ?: conversation.createdAt)
-                                if (timeText.isNotBlank()) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = timeText,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        text = conversation.summary ?: "Conversation",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val timeText = formatRelativeTime(conversation.lastMessageAt ?: conversation.createdAt)
+                                    if (timeText.isNotBlank()) {
+                                        Text(
+                                            text = timeText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                if (isChecked) {
+                                    Icon(
+                                        LettaIcons.CheckCircle,
+                                        contentDescription = "Selected",
+                                        modifier = Modifier.size(LettaIconSizing.Toolbar),
+                                        tint = selectionColors.selectionIndicator,
                                     )
                                 }
                             }
@@ -325,12 +396,62 @@ private fun ConversationPickerSheet(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+
+    ConfirmDialog(
+        show = showDeleteConfirm,
+        title = stringResource(R.string.screen_conversations_dialog_delete_title),
+        message = "Delete ${selectedIds.size} conversation${if (selectedIds.size > 1) "s" else ""}? This cannot be undone.",
+        confirmText = stringResource(R.string.action_delete),
+        dismissText = stringResource(R.string.action_cancel),
+        onConfirm = {
+            showDeleteConfirm = false
+            viewModel.deleteSelected(
+                agentId = agentId,
+                activeConversationId = currentConversationId,
+                onActiveDeleted = {
+                    onDismiss()
+                    onNewConversation()
+                },
+            )
+        },
+        onDismiss = { showDeleteConfirm = false },
+        destructive = true,
+    )
 }
 
 @HiltViewModel
 class ConversationPickerViewModel @Inject constructor(
     val conversationRepository: ConversationRepository,
-) : ViewModel()
+) : ViewModel() {
+
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
+    fun toggleSelection(id: String) {
+        _selectedIds.value = _selectedIds.value.let { current ->
+            if (id in current) current - id else current + id
+        }
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    fun deleteSelected(agentId: String, onActiveDeleted: () -> Unit = {}, activeConversationId: String? = null) {
+        val ids = _selectedIds.value.toList()
+        if (ids.isEmpty()) return
+        val deletedActive = activeConversationId != null && activeConversationId in ids
+        _selectedIds.value = emptySet()
+        viewModelScope.launch {
+            for (id in ids) {
+                try {
+                    conversationRepository.deleteConversation(id, agentId)
+                } catch (_: Exception) { /* individual failures are handled by the repository's rollback */ }
+            }
+            if (deletedActive) onActiveDeleted()
+        }
+    }
+}
 
 @Composable
 private fun DrawerContent(
