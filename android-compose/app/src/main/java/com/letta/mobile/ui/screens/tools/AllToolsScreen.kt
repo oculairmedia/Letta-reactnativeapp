@@ -3,6 +3,7 @@ package com.letta.mobile.ui.screens.tools
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -183,6 +185,12 @@ fun AllToolsScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
+                            if (state.data.isLoadingMcpTools) {
+                                item(span = { GridItemSpan(3) }) {
+                                    McpLoadingBanner()
+                                }
+                            }
+
                             items(filteredTools, key = { it.id }) { tool ->
                                 ToolTile(
                                     tool = tool,
@@ -225,6 +233,42 @@ fun AllToolsScreen(
                 showCreateDialog = false
             },
         )
+    }
+}
+
+@Composable
+private fun McpLoadingBanner(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+            Column {
+                Text(
+                    text = "Loading MCP tools",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = "Server-backed tools will appear as their handshakes complete.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

@@ -9,7 +9,6 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +22,7 @@ data class AllToolsUiState(
     val searchQuery: String = "",
     val selectedTags: Set<String> = emptySet(),
     val isLoadingMore: Boolean = false,
+    val isLoadingMcpTools: Boolean = false,
     val hasMorePages: Boolean = true,
     val currentOffset: Int = 0,
 )
@@ -35,6 +35,7 @@ class AllToolsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<UiState<AllToolsUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<AllToolsUiState>> = _uiState.asStateFlow()
+    private var loadGeneration: Int = 0
 
     companion object {
         const val PAGE_SIZE = 50
@@ -46,31 +47,30 @@ class AllToolsViewModel @Inject constructor(
 
     fun loadTools() {
         viewModelScope.launch {
-            val searchQuery = (_uiState.value as? UiState.Success)?.data?.searchQuery.orEmpty()
-            _uiState.value = UiState.Loading
+            val generation = ++loadGeneration
+            val previousState = (_uiState.value as? UiState.Success)?.data
+            val searchQuery = previousState?.searchQuery.orEmpty()
+            val selectedTags = previousState?.selectedTags.orEmpty()
+            if (previousState == null) {
+                _uiState.value = UiState.Loading
+            }
             try {
-                val mcpToolsDeferred = async { mcpServerRepository.fetchAllMcpTools() }
-                val regularToolsDeferred = async {
-                    toolRepository.fetchToolsPage(limit = PAGE_SIZE, offset = 0)
-                }
-
-                val mcpTools = mcpToolsDeferred.await()
-                val regularTools = regularToolsDeferred.await()
-
-                val mcpToolIds = mcpTools.map { it.id }.toSet()
-                val dedupedRegular = regularTools.filter { it.id !in mcpToolIds }
-                val combined = mcpTools + dedupedRegular
+                val regularTools = toolRepository.fetchToolsPage(limit = PAGE_SIZE, offset = 0)
 
                 _uiState.value = UiState.Success(
                     AllToolsUiState(
-                        tools = combined,
-                        mcpToolIds = mcpToolIds,
+                        tools = regularTools,
+                        mcpToolIds = emptySet(),
                         searchQuery = searchQuery,
+                        selectedTags = selectedTags,
                         isLoadingMore = false,
+                        isLoadingMcpTools = true,
                         hasMorePages = regularTools.size >= PAGE_SIZE,
                         currentOffset = regularTools.size,
                     )
                 )
+
+                loadMcpTools(generation)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(
                     mapErrorToUserMessage(e, "Failed to load tools")
@@ -79,9 +79,37 @@ class AllToolsViewModel @Inject constructor(
         }
     }
 
+    private fun loadMcpTools(generation: Int) {
+        viewModelScope.launch {
+            val currentState = (_uiState.value as? UiState.Success)?.data ?: return@launch
+            try {
+                val mcpTools = mcpServerRepository.fetchAllMcpTools()
+                if (generation != loadGeneration) return@launch
+
+                val latestState = (_uiState.value as? UiState.Success)?.data ?: currentState
+                val mcpToolIds = mcpTools.map { it.id }.toSet()
+                val dedupedRegular = latestState.tools.filter { it.id !in mcpToolIds }
+
+                _uiState.value = UiState.Success(
+                    latestState.copy(
+                        tools = mcpTools + dedupedRegular,
+                        mcpToolIds = mcpToolIds,
+                        isLoadingMcpTools = false,
+                    )
+                )
+            } catch (_: Exception) {
+                if (generation != loadGeneration) return@launch
+                val latestState = (_uiState.value as? UiState.Success)?.data ?: currentState
+                _uiState.value = UiState.Success(latestState.copy(isLoadingMcpTools = false))
+            }
+        }
+    }
+
     fun loadMoreTools() {
         val currentState = (_uiState.value as? UiState.Success)?.data ?: return
         if (currentState.isLoadingMore || !currentState.hasMorePages) return
+        val generation = loadGeneration
+        val requestedOffset = currentState.currentOffset
 
         _uiState.value = UiState.Success(currentState.copy(isLoadingMore = true))
 
@@ -89,22 +117,30 @@ class AllToolsViewModel @Inject constructor(
             try {
                 val newPage = toolRepository.fetchToolsPage(
                     limit = PAGE_SIZE,
-                    offset = currentState.currentOffset,
+                    offset = requestedOffset,
                 )
 
-                val dedupedNew = newPage.filter { it.id !in currentState.mcpToolIds }
+                if (generation != loadGeneration) return@launch
+
+                val latestState = (_uiState.value as? UiState.Success)?.data ?: return@launch
+                val existingIds = latestState.tools.mapTo(mutableSetOf()) { it.id }
+                val dedupedNew = newPage.filter { tool ->
+                    tool.id !in latestState.mcpToolIds && existingIds.add(tool.id)
+                }
 
                 _uiState.value = UiState.Success(
-                    currentState.copy(
-                        tools = currentState.tools + dedupedNew,
+                    latestState.copy(
+                        tools = latestState.tools + dedupedNew,
                         isLoadingMore = false,
                         hasMorePages = newPage.size >= PAGE_SIZE,
-                        currentOffset = currentState.currentOffset + newPage.size,
+                        currentOffset = maxOf(latestState.currentOffset, requestedOffset + newPage.size),
                     )
                 )
             } catch (_: Exception) {
+                if (generation != loadGeneration) return@launch
+                val latestState = (_uiState.value as? UiState.Success)?.data ?: currentState
                 _uiState.value = UiState.Success(
-                    currentState.copy(isLoadingMore = false)
+                    latestState.copy(isLoadingMore = false)
                 )
             }
         }

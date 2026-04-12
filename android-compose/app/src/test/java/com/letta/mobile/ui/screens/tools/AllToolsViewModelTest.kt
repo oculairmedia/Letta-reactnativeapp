@@ -6,9 +6,11 @@ import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.testutil.FakeToolApi
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -71,6 +73,60 @@ class AllToolsViewModelTest {
 
         val filtered = viewModel.getFilteredTools()
         assertEquals(2, filtered.size)
+    }
+
+    @Test
+    fun `loadTools publishes regular tools before slow mcp tools finish`() = runTest {
+        fakeRepository.setTools(
+            listOf(
+                Tool(id = "t1", name = "weather_lookup"),
+                Tool(id = "t2", name = "calendar_sync"),
+            )
+        )
+        val mcpGate = CompletableDeferred<List<Tool>>()
+        coEvery { mockMcpServerRepository.fetchAllMcpTools() } coAnswers { mcpGate.await() }
+
+        viewModel = AllToolsViewModel(fakeRepository, mockMcpServerRepository)
+
+        val initial = awaitSuccessState()
+        assertEquals(listOf("t1", "t2"), initial.tools.map { it.id })
+        assertEquals(true, initial.isLoadingMcpTools)
+
+        mcpGate.complete(listOf(Tool(id = "m1", name = "mcp_tool")))
+        advanceUntilIdle()
+
+        val enriched = awaitSuccessState()
+        assertEquals(listOf("m1", "t1", "t2"), enriched.tools.map { it.id })
+        assertEquals(false, enriched.isLoadingMcpTools)
+    }
+
+    @Test
+    fun `loadMoreTools keeps paged tools when mcp tools finish later`() = runTest {
+        fakeRepository.setTools((1..51).map { index -> Tool(id = "t$index", name = "tool_$index") })
+        val mcpGate = CompletableDeferred<List<Tool>>()
+        coEvery { mockMcpServerRepository.fetchAllMcpTools() } coAnswers { mcpGate.await() }
+
+        viewModel = AllToolsViewModel(fakeRepository, mockMcpServerRepository)
+        val initial = awaitSuccessState()
+        assertEquals(50, initial.tools.size)
+        assertEquals(true, initial.hasMorePages)
+
+        viewModel.loadMoreTools()
+        advanceUntilIdle()
+
+        val paged = awaitSuccessState()
+        assertEquals(51, paged.tools.size)
+        assertEquals("t51", paged.tools.last().id)
+        assertEquals(true, paged.isLoadingMcpTools)
+
+        mcpGate.complete(listOf(Tool(id = "m1", name = "mcp_tool")))
+        advanceUntilIdle()
+
+        val enriched = awaitSuccessState()
+        assertEquals(52, enriched.tools.size)
+        assertEquals("m1", enriched.tools.first().id)
+        assertEquals("t51", enriched.tools.last().id)
+        assertEquals(false, enriched.isLoadingMcpTools)
     }
 
     private class FakeToolRepository : ToolRepository(FakeToolApi()) {
