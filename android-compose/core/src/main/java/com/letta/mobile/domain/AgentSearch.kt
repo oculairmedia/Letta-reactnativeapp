@@ -15,6 +15,7 @@ class AgentSearch @Inject constructor() {
 
     companion object {
         private const val MIN_SCORE_THRESHOLD = 40
+        private const val MIN_FIELD_MATCH_SCORE = 60
         private const val NAME_WEIGHT = 3.0
         private const val TAG_WEIGHT = 2.0
         private const val MODEL_WEIGHT = 1.5
@@ -34,39 +35,46 @@ class AgentSearch @Inject constructor() {
     }
 
     private fun calculateScore(agent: Agent, query: String): Int {
-        var totalScore = 0.0
-        var maxPossibleWeight = 0.0
+        var weightedScoreSum = 0.0
+        var matchedWeightSum = 0.0
 
         // Name matching (highest weight)
         val nameScore = getBestMatchScore(agent.name, query)
-        totalScore += nameScore * NAME_WEIGHT
-        maxPossibleWeight += NAME_WEIGHT
+        if (nameScore > 0) {
+            weightedScoreSum += nameScore * NAME_WEIGHT
+            matchedWeightSum += NAME_WEIGHT
+        }
 
         // Tags matching
         val tagScores = agent.tags.map { tag ->
             getBestMatchScore(tag, query)
         }
-        if (tagScores.isNotEmpty()) {
-            totalScore += (tagScores.maxOrNull() ?: 0) * TAG_WEIGHT
-            maxPossibleWeight += TAG_WEIGHT
+        val bestTagScore = tagScores.maxOrNull() ?: 0
+        if (bestTagScore > 0) {
+            weightedScoreSum += bestTagScore * TAG_WEIGHT
+            matchedWeightSum += TAG_WEIGHT
         }
 
         // Model matching
         agent.model?.let { model ->
             val modelScore = getBestMatchScore(model, query)
-            totalScore += modelScore * MODEL_WEIGHT
-            maxPossibleWeight += MODEL_WEIGHT
+            if (modelScore > 0) {
+                weightedScoreSum += modelScore * MODEL_WEIGHT
+                matchedWeightSum += MODEL_WEIGHT
+            }
         }
 
         // Description matching (lowest weight)
         agent.description?.let { desc ->
             val descScore = getBestMatchScore(desc, query)
-            totalScore += descScore * DESCRIPTION_WEIGHT
-            maxPossibleWeight += DESCRIPTION_WEIGHT
+            if (descScore > 0) {
+                weightedScoreSum += descScore * DESCRIPTION_WEIGHT
+                matchedWeightSum += DESCRIPTION_WEIGHT
+            }
         }
 
-        return if (maxPossibleWeight > 0) {
-            (totalScore / maxPossibleWeight).toInt()
+        return if (matchedWeightSum > 0) {
+            (weightedScoreSum / matchedWeightSum).toInt()
         } else {
             0
         }
@@ -80,12 +88,22 @@ class AgentSearch @Inject constructor() {
             return 100
         }
 
+        if (query.contains('/') || query.contains('-')) {
+            val segments = normalizedText
+                .split('/', '-', '_', ' ')
+                .filter { it.isNotBlank() }
+            if (segments.any { it == query || it.contains(query) }) {
+                return 95
+            }
+        }
+
         // Use multiple fuzzy matching strategies and take the best
         val ratioScore = FuzzySearch.ratio(normalizedText, query)
         val partialRatioScore = FuzzySearch.partialRatio(normalizedText, query)
         val tokenSortScore = FuzzySearch.tokenSortRatio(normalizedText, query)
         val tokenSetScore = FuzzySearch.tokenSetRatio(normalizedText, query)
 
-        return maxOf(ratioScore, partialRatioScore, tokenSortScore, tokenSetScore)
+        val fuzzyScore = maxOf(ratioScore, partialRatioScore, tokenSortScore, tokenSetScore)
+        return if (fuzzyScore >= MIN_FIELD_MATCH_SCORE) fuzzyScore else 0
     }
 }
