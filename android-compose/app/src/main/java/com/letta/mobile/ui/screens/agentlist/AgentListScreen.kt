@@ -41,6 +41,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -88,6 +91,7 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ModelDropdown
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerGrid
 import com.letta.mobile.ui.navigation.optionalSharedElement
@@ -211,20 +215,21 @@ fun AgentListScreen(
                     )
                 }
 
-                Row(
+                SingleChoiceSegmentedButtonRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    FilterChip(
+                    SegmentedButton(
                         selected = !showGrid,
                         onClick = { showGrid = false },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         label = { Text(stringResource(R.string.screen_agents_view_list)) },
                     )
-                    FilterChip(
+                    SegmentedButton(
                         selected = showGrid,
                         onClick = { showGrid = true },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         label = { Text(stringResource(R.string.screen_agents_view_grid)) },
                     )
                 }
@@ -933,14 +938,12 @@ private fun CreateAgentDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.common_parallel_tool_calls), style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = parallelToolCalls, onCheckedChange = { parallelToolCalls = it })
-                }
+                FormItem(
+                    label = { Text(stringResource(R.string.common_parallel_tool_calls)) },
+                    tail = {
+                        Switch(checked = parallelToolCalls, onCheckedChange = { parallelToolCalls = it })
+                    },
+                )
                 OutlinedTextField(
                     value = systemPrompt,
                     onValueChange = { systemPrompt = it },
@@ -949,22 +952,18 @@ private fun CreateAgentDialog(
                     minLines = 3,
                     maxLines = 5,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.common_enable_sleeptime), style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = enableSleeptime, onCheckedChange = { enableSleeptime = it })
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.screen_agents_create_include_base_tools), style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = includeBaseTools, onCheckedChange = { includeBaseTools = it })
-                }
+                FormItem(
+                    label = { Text(stringResource(R.string.common_enable_sleeptime)) },
+                    tail = {
+                        Switch(checked = enableSleeptime, onCheckedChange = { enableSleeptime = it })
+                    },
+                )
+                FormItem(
+                    label = { Text(stringResource(R.string.screen_agents_create_include_base_tools)) },
+                    tail = {
+                        Switch(checked = includeBaseTools, onCheckedChange = { includeBaseTools = it })
+                    },
+                )
                 Text(
                     text = stringResource(R.string.common_tools),
                     style = MaterialTheme.typography.titleSmall,
@@ -1062,36 +1061,24 @@ private fun ImportAgentDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            stringResource(R.string.screen_agents_import_override_tools_helper),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = overrideExistingTools, onCheckedChange = { overrideExistingTools = it })
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            stringResource(R.string.screen_agents_import_strip_messages_helper),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = stripMessages, onCheckedChange = { stripMessages = it })
-                }
+                FormItem(
+                    label = { Text(stringResource(R.string.screen_agents_import_override_tools_title)) },
+                    description = {
+                        Text(stringResource(R.string.screen_agents_import_override_tools_helper))
+                    },
+                    tail = {
+                        Switch(checked = overrideExistingTools, onCheckedChange = { overrideExistingTools = it })
+                    },
+                )
+                FormItem(
+                    label = { Text(stringResource(R.string.screen_agents_import_strip_messages_title)) },
+                    description = {
+                        Text(stringResource(R.string.screen_agents_import_strip_messages_helper))
+                    },
+                    tail = {
+                        Switch(checked = stripMessages, onCheckedChange = { stripMessages = it })
+                    },
+                )
             }
         },
         confirmButton = {

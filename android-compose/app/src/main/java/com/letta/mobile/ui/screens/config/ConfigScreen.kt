@@ -103,21 +103,18 @@ private fun ConfigContent(
         CardGroup(title = { Text(stringResource(R.string.screen_config_server_section)) }) {
             item(
                 headlineContent = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        FilterChip(
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
                             selected = state.mode == ServerMode.CLOUD,
                             onClick = { onModeChange(ServerMode.CLOUD) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                             label = { Text(stringResource(R.string.common_cloud)) },
-                            modifier = Modifier.weight(1f),
                         )
-                        FilterChip(
+                        SegmentedButton(
                             selected = state.mode == ServerMode.SELF_HOSTED,
                             onClick = { onModeChange(ServerMode.SELF_HOSTED) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                             label = { Text(stringResource(R.string.common_self_hosted)) },
-                            modifier = Modifier.weight(1f),
                         )
                     }
                 },
@@ -155,27 +152,24 @@ private fun ConfigContent(
                 headlineContent = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(stringResource(R.string.screen_config_theme_mode))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            FilterChip(
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
                                 selected = state.theme == AppTheme.SYSTEM,
                                 onClick = { onThemeChange(AppTheme.SYSTEM) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                                 label = { Text(stringResource(R.string.screen_config_theme_mode_system)) },
-                                modifier = Modifier.weight(1f),
                             )
-                            FilterChip(
+                            SegmentedButton(
                                 selected = state.theme == AppTheme.LIGHT,
                                 onClick = { onThemeChange(AppTheme.LIGHT) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                                 label = { Text(stringResource(R.string.common_light_theme)) },
-                                modifier = Modifier.weight(1f),
                             )
-                            FilterChip(
+                            SegmentedButton(
                                 selected = state.theme == AppTheme.DARK,
                                 onClick = { onThemeChange(AppTheme.DARK) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
                                 label = { Text(stringResource(R.string.common_dark_theme)) },
-                                modifier = Modifier.weight(1f),
                             )
                         }
                     }

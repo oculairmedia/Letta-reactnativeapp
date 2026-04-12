@@ -51,6 +51,7 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -300,14 +301,12 @@ private fun CreateScheduleDialog(
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.screen_schedules_recurring_toggle), style = MaterialTheme.typography.bodyMedium)
-                    androidx.compose.material3.Switch(checked = isRecurring, onCheckedChange = { isRecurring = it })
-                }
+                FormItem(
+                    label = { Text(stringResource(R.string.screen_schedules_recurring_toggle)) },
+                    tail = {
+                        androidx.compose.material3.Switch(checked = isRecurring, onCheckedChange = { isRecurring = it })
+                    },
+                )
                 if (isRecurring) {
                     OutlinedTextField(
                         value = cronExpression,
