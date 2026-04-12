@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import com.letta.mobile.ui.components.LettaSearchBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,15 +99,13 @@ fun ProviderAdminScreen(
                         .fillMaxSize()
                         .padding(paddingValues),
                 ) {
-                    OutlinedTextField(
-                        value = state.data.searchQuery,
-                        onValueChange = viewModel::updateSearchQuery,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text(stringResource(R.string.screen_providers_search_hint)) },
-                        leadingIcon = { Icon(LettaIcons.Search, contentDescription = null) },
-                        singleLine = true,
+                    LettaSearchBar(
+                        query = state.data.searchQuery,
+                        onQueryChange = viewModel::updateSearchQuery,
+                        onClear = { viewModel.updateSearchQuery("") },
+                        placeholder = stringResource(R.string.screen_providers_search_hint),
+                        compact = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     )
 
                     if (filtered.isEmpty()) {

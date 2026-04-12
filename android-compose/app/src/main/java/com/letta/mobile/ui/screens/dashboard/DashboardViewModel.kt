@@ -4,8 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.MessageSearchRequest
 import com.letta.mobile.data.model.ParsedSearchMessage
+import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.toParsed
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
@@ -49,6 +51,8 @@ data class DashboardUiState(
     val isSearchActive: Boolean = false,
     val agentResults: List<Agent> = emptyList(),
     val messageResults: List<ParsedSearchMessage> = emptyList(),
+    val toolResults: List<Tool> = emptyList(),
+    val blockResults: List<Block> = emptyList(),
     val error: String? = null,
 )
 
@@ -65,6 +69,7 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
+    private var cachedBlocks: List<Block> = emptyList()
 
     private val _uiState = MutableStateFlow(
         DashboardUiState(
@@ -144,6 +149,8 @@ class DashboardViewModel @Inject constructor(
             isSearchActive = false,
             agentResults = emptyList(),
             messageResults = emptyList(),
+            toolResults = emptyList(),
+            blockResults = emptyList(),
         )
     }
 
@@ -157,6 +164,8 @@ class DashboardViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(
                             agentResults = emptyList(),
                             messageResults = emptyList(),
+                            toolResults = emptyList(),
+                            blockResults = emptyList(),
                             isSearching = false,
                         )
                         return@collect
@@ -167,8 +176,21 @@ class DashboardViewModel @Inject constructor(
                         agent.name.lowercase().contains(q) ||
                             (agent.description?.lowercase()?.contains(q) == true)
                     }
+                    val tools = try {
+                        toolRepository.getTools().first().filter { tool ->
+                            tool.name.lowercase().contains(q) ||
+                                (tool.description?.lowercase()?.contains(q) == true)
+                        }
+                    } catch (_: Exception) { emptyList() }
+                    val blocks = cachedBlocks.filter { block ->
+                        (block.label?.lowercase()?.contains(q) == true) ||
+                            (block.description?.lowercase()?.contains(q) == true) ||
+                            block.value.lowercase().contains(q)
+                    }
                     _uiState.value = _uiState.value.copy(
                         agentResults = agents,
+                        toolResults = tools,
+                        blockResults = blocks,
                         isSearching = true,
                     )
 
@@ -241,6 +263,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val blocks = blockRepository.listAllBlocks()
+                cachedBlocks = blocks
                 _uiState.value = _uiState.value.copy(
                     blockCount = blocks.size,
                 )

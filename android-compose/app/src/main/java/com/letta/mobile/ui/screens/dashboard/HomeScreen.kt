@@ -33,8 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.runtime.Composable
@@ -60,10 +58,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.ParsedSearchMessage
+import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.components.ActionSheet
 import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.LettaInputBar
+import com.letta.mobile.ui.components.LettaSearchBar
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.customColors
 import com.letta.mobile.ui.theme.statValue
@@ -165,10 +166,12 @@ private fun HomeContent(
             }
         }
 
-        UberSearchBar(
+        LettaSearchBar(
             query = state.searchQuery,
             onQueryChange = onSearchQueryChange,
             onClear = onClearSearch,
+            placeholder = stringResource(R.string.screen_home_search_placeholder),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         )
 
         Card(
@@ -196,6 +199,8 @@ private fun HomeContent(
             SearchResultsContent(
                 agentResults = state.agentResults,
                 messageResults = state.messageResults,
+                toolResults = state.toolResults,
+                blockResults = state.blockResults,
                 isSearching = state.isSearching,
                 searchQuery = state.searchQuery,
                 onAgentClick = { agentId -> onNavigateToChat(agentId, null) },
@@ -209,6 +214,8 @@ private fun HomeContent(
                         onNavigateToChat(agentId, null)
                     }
                 },
+                onToolClick = { onNavigateToTools() },
+                onBlockClick = { onNavigateToBlocks() },
                 modifier = Modifier.weight(1f),
             )
         } else {
@@ -460,57 +467,6 @@ private fun ModelUsageRow(
     }
 }
 
-@Composable
-private fun UberSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClear: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    TextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-        placeholder = {
-            Text(
-                stringResource(R.string.screen_home_search_placeholder),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        },
-        leadingIcon = {
-            Icon(
-                LettaIcons.Search,
-                contentDescription = stringResource(R.string.action_search),
-                modifier = Modifier.size(20.dp),
-            )
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClear) {
-                    Icon(
-                        LettaIcons.Clear,
-                        contentDescription = "Clear",
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium,
-        shape = RoundedCornerShape(24.dp),
-        colors = TextFieldDefaults.colors(
-            unfocusedContainerColor = colorScheme.surfaceContainerHigh,
-            focusedContainerColor = colorScheme.surfaceContainerHigh,
-            unfocusedIndicatorColor = Color.Transparent,
-            focusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            cursorColor = colorScheme.primary,
-        ),
-    )
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FavoriteAgentCard(
@@ -693,10 +649,14 @@ private fun PinnedAgentCard(
 private fun SearchResultsContent(
     agentResults: List<Agent>,
     messageResults: List<ParsedSearchMessage>,
+    toolResults: List<Tool>,
+    blockResults: List<Block>,
     isSearching: Boolean,
     searchQuery: String,
     onAgentClick: (String) -> Unit,
     onMessageClick: (ParsedSearchMessage) -> Unit,
+    onToolClick: (String) -> Unit,
+    onBlockClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
@@ -740,6 +700,100 @@ private fun SearchResultsContent(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             agent.description?.let { desc ->
+                                Text(
+                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (toolResults.isNotEmpty()) {
+            item(key = "tools-header") {
+                Text(
+                    text = stringResource(R.string.screen_home_search_tools_section),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+            }
+            items(toolResults, key = { "tool-${it.id}" }) { tool ->
+                Card(
+                    onClick = { onToolClick(tool.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            LettaIcons.Tool,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = highlightMatches(tool.name, searchQuery, highlightColor, highlightTextColor),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            tool.description?.let { desc ->
+                                Text(
+                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (blockResults.isNotEmpty()) {
+            item(key = "blocks-header") {
+                Text(
+                    text = stringResource(R.string.screen_home_search_blocks_section),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+            }
+            items(blockResults, key = { "block-${it.id}" }) { block ->
+                Card(
+                    onClick = { onBlockClick(block.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            LettaIcons.ViewModule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = highlightMatches(block.label ?: "Unnamed", searchQuery, highlightColor, highlightTextColor),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            block.description?.let { desc ->
                                 Text(
                                     text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
                                     style = MaterialTheme.typography.bodySmall,
@@ -807,7 +861,7 @@ private fun SearchResultsContent(
             }
         }
 
-        if (!isSearching && agentResults.isEmpty() && messageResults.isEmpty()) {
+        if (!isSearching && agentResults.isEmpty() && messageResults.isEmpty() && toolResults.isEmpty() && blockResults.isEmpty()) {
             item(key = "empty") {
                 Text(
                     text = stringResource(R.string.screen_home_search_no_results),

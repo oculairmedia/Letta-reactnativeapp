@@ -19,7 +19,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.letta.mobile.ui.components.LettaSearchBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -148,20 +148,13 @@ private fun ArchivalContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = onSearchChange,
+        LettaSearchBar(
+            query = state.searchQuery,
+            onQueryChange = onSearchChange,
+            onClear = { onSearchChange("") },
+            placeholder = stringResource(R.string.screen_archival_search_hint),
+            compact = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text(stringResource(R.string.screen_archival_search_hint)) },
-            leadingIcon = { Icon(LettaIcons.Search, contentDescription = stringResource(R.string.screen_archival_search_action)) },
-            trailingIcon = {
-                if (state.searchQuery.isNotBlank()) {
-                    IconButton(onClick = { onSearchChange("") }) {
-                        Icon(LettaIcons.Clear, contentDescription = stringResource(R.string.action_close))
-                    }
-                }
-            },
-            singleLine = true,
         )
 
         Row(

@@ -24,7 +24,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.letta.mobile.ui.components.LettaSearchBar
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -149,15 +149,13 @@ private fun ModelBrowserContent(
             )
         }
 
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = onSearchChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text(stringResource(R.string.screen_models_search_hint)) },
-            leadingIcon = { Icon(LettaIcons.Search, contentDescription = null) },
-            singleLine = true,
+        LettaSearchBar(
+            query = state.searchQuery,
+            onQueryChange = onSearchChange,
+            onClear = { onSearchChange("") },
+            placeholder = stringResource(R.string.screen_models_search_hint),
+            compact = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
         LazyRow(

@@ -40,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import com.letta.mobile.ui.components.LettaSearchBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -199,20 +200,13 @@ fun AgentListScreen(
                 )
 
                 if (showSearch) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
+                    LettaSearchBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = { viewModel.updateSearchQuery(it) },
+                        onClear = { viewModel.updateSearchQuery("") },
+                        placeholder = stringResource(R.string.screen_agents_search_hint),
+                        compact = true,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text(stringResource(R.string.screen_agents_search_hint)) },
-                        singleLine = true,
-                        leadingIcon = { Icon(LettaIcons.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(LettaIcons.Clear, contentDescription = stringResource(R.string.action_cancel))
-                                }
-                            }
-                        },
                     )
                 }
 
