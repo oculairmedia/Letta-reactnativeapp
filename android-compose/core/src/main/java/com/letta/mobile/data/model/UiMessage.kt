@@ -9,7 +9,8 @@ data class UiMessage(
     val content: String,
     val timestamp: String,
     val isReasoning: Boolean = false,
-    val toolCalls: List<UiToolCall>? = null
+    val toolCalls: List<UiToolCall>? = null,
+    val generatedUi: UiGeneratedComponent? = null,
 )
 
 @Immutable
@@ -18,4 +19,11 @@ data class UiToolCall(
     val arguments: String,
     val result: String?,
     val status: String? = null,
+)
+
+@Immutable
+data class UiGeneratedComponent(
+    val name: String,
+    val propsJson: String,
+    val fallbackText: String? = null,
 )

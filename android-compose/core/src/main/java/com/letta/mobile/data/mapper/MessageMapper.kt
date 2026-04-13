@@ -3,31 +3,47 @@ package com.letta.mobile.data.mapper
 import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.ApprovalRequestMessage
 import com.letta.mobile.data.model.AssistantMessage
+import com.letta.mobile.data.model.GeneratedUiPayload
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.model.ReasoningMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
+import com.letta.mobile.data.model.UiGeneratedComponent
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
 import java.time.Instant
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
-private data class ToolCallContext(
+internal data class ToolCallContext(
     val name: String,
     val arguments: String,
 )
 
+class MessageMappingState internal constructor(
+    internal val toolCallsById: MutableMap<String, ToolCallContext> = mutableMapOf(),
+)
+
+private val generatedUiToolNames = setOf("render_summary_card", "render_metric_card")
+
 fun List<LettaMessage>.toAppMessages(): List<AppMessage> {
-    val toolCallsById = mutableMapOf<String, ToolCallContext>()
-    return mapNotNull { it.toAppMessage(toolCallsById) }
+    val state = MessageMappingState()
+    return mapNotNull { it.toAppMessage(state) }
 }
 
 fun LettaMessage.toAppMessage(): AppMessage? {
-    return toAppMessage(mutableMapOf())
+    return toAppMessage(MessageMappingState())
 }
 
-private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCallContext>): AppMessage? {
+fun LettaMessage.toAppMessage(state: MessageMappingState): AppMessage? {
     return when (this) {
         is UserMessage -> AppMessage(
             id = id,
@@ -35,12 +51,18 @@ private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCall
             messageType = MessageType.USER,
             content = content
         )
-        is AssistantMessage -> AppMessage(
-            id = id,
-            date = date?.toInstant() ?: Instant.now(),
-            messageType = MessageType.ASSISTANT,
-            content = content
-        )
+        is AssistantMessage -> {
+            val generatedUi = extractGeneratedUi(contentRaw)
+            AppMessage(
+                id = id,
+                date = date?.toInstant() ?: Instant.now(),
+                messageType = MessageType.ASSISTANT,
+                content = generatedUi?.fallbackText.orEmpty().ifBlank {
+                    if (generatedUi != null) "" else content
+                },
+                generatedUi = generatedUi,
+            )
+        }
         is ReasoningMessage -> AppMessage(
             id = id,
             date = date?.toInstant() ?: Instant.now(),
@@ -53,7 +75,7 @@ private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCall
             val toolName = toolCall?.name
             val arguments = toolCall?.arguments.orEmpty()
             if (!toolCallId.isNullOrBlank() && !toolName.isNullOrBlank()) {
-                toolCallsById[toolCallId] = ToolCallContext(name = toolName, arguments = arguments)
+                state.toolCallsById[toolCallId] = ToolCallContext(name = toolName, arguments = arguments)
             }
             AppMessage(
                 id = id,
@@ -73,7 +95,7 @@ private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCall
             val toolName = toolCall?.name
             val arguments = toolCall?.arguments.orEmpty()
             if (!toolCallId.isNullOrBlank() && !toolName.isNullOrBlank()) {
-                toolCallsById[toolCallId] = ToolCallContext(name = toolName, arguments = arguments)
+                state.toolCallsById[toolCallId] = ToolCallContext(name = toolName, arguments = arguments)
             }
             AppMessage(
                 id = id,
@@ -86,7 +108,7 @@ private fun LettaMessage.toAppMessage(toolCallsById: MutableMap<String, ToolCall
         }
         is ToolReturnMessage -> {
             val toolCallId = toolReturn.toolCallId
-            val context = toolCallId?.let(toolCallsById::get)
+            val context = state.toolCallsById[toolCallId]
             AppMessage(
                 id = id,
                 date = date?.toInstant() ?: Instant.now(),
@@ -124,6 +146,26 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
                 val returnContent = matchedReturn?.content
                 val returnStatus = matchedReturn?.toolReturnStatus
 
+                if (name in generatedUiToolNames && returnContent != null) {
+                    val generatedUi = extractGeneratedUiFromString(returnContent)
+                    if (generatedUi != null) {
+                        result.add(
+                            UiMessage(
+                                id = msg.id,
+                                role = "assistant",
+                                content = generatedUi.fallbackText.orEmpty(),
+                                timestamp = msg.date.toString(),
+                                generatedUi = UiGeneratedComponent(
+                                    name = generatedUi.component,
+                                    propsJson = generatedUi.propsJson,
+                                    fallbackText = generatedUi.fallbackText,
+                                ),
+                            )
+                        )
+                        continue
+                    }
+                }
+
                 // send_message is Letta's reply tool — promote to assistant bubble
                 if (name == "send_message" && returnContent != null) {
                     val visibleText = extractSendMessageText(arguments, returnContent)
@@ -156,6 +198,26 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
             MessageType.TOOL_RETURN -> {
                 if (msg.id in consumedReturnIds) continue
                 val name = msg.toolName ?: "tool"
+
+                if (name in generatedUiToolNames && msg.content.isNotBlank()) {
+                    val generatedUi = extractGeneratedUiFromString(msg.content)
+                    if (generatedUi != null) {
+                        result.add(
+                            UiMessage(
+                                id = msg.id,
+                                role = "assistant",
+                                content = generatedUi.fallbackText.orEmpty(),
+                                timestamp = msg.date.toString(),
+                                generatedUi = UiGeneratedComponent(
+                                    name = generatedUi.component,
+                                    propsJson = generatedUi.propsJson,
+                                    fallbackText = generatedUi.fallbackText,
+                                ),
+                            )
+                        )
+                        continue
+                    }
+                }
 
                 if (name == "send_message" && msg.content.isNotBlank()) {
                     result.add(UiMessage(
@@ -254,8 +316,43 @@ fun AppMessage.toUiMessage(): UiMessage {
         content = displayContent,
         timestamp = date.toString(),
         isReasoning = messageType == MessageType.REASONING,
-        toolCalls = toolCalls
+        toolCalls = toolCalls,
+        generatedUi = generatedUi?.let {
+            UiGeneratedComponent(
+                name = it.component,
+                propsJson = it.propsJson,
+                fallbackText = it.fallbackText,
+            )
+        },
     )
+}
+
+private fun extractGeneratedUi(raw: kotlinx.serialization.json.JsonElement?): GeneratedUiPayload? {
+    val obj = raw as? JsonObject ?: return null
+    val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return null
+    if (type != "generated_ui") return null
+
+    val component = obj["component"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+    val props = obj["props"]
+    val propsJson = when (props) {
+        null -> buildJsonObject {}.toString()
+        else -> props.toString()
+    }
+    val fallbackText = obj["text"]?.jsonPrimitive?.contentOrNull
+        ?: obj["fallback_text"]?.jsonPrimitive?.contentOrNull
+
+    return GeneratedUiPayload(
+        component = component,
+        propsJson = propsJson,
+        fallbackText = fallbackText,
+    )
+}
+
+private fun extractGeneratedUiFromString(raw: String): GeneratedUiPayload? {
+    if (raw.isBlank()) return null
+    return runCatching {
+        extractGeneratedUi(Json.parseToJsonElement(raw))
+    }.getOrNull()
 }
 
 private fun String.toInstant(): Instant {

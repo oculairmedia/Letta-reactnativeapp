@@ -1,6 +1,9 @@
 package com.letta.mobile.data.mapper
 
 import com.letta.mobile.data.model.MessageType
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import com.letta.mobile.testutil.TestData
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -249,6 +252,101 @@ class MessageMapperTest : WordSpec({
             ui[0].toolCalls!!.first().result shouldBe "results A"
             ui[1].toolCalls!!.first().name shouldBe "core_memory_append"
             ui[1].toolCalls!!.first().result shouldBe "OK"
+        }
+
+        "promote generated ui tool results into assistant generated ui messages" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1",
+                    messageType = MessageType.TOOL_CALL,
+                    content = "{\"title\":\"Today\"}",
+                    toolName = "render_summary_card",
+                    toolCallId = "tc-ui-1",
+                ),
+                TestData.appMessage(
+                    id = "m2",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "{\"type\":\"generated_ui\",\"component\":\"summary_card\",\"props\":{\"title\":\"Today\",\"body\":\"3 tasks pending\"},\"text\":\"Here is your summary\"}",
+                    toolName = "render_summary_card",
+                    toolCallId = "tc-ui-1",
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "assistant"
+            ui[0].content shouldBe "Here is your summary"
+            ui[0].generatedUi.shouldNotBeNull()
+            ui[0].generatedUi!!.name shouldBe "summary_card"
+            ui[0].generatedUi!!.propsJson shouldBe "{\"title\":\"Today\",\"body\":\"3 tasks pending\"}"
+        }
+    }
+
+    "LettaMessage.toAppMessage" should {
+        "extract generated ui payloads from assistant content objects" {
+            val message = com.letta.mobile.data.model.AssistantMessage(
+                id = "assistant-ui-1",
+                contentRaw = buildJsonObject {
+                    put("type", "generated_ui")
+                    put("component", "summary_card")
+                    putJsonObject("props") {
+                        put("title", "Daily summary")
+                        put("body", "3 tasks need attention")
+                    }
+                    put("text", "Here is your daily summary")
+                },
+            )
+
+            val appMessage = message.toAppMessage()
+
+            appMessage.shouldNotBeNull()
+            appMessage.messageType shouldBe MessageType.ASSISTANT
+            appMessage.content shouldBe "Here is your daily summary"
+            appMessage.generatedUi.shouldNotBeNull()
+            appMessage.generatedUi!!.component shouldBe "summary_card"
+            appMessage.generatedUi!!.propsJson shouldBe "{\"title\":\"Daily summary\",\"body\":\"3 tasks need attention\"}"
+            appMessage.generatedUi!!.fallbackText shouldBe "Here is your daily summary"
+        }
+
+        "suppress raw generated ui json when no fallback text exists" {
+            val message = com.letta.mobile.data.model.AssistantMessage(
+                id = "assistant-ui-2",
+                contentRaw = buildJsonObject {
+                    put("type", "generated_ui")
+                    put("component", "metric_card")
+                    putJsonObject("props") {
+                        put("label", "Tasks")
+                        put("value", "3")
+                    }
+                },
+            )
+
+            val appMessage = message.toAppMessage()
+
+            appMessage.shouldNotBeNull()
+            appMessage.content shouldBe ""
+            appMessage.generatedUi.shouldNotBeNull()
+            appMessage.generatedUi!!.component shouldBe "metric_card"
+        }
+    }
+
+    "AppMessage.toUiMessage" should {
+        "carry generated ui payloads into chat messages" {
+            val uiMsg = TestData.appMessage(
+                messageType = MessageType.ASSISTANT,
+                content = "Here is your daily summary",
+            ).copy(
+                generatedUi = com.letta.mobile.data.model.GeneratedUiPayload(
+                    component = "summary_card",
+                    propsJson = "{\"title\":\"Daily summary\"}",
+                    fallbackText = "Here is your daily summary",
+                ),
+            ).toUiMessage()
+
+            uiMsg.role shouldBe "assistant"
+            uiMsg.generatedUi.shouldNotBeNull()
+            uiMsg.generatedUi!!.name shouldBe "summary_card"
+            uiMsg.generatedUi!!.propsJson shouldBe "{\"title\":\"Daily summary\"}"
         }
     }
 })

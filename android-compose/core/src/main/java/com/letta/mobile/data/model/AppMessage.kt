@@ -14,6 +14,7 @@ data class AppMessage(
     val toolName: String? = null,
     val toolCallId: String? = null,
     val toolReturnStatus: String? = null,
+    val generatedUi: GeneratedUiPayload? = null,
 )
 
 enum class MessageType {
@@ -23,3 +24,9 @@ enum class MessageType {
     TOOL_CALL,
     TOOL_RETURN
 }
+
+data class GeneratedUiPayload(
+    val component: String,
+    val propsJson: String,
+    val fallbackText: String? = null,
+)

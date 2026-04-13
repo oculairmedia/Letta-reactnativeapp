@@ -1,6 +1,7 @@
 package com.letta.mobile.domain
 
 import com.letta.mobile.data.api.MessageApi
+import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
@@ -11,7 +12,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 class MessageProcessorTest : WordSpec({
     "processStream" should {
@@ -46,6 +50,38 @@ class MessageProcessorTest : WordSpec({
             messages[0].toolName shouldBe "web_search"
             messages[1].toolName shouldBe "web_search"
             messages[1].content shouldBe "Found 10 results"
+        }
+
+        "emit generated ui assistant payloads during streaming" {
+            val processor = MessageProcessor(ClientToolRegistry())
+            val stream = flowOf(
+                AssistantMessage(
+                    id = "assistant-ui-1",
+                    contentRaw = buildJsonObject {
+                        put("type", "generated_ui")
+                        put("component", "summary_card")
+                        putJsonObject("props") {
+                            put("title", "Today")
+                            put("body", "3 tasks pending")
+                        }
+                        put("text", "Here is your summary")
+                    },
+                ),
+            )
+
+            val messages = runBlocking {
+                processor.processStream(
+                    stream = stream,
+                    agentId = "agent-1",
+                    conversationId = "conversation-1",
+                    messageApi = mockk<MessageApi>(relaxed = true),
+                ).toList()
+            }
+
+            messages shouldHaveSize 1
+            messages[0].content shouldBe "Here is your summary"
+            messages[0].generatedUi?.component shouldBe "summary_card"
+            messages[0].generatedUi?.propsJson shouldBe "{\"title\":\"Today\",\"body\":\"3 tasks pending\"}"
         }
     }
 })
