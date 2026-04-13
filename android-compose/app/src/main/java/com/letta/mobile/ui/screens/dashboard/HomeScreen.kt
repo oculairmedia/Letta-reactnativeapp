@@ -82,6 +82,7 @@ fun HomeScreen(
     onNavigateToChat: (agentId: String, initialMessage: String?) -> Unit,
     onNavigateToChatMessage: (agentId: String, conversationId: String, messageId: String) -> Unit,
     onNavigateToEditAgent: (agentId: String) -> Unit,
+    onNavigateToUsage: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -137,6 +138,7 @@ fun HomeScreen(
             onNavigateToChat = onNavigateToChat,
             onNavigateToChatMessage = onNavigateToChatMessage,
             onNavigateToEditAgent = onNavigateToEditAgent,
+            onNavigateToUsage = onNavigateToUsage,
             onClearFavorite = viewModel::clearFavorite,
             onUnpinAgent = viewModel::unpinAgent,
             modifier = Modifier.padding(paddingValues),
@@ -154,6 +156,7 @@ private fun HomeContent(
     onNavigateToChat: (String, String?) -> Unit,
     onNavigateToChatMessage: (String, String, String) -> Unit,
     onNavigateToEditAgent: (String) -> Unit,
+    onNavigateToUsage: () -> Unit,
     onClearFavorite: () -> Unit,
     onUnpinAgent: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -260,6 +263,7 @@ private fun HomeContent(
                 UsageAnalyticsCard(
                     usageSummary = state.usageSummary,
                     isLoading = state.isUsageLoading,
+                    onClick = onNavigateToUsage,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
 
@@ -304,14 +308,16 @@ private fun HomeContent(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun UsageAnalyticsCard(
     usageSummary: DashboardUsageSummary?,
     isLoading: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -341,6 +347,12 @@ private fun UsageAnalyticsCard(
                     imageVector = LettaIcons.Sparkles,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
+                )
+                Icon(
+                    imageVector = LettaIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
 

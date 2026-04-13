@@ -138,6 +138,9 @@ dependencies {
     // Fuzzy search
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
 
+    // Vico charts
+    implementation("com.patrykandpatrick.vico:compose-m3:2.1.2")
+
     // Paging 3
     implementation("androidx.paging:paging-runtime-ktx:3.3.5")
     implementation("androidx.paging:paging-compose:3.3.5")

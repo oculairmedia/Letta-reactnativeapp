@@ -49,6 +49,7 @@ import com.letta.mobile.ui.screens.schedules.ScheduleListScreen
 import com.letta.mobile.ui.screens.templates.TemplatesScreen
 import com.letta.mobile.ui.screens.tools.AllToolsScreen
 import com.letta.mobile.ui.screens.tools.ToolDetailScreen
+import com.letta.mobile.ui.screens.usage.UsageScreen
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -153,6 +154,19 @@ fun AppNavGraph(
                 onNavigateToEditAgent = { agentId ->
                     navController.navigate(EditAgentRoute(agentId))
                 },
+                onNavigateToUsage = { navController.navigate(UsageRoute) },
+            )
+        }
+
+        composable<UsageRoute>(
+            enterTransition = drillInEnter,
+            exitTransition = drillInExit,
+            popEnterTransition = drillInPopEnter,
+            popExitTransition = drillInPopExit,
+        ) {
+            UsageScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToRuns = { navController.navigate(RunsRoute) },
             )
         }
 
