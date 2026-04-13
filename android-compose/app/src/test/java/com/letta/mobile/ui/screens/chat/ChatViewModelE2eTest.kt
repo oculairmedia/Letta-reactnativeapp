@@ -1,6 +1,9 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.lifecycle.SavedStateHandle
+import com.letta.mobile.bot.config.BotConfigStore
+import com.letta.mobile.bot.core.BotGateway
+import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.api.LettaApiClient
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.data.model.Agent
@@ -85,6 +88,9 @@ class ChatViewModelE2eTest {
 
             val settingsRepo = mockk<SettingsRepository>(relaxed = true)
             every { settingsRepo.getChatBackgroundKey() } returns flowOf("default")
+            val botGateway = mockk<BotGateway>(relaxed = true)
+            val botConfigStore = mockk<BotConfigStore>(relaxed = true)
+            val internalBotClient = mockk<InternalBotClient>(relaxed = true)
 
             val vm = ChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1", "conversationId" to "conv-1")),
@@ -92,6 +98,9 @@ class ChatViewModelE2eTest {
                 agentRepo,
                 conversationRepo,
                 settingsRepo,
+                botGateway,
+                botConfigStore,
+                internalBotClient,
             )
             advanceUntilIdle()
 
@@ -149,6 +158,9 @@ class ChatViewModelE2eTest {
 
             val settingsRepo = mockk<SettingsRepository>(relaxed = true)
             every { settingsRepo.getChatBackgroundKey() } returns flowOf("default")
+            val botGateway = mockk<BotGateway>(relaxed = true)
+            val botConfigStore = mockk<BotConfigStore>(relaxed = true)
+            val internalBotClient = mockk<InternalBotClient>(relaxed = true)
 
             val vm = ChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1")),
@@ -156,6 +168,9 @@ class ChatViewModelE2eTest {
                 agentRepo,
                 conversationRepo,
                 settingsRepo,
+                botGateway,
+                botConfigStore,
+                internalBotClient,
             )
             advanceUntilIdle()
 

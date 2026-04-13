@@ -3,13 +3,17 @@ package com.letta.mobile.ui.screens.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.letta.mobile.bot.config.BotConfigStore
+import com.letta.mobile.bot.core.BotGateway
+import com.letta.mobile.bot.protocol.BotChatRequest
+import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.mapper.toUiMessages
 import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.UiMessage
+import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.model.ConversationUpdateParams
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.ui.theme.ChatBackground
@@ -67,6 +71,9 @@ class ChatViewModel @Inject constructor(
     private val agentRepository: AgentRepository,
     private val conversationRepository: ConversationRepository,
     private val settingsRepository: SettingsRepository,
+    private val botGateway: BotGateway,
+    private val botConfigStore: BotConfigStore,
+    private val internalBotClient: InternalBotClient,
 ) : ViewModel() {
     companion object {
         private const val CONVERSATION_CACHE_TTL_MS = 30_000L
@@ -250,7 +257,12 @@ class ChatViewModel @Inject constructor(
                         android.util.Log.w("ChatViewModel", "Failed to set conversation summary", e)
                     }
                 }
-                messageRepository.sendMessage(agentId, text, convId).collect { state ->
+                val stream = if (projectContext != null) {
+                    sendProjectMessageViaGateway(text = text, conversationId = convId)
+                } else {
+                    messageRepository.sendMessage(agentId, text, convId)
+                }
+                stream.collect { state ->
                     when (state) {
                         is StreamState.Sending -> {
                             _uiState.value = _uiState.value.copy(isAgentTyping = true)
@@ -290,6 +302,57 @@ class ChatViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = e.message, isStreaming = false, isAgentTyping = false)
             }
+        }
+    }
+
+    private fun sendProjectMessageViaGateway(
+        text: String,
+        conversationId: String,
+    ) = kotlinx.coroutines.flow.flow {
+        emit(StreamState.Sending)
+
+        ensureProjectGatewaySession()
+
+        val response = internalBotClient.sendMessage(
+            BotChatRequest(
+                message = text,
+                channelId = "in_app",
+                chatId = projectContext?.identifier,
+                senderId = "mobile_user",
+                senderName = projectContext?.name,
+                agentId = agentId,
+                conversationId = conversationId,
+            )
+        )
+
+        response.conversationId
+            ?.takeIf { it.isNotBlank() && it != activeConversationId }
+            ?.let { activeConversationId = it }
+
+        val assistantMessage = AppMessage(
+            id = "bot-${System.currentTimeMillis()}",
+            date = java.time.Instant.now(),
+            messageType = MessageType.ASSISTANT,
+            content = response.response,
+        )
+        emit(StreamState.Complete(listOf(assistantMessage)))
+    }
+
+    private suspend fun ensureProjectGatewaySession() {
+        if (botGateway.getSession(agentId) != null) return
+
+        val enabledConfigs = botConfigStore.getAll().filter { it.enabled }
+        val matchingConfig = enabledConfigs.firstOrNull { it.agentId == agentId }
+            ?: throw IllegalStateException(
+                "Project chat requires an enabled embedded bot for this agent. Configure it in Bot Settings first."
+            )
+
+        botGateway.start(enabledConfigs)
+
+        if (botGateway.getSession(matchingConfig.agentId) == null) {
+            throw IllegalStateException(
+                "The embedded bot gateway could not start a session for this project agent. Check Bot Settings."
+            )
         }
     }
 

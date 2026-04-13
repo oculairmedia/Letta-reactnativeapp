@@ -1,6 +1,11 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.lifecycle.SavedStateHandle
+import com.letta.mobile.bot.config.BotConfigStore
+import com.letta.mobile.bot.core.BotSession
+import com.letta.mobile.bot.core.BotGateway
+import com.letta.mobile.bot.protocol.BotChatResponse
+import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.Conversation
@@ -15,6 +20,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +46,9 @@ class ChatViewModelTest {
     private lateinit var agentRepository: AgentRepository
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var botGateway: BotGateway
+    private lateinit var botConfigStore: BotConfigStore
+    private lateinit var internalBotClient: InternalBotClient
     private val testDispatcher = UnconfinedTestDispatcher()
     private var messages: List<AppMessage> = emptyList()
     private var streamStates: List<StreamState> = emptyList()
@@ -51,6 +60,9 @@ class ChatViewModelTest {
         agentRepository = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
+        botGateway = mockk(relaxed = true)
+        botConfigStore = mockk(relaxed = true)
+        internalBotClient = mockk(relaxed = true)
 
         every { settingsRepository.getChatBackgroundKey() } returns flowOf("default")
 
@@ -86,7 +98,16 @@ class ChatViewModelTest {
             set("agentId", agentId)
             conversationId?.let { set("conversationId", it) }
         }
-        return ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
+        return ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
     }
 
     @Test
@@ -261,7 +282,16 @@ class ChatViewModelTest {
             set("projectActiveCodingAgents", "android, pm-agent")
         }
 
-        val vm = ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
+        val vm = ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
 
         val project = vm.projectContext
         assertEquals("letta-mobile", project?.identifier)
@@ -298,6 +328,84 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `project chat sends through embedded bot gateway`() = runTest {
+        val session = mockk<BotSession>()
+        val requestSlot = slot<com.letta.mobile.bot.protocol.BotChatRequest>()
+        every { botGateway.getSession("agent-1") } returns session
+        coEvery { internalBotClient.sendMessage(capture(requestSlot)) } returns BotChatResponse(
+            response = "Gateway reply",
+            conversationId = "conv-1",
+            agentId = "agent-1",
+        )
+
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("projectIdentifier", "letta-mobile")
+            set("projectName", "Letta Mobile")
+        }
+
+        val vm = ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
+        advanceUntilIdle()
+
+        vm.sendMessage("Ship it")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { internalBotClient.sendMessage(any()) }
+        verify(exactly = 0) { messageRepository.sendMessage(any(), any(), any()) }
+        assertEquals("agent-1", requestSlot.captured.agentId)
+        assertEquals("conv-1", requestSlot.captured.conversationId)
+        assertEquals("letta-mobile", requestSlot.captured.chatId)
+        assertEquals("Letta Mobile", requestSlot.captured.senderName)
+        assertTrue(vm.uiState.value.messages.any { it.content == "Gateway reply" && it.role == "assistant" })
+        assertFalse(vm.uiState.value.isStreaming)
+        assertFalse(vm.uiState.value.isAgentTyping)
+    }
+
+    @Test
+    fun `project chat shows error when embedded bot is not configured`() = runTest {
+        every { botGateway.getSession("agent-1") } returns null
+        coEvery { botConfigStore.getAll() } returns emptyList()
+
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("projectIdentifier", "letta-mobile")
+            set("projectName", "Letta Mobile")
+        }
+
+        val vm = ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
+        advanceUntilIdle()
+
+        vm.sendMessage("Ship it")
+        advanceUntilIdle()
+
+        assertEquals(
+            "Project chat requires an enabled embedded bot for this agent. Configure it in Bot Settings first.",
+            vm.uiState.value.error,
+        )
+        coVerify(exactly = 0) { internalBotClient.sendMessage(any()) }
+    }
+
+    @Test
     fun `loadMessages forwards scroll target to repository fetch`() = runTest {
         val targetSlot = slot<String?>()
         coEvery {
@@ -310,7 +418,16 @@ class ChatViewModelTest {
             set("scrollToMessageId", "msg-target")
         }
 
-        ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
+        ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
         advanceUntilIdle()
 
         assertEquals("msg-target", targetSlot.captured)
