@@ -1,39 +1,40 @@
 package com.letta.mobile.ui.screens.editagent
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,12 +58,13 @@ import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.screens.blocks.BlockPickerDialog
-import com.letta.mobile.ui.components.Accordions
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ErrorContent
-import com.letta.mobile.ui.components.LoadingIndicator
-import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.ModelDropdown
+import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.screens.tools.ToolPickerDialog
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
@@ -80,6 +82,10 @@ fun EditAgentScreen(
     val snackbar = LocalSnackbarDispatcher.current
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var showActionSheet by remember { mutableStateOf(false) }
+    var showCloneDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -93,7 +99,20 @@ fun EditAgentScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
                     }
-                }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        viewModel.saveAgent {
+                            snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_saved))
+                            onNavigateBack()
+                        }
+                    }) {
+                        Icon(LettaIcons.Save, contentDescription = stringResource(R.string.action_save_changes))
+                    }
+                    IconButton(onClick = { showActionSheet = true }) {
+                        Icon(LettaIcons.MoreVert, contentDescription = "More actions")
+                    }
+                },
             )
         }
     ) { paddingValues ->
@@ -104,44 +123,154 @@ fun EditAgentScreen(
                 onRetry = { viewModel.loadAgent() },
                 modifier = Modifier.padding(paddingValues)
             )
-            is UiState.Success -> EditAgentContent(
-                state = state.data,
-                llmModels = llmModels,
-                embeddingModels = embeddingModels,
-                onNameChange = { viewModel.updateName(it) },
-                onDescriptionChange = { viewModel.updateDescription(it) },
-                onModelChange = { viewModel.updateModel(it) },
-                onEmbeddingChange = { viewModel.updateEmbedding(it) },
-                onLoadModels = { viewModel.loadModels() },
-                onBlockValueChange = { label, value -> viewModel.updateBlockValue(label, value) },
-                onBlockDescriptionChange = { label, value -> viewModel.updateBlockDescription(label, value) },
-                onBlockLimitChange = { label, value -> viewModel.updateBlockLimit(label, value) },
-                onAddBlock = { label, value, description, limit -> viewModel.addBlock(label, value, description, limit) },
-                onAttachExistingBlock = { viewModel.attachExistingBlock(it) },
-                onDeleteBlock = { viewModel.deleteBlock(it) },
-                onAddTag = { viewModel.addTag(it) },
-                onRemoveTag = { viewModel.removeTag(it) },
-                onAttachTool = { viewModel.attachTool(it) },
-                onDetachTool = { viewModel.detachTool(it) },
-                onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
-                onProviderTypeChange = { viewModel.updateProviderType(it) },
-                onTemperatureChange = { viewModel.updateTemperature(it) },
-                onMaxOutputTokensChange = { viewModel.updateMaxOutputTokens(it) },
-                onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
-                onEnableSleeptimeChange = { viewModel.updateEnableSleeptime(it) },
-                onSave = {
-                    viewModel.saveAgent {
-                        snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_saved))
-                        onNavigateBack()
-                    }
-                },
-                modifier = Modifier.padding(paddingValues)
-            )
+            is UiState.Success -> {
+                EditAgentContent(
+                    state = state.data,
+                    llmModels = llmModels,
+                    embeddingModels = embeddingModels,
+                    onNameChange = { viewModel.updateName(it) },
+                    onDescriptionChange = { viewModel.updateDescription(it) },
+                    onModelChange = { viewModel.updateModel(it) },
+                    onEmbeddingChange = { viewModel.updateEmbedding(it) },
+                    onLoadModels = { viewModel.loadModels() },
+                    onBlockValueChange = { label, value -> viewModel.updateBlockValue(label, value) },
+                    onBlockDescriptionChange = { label, value -> viewModel.updateBlockDescription(label, value) },
+                    onBlockLimitChange = { label, value -> viewModel.updateBlockLimit(label, value) },
+                    onAddBlock = { label, value, description, limit -> viewModel.addBlock(label, value, description, limit) },
+                    onAttachExistingBlock = { viewModel.attachExistingBlock(it) },
+                    onDeleteBlock = { viewModel.deleteBlock(it) },
+                    onAddTag = { viewModel.addTag(it) },
+                    onRemoveTag = { viewModel.removeTag(it) },
+                    onAttachTool = { viewModel.attachTool(it) },
+                    onDetachTool = { viewModel.detachTool(it) },
+                    onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
+                    onProviderTypeChange = { viewModel.updateProviderType(it) },
+                    onTemperatureChange = { viewModel.updateTemperature(it) },
+                    onMaxOutputTokensChange = { viewModel.updateMaxOutputTokens(it) },
+                    onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
+                    onEnableSleeptimeChange = { viewModel.updateEnableSleeptime(it) },
+                    contentPadding = paddingValues,
+                )
+
+                // ActionSheet
+                ActionSheet(
+                    show = showActionSheet,
+                    onDismiss = { showActionSheet = false },
+                    title = "Actions",
+                ) {
+                    ActionSheetItem(
+                        text = stringResource(R.string.action_save_settings),
+                        icon = LettaIcons.Check,
+                        onClick = {
+                            showActionSheet = false
+                            viewModel.saveAgent {
+                                snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_saved))
+                                onNavigateBack()
+                            }
+                        },
+                    )
+                    ActionSheetItem(
+                        text = stringResource(R.string.action_export_agent),
+                        icon = LettaIcons.Share,
+                        onClick = {
+                            showActionSheet = false
+                            viewModel.exportAgent { exportData ->
+                                val exported = shareAgentExport(context, exportData)
+                                snackbar.dispatch(
+                                    context.getString(
+                                        if (exported) R.string.screen_settings_export_ready else R.string.screen_settings_export_unavailable
+                                    )
+                                )
+                            }
+                        },
+                    )
+                    ActionSheetItem(
+                        text = stringResource(R.string.action_clone_agent),
+                        icon = LettaIcons.Copy,
+                        onClick = {
+                            showActionSheet = false
+                            showCloneDialog = true
+                        },
+                    )
+                    ActionSheetItem(
+                        text = stringResource(R.string.action_reset_messages),
+                        icon = LettaIcons.Refresh,
+                        onClick = {
+                            showActionSheet = false
+                            showResetDialog = true
+                        },
+                        destructive = true,
+                    )
+                    ActionSheetItem(
+                        text = stringResource(R.string.screen_agents_dialog_delete_title),
+                        icon = LettaIcons.Delete,
+                        onClick = {
+                            showActionSheet = false
+                            showDeleteDialog = true
+                        },
+                        destructive = true,
+                    )
+                }
+
+                // Confirm dialogs
+                ConfirmDialog(
+                    show = showResetDialog,
+                    title = stringResource(R.string.screen_settings_reset_messages_title),
+                    message = stringResource(R.string.screen_settings_reset_messages_confirm),
+                    confirmText = stringResource(R.string.action_reset_messages),
+                    dismissText = stringResource(R.string.action_cancel),
+                    onConfirm = {
+                        showResetDialog = false
+                        viewModel.resetMessages {
+                            snackbar.dispatch(context.getString(R.string.screen_settings_messages_reset))
+                        }
+                    },
+                    onDismiss = { showResetDialog = false },
+                    destructive = true,
+                )
+
+                ConfirmDialog(
+                    show = showDeleteDialog,
+                    title = stringResource(R.string.screen_agents_dialog_delete_title),
+                    message = stringResource(R.string.screen_agents_dialog_delete_confirm_permanent),
+                    confirmText = stringResource(R.string.action_delete),
+                    dismissText = stringResource(R.string.action_cancel),
+                    onConfirm = {
+                        showDeleteDialog = false
+                        viewModel.deleteAgent(onNavigateBack)
+                    },
+                    onDismiss = { showDeleteDialog = false },
+                    destructive = true,
+                )
+
+                if (showCloneDialog) {
+                    CloneAgentDialog(
+                        initialName = state.data.name,
+                        isCloning = state.data.isCloning,
+                        onDismiss = { showCloneDialog = false },
+                        onClone = { cloneName, overrideExistingTools, stripMessages ->
+                            showCloneDialog = false
+                            viewModel.cloneAgent(
+                                cloneName = cloneName,
+                                overrideExistingTools = overrideExistingTools,
+                                stripMessages = stripMessages,
+                            ) { response ->
+                                snackbar.dispatch(
+                                    context.getString(
+                                        if (response.agentIds.size == 1) R.string.screen_settings_clone_success_single else R.string.screen_settings_clone_success_multiple,
+                                        response.agentIds.size,
+                                    )
+                                )
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun EditAgentContent(
     state: EditAgentUiState,
@@ -168,537 +297,633 @@ private fun EditAgentContent(
     onMaxOutputTokensChange: (Int) -> Unit,
     onParallelToolCallsChange: (Boolean) -> Unit,
     onEnableSleeptimeChange: (Boolean) -> Unit,
-    onSave: () -> Unit,
-    modifier: Modifier = Modifier
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val snackbar = LocalSnackbarDispatcher.current
     var showToolPicker by remember { mutableStateOf(false) }
+    var showAddBlockDialog by remember { mutableStateOf(false) }
+    var showAttachBlockDialog by remember { mutableStateOf(false) }
+    var selectedTool by remember { mutableStateOf<Tool?>(null) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = contentPadding.calculateTopPadding() + 8.dp,
+            bottom = contentPadding.calculateBottomPadding() + 16.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    state.name.ifBlank { stringResource(R.string.screen_agent_edit_default_name) },
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                Text(
-                    text = state.agentId,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(onClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.common_id), state.agentId))
-                snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_id_copied))
-            }) {
-                Icon(LettaIcons.Copy, contentDescription = stringResource(R.string.screen_agent_edit_copy_agent_id))
-            }
-        }
-
-        if (state.agentType.isNotBlank()) {
-            Text(
-                text = stringResource(R.string.common_type) + ": ${state.agentType}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        HorizontalDivider()
-
-        OutlinedTextField(
-            value = state.name,
-            onValueChange = onNameChange,
-            label = { Text(stringResource(R.string.common_name)) },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = state.description,
-            onValueChange = onDescriptionChange,
-            label = { Text(stringResource(R.string.common_description)) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2
-        )
-
-        ModelDropdown(
-            selectedModel = state.model,
-            models = llmModels,
-            onModelSelected = onModelChange,
-            onLoadModels = onLoadModels,
-            modifier = Modifier.fillMaxWidth(),
-            label = stringResource(R.string.common_model),
-        )
-
-        ModelDropdown(
-            selectedModel = state.embedding,
-            models = embeddingModels.map { LlmModel(id = it.id, name = it.displayName, providerType = it.providerType, contextWindow = it.embeddingDim) },
-            onModelSelected = onEmbeddingChange,
-            onLoadModels = onLoadModels,
-            modifier = Modifier.fillMaxWidth(),
-            label = stringResource(R.string.screen_agent_edit_embedding_model),
-        )
-
-        HorizontalDivider()
-
-        var llmConfigExpanded by remember { mutableStateOf(false) }
-        Accordions(
-            title = stringResource(R.string.screen_agent_edit_llm_configuration),
-            subtitle = stringResource(R.string.screen_agent_edit_temperature_subtitle, state.temperature),
-            expanded = llmConfigExpanded,
-            onExpandedChange = { llmConfigExpanded = it },
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        // ── Header ──
+        item(key = "header") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedTextField(
-                    value = state.providerType,
-                    onValueChange = onProviderTypeChange,
-                    label = { Text(stringResource(R.string.screen_agent_edit_provider_type)) },
-                    placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Text(
-                    stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Slider(
-                    value = state.temperature,
-                    onValueChange = onTemperatureChange,
-                    valueRange = 0f..2f,
-                    steps = 39,
-                )
-
-                if (state.contextWindow > 0) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.screen_agent_edit_context_window, state.contextWindow),
-                        style = MaterialTheme.typography.bodyMedium,
+                        state.name.ifBlank { stringResource(R.string.screen_agent_edit_default_name) },
+                        style = MaterialTheme.typography.headlineSmall,
                     )
+                    Text(
+                        text = state.agentId,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (state.agentType.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.common_type) + ": ${state.agentType}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.common_parallel_tool_calls), style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = state.parallelToolCalls, onCheckedChange = onParallelToolCallsChange)
-                }
-
-                OutlinedTextField(
-                    value = state.maxOutputTokens.toString(),
-                    onValueChange = { it.toIntOrNull()?.let(onMaxOutputTokensChange) },
-                    label = { Text(stringResource(R.string.common_max_output_tokens)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.common_enable_sleeptime), style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = state.enableSleeptime, onCheckedChange = onEnableSleeptimeChange)
+                IconButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.common_id), state.agentId))
+                    snackbar.dispatch(context.getString(R.string.screen_agent_edit_agent_id_copied))
+                }) {
+                    Icon(LettaIcons.Copy, contentDescription = stringResource(R.string.screen_agent_edit_copy_agent_id))
                 }
             }
         }
 
-        HorizontalDivider()
-
-        var memoryExpanded by remember { mutableStateOf(true) }
-        var showAddBlockDialog by remember { mutableStateOf(false) }
-        var showAttachBlockDialog by remember { mutableStateOf(false) }
-        Accordions(
-            title = stringResource(R.string.screen_agent_memory_blocks_section),
-            subtitle = "${state.blocks.size} blocks",
-            expanded = memoryExpanded,
-            onExpandedChange = { memoryExpanded = it },
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                state.blocks.forEach { block ->
-                    var showDeleteConfirm by remember { mutableStateOf(false) }
-                    val editableModifier = if (block.readOnly) {
-                        Modifier.fillMaxWidth()
-                    } else {
-                        Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {},
-                                onLongClick = { showDeleteConfirm = true },
-                            )
-                    }
-
-                    OutlinedTextField(
-                        value = block.value,
-                        onValueChange = { onBlockValueChange(block.label, it) },
-                        label = { Text(block.label) },
-                        modifier = editableModifier,
-                        minLines = 2,
-                        enabled = !block.readOnly,
-                        supportingText = block.limit?.let { limit ->
-                            { Text("${block.value.length}/$limit chars") }
-                        },
-                    )
-                    OutlinedTextField(
-                        value = block.description.orEmpty(),
-                        onValueChange = { onBlockDescriptionChange(block.label, it) },
-                        label = { Text(stringResource(R.string.common_description)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        enabled = !block.readOnly,
-                    )
-                    OutlinedTextField(
-                        value = block.limit?.toString().orEmpty(),
-                        onValueChange = { value ->
-                            if (value.isBlank() || value.toIntOrNull() != null) {
-                                onBlockLimitChange(block.label, value.toIntOrNull())
-                            }
-                        },
-                        label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        enabled = !block.readOnly,
-                    )
-                    if (block.isTemplate || block.readOnly) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (block.isTemplate) {
-                                InputChip(
-                                    selected = false,
-                                    onClick = {},
-                                    label = { Text(stringResource(R.string.screen_agent_edit_block_template)) },
-                                )
-                            }
-                            if (block.readOnly) {
-                                InputChip(
-                                    selected = false,
-                                    onClick = {},
-                                    label = { Text(stringResource(R.string.screen_agent_edit_block_read_only)) },
-                                )
-                            }
-                        }
-                    }
-                    ConfirmDialog(
-                        show = showDeleteConfirm,
-                        title = stringResource(R.string.screen_agent_edit_detach_block_title, block.label),
-                        message = stringResource(R.string.screen_agent_edit_detach_block_message),
-                        confirmText = stringResource(R.string.action_remove),
-                        dismissText = stringResource(R.string.action_cancel),
-                        onConfirm = { showDeleteConfirm = false; onDeleteBlock(block.id) },
-                        onDismiss = { showDeleteConfirm = false },
-                        destructive = true,
-                    )
-                }
-                OutlinedButton(
-                    onClick = { showAddBlockDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.screen_agent_edit_add_memory_block))
-                }
-                OutlinedButton(
-                    onClick = { showAttachBlockDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.screen_agent_edit_attach_existing_block))
-                }
-            }
-        }
-        if (showAddBlockDialog) {
-            var newLabel by remember { mutableStateOf("") }
-            var newValue by remember { mutableStateOf("") }
-            var newDescription by remember { mutableStateOf("") }
-            var newLimit by remember { mutableStateOf("") }
-            AlertDialog(
-                onDismissRequest = { showAddBlockDialog = false },
-                title = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // ── Identity ──
+        item(key = "identity") {
+            CardGroup(title = { Text("Identity") }) {
+                item(
+                    headlineContent = {
                         OutlinedTextField(
-                            value = newLabel,
-                            onValueChange = { newLabel = it },
+                            value = state.name,
+                            onValueChange = onNameChange,
                             label = { Text(stringResource(R.string.common_name)) },
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    },
+                )
+                item(
+                    headlineContent = {
                         OutlinedTextField(
-                            value = newValue,
-                            onValueChange = { newValue = it },
-                            label = { Text(stringResource(R.string.common_value)) },
-                            minLines = 3,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
-                            value = newDescription,
-                            onValueChange = { newDescription = it },
+                            value = state.description,
+                            onValueChange = onDescriptionChange,
                             label = { Text(stringResource(R.string.common_description)) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
-                        )
-                        OutlinedTextField(
-                            value = newLimit,
-                            onValueChange = { value ->
-                                if (value.isBlank() || value.toIntOrNull() != null) {
-                                    newLimit = value
-                                }
-                            },
-                            label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            onAddBlock(newLabel, newValue, newDescription, newLimit.toIntOrNull())
-                            showAddBlockDialog = false
-                        },
-                        enabled = newLabel.isNotBlank(),
-                    ) { Text(stringResource(R.string.action_create)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddBlockDialog = false }) { Text(stringResource(R.string.action_cancel)) }
-                },
-            )
-        }
-        if (showAttachBlockDialog) {
-            BlockPickerDialog(
-                excludedBlockIds = state.blocks.map { it.id },
-                onDismiss = { showAttachBlockDialog = false },
-                onConfirm = { selectedIds ->
-                    selectedIds.forEach(onAttachExistingBlock)
-                    showAttachBlockDialog = false
-                },
-            )
-        }
-
-        HorizontalDivider()
-
-        var toolsExpanded by remember { mutableStateOf(true) }
-        var selectedTool by remember { mutableStateOf<Tool?>(null) }
-        Accordions(
-            title = stringResource(R.string.common_tools),
-            subtitle = stringResource(R.string.screen_agent_edit_attached_tools_count, state.attachedTools.size),
-            expanded = toolsExpanded,
-            onExpandedChange = { toolsExpanded = it },
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (state.attachedTools.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.screen_tools_empty_attached),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    state.attachedTools.forEach { tool ->
-                        AttachedToolRow(
-                            tool = tool,
-                            onClick = { selectedTool = tool },
-                            onDetach = { onDetachTool(tool.id) },
-                        )
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = { showToolPicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.screen_agent_edit_attach_tools))
-                }
-            }
-        }
-
-        selectedTool?.let { tool ->
-            ToolDetailDialog(
-                tool = tool,
-                onDismiss = { selectedTool = null },
-            )
-        }
-
-        HorizontalDivider()
-
-        var systemExpanded by remember { mutableStateOf(false) }
-        Accordions(
-            title = stringResource(R.string.common_system_prompt),
-            subtitle = "${state.systemPrompt.length} chars",
-            expanded = systemExpanded,
-            onExpandedChange = { systemExpanded = it },
-        ) {
-            OutlinedTextField(
-                value = state.systemPrompt,
-                onValueChange = onSystemPromptChange,
-                label = { Text(stringResource(R.string.common_system_prompt)) },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                minLines = 5
-            )
-        }
-
-        HorizontalDivider()
-
-        Text(stringResource(R.string.common_tags), style = MaterialTheme.typography.titleMedium)
-
-        var newTag by remember { mutableStateOf("") }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            state.tags.forEach { tag ->
-                InputChip(
-                    selected = false,
-                    onClick = { onRemoveTag(tag) },
-                    label = { Text(tag) },
-                    trailingIcon = {
-                        Icon(
-                            LettaIcons.Close,
-                            contentDescription = stringResource(R.string.screen_agent_edit_remove_tag),
-                            modifier = Modifier.size(16.dp),
                         )
                     },
                 )
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = newTag,
-                onValueChange = { newTag = it },
-                label = { Text(stringResource(R.string.screen_agent_edit_new_tag)) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            FilledTonalButton(
-                onClick = { onAddTag(newTag); newTag = "" },
-                enabled = newTag.isNotBlank(),
-            ) { Text(stringResource(R.string.action_add)) }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(LettaIcons.Save, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.action_save_changes))
-        }
-
-        if (showToolPicker) {
-            ToolPickerDialog(
-                tools = state.availableTools.filter { candidate ->
-                    state.attachedTools.none { attached -> attached.id == candidate.id }
-                },
-                selectedToolIds = emptyList(),
-                title = stringResource(R.string.screen_agent_edit_attach_tools),
-                onDismiss = { showToolPicker = false },
-                onConfirm = { selectedIds ->
-                    selectedIds.forEach(onAttachTool)
-                    showToolPicker = false
-                },
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun AttachedToolRow(
-    tool: Tool,
-    onClick: () -> Unit,
-    onDetach: () -> Unit,
-) {
-    var showDetachDialog by remember { mutableStateOf(false) }
-    val truncatedDesc = tool.description?.take(80)?.let {
-        if ((tool.description?.length ?: 0) > 80) "$it..." else it
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = { showDetachDialog = true },
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = LettaIcons.Tool,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = tool.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            truncatedDesc?.let { desc ->
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        // ── Model ──
+        item(key = "model") {
+            CardGroup(title = { Text(stringResource(R.string.common_model)) }) {
+                item(
+                    headlineContent = {
+                        ModelDropdown(
+                            selectedModel = state.model,
+                            models = llmModels,
+                            onModelSelected = onModelChange,
+                            onLoadModels = onLoadModels,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = stringResource(R.string.common_model),
+                        )
+                    },
+                )
+                item(
+                    headlineContent = {
+                        ModelDropdown(
+                            selectedModel = state.embedding,
+                            models = embeddingModels.map {
+                                LlmModel(
+                                    id = it.id,
+                                    name = it.displayName,
+                                    providerType = it.providerType,
+                                    contextWindow = it.embeddingDim,
+                                )
+                            },
+                            onModelSelected = onEmbeddingChange,
+                            onLoadModels = onLoadModels,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = stringResource(R.string.screen_agent_edit_embedding_model),
+                        )
+                    },
                 )
             }
         }
-        Icon(
-            imageVector = LettaIcons.ChevronRight,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+
+        // ── LLM Configuration ──
+        item(key = "llm_config") {
+            CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_llm_configuration)) }) {
+                item(
+                    headlineContent = {
+                        OutlinedTextField(
+                            value = state.providerType,
+                            onValueChange = onProviderTypeChange,
+                            label = { Text(stringResource(R.string.screen_agent_edit_provider_type)) },
+                            placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    },
+                )
+                item(
+                    headlineContent = {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Slider(
+                                value = state.temperature,
+                                onValueChange = onTemperatureChange,
+                                valueRange = 0f..2f,
+                                steps = 39,
+                            )
+                        }
+                    },
+                )
+                if (state.contextWindow > 0) {
+                    item(
+                        headlineContent = { Text(stringResource(R.string.common_context_window)) },
+                        trailingContent = {
+                            Text(
+                                text = state.contextWindow.toString(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                }
+                item(
+                    headlineContent = { Text(stringResource(R.string.common_parallel_tool_calls)) },
+                    trailingContent = {
+                        Switch(checked = state.parallelToolCalls, onCheckedChange = onParallelToolCallsChange)
+                    },
+                )
+                item(
+                    headlineContent = {
+                        OutlinedTextField(
+                            value = state.maxOutputTokens.toString(),
+                            onValueChange = { it.toIntOrNull()?.let(onMaxOutputTokensChange) },
+                            label = { Text(stringResource(R.string.common_max_output_tokens)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    },
+                )
+                item(
+                    headlineContent = { Text(stringResource(R.string.common_enable_sleeptime)) },
+                    trailingContent = {
+                        Switch(checked = state.enableSleeptime, onCheckedChange = onEnableSleeptimeChange)
+                    },
+                )
+            }
+        }
+
+        // ── Memory Blocks ──
+        item(key = "memory_blocks") {
+            CardGroup(title = { Text("${stringResource(R.string.screen_agent_memory_blocks_section)} (${state.blocks.size})") }) {
+                state.blocks.forEach { block ->
+                    item(
+                        headlineContent = {
+                            MemoryBlockItem(
+                                block = block,
+                                onValueChange = { onBlockValueChange(block.label, it) },
+                                onDescriptionChange = { onBlockDescriptionChange(block.label, it) },
+                                onLimitChange = { onBlockLimitChange(block.label, it) },
+                                onDelete = { onDeleteBlock(block.id) },
+                            )
+                        },
+                    )
+                }
+                item(
+                    onClick = { showAddBlockDialog = true },
+                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
+                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                )
+                item(
+                    onClick = { showAttachBlockDialog = true },
+                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_existing_block)) },
+                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                )
+            }
+        }
+
+        // ── Tools ──
+        item(key = "tools") {
+            CardGroup(title = { Text(stringResource(R.string.common_tools) + " (${state.attachedTools.size})") }) {
+                if (state.attachedTools.isEmpty()) {
+                    item(
+                        headlineContent = {
+                            Text(
+                                text = stringResource(R.string.screen_tools_empty_attached),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                } else {
+                    state.attachedTools.forEach { tool ->
+                        item(
+                            onClick = { selectedTool = tool },
+                            headlineContent = {
+                                Text(tool.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            },
+                            supportingContent = tool.description?.let { desc ->
+                                {
+                                    Text(
+                                        text = desc,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            },
+                            leadingContent = {
+                                Icon(
+                                    LettaIcons.Tool,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                        )
+                    }
+                }
+                item(
+                    onClick = { showToolPicker = true },
+                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_tools)) },
+                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                )
+            }
+        }
+
+        // ── System Prompt ──
+        item(key = "system_prompt") {
+            CardGroup(title = { Text(stringResource(R.string.common_system_prompt) + " (${state.systemPrompt.length} chars)") }) {
+                item(
+                    headlineContent = {
+                        OutlinedTextField(
+                            value = state.systemPrompt,
+                            onValueChange = onSystemPromptChange,
+                            label = { Text(stringResource(R.string.common_system_prompt)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 5,
+                        )
+                    },
+                )
+            }
+        }
+
+        // ── Tags ──
+        item(key = "tags") {
+            var newTag by remember { mutableStateOf("") }
+            CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
+                if (state.tags.isNotEmpty()) {
+                    item(
+                        headlineContent = {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                state.tags.forEach { tag ->
+                                    InputChip(
+                                        selected = false,
+                                        onClick = { onRemoveTag(tag) },
+                                        label = { Text(tag) },
+                                        trailingIcon = {
+                                            Icon(
+                                                LettaIcons.Close,
+                                                contentDescription = stringResource(R.string.screen_agent_edit_remove_tag),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
+                item(
+                    headlineContent = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = newTag,
+                                onValueChange = { newTag = it },
+                                label = { Text(stringResource(R.string.screen_agent_edit_new_tag)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            FilledTonalButton(
+                                onClick = { onAddTag(newTag); newTag = "" },
+                                enabled = newTag.isNotBlank(),
+                            ) { Text(stringResource(R.string.action_add)) }
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    // ── Dialogs ──
+
+    selectedTool?.let { tool ->
+        ToolDetailDialog(
+            tool = tool,
+            onDismiss = { selectedTool = null },
         )
     }
 
+    if (showAddBlockDialog) {
+        AddBlockDialog(
+            onDismiss = { showAddBlockDialog = false },
+            onAdd = { label, value, description, limit ->
+                onAddBlock(label, value, description, limit)
+                showAddBlockDialog = false
+            },
+        )
+    }
+
+    if (showAttachBlockDialog) {
+        BlockPickerDialog(
+            excludedBlockIds = state.blocks.map { it.id },
+            onDismiss = { showAttachBlockDialog = false },
+            onConfirm = { selectedIds ->
+                selectedIds.forEach(onAttachExistingBlock)
+                showAttachBlockDialog = false
+            },
+        )
+    }
+
+    if (showToolPicker) {
+        ToolPickerDialog(
+            tools = state.availableTools.filter { candidate ->
+                state.attachedTools.none { attached -> attached.id == candidate.id }
+            },
+            selectedToolIds = emptyList(),
+            title = stringResource(R.string.screen_agent_edit_attach_tools),
+            onDismiss = { showToolPicker = false },
+            onConfirm = { selectedIds ->
+                selectedIds.forEach(onAttachTool)
+                showToolPicker = false
+            },
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Memory block item
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MemoryBlockItem(
+    block: EditAgentUiState.BlockState,
+    onValueChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onLimitChange: (Int?) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = if (block.readOnly) {
+            Modifier.fillMaxWidth()
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showDeleteConfirm = true },
+                )
+        },
+    ) {
+        OutlinedTextField(
+            value = block.value,
+            onValueChange = onValueChange,
+            label = { Text(block.label) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            enabled = !block.readOnly,
+            supportingText = block.limit?.let { limit ->
+                { Text("${block.value.length}/$limit chars") }
+            },
+        )
+        OutlinedTextField(
+            value = block.description.orEmpty(),
+            onValueChange = onDescriptionChange,
+            label = { Text(stringResource(R.string.common_description)) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            enabled = !block.readOnly,
+        )
+        OutlinedTextField(
+            value = block.limit?.toString().orEmpty(),
+            onValueChange = { value ->
+                if (value.isBlank() || value.toIntOrNull() != null) {
+                    onLimitChange(value.toIntOrNull())
+                }
+            },
+            label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = !block.readOnly,
+        )
+        if (block.isTemplate || block.readOnly) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (block.isTemplate) {
+                    InputChip(
+                        selected = false,
+                        onClick = {},
+                        label = { Text(stringResource(R.string.screen_agent_edit_block_template)) },
+                    )
+                }
+                if (block.readOnly) {
+                    InputChip(
+                        selected = false,
+                        onClick = {},
+                        label = { Text(stringResource(R.string.screen_agent_edit_block_read_only)) },
+                    )
+                }
+            }
+        }
+    }
+
     ConfirmDialog(
-        show = showDetachDialog,
-        title = stringResource(R.string.screen_tools_dialog_remove_title),
-        message = stringResource(R.string.screen_tools_dialog_remove_confirm, tool.name),
+        show = showDeleteConfirm,
+        title = stringResource(R.string.screen_agent_edit_detach_block_title, block.label),
+        message = stringResource(R.string.screen_agent_edit_detach_block_message),
         confirmText = stringResource(R.string.action_remove),
         dismissText = stringResource(R.string.action_cancel),
-        onConfirm = { showDetachDialog = false; onDetach() },
-        onDismiss = { showDetachDialog = false },
+        onConfirm = { showDeleteConfirm = false; onDelete() },
+        onDismiss = { showDeleteConfirm = false },
         destructive = true,
     )
 }
+
+// ---------------------------------------------------------------------------
+// Add block dialog
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun AddBlockDialog(
+    onDismiss: () -> Unit,
+    onAdd: (label: String, value: String, description: String, limit: Int?) -> Unit,
+) {
+    var newLabel by remember { mutableStateOf("") }
+    var newValue by remember { mutableStateOf("") }
+    var newDescription by remember { mutableStateOf("") }
+    var newLimit by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = newLabel,
+                    onValueChange = { newLabel = it },
+                    label = { Text(stringResource(R.string.common_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = newValue,
+                    onValueChange = { newValue = it },
+                    label = { Text(stringResource(R.string.common_value)) },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = newDescription,
+                    onValueChange = { newDescription = it },
+                    label = { Text(stringResource(R.string.common_description)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+                OutlinedTextField(
+                    value = newLimit,
+                    onValueChange = { value ->
+                        if (value.isBlank() || value.toIntOrNull() != null) {
+                            newLimit = value
+                        }
+                    },
+                    label = { Text(stringResource(R.string.screen_agent_edit_character_limit)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(newLabel, newValue, newDescription, newLimit.toIntOrNull()) },
+                enabled = newLabel.isNotBlank(),
+            ) { Text(stringResource(R.string.action_create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Clone dialog
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun CloneAgentDialog(
+    initialName: String,
+    isCloning: Boolean,
+    onDismiss: () -> Unit,
+    onClone: (cloneName: String?, overrideExistingTools: Boolean, stripMessages: Boolean) -> Unit,
+) {
+    var cloneName by remember(initialName) { mutableStateOf(if (initialName.isBlank()) "" else "$initialName Copy") }
+    var overrideExistingTools by remember { mutableStateOf(true) }
+    var stripMessages by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.screen_settings_clone_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.screen_settings_clone_dialog_helper),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = cloneName,
+                    onValueChange = { cloneName = it },
+                    label = { Text(stringResource(R.string.screen_settings_clone_name_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_override_tools_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_override_tools_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = overrideExistingTools, onCheckedChange = { overrideExistingTools = it })
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.screen_agents_import_strip_messages_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.screen_agents_import_strip_messages_helper),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = stripMessages, onCheckedChange = { stripMessages = it })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onClone(cloneName.ifBlank { null }, overrideExistingTools, stripMessages)
+                },
+                enabled = !isCloning,
+            ) {
+                Text(stringResource(R.string.action_clone_agent))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isCloning) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Tool detail dialog
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun ToolDetailDialog(
@@ -744,4 +969,26 @@ private fun ToolDetailDialog(
             }
         },
     )
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+private fun shareAgentExport(context: Context, exportData: String): Boolean {
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, exportData)
+        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.screen_settings_export_subject))
+    }
+
+    val chooser = Intent.createChooser(shareIntent, context.getString(R.string.action_export_agent))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    try {
+        context.startActivity(chooser)
+        return true
+    } catch (_: ActivityNotFoundException) {
+        return false
+    }
 }

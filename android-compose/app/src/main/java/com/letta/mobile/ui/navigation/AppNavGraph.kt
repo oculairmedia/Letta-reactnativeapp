@@ -27,6 +27,8 @@ import com.letta.mobile.NotificationNavigationTarget
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.screens.projects.ProjectHomeScreen
 import com.letta.mobile.ui.screens.about.AboutScreen
+import com.letta.mobile.ui.screens.bot.BotConfigEditScreen
+import com.letta.mobile.ui.screens.bot.BotSettingsScreen
 import com.letta.mobile.ui.screens.agentlist.AgentListScreen
 import com.letta.mobile.ui.screens.archives.ArchiveAdminScreen
 import com.letta.mobile.ui.screens.archival.ArchivalScreen
@@ -193,6 +195,7 @@ fun AppNavGraph(
                         onNavigateToMessageBatches = { navController.navigate(MessageBatchesRoute) },
                         onNavigateToMcp = { navController.navigate(McpRoute) },
                         onNavigateToAbout = { navController.navigate(AboutRoute) },
+                        onNavigateToBotSettings = { navController.navigate(BotSettingsRoute) },
                     )
                 } else {
                     ConversationsScreen(
@@ -214,6 +217,7 @@ fun AppNavGraph(
                         onNavigateToMessageBatches = { navController.navigate(MessageBatchesRoute) },
                         onNavigateToMcp = { navController.navigate(McpRoute) },
                         onNavigateToAbout = { navController.navigate(AboutRoute) },
+                        onNavigateToBotSettings = { navController.navigate(BotSettingsRoute) },
                     )
                 }
             }
@@ -349,6 +353,31 @@ fun AppNavGraph(
 
         composable<McpServerToolsRoute> {
             McpServerToolsScreen(
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable<BotSettingsRoute>(
+            enterTransition = drillInEnter,
+            exitTransition = drillInExit,
+            popEnterTransition = drillInPopEnter,
+            popExitTransition = drillInPopExit,
+        ) {
+            BotSettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToEdit = { configId ->
+                    navController.navigate(BotConfigEditRoute(configId))
+                },
+            )
+        }
+
+        composable<BotConfigEditRoute>(
+            enterTransition = drillInEnter,
+            exitTransition = drillInExit,
+            popEnterTransition = drillInPopEnter,
+            popExitTransition = drillInPopExit,
+        ) {
+            BotConfigEditScreen(
                 onNavigateBack = { navController.popBackStack() },
             )
         }

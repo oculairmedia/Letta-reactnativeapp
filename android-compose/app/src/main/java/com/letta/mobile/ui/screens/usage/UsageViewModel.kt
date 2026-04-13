@@ -79,13 +79,17 @@ class UsageViewModel @Inject constructor(
                 val now = Instant.now()
                 val windowStart = now.minus(timeRange.hours.toLong(), ChronoUnit.HOURS)
 
-                val steps = stepRepository.listSteps(
-                    StepListParams(
-                        startDate = windowStart.toString(),
-                        endDate = now.toString(),
-                        limit = 1000,
-                    ),
-                )
+                // Steps endpoint may not be available on all server versions;
+                // degrade gracefully so runs-based data still renders.
+                val steps = runCatching {
+                    stepRepository.listSteps(
+                        StepListParams(
+                            startDate = windowStart.toString(),
+                            endDate = now.toString(),
+                            limit = 1000,
+                        ),
+                    )
+                }.getOrDefault(emptyList())
 
                 val recentRuns = runRepository.getRecentRuns(200).filter { run ->
                     val createdAt = run.createdAt ?: return@filter false

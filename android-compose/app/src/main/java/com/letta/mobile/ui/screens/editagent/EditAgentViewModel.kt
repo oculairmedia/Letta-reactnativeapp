@@ -8,10 +8,13 @@ import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
+import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
+import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.util.mapErrorToUserMessage
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -57,13 +60,17 @@ data class EditAgentUiState(
     val agentType: String = "",
     val embeddingDim: Int? = null,
     val embeddingChunkSize: Int? = null,
-)
+    val isCloning: Boolean = false,
+) {
+    typealias BlockState = EditableBlock
+}
 
 @HiltViewModel
 class EditAgentViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val agentRepository: AgentRepository,
     private val blockRepository: BlockRepository,
+    private val messageRepository: MessageRepository,
     private val modelRepository: ModelRepository,
     private val toolRepository: ToolRepository,
 ) : ViewModel() {
@@ -375,6 +382,65 @@ class EditAgentViewModel @Inject constructor(
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to save agent")
+            }
+        }
+    }
+
+    fun exportAgent(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val data = agentRepository.exportAgent(agentId)
+                onResult(data)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to export agent"))
+            }
+        }
+    }
+
+    fun cloneAgent(
+        cloneName: String?,
+        overrideExistingTools: Boolean,
+        stripMessages: Boolean,
+        onSuccess: (ImportedAgentsResponse) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val state = (_uiState.value as? UiState.Success)?.data ?: return@launch
+            _uiState.value = UiState.Success(state.copy(isCloning = true))
+            try {
+                val exportData = agentRepository.exportAgent(agentId)
+                val response = agentRepository.importAgent(
+                    fileName = "${state.name.ifBlank { "agent" }}.json",
+                    fileBytes = exportData.encodeToByteArray(),
+                    overrideName = cloneName?.takeIf { it.isNotBlank() },
+                    overrideExistingTools = overrideExistingTools,
+                    stripMessages = stripMessages,
+                )
+                _uiState.value = UiState.Success(state.copy(isCloning = false))
+                onSuccess(response)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to clone agent"))
+            }
+        }
+    }
+
+    fun resetMessages(onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                messageRepository.resetMessages(agentId)
+                onSuccess()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to reset messages"))
+            }
+        }
+    }
+
+    fun deleteAgent(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                agentRepository.deleteAgent(agentId)
+                onSuccess()
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(mapErrorToUserMessage(e, "Failed to delete agent"))
             }
         }
     }

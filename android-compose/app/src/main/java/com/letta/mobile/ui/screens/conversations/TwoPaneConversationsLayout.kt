@@ -42,6 +42,7 @@ fun TwoPaneConversationsLayout(
     onNavigateToMessageBatches: () -> Unit,
     onNavigateToMcp: () -> Unit,
     onNavigateToAbout: () -> Unit,
+    onNavigateToBotSettings: () -> Unit = {},
 ) {
     val windowSizeClass = LocalWindowSizeClass.current
     val listPaneWidth = if (windowSizeClass.isWideWidth) 400.dp else 340.dp
@@ -73,6 +74,7 @@ fun TwoPaneConversationsLayout(
             onNavigateToMessageBatches = onNavigateToMessageBatches,
             onNavigateToMcp = onNavigateToMcp,
             onNavigateToAbout = onNavigateToAbout,
+            onNavigateToBotSettings = onNavigateToBotSettings,
             modifier = Modifier
                 .width(listPaneWidth)
                 .fillMaxHeight(),

@@ -23,6 +23,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object ModelsRoute
 @Serializable data object AllToolsRoute
 @Serializable data object UsageRoute
+@Serializable data object BotSettingsRoute
+@Serializable data class BotConfigEditRoute(val configId: String? = null)
 
 @Serializable
 data class McpServerToolsRoute(val serverId: String)

@@ -99,6 +99,7 @@ fun ConversationsScreen(
     onNavigateToMessageBatches: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToBotSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
@@ -202,6 +203,11 @@ fun ConversationsScreen(
                             text = { Text(stringResource(R.string.screen_nav_mcp_servers)) },
                             onClick = { showOverflowMenu = false; onNavigateToMcp() },
                             leadingIcon = { Icon(LettaIcons.Cloud, contentDescription = null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Bot Settings") },
+                            onClick = { showOverflowMenu = false; onNavigateToBotSettings() },
+                            leadingIcon = { Icon(LettaIcons.Agent, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.screen_about_title)) },
