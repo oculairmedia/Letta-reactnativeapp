@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.letta.mobile.NotificationNavigationTarget
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.screens.projects.ProjectHomeScreen
+import com.letta.mobile.ui.screens.dashboard.HomeScreen
 import com.letta.mobile.ui.screens.about.AboutScreen
 import com.letta.mobile.ui.screens.bot.BotConfigEditScreen
 import com.letta.mobile.ui.screens.bot.BotSettingsScreen
@@ -139,11 +140,38 @@ fun AppNavGraph(
                 startDestination = startDestination
             ) {
         composable<HomeRoute> {
-            LaunchedEffect(Unit) {
-                navController.navigate(ConversationsRoute) {
-                    popUpTo<HomeRoute> { inclusive = true }
-                }
-            }
+            HomeScreen(
+                onNavigateToAgents = { navController.navigate(AgentListRoute) },
+                onNavigateToConversations = { navController.navigate(ConversationsRoute) },
+                onNavigateToTools = { navController.navigate(AllToolsRoute) },
+                onNavigateToBlocks = { navController.navigate(BlocksRoute) },
+                onNavigateToSettings = { navController.navigate(ConfigRoute) },
+                onNavigateToChat = { agentId, initialMessage ->
+                    navController.navigate(AgentChatRoute(agentId = agentId, initialMessage = initialMessage))
+                },
+                onNavigateToChatMessage = { agentId, conversationId, messageId ->
+                    navController.navigate(AgentChatRoute(agentId = agentId, conversationId = conversationId, scrollToMessageId = messageId))
+                },
+                onNavigateToEditAgent = { agentId ->
+                    navController.navigate(EditAgentRoute(agentId))
+                },
+                onNavigateToUsage = { navController.navigate(UsageRoute) },
+                onNavigateToTemplates = { navController.navigate(TemplatesRoute) },
+                onNavigateToArchives = { navController.navigate(ArchivesRoute) },
+                onNavigateToFolders = { navController.navigate(FoldersRoute) },
+                onNavigateToGroups = { navController.navigate(GroupsRoute) },
+                onNavigateToProviders = { navController.navigate(ProvidersRoute) },
+                onNavigateToIdentities = { navController.navigate(IdentitiesRoute) },
+                onNavigateToSchedules = { navController.navigate(SchedulesRoute) },
+                onNavigateToRuns = { navController.navigate(RunsRoute) },
+                onNavigateToJobs = { navController.navigate(JobsRoute) },
+                onNavigateToMessageBatches = { navController.navigate(MessageBatchesRoute) },
+                onNavigateToMcp = { navController.navigate(McpRoute) },
+                onNavigateToAbout = { navController.navigate(AboutRoute) },
+                onNavigateToBotSettings = { navController.navigate(BotSettingsRoute) },
+                onNavigateToProjects = { navController.navigate(ProjectsRoute) },
+                onNavigateToModels = { navController.navigate(ModelsRoute) },
+            )
         }
 
         composable<UsageRoute>(
@@ -239,7 +267,7 @@ fun AppNavGraph(
                     if (navController.previousBackStackEntry != null) {
                         navController.popBackStack()
                     } else {
-                        navController.navigate(ConversationsRoute) {
+                        navController.navigate(HomeRoute) {
                             popUpTo<ConfigRoute> { inclusive = true }
                         }
                     }

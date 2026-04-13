@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -31,14 +32,19 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +63,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
@@ -86,13 +93,191 @@ fun HomeScreen(
     onNavigateToChatMessage: (agentId: String, conversationId: String, messageId: String) -> Unit,
     onNavigateToEditAgent: (agentId: String) -> Unit,
     onNavigateToUsage: () -> Unit,
+    onNavigateToTemplates: () -> Unit = {},
+    onNavigateToArchives: () -> Unit = {},
+    onNavigateToFolders: () -> Unit = {},
+    onNavigateToGroups: () -> Unit = {},
+    onNavigateToProviders: () -> Unit = {},
+    onNavigateToIdentities: () -> Unit = {},
+    onNavigateToSchedules: () -> Unit = {},
+    onNavigateToRuns: () -> Unit = {},
+    onNavigateToJobs: () -> Unit = {},
+    onNavigateToMessageBatches: () -> Unit = {},
+    onNavigateToMcp: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
+    onNavigateToBotSettings: () -> Unit = {},
+    onNavigateToProjects: () -> Unit = {},
+    onNavigateToModels: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Letta",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Chat, contentDescription = null) },
+                    label = { Text(stringResource(R.string.common_conversations)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToConversations() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.People, contentDescription = null) },
+                    label = { Text(stringResource(R.string.common_agents)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToAgents() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Tool, contentDescription = null) },
+                    label = { Text(stringResource(R.string.common_tools)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToTools() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.ViewModule, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_blocks)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToBlocks() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp, horizontal = 28.dp))
+
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Dashboard, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_templates)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToTemplates() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Storage, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_archives)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToArchives() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.ManageSearch, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_folders)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToFolders() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.ForkRight, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_groups)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToGroups() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Cloud, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_providers)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToProviders() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.AccountCircle, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_identities)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToIdentities() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.AccessTime, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_schedules)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToSchedules() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.ChatOutline, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_runs)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToRuns() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.AccessTime, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_jobs)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToJobs() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.ChatOutline, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_message_batches)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToMessageBatches() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Cloud, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_nav_mcp_servers)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToMcp() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Agent, contentDescription = null) },
+                    label = { Text("Bot Settings") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToBotSettings() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Apps, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_projects_title)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToProjects() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Sparkles, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_models_title)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToModels() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp, horizontal = 28.dp))
+
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Settings, contentDescription = null) },
+                    label = { Text(stringResource(R.string.common_settings)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToSettings() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(LettaIcons.Info, contentDescription = null) },
+                    label = { Text(stringResource(R.string.screen_about_title)) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onNavigateToAbout() },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                }
+            }
+        },
+    ) {
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
@@ -122,6 +307,11 @@ fun HomeScreen(
                         },
                     )
                 },
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(LettaIcons.Menu, contentDescription = "Menu")
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(LettaIcons.Settings, contentDescription = "Settings")
@@ -146,6 +336,7 @@ fun HomeScreen(
             onUnpinAgent = viewModel::unpinAgent,
             modifier = Modifier.padding(paddingValues),
         )
+    }
     }
 }
 

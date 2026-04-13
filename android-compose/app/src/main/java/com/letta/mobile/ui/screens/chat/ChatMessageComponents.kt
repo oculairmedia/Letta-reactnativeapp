@@ -249,11 +249,11 @@ private fun ApprovalRequestCard(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.screen_chat_approval_request_title),
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.chatTypography.toolLabel,
         )
         Text(
             text = stringResource(R.string.screen_chat_approval_request_body),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.chatTypography.toolDetail,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         approval.toolCalls.forEach { toolCall ->
@@ -315,11 +315,11 @@ private fun ApprovalResponseCard(message: UiMessage) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(text = title, style = MaterialTheme.typography.titleSmall)
+        Text(text = title, style = MaterialTheme.chatTypography.toolLabel)
         approval.reason?.takeIf { it.isNotBlank() }?.let { reason ->
             Text(
                 text = reason,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.chatTypography.toolDetail,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

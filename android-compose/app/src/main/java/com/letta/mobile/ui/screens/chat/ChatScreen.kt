@@ -1,7 +1,9 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -70,13 +73,16 @@ fun ChatScreen(
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
     val fontScale by viewModel.chatFontScale.collectAsStateWithLifecycle()
 
+    var activeFontScale by remember { mutableFloatStateOf(fontScale) }
+    LaunchedEffect(fontScale) { activeFontScale = fontScale }
+
     val backgroundModifier = when (chatBackground) {
         is ChatBackground.Default -> Modifier
         is ChatBackground.SolidColor -> Modifier.background(chatBackground.color)
         is ChatBackground.Gradient -> Modifier.background(chatBackground.toBrush())
     }
 
-    LettaChatTheme(fontScale = fontScale) {
+    LettaChatTheme(fontScale = activeFontScale) {
     Column(modifier = modifier.fillMaxSize().then(backgroundModifier).imePadding()) {
         if (state.isLoadingMessages && state.messages.isEmpty()) {
             MessageSkeletonList(modifier = Modifier.weight(1f))
@@ -95,7 +101,8 @@ fun ChatScreen(
                     viewModel.submitApproval(requestId, toolCallIds, approve, reason)
                 },
                 onInputTextChange = { viewModel.updateInputText(it) },
-                fontScale = fontScale,
+                activeFontScale = activeFontScale,
+                onActiveFontScaleChange = { activeFontScale = it },
                 onFontScaleChange = { viewModel.setChatFontScale(it) },
                 modifier = Modifier.weight(1f),
             )
@@ -126,7 +133,8 @@ private fun ChatContent(
     onSendMessage: (String) -> Unit,
     onSubmitApproval: (String, List<String>, Boolean, String?) -> Unit,
     onInputTextChange: (String) -> Unit,
-    fontScale: Float = 1f,
+    activeFontScale: Float = 1f,
+    onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -136,10 +144,7 @@ private fun ChatContent(
     var highlightedMessageId by remember { mutableStateOf<String?>(null) }
     var hasScrolledToTarget by remember { mutableStateOf(false) }
     var showFontIndicator by remember { mutableStateOf(false) }
-    var activeFontScale by remember { mutableFloatStateOf(fontScale) }
     var pinchTick by remember { mutableStateOf(0L) }
-
-    LaunchedEffect(fontScale) { activeFontScale = fontScale }
 
     LaunchedEffect(pinchTick) {
         if (pinchTick > 0) {
@@ -252,12 +257,26 @@ private fun ChatContent(
                 modifier = Modifier
                     .weight(1f)
                     .pointerInput(Unit) {
-                        detectTransformGestures { _, _, zoom, _ ->
-                            if (zoom != 1f) {
-                                val newScale = (activeFontScale * zoom).coerceIn(0.7f, 1.6f)
-                                activeFontScale = newScale
-                                onFontScaleChange(newScale)
-                                pinchTick = System.nanoTime()
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            var isPinching = false
+                            var currentScale = activeFontScale
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val activePointers = event.changes.filter { it.pressed }
+                                if (activePointers.size >= 2) {
+                                    isPinching = true
+                                    val zoom = event.calculateZoom()
+                                    if (zoom != 1f) {
+                                        event.changes.forEach { it.consume() }
+                                        currentScale = (currentScale * zoom).coerceIn(0.7f, 1.6f)
+                                        onActiveFontScaleChange(currentScale)
+                                        pinchTick = System.nanoTime()
+                                    }
+                                }
+                            } while (event.changes.any { it.pressed })
+                            if (isPinching) {
+                                onFontScaleChange(currentScale)
                             }
                         }
                     },

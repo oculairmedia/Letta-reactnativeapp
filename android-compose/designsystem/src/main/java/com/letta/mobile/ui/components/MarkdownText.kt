@@ -134,6 +134,7 @@ private fun CodeFenceWithHeader(
     highlights: Highlights.Builder,
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val fontScale = LocalChatFontScale.current
 
     val (language, codeText) = remember(content, node) {
         extractCodeFenceInfo(content, node)
@@ -154,7 +155,7 @@ private fun CodeFenceWithHeader(
                 ) {
                     Text(
                         text = language.ifEmpty { "code" },
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f),
                     )
