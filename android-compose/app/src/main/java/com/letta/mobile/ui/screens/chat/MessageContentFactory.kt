@@ -12,6 +12,27 @@ import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.theme.chatTypography
 
+object GeneratedUiRenderer : MessageContentRenderer {
+    override fun canRender(message: UiMessage): Boolean = message.generatedUi != null
+
+    @Composable
+    override fun Render(message: UiMessage, textColor: Color, modifier: Modifier) {
+        val generatedUi = message.generatedUi ?: return
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (message.content.isNotBlank()) {
+                MarkdownText(text = message.content, textColor = textColor)
+            }
+
+            val renderer = GeneratedUiRegistry.resolve(generatedUi.name)
+            if (renderer != null) {
+                renderer.Render(component = generatedUi)
+            } else {
+                GeneratedUiFallbackCard(component = generatedUi)
+            }
+        }
+    }
+}
+
 interface MessageContentRenderer {
     fun canRender(message: UiMessage): Boolean
 
@@ -59,7 +80,21 @@ object ToolCallRenderer : MessageContentRenderer {
     }
 }
 
-val defaultRenderers = listOf(ToolCallRenderer, TextMessageRenderer)
+@Composable
+private fun GeneratedUiFallbackCard(component: com.letta.mobile.data.model.UiGeneratedComponent) {
+    GeneratedUiCard(title = component.name) {
+        component.fallbackText?.takeIf { it.isNotBlank() }?.let {
+            Text(text = it, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            text = component.propsJson,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+val defaultRenderers = listOf(GeneratedUiRenderer, ToolCallRenderer, TextMessageRenderer)
 
 fun resolveRenderer(message: UiMessage): MessageContentRenderer {
     return defaultRenderers.firstOrNull { it.canRender(message) } ?: TextMessageRenderer
