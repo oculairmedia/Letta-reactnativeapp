@@ -13,6 +13,7 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -36,7 +37,7 @@ class LettaChatClientTest : WordSpec({
         agentId: String = "agent-1",
         conversationId: String? = "conv-1",
     ): LettaChatClient {
-        val messageRepo = object : MessageRepository(null!!, null!!) {
+        val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
             override suspend fun fetchMessages(agentId: String, conversationId: String?): List<AppMessage> = messages
             override fun getMessages(agentId: String, conversationId: String?): Flow<List<AppMessage>> = flowOf(messages)
             override fun sendMessage(agentId: String, text: String, conversationId: String?): Flow<StreamState> = flow {
@@ -44,7 +45,7 @@ class LettaChatClientTest : WordSpec({
             }
             override suspend fun resetMessages(agentId: String) {}
         }
-        val conversationRepo = object : ConversationRepository(null!!) {
+        val conversationRepo = object : ConversationRepository(mockk(relaxed = true)) {
             override fun getConversations(agentId: String): Flow<List<Conversation>> = flowOf(conversations)
             override suspend fun refreshConversations(agentId: String) {}
             override suspend fun createConversation(agentId: String, summary: String?): Conversation = fakeConversation("new-conv", agentId)

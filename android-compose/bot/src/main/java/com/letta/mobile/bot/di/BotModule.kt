@@ -6,6 +6,8 @@ import com.letta.mobile.bot.context.ConnectivityContextProvider
 import com.letta.mobile.bot.context.DeviceContextProvider
 import com.letta.mobile.bot.config.IBotServerProfileStore
 import com.letta.mobile.bot.context.TimeContextProvider
+import com.letta.mobile.bot.runtime.DefaultLettaRuntimeClient
+import com.letta.mobile.bot.runtime.LettaRuntimeClient
 import com.letta.mobile.bot.tools.AndroidExecutionBridge
 import com.letta.mobile.bot.tools.DefaultAndroidExecutionBridge
 import dagger.Binds
@@ -25,6 +27,9 @@ import dagger.multibindings.IntoSet
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class BotModule {
+
+    @Binds
+    abstract fun bindLettaRuntimeClient(impl: DefaultLettaRuntimeClient): LettaRuntimeClient
 
     @Binds
     abstract fun bindAndroidExecutionBridge(impl: DefaultAndroidExecutionBridge): AndroidExecutionBridge
