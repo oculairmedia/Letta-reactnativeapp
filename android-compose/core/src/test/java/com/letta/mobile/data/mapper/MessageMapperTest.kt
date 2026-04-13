@@ -1,6 +1,10 @@
 package com.letta.mobile.data.mapper
 
+import com.letta.mobile.data.model.ApprovalRequestMessage
+import com.letta.mobile.data.model.ApprovalResponseMessage
+import com.letta.mobile.data.model.ApprovalResult
 import com.letta.mobile.data.model.MessageType
+import com.letta.mobile.data.model.ToolCall
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -279,6 +283,82 @@ class MessageMapperTest : WordSpec({
             ui[0].generatedUi.shouldNotBeNull()
             ui[0].generatedUi!!.name shouldBe "summary_card"
             ui[0].generatedUi!!.propsJson shouldBe "{\"title\":\"Today\",\"body\":\"3 tasks pending\"}"
+        }
+
+        "promote suggestion chip tool results into assistant generated ui messages" {
+            val messages = listOf(
+                TestData.appMessage(
+                    id = "m1",
+                    messageType = MessageType.TOOL_CALL,
+                    content = "{\"title\":\"Next steps\"}",
+                    toolName = "render_suggestion_chips",
+                    toolCallId = "tc-ui-2",
+                ),
+                TestData.appMessage(
+                    id = "m2",
+                    messageType = MessageType.TOOL_RETURN,
+                    content = "{\"type\":\"generated_ui\",\"component\":\"suggestion_chips\",\"props\":{\"title\":\"Next steps\",\"suggestions\":[{\"label\":\"Explain coroutines\",\"message\":\"Explain Kotlin coroutines\"}]},\"text\":\"Choose a follow-up\"}",
+                    toolName = "render_suggestion_chips",
+                    toolCallId = "tc-ui-2",
+                ),
+            )
+
+            val ui = messages.toUiMessages()
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "assistant"
+            ui[0].generatedUi.shouldNotBeNull()
+            ui[0].generatedUi!!.name shouldBe "suggestion_chips"
+            ui[0].content shouldBe "Choose a follow-up"
+        }
+
+        "map approval requests to dedicated approval ui messages" {
+            val messages = listOf(
+                ApprovalRequestMessage(
+                    id = "approval-1",
+                    toolCalls = listOf(
+                        ToolCall(
+                            toolCallId = "tool-call-1",
+                            name = "Bash",
+                            arguments = "{\"command\":\"rm -rf /tmp/demo\"}",
+                        )
+                    ),
+                ).toAppMessage()!!,
+            )
+
+            val ui = messages.toUiMessages()
+
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "approval"
+            ui[0].approvalRequest.shouldNotBeNull()
+            ui[0].approvalRequest!!.requestId shouldBe "approval-1"
+            ui[0].approvalRequest!!.toolCalls.single().name shouldBe "Bash"
+        }
+
+        "map approval responses to dedicated approval ui messages" {
+            val messages = listOf(
+                ApprovalResponseMessage(
+                    id = "approval-response-1",
+                    approvalRequestId = "approval-1",
+                    approve = false,
+                    reason = "Unsafe command",
+                    approvals = listOf(
+                        ApprovalResult(
+                            toolCallId = "tool-call-1",
+                            approve = false,
+                            status = "rejected",
+                            reason = "Unsafe command",
+                        )
+                    ),
+                ).toAppMessage()!!,
+            )
+
+            val ui = messages.toUiMessages()
+
+            ui shouldHaveSize 1
+            ui[0].role shouldBe "approval"
+            ui[0].approvalResponse.shouldNotBeNull()
+            ui[0].approvalResponse!!.approved shouldBe false
+            ui[0].approvalResponse!!.reason shouldBe "Unsafe command"
         }
     }
 

@@ -1,7 +1,12 @@
 package com.letta.mobile.data.mapper
 
 import com.letta.mobile.data.model.AppMessage
+import com.letta.mobile.data.model.ApprovalDecisionPayload
 import com.letta.mobile.data.model.ApprovalRequestMessage
+import com.letta.mobile.data.model.ApprovalRequestPayload
+import com.letta.mobile.data.model.ApprovalResponseMessage
+import com.letta.mobile.data.model.ApprovalResponsePayload
+import com.letta.mobile.data.model.ApprovalToolCallPayload
 import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.GeneratedUiPayload
 import com.letta.mobile.data.model.LettaMessage
@@ -10,6 +15,10 @@ import com.letta.mobile.data.model.ReasoningMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
+import com.letta.mobile.data.model.UiApprovalDecision
+import com.letta.mobile.data.model.UiApprovalRequest
+import com.letta.mobile.data.model.UiApprovalResponse
+import com.letta.mobile.data.model.UiApprovalToolCall
 import com.letta.mobile.data.model.UiGeneratedComponent
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
@@ -32,7 +41,11 @@ class MessageMappingState internal constructor(
     internal val toolCallsById: MutableMap<String, ToolCallContext> = mutableMapOf(),
 )
 
-private val generatedUiToolNames = setOf("render_summary_card", "render_metric_card")
+private val generatedUiToolNames = setOf(
+    "render_summary_card",
+    "render_metric_card",
+    "render_suggestion_chips",
+)
 
 fun List<LettaMessage>.toAppMessages(): List<AppMessage> {
     val state = MessageMappingState()
@@ -87,23 +100,26 @@ fun LettaMessage.toAppMessage(state: MessageMappingState): AppMessage? {
             )
         }
         is ApprovalRequestMessage -> {
-            // ApprovalRequestMessage carries tool call details (name, arguments, id)
-            // just like ToolCallMessage — the server returns these instead of
-            // tool_call_message for agents with approval enabled.
-            val toolCall = effectiveToolCalls.firstOrNull()
-            val toolCallId = toolCall?.effectiveId
-            val toolName = toolCall?.name
-            val arguments = toolCall?.arguments.orEmpty()
-            if (!toolCallId.isNullOrBlank() && !toolName.isNullOrBlank()) {
+            val toolCalls = effectiveToolCalls.mapNotNull { toolCall ->
+                val toolCallId = toolCall.effectiveId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val toolName = toolCall.name?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val arguments = toolCall.arguments.orEmpty()
                 state.toolCallsById[toolCallId] = ToolCallContext(name = toolName, arguments = arguments)
+                ApprovalToolCallPayload(
+                    toolCallId = toolCallId,
+                    name = toolName,
+                    arguments = arguments,
+                )
             }
             AppMessage(
                 id = id,
                 date = date?.toInstant() ?: Instant.now(),
-                messageType = MessageType.TOOL_CALL,
-                content = arguments,
-                toolName = toolName,
-                toolCallId = toolCallId,
+                messageType = MessageType.APPROVAL_REQUEST,
+                content = "",
+                approvalRequest = ApprovalRequestPayload(
+                    requestId = id,
+                    toolCalls = toolCalls,
+                ),
             )
         }
         is ToolReturnMessage -> {
@@ -119,6 +135,26 @@ fun LettaMessage.toAppMessage(state: MessageMappingState): AppMessage? {
                 toolReturnStatus = toolReturn.status,
             )
         }
+        is ApprovalResponseMessage -> AppMessage(
+            id = id,
+            date = date?.toInstant() ?: Instant.now(),
+            messageType = MessageType.APPROVAL_RESPONSE,
+            content = "",
+            approvalResponse = ApprovalResponsePayload(
+                requestId = approvalRequestId,
+                approved = approve,
+                reason = reason,
+                approvals = approvals.orEmpty().mapNotNull { approval ->
+                    val toolCallId = approval.toolCallId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    ApprovalDecisionPayload(
+                        toolCallId = toolCallId,
+                        approved = approval.approve,
+                        status = approval.status,
+                        reason = approval.reason,
+                    )
+                },
+            ),
+        )
         else -> null
     }
 }
@@ -247,6 +283,8 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
             MessageType.USER -> result.add(msg.toUiMessage())
             MessageType.ASSISTANT -> result.add(msg.toUiMessage())
             MessageType.REASONING -> result.add(msg.toUiMessage())
+            MessageType.APPROVAL_REQUEST -> result.add(msg.toUiMessage())
+            MessageType.APPROVAL_RESPONSE -> result.add(msg.toUiMessage())
         }
     }
     return result
@@ -294,6 +332,8 @@ fun AppMessage.toUiMessage(): UiMessage {
         MessageType.REASONING -> "assistant"
         MessageType.TOOL_CALL -> "tool"
         MessageType.TOOL_RETURN -> "tool"
+        MessageType.APPROVAL_REQUEST -> "approval"
+        MessageType.APPROVAL_RESPONSE -> "approval"
     }
     val toolCalls = when {
         messageType == MessageType.TOOL_CALL -> {
@@ -322,6 +362,33 @@ fun AppMessage.toUiMessage(): UiMessage {
                 name = it.component,
                 propsJson = it.propsJson,
                 fallbackText = it.fallbackText,
+            )
+        },
+        approvalRequest = approvalRequest?.let {
+            UiApprovalRequest(
+                requestId = it.requestId,
+                toolCalls = it.toolCalls.map { toolCall ->
+                    UiApprovalToolCall(
+                        toolCallId = toolCall.toolCallId,
+                        name = toolCall.name,
+                        arguments = toolCall.arguments,
+                    )
+                },
+            )
+        },
+        approvalResponse = approvalResponse?.let {
+            UiApprovalResponse(
+                requestId = it.requestId,
+                approved = it.approved,
+                reason = it.reason,
+                approvals = it.approvals.map { approval ->
+                    UiApprovalDecision(
+                        toolCallId = approval.toolCallId,
+                        approved = approval.approved,
+                        status = approval.status,
+                        reason = approval.reason,
+                    )
+                },
             )
         },
     )
