@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,8 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -46,6 +49,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -72,6 +76,9 @@ import com.letta.mobile.ui.components.ChatBackgroundPicker
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ConnectionState
 import com.letta.mobile.ui.components.ConnectionStatusBanner
+import com.letta.mobile.ui.components.MarkdownText
+import com.letta.mobile.ui.components.Accordions
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.theme.ChatBackground
 
 import com.letta.mobile.util.ConnectivityMonitor
@@ -85,6 +92,7 @@ import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaTopBarDefaults
 import com.letta.mobile.ui.theme.customColors
+import com.letta.mobile.ui.theme.listItemHeadline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,6 +186,11 @@ fun AgentScaffold(
             ) {
                 projectContext?.let { project ->
                     ProjectContextCard(project = project)
+                    ProjectBriefCard(
+                        brief = uiState.projectBrief,
+                        onRetry = viewModel::loadProjectBrief,
+                        onSaveSection = viewModel::saveProjectBriefSection,
+                    )
                 }
                 AgentConversationHeader(
                     agentId = agentId,
@@ -209,6 +222,176 @@ fun AgentScaffold(
             },
         )
     }
+}
+
+@Composable
+private fun ProjectBriefCard(
+    brief: ProjectBriefUiState,
+    onRetry: () -> Unit,
+    onSaveSection: (ProjectBriefSectionKey, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val editableState = remember { mutableStateMapOf<ProjectBriefSectionKey, String>() }
+    val editingState = remember { mutableStateMapOf<ProjectBriefSectionKey, Boolean>() }
+    var expanded by rememberSaveable { mutableStateOf(true) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Accordions(
+            title = stringResource(R.string.screen_project_brief_title),
+            subtitle = stringResource(R.string.screen_project_brief_subtitle),
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (brief.isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = stringResource(R.string.screen_project_brief_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                brief.error?.let { error ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            OutlinedButton(onClick = onRetry) {
+                                Text(stringResource(R.string.action_retry))
+                            }
+                        }
+                    }
+                }
+
+                if (!brief.isLoading && brief.sections.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.screen_project_brief_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                ProjectBriefSectionKey.entries.forEach { key ->
+                    val section = brief.sections[key] ?: return@forEach
+                    val isEditing = editingState[key] == true
+                    val draft = editableState[key] ?: section.content
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceBright,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            FormItem(
+                                label = {
+                                    Text(
+                                        text = sectionTitleFor(key),
+                                        style = MaterialTheme.typography.listItemHeadline,
+                                    )
+                                },
+                                description = {
+                                    section.updatedAt?.let {
+                                        Text(
+                                            text = stringResource(
+                                                R.string.screen_project_brief_last_updated,
+                                                formatRelativeTime(it),
+                                            ),
+                                        )
+                                    } ?: Text(stringResource(R.string.screen_project_brief_memory_backed))
+                                },
+                                tail = {
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (isEditing) {
+                                                onSaveSection(key, draft)
+                                                editingState[key] = false
+                                            } else {
+                                                editableState[key] = section.content
+                                                editingState[key] = true
+                                            }
+                                        },
+                                        enabled = !brief.isSaving,
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                if (isEditing) R.string.action_save else R.string.action_edit
+                                            )
+                                        )
+                                    }
+                                },
+                            )
+
+                            if (isEditing) {
+                                OutlinedTextField(
+                                    value = draft,
+                                    onValueChange = { editableState[key] = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = minLinesFor(key),
+                                    enabled = !brief.isSaving,
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    MarkdownText(
+                                        text = section.content,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun sectionTitleFor(key: ProjectBriefSectionKey): String = when (key) {
+    ProjectBriefSectionKey.Description -> stringResource(R.string.screen_project_brief_description_title)
+    ProjectBriefSectionKey.KeyDecisions -> stringResource(R.string.screen_project_brief_decisions_title)
+    ProjectBriefSectionKey.TechStack -> stringResource(R.string.screen_project_brief_tech_stack_title)
+    ProjectBriefSectionKey.ActiveGoals -> stringResource(R.string.screen_project_brief_goals_title)
+    ProjectBriefSectionKey.RecentChanges -> stringResource(R.string.screen_project_brief_recent_changes_title)
+}
+
+private fun minLinesFor(key: ProjectBriefSectionKey): Int = when (key) {
+    ProjectBriefSectionKey.Description -> 5
+    ProjectBriefSectionKey.KeyDecisions -> 4
+    ProjectBriefSectionKey.TechStack -> 3
+    ProjectBriefSectionKey.ActiveGoals -> 4
+    ProjectBriefSectionKey.RecentChanges -> 4
 }
 
 @Composable
