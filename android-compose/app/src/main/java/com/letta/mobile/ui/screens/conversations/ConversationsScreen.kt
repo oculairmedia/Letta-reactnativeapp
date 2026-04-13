@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,7 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.DateSeparator
 import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.TextInputDialog
@@ -102,6 +104,7 @@ fun ConversationsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAgentPickerDialog by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -110,7 +113,19 @@ fun ConversationsScreen(
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text(stringResource(R.string.common_conversations)) },
+                title = {
+                    ExpandableTitleSearch(
+                        query = uiState.searchQuery,
+                        onQueryChange = viewModel::updateSearchQuery,
+                        onClear = { viewModel.updateSearchQuery("") },
+                        expanded = isSearchExpanded,
+                        onExpandedChange = { isSearchExpanded = it },
+                        placeholder = stringResource(R.string.screen_conversations_search_hint),
+                        titleContent = {
+                            Text(stringResource(R.string.common_conversations))
+                        },
+                    )
+                },
                 scrollBehavior = scrollBehavior,
                 colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
                 actions = {
@@ -209,11 +224,17 @@ fun ConversationsScreen(
                 onRetry = { viewModel.loadConversations() },
                 modifier = Modifier.padding(paddingValues)
             )
-            else -> ConversationsContent(
-                state = uiState,
-                onConversationClick = { display ->
-                    onNavigateToChat(display.conversation.agentId, display.conversation.id)
-                },
+            else -> {
+                val filteredConversations = remember(uiState.conversations, uiState.searchQuery) {
+                    viewModel.getFilteredConversations()
+                }
+                ConversationsContent(
+                    conversations = filteredConversations,
+                    isRefreshing = uiState.isRefreshing,
+                    isSearchActive = uiState.searchQuery.isNotBlank(),
+                    onConversationClick = { display ->
+                        onNavigateToChat(display.conversation.agentId, display.conversation.id)
+                    },
                 onOpenAdmin = { display -> viewModel.openConversationAdmin(display) },
                 onDeleteConversation = { viewModel.deleteConversation(it.conversation.id) },
                 onRenameConversation = { display, newName ->
@@ -228,6 +249,7 @@ fun ConversationsScreen(
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.padding(paddingValues)
             )
+            }
         }
     }
 
@@ -265,7 +287,9 @@ fun ConversationsScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationsContent(
-    state: ConversationsUiState,
+    conversations: List<ConversationDisplay>,
+    isRefreshing: Boolean,
+    isSearchActive: Boolean,
     onConversationClick: (ConversationDisplay) -> Unit,
     onOpenAdmin: (ConversationDisplay) -> Unit,
     onDeleteConversation: (ConversationDisplay) -> Unit,
@@ -275,21 +299,24 @@ private fun ConversationsContent(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (state.conversations.isEmpty()) {
+    if (conversations.isEmpty()) {
         EmptyState(
             icon = LettaIcons.ChatOutline,
-            message = stringResource(R.string.screen_conversations_empty),
+            message = stringResource(
+                if (isSearchActive) R.string.screen_conversations_search_empty
+                else R.string.screen_conversations_empty
+            ),
             modifier = modifier.fillMaxSize()
         )
     } else {
         @OptIn(ExperimentalMaterial3Api::class)
         PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
+            isRefreshing = isRefreshing,
             onRefresh = onRefresh,
             modifier = modifier.fillMaxSize(),
         ) {
-            val sections = remember(state.conversations) {
-                buildConversationSections(state.conversations)
+            val sections = remember(conversations) {
+                buildConversationSections(conversations)
             }
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),

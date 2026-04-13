@@ -157,6 +157,17 @@ class ConversationsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(searchQuery = query)
     }
 
+    fun getFilteredConversations(): List<ConversationDisplay> {
+        val state = _uiState.value
+        if (state.searchQuery.isBlank()) return state.conversations
+        val q = state.searchQuery.trim().lowercase()
+        return state.conversations.filter { display ->
+            (display.conversation.summary?.lowercase()?.contains(q) == true) ||
+                display.agentName.lowercase().contains(q) ||
+                display.conversation.id.lowercase().contains(q)
+        }
+    }
+
     fun renameConversation(conversationId: String, agentId: String, newName: String) {
         viewModelScope.launch {
             try {

@@ -55,6 +55,8 @@
     <string name="common_loading">Loading...</string>
     <string name="error_generic">An error occurred</string>
     <string name="screen_conversations_empty">No conversations yet</string>
+    <string name="screen_conversations_search_empty">No matching conversations</string>
+    <string name="screen_conversations_search_hint">Search conversations\u2026</string>
     <string name="screen_agents_empty">No agents yet</string>
     <string name="screen_tools_empty">No tools available</string>
     <string name="screen_tools_search_hint">Search tools…</string>
