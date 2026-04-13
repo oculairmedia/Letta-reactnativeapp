@@ -16,18 +16,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
-import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownHighlightedCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownHighlightedCodeFence
@@ -92,38 +93,52 @@ fun MarkdownText(
         )
     }
 
-    Markdown(
-        content = text,
-        modifier = modifier.fillMaxWidth(),
-        components = components,
-        extendedSpans = extendedSpans,
-        colors = markdownColor(
-            text = textColor,
-            codeText = MaterialTheme.colorScheme.onSurfaceVariant,
-            codeBackground = MaterialTheme.colorScheme.surfaceVariant,
-            dividerColor = MaterialTheme.colorScheme.outlineVariant,
-            linkText = MaterialTheme.colorScheme.primary,
-        ),
-        typography = markdownTypography(
-            text = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
-            code = MaterialTheme.typography.labelSmall.copy(
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            ).scaledBy(fontScale),
-            h1 = MaterialTheme.typography.titleLarge.copy(color = textColor).scaledBy(fontScale),
-            h2 = MaterialTheme.typography.titleMedium.copy(color = textColor).scaledBy(fontScale),
-            h3 = MaterialTheme.typography.titleSmall.copy(color = textColor).scaledBy(fontScale),
-            h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor).scaledBy(fontScale),
-            h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
-            h6 = MaterialTheme.typography.bodySmall.copy(color = textColor).scaledBy(fontScale),
-            quote = MaterialTheme.typography.bodyMedium.copy(
-                color = textColor.copy(alpha = 0.7f),
-            ).scaledBy(fontScale),
-            bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
-            list = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
-            ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
-        ),
-    )
+    // Override LocalDensity to scale all sp values for the Markdown library.
+    // This works because sp → px conversion uses Density.fontScale, so changing
+    // it effectively scales all text rendered inside the provider — including
+    // the library's internal rendering that ignores external typography changes.
+    val currentDensity = LocalDensity.current
+    val scaledDensity = remember(currentDensity, fontScale) {
+        Density(
+            density = currentDensity.density,
+            fontScale = currentDensity.fontScale * fontScale,
+        )
+    }
+
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        Markdown(
+            content = text,
+            modifier = modifier.fillMaxWidth(),
+            components = components,
+            extendedSpans = extendedSpans,
+            colors = markdownColor(
+                text = textColor,
+                codeText = MaterialTheme.colorScheme.onSurfaceVariant,
+                codeBackground = MaterialTheme.colorScheme.surfaceVariant,
+                dividerColor = MaterialTheme.colorScheme.outlineVariant,
+                linkText = MaterialTheme.colorScheme.primary,
+            ),
+            typography = markdownTypography(
+                text = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                code = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                h1 = MaterialTheme.typography.titleLarge.copy(color = textColor),
+                h2 = MaterialTheme.typography.titleMedium.copy(color = textColor),
+                h3 = MaterialTheme.typography.titleSmall.copy(color = textColor),
+                h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor),
+                h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                h6 = MaterialTheme.typography.bodySmall.copy(color = textColor),
+                quote = MaterialTheme.typography.bodyMedium.copy(
+                    color = textColor.copy(alpha = 0.7f),
+                ),
+                bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                list = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            ),
+        )
+    }
 }
 
 @Composable
@@ -134,7 +149,6 @@ private fun CodeFenceWithHeader(
     highlights: Highlights.Builder,
 ) {
     val clipboardManager = LocalClipboardManager.current
-    val fontScale = LocalChatFontScale.current
 
     val (language, codeText) = remember(content, node) {
         extractCodeFenceInfo(content, node)
@@ -155,7 +169,7 @@ private fun CodeFenceWithHeader(
                 ) {
                     Text(
                         text = language.ifEmpty { "code" },
-                        style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f),
                     )
@@ -192,14 +206,6 @@ private fun CodeFenceWithHeader(
             }
         }
     }
-}
-
-private fun TextStyle.scaledBy(factor: Float): TextStyle {
-    if (factor == 1f) return this
-    return copy(
-        fontSize = if (fontSize.isSpecified) (fontSize.value * factor).sp else fontSize,
-        lineHeight = if (lineHeight.isSpecified) (lineHeight.value * factor).sp else lineHeight,
-    )
 }
 
 private fun extractCodeFenceInfo(content: String, node: ASTNode): Pair<String, String> {

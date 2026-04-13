@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LocalChatFontScale
+import com.letta.mobile.ui.theme.scaledBy
 import com.letta.mobile.ui.theme.sectionTitle
 
 @Composable
@@ -36,6 +38,7 @@ fun ThinkingSection(
     inProgress: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val fontScale = LocalChatFontScale.current
     var isExpanded by remember { mutableStateOf(false) }
 
     if (inProgress) {
@@ -55,7 +58,7 @@ fun ThinkingSection(
         ) {
             Text(
                 text = if (inProgress) "Thinking\u2026" else "Show thinking",
-                style = MaterialTheme.typography.sectionTitle,
+                style = MaterialTheme.typography.sectionTitle.scaledBy(fontScale),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Icon(

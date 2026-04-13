@@ -14,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.data.model.UiGeneratedComponent
+import com.letta.mobile.ui.theme.LocalChatFontScale
+import com.letta.mobile.ui.theme.scaledBy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -50,6 +52,7 @@ object SummaryCardRenderer : GeneratedUiComponentRenderer {
         modifier: Modifier,
         onGeneratedUiMessage: ((String) -> Unit)?,
     ) {
+        val fontScale = LocalChatFontScale.current
         val model = runCatching {
             generatedUiJson.decodeFromString<SummaryCardProps>(component.propsJson)
         }.getOrNull()
@@ -59,12 +62,12 @@ object SummaryCardRenderer : GeneratedUiComponentRenderer {
             modifier = modifier,
         ) {
             model?.body?.takeIf { it.isNotBlank() }?.let {
-                Text(text = it, style = MaterialTheme.typography.bodyMedium)
+                Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
             }
             model?.items?.takeIf { it.isNotEmpty() }?.forEach { item ->
                 Text(
                     text = "• $item",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -84,6 +87,7 @@ object MetricCardRenderer : GeneratedUiComponentRenderer {
         modifier: Modifier,
         onGeneratedUiMessage: ((String) -> Unit)?,
     ) {
+        val fontScale = LocalChatFontScale.current
         val model = runCatching {
             generatedUiJson.decodeFromString<MetricCardProps>(component.propsJson)
         }.getOrNull()
@@ -95,14 +99,14 @@ object MetricCardRenderer : GeneratedUiComponentRenderer {
             model?.value?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineSmall.scaledBy(fontScale),
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
             model?.supportingText?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -122,6 +126,7 @@ object SuggestionChipsRenderer : GeneratedUiComponentRenderer {
         modifier: Modifier,
         onGeneratedUiMessage: ((String) -> Unit)?,
     ) {
+        val fontScale = LocalChatFontScale.current
         val model = runCatching {
             generatedUiJson.decodeFromString<SuggestionChipsProps>(component.propsJson)
         }.getOrNull()
@@ -133,7 +138,7 @@ object SuggestionChipsRenderer : GeneratedUiComponentRenderer {
             model?.body?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -168,6 +173,7 @@ internal fun GeneratedUiCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val fontScale = LocalChatFontScale.current
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -180,7 +186,7 @@ internal fun GeneratedUiCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall.scaledBy(fontScale),
                 color = MaterialTheme.colorScheme.onSurface,
             )
             content()
@@ -190,12 +196,13 @@ internal fun GeneratedUiCard(
 
 @Composable
 private fun GeneratedUiFallback(component: UiGeneratedComponent) {
+    val fontScale = LocalChatFontScale.current
     component.fallbackText?.takeIf { it.isNotBlank() }?.let {
-        Text(text = it, style = MaterialTheme.typography.bodyMedium)
+        Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
     }
     Text(
         text = component.propsJson,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }

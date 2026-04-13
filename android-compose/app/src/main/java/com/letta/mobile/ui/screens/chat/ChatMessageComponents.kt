@@ -56,6 +56,7 @@ import com.letta.mobile.ui.components.TextInputDialog
 import com.letta.mobile.ui.components.ThinkingSection
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LocalChatFontScale
 import com.letta.mobile.ui.theme.chatBubbleSender
 import com.letta.mobile.ui.theme.chatColors
 import com.letta.mobile.ui.theme.chatDimens
@@ -63,6 +64,7 @@ import com.letta.mobile.ui.theme.chatTypography
 import com.letta.mobile.ui.theme.dialogSectionHeading
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemSupporting
+import com.letta.mobile.ui.theme.scaledBy
 import com.letta.mobile.ui.theme.sectionTitle
 
 private fun UiMessage.displayRoleLabel(defaultLabel: String): String {
@@ -402,6 +404,7 @@ internal fun MessageToolCalls(
 
 @Composable
 private fun ToolCallCard(toolCall: UiToolCall) {
+    val fontScale = LocalChatFontScale.current
     var expanded by remember { mutableStateOf(false) }
     val display = remember(toolCall.name, toolCall.arguments) {
         ToolDisplayRegistry.resolve(toolCall.name, toolCall.arguments)
@@ -427,7 +430,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = display.label,
-                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
+                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -468,14 +471,14 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                     // Tool name
                     Text(
                         text = toolCall.name,
-                        style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily),
+                        style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
                     // Detail line (extracted from arguments)
                     display.detailLine?.let { detail ->
                         Text(
                             text = detail,
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -486,12 +489,12 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Arguments",
-                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily),
+                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )
                         Text(
                             text = toolCall.arguments,
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 6,
                             overflow = TextOverflow.Ellipsis,
@@ -502,7 +505,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (isError) "Error" else "Result",
-                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily),
+                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                             color = if (isError) {
                                 MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                             } else {
@@ -511,7 +514,7 @@ private fun ToolCallCard(toolCall: UiToolCall) {
                         )
                         Text(
                             text = result,
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily),
+                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
                             color = if (isError) {
                                 MaterialTheme.colorScheme.error
                             } else {

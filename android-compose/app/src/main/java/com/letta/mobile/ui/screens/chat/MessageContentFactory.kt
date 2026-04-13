@@ -10,7 +10,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.ui.components.MarkdownText
+import com.letta.mobile.ui.theme.LocalChatFontScale
 import com.letta.mobile.ui.theme.chatTypography
+import com.letta.mobile.ui.theme.scaledBy
 
 object GeneratedUiRenderer : MessageContentRenderer {
     override fun canRender(message: UiMessage): Boolean = message.generatedUi != null
@@ -105,13 +107,14 @@ object ToolCallRenderer : MessageContentRenderer {
 
 @Composable
 private fun GeneratedUiFallbackCard(component: com.letta.mobile.data.model.UiGeneratedComponent) {
+    val fontScale = LocalChatFontScale.current
     GeneratedUiCard(title = component.name) {
         component.fallbackText?.takeIf { it.isNotBlank() }?.let {
-            Text(text = it, style = MaterialTheme.typography.bodyMedium)
+            Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
         }
         Text(
             text = component.propsJson,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

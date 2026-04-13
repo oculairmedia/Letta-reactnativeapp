@@ -58,7 +58,7 @@ val LocalChatShapes = staticCompositionLocalOf { ChatShapes() }
 val LocalChatDimens = staticCompositionLocalOf { ChatDimens() }
 val LocalChatFontScale = staticCompositionLocalOf { 1f }
 
-private fun TextStyle.scaled(factor: Float): TextStyle {
+fun TextStyle.scaledBy(factor: Float): TextStyle {
     if (factor == 1f) return this
     return copy(
         fontSize = if (fontSize.isSpecified) (fontSize.value * factor).sp else fontSize,
@@ -85,20 +85,20 @@ fun LettaChatTheme(
     )
 
     val chatTypography = ChatTypography(
-        messageBody = MaterialTheme.typography.bodyMedium.scaled(fontScale),
-        roleLabel = MaterialTheme.typography.chatBubbleSender.copy(letterSpacing = 0.4.sp).scaled(fontScale),
+        messageBody = MaterialTheme.typography.bodyMedium.scaledBy(fontScale),
+        roleLabel = MaterialTheme.typography.chatBubbleSender.copy(letterSpacing = 0.4.sp).scaledBy(fontScale),
         codeBlock = TextStyle(
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             lineHeight = 16.sp,
-        ).scaled(fontScale),
-        toolLabel = MaterialTheme.typography.labelMedium.scaled(fontScale),
+        ).scaledBy(fontScale),
+        toolLabel = MaterialTheme.typography.labelMedium.scaledBy(fontScale),
         toolDetail = MaterialTheme.typography.labelSmall.copy(
             fontFamily = FontFamily.Monospace,
-        ).scaled(fontScale),
+        ).scaledBy(fontScale),
         timestamp = MaterialTheme.typography.labelSmall.copy(
             color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-        ).scaled(fontScale),
+        ).scaledBy(fontScale),
     )
 
     CompositionLocalProvider(
