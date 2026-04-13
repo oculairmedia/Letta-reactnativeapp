@@ -54,6 +54,10 @@ data class BotConfig(
 
     /** Whether this config is currently enabled. */
     val enabled: Boolean = true,
+
+    @SerialName("api_server_enabled") val apiServerEnabled: Boolean = false,
+
+    @SerialName("api_server_port") val apiServerPort: Int = 8080,
 ) {
     @Serializable
     enum class Mode {

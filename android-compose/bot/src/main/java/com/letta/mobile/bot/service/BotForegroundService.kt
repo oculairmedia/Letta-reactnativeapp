@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.letta.mobile.bot.api.BotApiServer
 import com.letta.mobile.bot.config.BotConfigStore
 import com.letta.mobile.bot.core.BotGateway
 import com.letta.mobile.bot.core.GatewayStatus
@@ -35,8 +36,12 @@ class BotForegroundService : Service() {
 
     @Inject lateinit var gateway: BotGateway
     @Inject lateinit var configStore: BotConfigStore
+    @Inject lateinit var apiServer: BotApiServer
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var gatewayMonitorJob: kotlinx.coroutines.Job? = null
+    private var startJob: kotlinx.coroutines.Job? = null
+    private var currentApiPort: Int? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +60,8 @@ class BotForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        gatewayMonitorJob?.cancel()
+        startJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
@@ -62,7 +69,12 @@ class BotForegroundService : Service() {
     private fun startBot() {
         startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
 
-        scope.launch {
+        if (startJob?.isActive == true) {
+            Log.i(TAG, "Bot start already in progress; ignoring duplicate request")
+            return
+        }
+
+        startJob = scope.launch {
             try {
                 val configs = configStore.configs.first()
                 val enabledConfigs = configs.filter { it.enabled }
@@ -73,24 +85,36 @@ class BotForegroundService : Service() {
                     return@launch
                 }
 
+                val apiConfig = enabledConfigs.firstOrNull { it.apiServerEnabled }
+                if (apiConfig != null) {
+                    apiServer.start(apiConfig.apiServerPort)
+                    currentApiPort = apiConfig.apiServerPort
+                } else if (apiServer.isRunning) {
+                    apiServer.stop()
+                    currentApiPort = null
+                }
+
                 gateway.start(enabledConfigs)
 
-                // Monitor gateway status and update notification
-                gateway.status.collectLatest { status ->
-                    val text = when (status) {
-                        GatewayStatus.STARTING -> "Starting bot sessions..."
-                        GatewayStatus.RUNNING -> {
-                            val count = gateway.sessions.value.size
-                            "$count bot${if (count != 1) "s" else ""} running"
+                gatewayMonitorJob?.cancel()
+                gatewayMonitorJob = scope.launch {
+                    gateway.status.collectLatest { status ->
+                        val text = when (status) {
+                            GatewayStatus.STARTING -> "Starting bot sessions..."
+                            GatewayStatus.RUNNING -> {
+                                val count = gateway.sessions.value.size
+                                val apiSuffix = currentApiPort?.let { " · API $it" } ?: ""
+                                "$count bot${if (count != 1) "s" else ""} running$apiSuffix"
+                            }
+                            GatewayStatus.STOPPING -> "Stopping..."
+                            GatewayStatus.STOPPED -> "Stopped"
+                            GatewayStatus.ERROR -> "Error — check logs"
                         }
-                        GatewayStatus.STOPPING -> "Stopping..."
-                        GatewayStatus.STOPPED -> "Stopped"
-                        GatewayStatus.ERROR -> "Error — check logs"
-                    }
-                    updateNotification(text)
+                        updateNotification(text)
 
-                    if (status == GatewayStatus.STOPPED) {
-                        stopSelf()
+                        if (status == GatewayStatus.STOPPED) {
+                            stopSelf()
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -102,6 +126,9 @@ class BotForegroundService : Service() {
 
     private fun stopBot() {
         scope.launch {
+            gatewayMonitorJob?.cancel()
+            apiServer.stop()
+            currentApiPort = null
             gateway.stop()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
