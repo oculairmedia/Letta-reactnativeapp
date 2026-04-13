@@ -11,7 +11,6 @@ import com.letta.mobile.bot.message.MessageEnvelopeFormatter
 import com.letta.mobile.bot.message.MessageQueue
 import com.letta.mobile.bot.runtime.LettaRuntimeClient
 import com.letta.mobile.bot.runtime.LettaRuntimeEvent
-import com.letta.mobile.bot.runtime.memory.RuntimeMemoryManager
 import com.letta.mobile.bot.tools.BotToolExecutionResult
 import com.letta.mobile.bot.tools.BotToolRegistry
 import com.letta.mobile.bot.tools.BotToolSync
@@ -52,7 +51,6 @@ class LocalBotSession @AssistedInject constructor(
     @Assisted private val config: BotConfig,
     private val runtimeClient: LettaRuntimeClient,
     private val envelopeFormatter: MessageEnvelopeFormatter,
-    private val memoryManager: RuntimeMemoryManager,
     private val toolRegistry: BotToolRegistry,
     private val toolSync: BotToolSync,
     private val contextProviders: @JvmSuppressWildcards Set<DeviceContextProvider>,
@@ -121,12 +119,10 @@ class LocalBotSession @AssistedInject constructor(
     override fun streamToAgent(message: ChannelMessage, conversationId: String?): Flow<BotResponseChunk> = flow {
         _status.value = BotStatus.PROCESSING
         try {
-            val memorySnapshot = memoryManager.loadSnapshot(agentId)
             val resolvedConversationId = conversationId ?: resolveConversation(message)
             val formattedText = envelopeFormatter.format(
                 message = message,
                 contextProviders = activeProviders,
-                memorySnapshot = memorySnapshot,
                 customTemplate = config.envelopeTemplate,
             )
 
@@ -207,11 +203,9 @@ class LocalBotSession @AssistedInject constructor(
         _status.value = BotStatus.PROCESSING
 
         try {
-            val memorySnapshot = memoryManager.loadSnapshot(agentId)
             val formattedText = envelopeFormatter.format(
                 message = message,
                 contextProviders = activeProviders,
-                memorySnapshot = memorySnapshot,
                 customTemplate = config.envelopeTemplate,
             )
 
