@@ -10,10 +10,16 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import com.letta.mobile.channel.ChannelHeartbeatScheduler
 import com.letta.mobile.channel.ChannelNotificationPublisher
+import com.letta.mobile.bot.heartbeat.BotHeartbeatScheduler
+import com.letta.mobile.bot.service.BotServiceAutoStarter
 import dagger.hilt.android.HiltAndroidApp
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okio.Path.Companion.toOkioPath
 import javax.inject.Inject
 
@@ -24,6 +30,14 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
 
     @Inject
     lateinit var channelNotificationPublisher: ChannelNotificationPublisher
+
+    @Inject
+    lateinit var botServiceAutoStarter: BotServiceAutoStarter
+
+    @Inject
+    lateinit var botHeartbeatScheduler: BotHeartbeatScheduler
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val imageHttpClient: HttpClient by lazy {
         val cacheDir = java.io.File(cacheDir, "coil_http_cache")
@@ -57,6 +71,20 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
             channelHeartbeatScheduler.schedule()
         }.onFailure { error ->
             Log.w("LettaApp", "Skipping heartbeat scheduling", error)
+        }
+        applicationScope.launch {
+            runCatching {
+                botServiceAutoStarter.restoreIfConfigured()
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping bot auto-start restore", error)
+            }
+        }
+        applicationScope.launch {
+            runCatching {
+                botHeartbeatScheduler.schedule()
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping bot heartbeat scheduling", error)
+            }
         }
     }
 
