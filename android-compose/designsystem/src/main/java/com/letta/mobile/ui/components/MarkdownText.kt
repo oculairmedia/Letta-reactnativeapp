@@ -25,6 +25,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.compose.components.markdownComponents
@@ -40,6 +41,7 @@ import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.SyntaxThemes
 import org.intellij.markdown.ast.ASTNode
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LocalChatFontScale
 
 @Composable
 fun MarkdownText(
@@ -49,6 +51,7 @@ fun MarkdownText(
 ) {
     if (text.isBlank()) return
 
+    val fontScale = LocalChatFontScale.current
     val isDarkTheme = isSystemInDarkTheme()
 
     val highlightsBuilder = remember(isDarkTheme) {
@@ -102,23 +105,23 @@ fun MarkdownText(
             linkText = MaterialTheme.colorScheme.primary,
         ),
         typography = markdownTypography(
-            text = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            text = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
             code = MaterialTheme.typography.labelSmall.copy(
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            h1 = MaterialTheme.typography.titleLarge.copy(color = textColor),
-            h2 = MaterialTheme.typography.titleMedium.copy(color = textColor),
-            h3 = MaterialTheme.typography.titleSmall.copy(color = textColor),
-            h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-            h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-            h6 = MaterialTheme.typography.bodySmall.copy(color = textColor),
+            ).scaledBy(fontScale),
+            h1 = MaterialTheme.typography.titleLarge.copy(color = textColor).scaledBy(fontScale),
+            h2 = MaterialTheme.typography.titleMedium.copy(color = textColor).scaledBy(fontScale),
+            h3 = MaterialTheme.typography.titleSmall.copy(color = textColor).scaledBy(fontScale),
+            h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor).scaledBy(fontScale),
+            h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
+            h6 = MaterialTheme.typography.bodySmall.copy(color = textColor).scaledBy(fontScale),
             quote = MaterialTheme.typography.bodyMedium.copy(
                 color = textColor.copy(alpha = 0.7f),
-            ),
-            bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-            list = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-            ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            ).scaledBy(fontScale),
+            bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
+            list = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
+            ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor).scaledBy(fontScale),
         ),
     )
 }
@@ -188,6 +191,14 @@ private fun CodeFenceWithHeader(
             }
         }
     }
+}
+
+private fun TextStyle.scaledBy(factor: Float): TextStyle {
+    if (factor == 1f) return this
+    return copy(
+        fontSize = if (fontSize.isSpecified) (fontSize.value * factor).sp else fontSize,
+        lineHeight = if (lineHeight.isSpecified) (lineHeight.value * factor).sp else lineHeight,
+    )
 }
 
 private fun extractCodeFenceInfo(content: String, node: ASTNode): Pair<String, String> {

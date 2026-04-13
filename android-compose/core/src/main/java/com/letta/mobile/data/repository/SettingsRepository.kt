@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import androidx.datastore.preferences.core.floatPreferencesKey
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -61,6 +62,7 @@ class SettingsRepository @Inject constructor(
         val ADMIN_AGENT_ID = stringPreferencesKey("admin_agent_id")
         val PINNED_CONVERSATION_IDS = stringSetPreferencesKey("pinned_conversation_ids")
         val PINNED_AGENT_IDS = stringSetPreferencesKey("pinned_agent_ids")
+        val CHAT_FONT_SCALE = floatPreferencesKey("chat_font_scale")
     }
 
     init {
@@ -249,6 +251,17 @@ class SettingsRepository @Inject constructor(
     suspend fun setChatBackgroundKey(key: String) {
         dataStore.edit { prefs ->
             prefs[Keys.CHAT_BACKGROUND] = key
+        }
+    }
+
+    fun getChatFontScale(): Flow<Float> = dataStore.data.map { prefs ->
+        prefs[Keys.CHAT_FONT_SCALE] ?: 1.0f
+    }
+
+    suspend fun setChatFontScale(scale: Float) {
+        val clamped = scale.coerceIn(0.7f, 1.6f)
+        dataStore.edit { prefs ->
+            prefs[Keys.CHAT_FONT_SCALE] = clamped
         }
     }
 

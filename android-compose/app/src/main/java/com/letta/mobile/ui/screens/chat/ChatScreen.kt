@@ -1,6 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -65,6 +68,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
+    val fontScale by viewModel.chatFontScale.collectAsStateWithLifecycle()
 
     val backgroundModifier = when (chatBackground) {
         is ChatBackground.Default -> Modifier
@@ -72,7 +76,7 @@ fun ChatScreen(
         is ChatBackground.Gradient -> Modifier.background(chatBackground.toBrush())
     }
 
-    LettaChatTheme {
+    LettaChatTheme(fontScale = fontScale) {
     Column(modifier = modifier.fillMaxSize().then(backgroundModifier).imePadding()) {
         if (state.isLoadingMessages && state.messages.isEmpty()) {
             MessageSkeletonList(modifier = Modifier.weight(1f))
@@ -88,6 +92,8 @@ fun ChatScreen(
                 scrollToMessageId = viewModel.scrollToMessageId,
                 onSendMessage = { viewModel.sendMessage(it) },
                 onInputTextChange = { viewModel.updateInputText(it) },
+                fontScale = fontScale,
+                onFontScaleChange = { viewModel.setChatFontScale(it) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -116,6 +122,8 @@ private fun ChatContent(
     scrollToMessageId: String? = null,
     onSendMessage: (String) -> Unit,
     onInputTextChange: (String) -> Unit,
+    fontScale: Float = 1f,
+    onFontScaleChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -123,6 +131,19 @@ private fun ChatContent(
     var chatMode by remember { mutableStateOf("interactive") }
     var highlightedMessageId by remember { mutableStateOf<String?>(null) }
     var hasScrolledToTarget by remember { mutableStateOf(false) }
+    var showFontIndicator by remember { mutableStateOf(false) }
+    var activeFontScale by remember { mutableFloatStateOf(fontScale) }
+    var pinchTick by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(fontScale) { activeFontScale = fontScale }
+
+    LaunchedEffect(pinchTick) {
+        if (pinchTick > 0) {
+            showFontIndicator = true
+            delay(1000)
+            showFontIndicator = false
+        }
+    }
 
     val messageCount by rememberUpdatedState(state.messages.size)
 
@@ -223,7 +244,20 @@ private fun ChatContent(
                 }
             }
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ ->
+                            if (zoom != 1f) {
+                                val newScale = (activeFontScale * zoom).coerceIn(0.7f, 1.6f)
+                                activeFontScale = newScale
+                                onFontScaleChange(newScale)
+                                pinchTick = System.nanoTime()
+                            }
+                        }
+                    },
+            ) {
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -295,6 +329,21 @@ private fun ChatContent(
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
                 )
+
+                if (showFontIndicator) {
+                    Text(
+                        text = "${(activeFontScale * 100).toInt()}%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+                                RoundedCornerShape(12.dp),
+                            )
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                    )
+                }
             }
         }
 

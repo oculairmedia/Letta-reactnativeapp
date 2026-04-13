@@ -12,6 +12,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 
 data class ChatColors(
@@ -54,9 +56,19 @@ val LocalChatColors = staticCompositionLocalOf<ChatColors> { error("No ChatColor
 val LocalChatTypography = staticCompositionLocalOf<ChatTypography> { error("No ChatTypography provided") }
 val LocalChatShapes = staticCompositionLocalOf { ChatShapes() }
 val LocalChatDimens = staticCompositionLocalOf { ChatDimens() }
+val LocalChatFontScale = staticCompositionLocalOf { 1f }
+
+private fun TextStyle.scaled(factor: Float): TextStyle {
+    if (factor == 1f) return this
+    return copy(
+        fontSize = if (fontSize.isSpecified) (fontSize.value * factor).sp else fontSize,
+        lineHeight = if (lineHeight.isSpecified) (lineHeight.value * factor).sp else lineHeight,
+    )
+}
 
 @Composable
 fun LettaChatTheme(
+    fontScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -73,20 +85,20 @@ fun LettaChatTheme(
     )
 
     val chatTypography = ChatTypography(
-        messageBody = MaterialTheme.typography.bodyMedium,
-        roleLabel = MaterialTheme.typography.chatBubbleSender.copy(letterSpacing = 0.4.sp),
+        messageBody = MaterialTheme.typography.bodyMedium.scaled(fontScale),
+        roleLabel = MaterialTheme.typography.chatBubbleSender.copy(letterSpacing = 0.4.sp).scaled(fontScale),
         codeBlock = TextStyle(
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             lineHeight = 16.sp,
-        ),
-        toolLabel = MaterialTheme.typography.labelMedium,
+        ).scaled(fontScale),
+        toolLabel = MaterialTheme.typography.labelMedium.scaled(fontScale),
         toolDetail = MaterialTheme.typography.labelSmall.copy(
             fontFamily = FontFamily.Monospace,
-        ),
+        ).scaled(fontScale),
         timestamp = MaterialTheme.typography.labelSmall.copy(
             color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-        ),
+        ).scaled(fontScale),
     )
 
     CompositionLocalProvider(
@@ -94,6 +106,7 @@ fun LettaChatTheme(
         LocalChatTypography provides chatTypography,
         LocalChatShapes provides ChatShapes(),
         LocalChatDimens provides ChatDimens(),
+        LocalChatFontScale provides fontScale,
         content = content,
     )
 }

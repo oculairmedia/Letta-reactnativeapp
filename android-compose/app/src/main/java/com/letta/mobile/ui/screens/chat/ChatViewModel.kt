@@ -78,9 +78,18 @@ class ChatViewModel @Inject constructor(
         .map { ChatBackground.fromKey(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChatBackground.Default)
 
+    val chatFontScale: StateFlow<Float> = settingsRepository.getChatFontScale()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
+
     fun setChatBackground(background: ChatBackground) {
         viewModelScope.launch {
             settingsRepository.setChatBackgroundKey(background.key)
+        }
+    }
+
+    fun setChatFontScale(scale: Float) {
+        viewModelScope.launch {
+            settingsRepository.setChatFontScale(scale)
         }
     }
 
