@@ -5,6 +5,7 @@ import com.letta.mobile.bot.channel.ChannelDelivery
 import com.letta.mobile.bot.channel.ChannelMessage
 import com.letta.mobile.bot.channel.DeliveryResult
 import com.letta.mobile.bot.config.BotConfig
+import com.letta.mobile.bot.config.BotServerProfileResolver
 import com.letta.mobile.bot.message.DirectiveParser
 import com.letta.mobile.bot.protocol.BotChatRequest
 import com.letta.mobile.bot.protocol.ExternalBotClient
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.flow
  */
 class RemoteBotSession @AssistedInject constructor(
     @Assisted private val config: BotConfig,
+    private val profileResolver: BotServerProfileResolver,
 ) : BotSession {
 
     override val agentId: String = config.agentId
@@ -42,9 +44,11 @@ class RemoteBotSession @AssistedInject constructor(
 
     override suspend fun start() {
         _status.value = BotStatus.STARTING
-        val baseUrl = config.remoteUrl ?: throw IllegalStateException("Remote URL not configured")
+        val resolvedProfile = profileResolver.resolve(config)
+            ?: throw IllegalStateException("Remote profile is not configured")
+        val baseUrl = resolvedProfile.baseUrl
 
-        client = ExternalBotClient(baseUrl = baseUrl, token = config.remoteToken)
+        client = ExternalBotClient(baseUrl = baseUrl, token = resolvedProfile.authToken)
 
         try {
             client!!.getStatus()

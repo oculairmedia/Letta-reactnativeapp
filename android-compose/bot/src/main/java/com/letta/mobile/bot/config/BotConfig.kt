@@ -31,6 +31,8 @@ data class BotConfig(
     /** For REMOTE mode: authentication token for the bot server API. */
     @SerialName("remote_token") val remoteToken: String? = null,
 
+    @SerialName("server_profile_id") val serverProfileId: String? = null,
+
     /** How conversations are routed for incoming messages. */
     @SerialName("conversation_mode") val conversationMode: ConversationMode = ConversationMode.PER_CHAT,
 

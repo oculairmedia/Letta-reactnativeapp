@@ -1,8 +1,10 @@
 package com.letta.mobile.bot.di
 
 import com.letta.mobile.bot.context.BatteryContextProvider
+import com.letta.mobile.bot.config.BotServerProfileStore
 import com.letta.mobile.bot.context.ConnectivityContextProvider
 import com.letta.mobile.bot.context.DeviceContextProvider
+import com.letta.mobile.bot.config.IBotServerProfileStore
 import com.letta.mobile.bot.context.TimeContextProvider
 import com.letta.mobile.bot.tools.AndroidExecutionBridge
 import com.letta.mobile.bot.tools.DefaultAndroidExecutionBridge
@@ -26,6 +28,9 @@ abstract class BotModule {
 
     @Binds
     abstract fun bindAndroidExecutionBridge(impl: DefaultAndroidExecutionBridge): AndroidExecutionBridge
+
+    @Binds
+    abstract fun bindBotServerProfileStore(impl: BotServerProfileStore): IBotServerProfileStore
 
     @Binds
     @IntoSet
