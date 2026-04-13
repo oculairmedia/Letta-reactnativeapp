@@ -9,14 +9,18 @@ import com.letta.mobile.bot.protocol.BotChatRequest
 import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.mapper.toUiMessages
 import com.letta.mobile.data.model.AppMessage
+import com.letta.mobile.data.model.Block
+import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.ui.theme.ChatBackground
+import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -50,6 +54,30 @@ data class PendingToolCall(
     val startedAt: Long = System.currentTimeMillis(),
 )
 
+enum class ProjectBriefSectionKey {
+    Description,
+    KeyDecisions,
+    TechStack,
+    ActiveGoals,
+    RecentChanges,
+}
+
+@androidx.compose.runtime.Immutable
+data class ProjectBriefSection(
+    val key: ProjectBriefSectionKey,
+    val blockLabel: String,
+    val content: String,
+    val updatedAt: String? = null,
+)
+
+@androidx.compose.runtime.Immutable
+data class ProjectBriefUiState(
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val sections: Map<ProjectBriefSectionKey, ProjectBriefSection> = emptyMap(),
+    val error: String? = null,
+)
+
 data class ChatUiState(
     val messages: ImmutableList<UiMessage> = persistentListOf(),
     val isLoadingMessages: Boolean = true,
@@ -62,6 +90,7 @@ data class ChatUiState(
     val completionTokens: Int? = null,
     val totalTokens: Int? = null,
     val activeApprovalRequestId: String? = null,
+    val projectBrief: ProjectBriefUiState = ProjectBriefUiState(),
 )
 
 @HiltViewModel
@@ -69,6 +98,7 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val messageRepository: MessageRepository,
     private val agentRepository: AgentRepository,
+    private val blockRepository: BlockRepository,
     private val conversationRepository: ConversationRepository,
     private val settingsRepository: SettingsRepository,
     private val botGateway: BotGateway,
@@ -129,6 +159,70 @@ class ChatViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(error = "No agent selected")
         } else {
             resolveConversationAndLoad()
+            if (projectContext != null) {
+                loadProjectBrief()
+            }
+        }
+    }
+
+    fun loadProjectBrief() {
+        if (projectContext == null) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                projectBrief = _uiState.value.projectBrief.copy(isLoading = true, error = null)
+            )
+            try {
+                val blocks = blockRepository.getBlocks(agentId)
+                _uiState.value = _uiState.value.copy(
+                    projectBrief = ProjectBriefUiState(
+                        isLoading = false,
+                        sections = buildProjectBriefSections(blocks),
+                    )
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    projectBrief = _uiState.value.projectBrief.copy(
+                        isLoading = false,
+                        error = mapErrorToUserMessage(e, "Failed to load project brief"),
+                    )
+                )
+            }
+        }
+    }
+
+    fun saveProjectBriefSection(
+        key: ProjectBriefSectionKey,
+        content: String,
+    ) {
+        val existingSection = _uiState.value.projectBrief.sections[key] ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                projectBrief = _uiState.value.projectBrief.copy(isSaving = true, error = null)
+            )
+            try {
+                val updatedBlock = blockRepository.updateAgentBlock(
+                    agentId = agentId,
+                    blockLabel = existingSection.blockLabel,
+                    params = BlockUpdateParams(value = content),
+                )
+                val updatedSection = existingSection.copy(
+                    content = updatedBlock.value,
+                    updatedAt = updatedBlock.updatedAt,
+                )
+                _uiState.value = _uiState.value.copy(
+                    projectBrief = _uiState.value.projectBrief.copy(
+                        isSaving = false,
+                        sections = _uiState.value.projectBrief.sections + (key to updatedSection),
+                    )
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    projectBrief = _uiState.value.projectBrief.copy(
+                        isSaving = false,
+                        error = mapErrorToUserMessage(e, "Failed to save project brief"),
+                    )
+                )
+            }
         }
     }
 
@@ -293,6 +387,9 @@ class ChatViewModel @Inject constructor(
                                 pendingTools = persistentListOf(),
                             )
                             reloadMessagesFromServer()
+                            if (projectContext != null) {
+                                loadProjectBrief()
+                            }
                         }
                         is StreamState.Error -> {
                             _uiState.value = _uiState.value.copy(error = state.message, isStreaming = false, isAgentTyping = false)
@@ -336,6 +433,7 @@ class ChatViewModel @Inject constructor(
             content = response.response,
         )
         emit(StreamState.Complete(listOf(assistantMessage)))
+        loadProjectBrief()
     }
 
     private suspend fun ensureProjectGatewaySession() {
@@ -438,3 +536,62 @@ class ChatViewModel @Inject constructor(
     }
 
 }
+
+private val projectBriefLabelAliases = mapOf(
+    ProjectBriefSectionKey.Description to listOf(
+        "project_description",
+        "project-description",
+        "project description",
+        "description",
+        "brief_description",
+    ),
+    ProjectBriefSectionKey.KeyDecisions to listOf(
+        "key_decisions",
+        "key-decisions",
+        "key decisions",
+        "decisions",
+        "project_decisions",
+    ),
+    ProjectBriefSectionKey.TechStack to listOf(
+        "tech_stack",
+        "tech-stack",
+        "tech stack",
+        "stack",
+        "technology_stack",
+    ),
+    ProjectBriefSectionKey.ActiveGoals to listOf(
+        "active_goals",
+        "active-goals",
+        "active goals",
+        "goals",
+        "current_goals",
+    ),
+    ProjectBriefSectionKey.RecentChanges to listOf(
+        "recent_changes",
+        "recent-changes",
+        "recent changes",
+        "changes",
+        "latest_changes",
+    ),
+)
+
+private fun buildProjectBriefSections(blocks: List<Block>): Map<ProjectBriefSectionKey, ProjectBriefSection> {
+    return ProjectBriefSectionKey.entries.mapNotNull { key ->
+        val block = blocks.firstOrNull { candidate ->
+            val canonical = candidate.label?.canonicalBriefLabel() ?: return@firstOrNull false
+            projectBriefLabelAliases.getValue(key).any { alias ->
+                canonical == alias.canonicalBriefLabel()
+            }
+        } ?: return@mapNotNull null
+
+        key to ProjectBriefSection(
+            key = key,
+            blockLabel = block.label ?: return@mapNotNull null,
+            content = block.value,
+            updatedAt = block.updatedAt,
+        )
+    }.toMap()
+}
+
+private fun String.canonicalBriefLabel(): String =
+    lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')

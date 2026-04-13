@@ -8,13 +8,17 @@ import com.letta.mobile.bot.protocol.BotChatResponse
 import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AppMessage
+import com.letta.mobile.data.model.Block
+import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
+import com.letta.mobile.testutil.FakeBlockApi
 import com.letta.mobile.testutil.TestData
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -44,6 +48,7 @@ class ChatViewModelTest {
 
     private lateinit var messageRepository: MessageRepository
     private lateinit var agentRepository: AgentRepository
+    private lateinit var blockRepository: BlockRepository
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var botGateway: BotGateway
@@ -58,6 +63,7 @@ class ChatViewModelTest {
         Dispatchers.setMain(testDispatcher)
         messageRepository = mockk(relaxed = true)
         agentRepository = mockk(relaxed = true)
+        blockRepository = BlockRepository(FakeBlockApi())
         conversationRepository = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
         botGateway = mockk(relaxed = true)
@@ -102,6 +108,7 @@ class ChatViewModelTest {
             savedState,
             messageRepository,
             agentRepository,
+            blockRepository,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -286,6 +293,7 @@ class ChatViewModelTest {
             savedState,
             messageRepository,
             agentRepository,
+            blockRepository,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -349,6 +357,7 @@ class ChatViewModelTest {
             savedState,
             messageRepository,
             agentRepository,
+            blockRepository,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -387,6 +396,7 @@ class ChatViewModelTest {
             savedState,
             messageRepository,
             agentRepository,
+            blockRepository,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -422,6 +432,7 @@ class ChatViewModelTest {
             savedState,
             messageRepository,
             agentRepository,
+            blockRepository,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -431,5 +442,83 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         assertEquals("msg-target", targetSlot.captured)
+    }
+
+    @Test
+    fun `project brief loads mapped sections from core memory blocks`() = runTest {
+        val fakeBlockApi = FakeBlockApi().apply {
+            blocks["agent-1"] = mutableListOf(
+                Block(id = "b1", label = "project_description", value = "Ship the Android PM surface"),
+                Block(id = "b2", label = "key_decisions", value = "- Use shared project chat\n- Keep brief editable"),
+                Block(id = "b3", label = "tech_stack", value = "Kotlin\nCompose\nLetta API"),
+                Block(id = "b4", label = "active_goals", value = "- Finish bz40.2.4"),
+                Block(id = "b5", label = "recent_changes", value = "Added public proxy support"),
+            )
+        }
+        blockRepository = BlockRepository(fakeBlockApi)
+
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("projectIdentifier", "letta-mobile")
+            set("projectName", "Letta Mobile")
+        }
+
+        val vm = ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            blockRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
+        advanceUntilIdle()
+
+        val brief = vm.uiState.value.projectBrief
+        assertFalse(brief.isLoading)
+        assertEquals("Ship the Android PM surface", brief.sections[ProjectBriefSectionKey.Description]?.content)
+        assertEquals("Kotlin\nCompose\nLetta API", brief.sections[ProjectBriefSectionKey.TechStack]?.content)
+        assertEquals(5, brief.sections.size)
+    }
+
+    @Test
+    fun `save project brief updates matching memory block`() = runTest {
+        val fakeBlockApi = FakeBlockApi().apply {
+            blocks["agent-1"] = mutableListOf(
+                Block(id = "b1", label = "project_description", value = "Old brief"),
+            )
+        }
+        blockRepository = BlockRepository(fakeBlockApi)
+
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("projectIdentifier", "letta-mobile")
+            set("projectName", "Letta Mobile")
+        }
+
+        val vm = ChatViewModel(
+            savedState,
+            messageRepository,
+            agentRepository,
+            blockRepository,
+            conversationRepository,
+            settingsRepository,
+            botGateway,
+            botConfigStore,
+            internalBotClient,
+        )
+        advanceUntilIdle()
+
+        vm.saveProjectBriefSection(ProjectBriefSectionKey.Description, "Updated brief")
+        advanceUntilIdle()
+
+        assertEquals("updateAgentBlock:agent-1:project_description", fakeBlockApi.calls.last())
+        assertEquals(BlockUpdateParams(value = "Updated brief"), fakeBlockApi.lastUpdateParams)
+        assertEquals("Updated brief", vm.uiState.value.projectBrief.sections[ProjectBriefSectionKey.Description]?.content)
+        assertFalse(vm.uiState.value.projectBrief.isSaving)
     }
 }
