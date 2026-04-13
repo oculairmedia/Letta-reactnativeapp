@@ -33,6 +33,12 @@ data class AgentChatRoute(
     val conversationId: String? = null,
     val initialMessage: String? = null,
     val scrollToMessageId: String? = null,
+    val projectIdentifier: String? = null,
+    val projectName: String? = null,
+    val projectFilesystemPath: String? = null,
+    val projectGitUrl: String? = null,
+    val projectLastSyncAt: String? = null,
+    val projectActiveCodingAgents: String? = null,
 )
 
 @Serializable

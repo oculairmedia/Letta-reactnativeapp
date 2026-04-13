@@ -1,6 +1,11 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -32,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -58,6 +64,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.letta.mobile.R
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
@@ -98,6 +105,8 @@ fun AgentScaffold(
     val agentName = uiState.agentName
     val agentId = viewModel.agentId
     val conversationId = viewModel.conversationId
+    val projectContext = viewModel.projectContext
+    val screenTitle = projectContext?.name ?: agentName.ifBlank { stringResource(R.string.screen_chat_title) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     BackHandler(enabled = drawerState.isOpen) {
@@ -142,7 +151,7 @@ fun AgentScaffold(
                 LargeFlexibleTopAppBar(
                     title = {
                         Text(
-                            text = agentName.ifBlank { stringResource(R.string.screen_chat_title) },
+                            text = screenTitle,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -167,8 +176,12 @@ fun AgentScaffold(
                     .padding(paddingValues)
                     .fillMaxSize(),
             ) {
+                projectContext?.let { project ->
+                    ProjectContextCard(project = project)
+                }
                 AgentConversationHeader(
                     agentId = agentId,
+                    projectName = projectContext?.name,
                     agentName = agentName,
                     conversationId = conversationId,
                     onClick = { showConversationPicker = true },
@@ -199,8 +212,123 @@ fun AgentScaffold(
 }
 
 @Composable
+private fun ProjectContextCard(
+    project: ProjectChatContext,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by rememberSaveable(project.identifier) { mutableStateOf(false) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = project.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = project.identifier,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                AssistChip(
+                    onClick = { expanded = !expanded },
+                    label = {
+                        Text(
+                            text = if (expanded) stringResource(R.string.common_hide) else stringResource(R.string.common_details),
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (expanded) LettaIcons.ExpandLess else LettaIcons.ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.size(LettaIconSizing.Inline),
+                        )
+                    },
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProjectInfoLine(
+                        label = stringResource(R.string.screen_project_chat_path_label),
+                        value = project.filesystemPath,
+                    )
+                    ProjectInfoLine(
+                        label = stringResource(R.string.screen_project_chat_git_url_label),
+                        value = project.gitUrl,
+                    )
+                    ProjectInfoLine(
+                        label = stringResource(R.string.screen_project_chat_active_agents_label),
+                        value = project.activeCodingAgents,
+                    )
+                    ProjectInfoLine(
+                        label = stringResource(R.string.screen_project_chat_last_sync_label),
+                        value = project.lastSyncAt?.let(::formatRelativeTime),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectInfoLine(
+    label: String,
+    value: String?,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
+        )
+        Text(
+            text = value ?: stringResource(R.string.common_unknown),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
 private fun AgentConversationHeader(
     agentId: String,
+    projectName: String?,
     agentName: String,
     conversationId: String?,
     onClick: () -> Unit,
@@ -233,12 +361,23 @@ private fun AgentConversationHeader(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = agentName.ifBlank { stringResource(R.string.screen_chat_title) },
+                    text = projectName ?: agentName.ifBlank { stringResource(R.string.screen_chat_title) },
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = agentName.ifBlank { stringResource(R.string.common_unknown) },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
                     Text(
                         text = if (conversationId != null) "Conversation" else "Default",
                         style = MaterialTheme.typography.labelSmall,

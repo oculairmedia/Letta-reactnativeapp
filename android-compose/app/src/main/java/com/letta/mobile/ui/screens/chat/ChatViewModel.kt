@@ -30,6 +30,16 @@ import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
+data class ProjectChatContext(
+    val identifier: String,
+    val name: String,
+    val filesystemPath: String? = null,
+    val gitUrl: String? = null,
+    val lastSyncAt: String? = null,
+    val activeCodingAgents: String? = null,
+)
+
+@androidx.compose.runtime.Immutable
 data class PendingToolCall(
     val id: String,
     val name: String,
@@ -67,6 +77,17 @@ class ChatViewModel @Inject constructor(
     private val initialMessage: String? = savedStateHandle.get<String>("initialMessage")
     val scrollToMessageId: String? = savedStateHandle.get<String>("scrollToMessageId")
     val conversationId: String? get() = activeConversationId
+    val projectContext: ProjectChatContext? = savedStateHandle.get<String>("projectIdentifier")?.let { identifier ->
+        val name = savedStateHandle.get<String>("projectName") ?: identifier
+        ProjectChatContext(
+            identifier = identifier,
+            name = name,
+            filesystemPath = savedStateHandle.get<String>("projectFilesystemPath"),
+            gitUrl = savedStateHandle.get<String>("projectGitUrl"),
+            lastSyncAt = savedStateHandle.get<String>("projectLastSyncAt"),
+            activeCodingAgents = savedStateHandle.get<String>("projectActiveCodingAgents"),
+        )
+    }
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()

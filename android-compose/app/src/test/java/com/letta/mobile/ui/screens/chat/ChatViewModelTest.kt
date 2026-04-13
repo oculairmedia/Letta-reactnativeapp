@@ -249,6 +249,30 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `project context is restored from saved state`() = runTest {
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("projectIdentifier", "letta-mobile")
+            set("projectName", "Letta Mobile")
+            set("projectFilesystemPath", "/opt/stacks/letta-mobile")
+            set("projectGitUrl", "https://github.com/letta-ai/letta-mobile")
+            set("projectLastSyncAt", "2026-04-13T12:00:00Z")
+            set("projectActiveCodingAgents", "android, pm-agent")
+        }
+
+        val vm = ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
+
+        val project = vm.projectContext
+        assertEquals("letta-mobile", project?.identifier)
+        assertEquals("Letta Mobile", project?.name)
+        assertEquals("/opt/stacks/letta-mobile", project?.filesystemPath)
+        assertEquals("https://github.com/letta-ai/letta-mobile", project?.gitUrl)
+        assertEquals("2026-04-13T12:00:00Z", project?.lastSyncAt)
+        assertEquals("android, pm-agent", project?.activeCodingAgents)
+    }
+
+    @Test
     fun `submitApproval forwards approval decision to repository`() = runTest {
         val vm = createViewModel()
 
