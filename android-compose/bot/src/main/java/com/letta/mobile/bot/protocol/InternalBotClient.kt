@@ -1,0 +1,58 @@
+package com.letta.mobile.bot.protocol
+
+import com.letta.mobile.bot.channel.ChannelMessage
+import com.letta.mobile.bot.core.BotGateway
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+@Singleton
+class InternalBotClient @Inject constructor(
+    private val gateway: BotGateway,
+) : BotClient {
+    override suspend fun sendMessage(request: BotChatRequest): BotChatResponse {
+        val message = request.toChannelMessage()
+        val response = gateway.routeMessage(message, request.conversationId)
+        return BotChatResponse(
+            response = response.text,
+            conversationId = response.conversationId,
+            agentId = response.agentId,
+        )
+    }
+
+    override fun streamMessage(request: BotChatRequest): Flow<BotStreamChunk> {
+        val message = request.toChannelMessage()
+        return gateway.streamMessage(message, request.conversationId).map { chunk ->
+            BotStreamChunk(
+                text = chunk.text,
+                conversationId = chunk.conversationId ?: request.conversationId,
+                agentId = message.targetAgentId,
+                done = chunk.isComplete,
+            )
+        }
+    }
+
+    override suspend fun getStatus(): BotStatusResponse = BotStatusResponse(
+        status = gateway.status.value.name.lowercase(),
+        agents = gateway.sessions.value.keys.toList(),
+    )
+
+    override suspend fun listAgents(): List<BotAgentInfo> = gateway.sessions.value.map { (id, session) ->
+        BotAgentInfo(
+            id = id,
+            name = session.displayName,
+            status = session.status.value.name.lowercase(),
+        )
+    }
+
+    private fun BotChatRequest.toChannelMessage(): ChannelMessage = ChannelMessage(
+        messageId = "bot-client-${System.currentTimeMillis()}",
+        channelId = channelId ?: "api",
+        chatId = chatId ?: "api",
+        senderId = senderId ?: "api_user",
+        senderName = senderName,
+        text = message,
+        targetAgentId = agentId,
+    )
+}
