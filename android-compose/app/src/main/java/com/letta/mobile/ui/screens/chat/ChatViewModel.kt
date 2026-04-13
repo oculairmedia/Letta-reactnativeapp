@@ -150,9 +150,16 @@ class ChatViewModel @Inject constructor(
             }
         }
         try {
+            val targetMessageId = scrollToMessageId?.takeIf { requestedConversationId != null }
             val (agent, appMessages) = supervisorScope {
                 val agentDeferred = async { agentRepository.getAgent(agentId).first() }
-                val messagesDeferred = async { messageRepository.fetchMessages(agentId, requestedConversationId) }
+                val messagesDeferred = async {
+                    messageRepository.fetchMessages(
+                        agentId = agentId,
+                        conversationId = requestedConversationId,
+                        targetMessageId = targetMessageId,
+                    )
+                }
                 agentDeferred.await() to messagesDeferred.await()
             }
             if (requestedConversationId != activeConversationId) {
@@ -313,7 +320,11 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val requestedConversationId = activeConversationId
-                val appMessages = messageRepository.fetchMessages(agentId, requestedConversationId)
+                val appMessages = messageRepository.fetchMessages(
+                    agentId = agentId,
+                    conversationId = requestedConversationId,
+                    targetMessageId = scrollToMessageId?.takeIf { requestedConversationId != null },
+                )
                 if (requestedConversationId != activeConversationId) {
                     return@launch
                 }

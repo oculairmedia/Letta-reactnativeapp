@@ -15,6 +15,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flow
@@ -270,5 +271,24 @@ class ChatViewModelTest {
         }
         assertFalse(vm.uiState.value.isStreaming)
         assertEquals(null, vm.uiState.value.activeApprovalRequestId)
+    }
+
+    @Test
+    fun `loadMessages forwards scroll target to repository fetch`() = runTest {
+        val targetSlot = slot<String?>()
+        coEvery {
+            messageRepository.fetchMessages(any(), any(), captureNullable(targetSlot))
+        } answers { messages }
+
+        val savedState = SavedStateHandle().apply {
+            set("agentId", "agent-1")
+            set("conversationId", "conv-1")
+            set("scrollToMessageId", "msg-target")
+        }
+
+        ChatViewModel(savedState, messageRepository, agentRepository, conversationRepository, settingsRepository)
+        advanceUntilIdle()
+
+        assertEquals("msg-target", targetSlot.captured)
     }
 }
