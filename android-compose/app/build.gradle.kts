@@ -45,7 +45,8 @@ android {
                 keyAlias = props["keyAlias"] as String
                 keyPassword = props["keyPassword"] as String
             } else {
-                storeFile = file(System.getenv("SIGNING_STORE_FILE") ?: "letta-release.jks")
+                val envStoreFile = System.getenv("SIGNING_STORE_FILE")?.takeIf { it.isNotEmpty() }
+                storeFile = file(envStoreFile ?: "letta-release.jks")
                 storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: ""
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
