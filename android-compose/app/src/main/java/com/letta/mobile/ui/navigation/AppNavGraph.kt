@@ -414,6 +414,7 @@ fun AppNavGraph(
                             agentId = project.lettaAgentId.orEmpty(),
                             projectIdentifier = project.identifier,
                             projectName = project.name,
+                            projectLettaFolderId = project.lettaFolderId,
                             projectFilesystemPath = project.filesystemPath,
                             projectGitUrl = project.gitUrl,
                             projectLastSyncAt = project.lastSyncAt,

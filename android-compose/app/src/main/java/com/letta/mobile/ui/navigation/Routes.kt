@@ -38,6 +38,7 @@ data class AgentChatRoute(
     val scrollToMessageId: String? = null,
     val projectIdentifier: String? = null,
     val projectName: String? = null,
+    val projectLettaFolderId: String? = null,
     val projectFilesystemPath: String? = null,
     val projectGitUrl: String? = null,
     val projectLastSyncAt: String? = null,
