@@ -38,7 +38,11 @@ class LettaChatClientTest : WordSpec({
         conversationId: String? = "conv-1",
     ): LettaChatClient {
         val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
-            override suspend fun fetchMessages(agentId: String, conversationId: String?): List<AppMessage> = messages
+            override suspend fun fetchMessages(
+                agentId: String,
+                conversationId: String?,
+                targetMessageId: String?,
+            ): List<AppMessage> = messages
             override fun getMessages(agentId: String, conversationId: String?): Flow<List<AppMessage>> = flowOf(messages)
             override fun sendMessage(agentId: String, text: String, conversationId: String?): Flow<StreamState> = flow {
                 streamStates.forEach { emit(it) }
@@ -76,6 +80,28 @@ class LettaChatClientTest : WordSpec({
                 val client = createClient()
                 client.connect()
                 client.isLoading.value shouldBe false
+            }
+        }
+
+        "map approval request and response message roles correctly" {
+            runTest {
+                val client = createClient(
+                    messages = listOf(
+                        fakeMessage("approval-request", MessageType.APPROVAL_REQUEST, "Please approve"),
+                        fakeMessage("approval-response", MessageType.APPROVAL_RESPONSE, "Approved"),
+                    )
+                )
+
+                client.connect()
+
+                client.messages.value.map { it.role } shouldBe listOf(
+                    MessageRole.Assistant,
+                    MessageRole.User,
+                )
+                client.messages.value.map { it.content } shouldBe listOf(
+                    "Please approve",
+                    "Approved",
+                )
             }
         }
     }
