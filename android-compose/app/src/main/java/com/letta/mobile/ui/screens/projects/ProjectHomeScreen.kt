@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -31,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -85,9 +87,11 @@ fun ProjectHomeScreen(
     val projectSettingsTitle = stringResource(R.string.screen_projects_settings_title)
     val projectSettingsPathLabel = stringResource(R.string.screen_projects_settings_path_label)
     val projectSettingsGitUrlLabel = stringResource(R.string.screen_projects_settings_git_url_label)
-    val projectSettingsPathHelper = stringResource(R.string.screen_projects_settings_path_helper)
     val projectSettingsPathMissing = stringResource(R.string.screen_projects_settings_path_missing)
     val projectSettingsPathAbsolute = stringResource(R.string.screen_projects_settings_path_must_be_absolute)
+    val projectSettingsPathKnown = stringResource(R.string.screen_projects_settings_path_known_project)
+    val projectSettingsPathUnknown = stringResource(R.string.screen_projects_settings_path_unknown_access)
+    val projectSettingsSuggestedTitle = stringResource(R.string.screen_projects_settings_suggested_paths_title)
     val conversationalGoalLabel = stringResource(R.string.screen_projects_new_project_goal_label)
     val conversationalGoalHelper = stringResource(R.string.screen_projects_new_project_goal_helper)
     val conversationalNameLabel = stringResource(R.string.screen_projects_new_project_name_label)
@@ -476,7 +480,13 @@ fun ProjectHomeScreen(
                     confirmEnabled = state.data.projectSettingsDraft.isReadyToSubmit() && !state.data.isSubmittingProjectSettings,
                     onConfirm = viewModel::submitProjectSettingsEdit,
                 ) {
-                    val pathValidation = state.data.projectSettingsDraft.filesystemPathValidation()
+                    val pathSuggestions = remember(state.data.projects) {
+                        knownProjectPathSuggestions(state.data.projects)
+                    }
+                    val pathGuidance = projectSettingsPathGuidance(
+                        draft = state.data.projectSettingsDraft,
+                        knownProjectPaths = pathSuggestions.toSet(),
+                    )
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             text = state.data.projectSettingsDraft.projectName,
@@ -492,17 +502,42 @@ fun ProjectHomeScreen(
                             label = { Text(projectSettingsPathLabel) },
                             supportingText = {
                                 Text(
-                                    when (pathValidation) {
-                                        ProjectSettingsDraft.FilesystemPathValidation.Missing -> projectSettingsPathMissing
-                                        ProjectSettingsDraft.FilesystemPathValidation.MustBeAbsolute -> projectSettingsPathAbsolute
-                                        ProjectSettingsDraft.FilesystemPathValidation.Valid -> projectSettingsPathHelper
+                                    when (pathGuidance) {
+                                        ProjectSettingsPathGuidance.Missing -> projectSettingsPathMissing
+                                        ProjectSettingsPathGuidance.MustBeAbsolute -> projectSettingsPathAbsolute
+                                        ProjectSettingsPathGuidance.KnownProjectPath -> projectSettingsPathKnown
+                                        ProjectSettingsPathGuidance.UnknownServerAccess -> projectSettingsPathUnknown
                                     }
                                 )
                             },
-                            isError = pathValidation != ProjectSettingsDraft.FilesystemPathValidation.Valid,
+                            isError = pathGuidance != ProjectSettingsPathGuidance.KnownProjectPath &&
+                                pathGuidance != ProjectSettingsPathGuidance.UnknownServerAccess,
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
+                        if (pathSuggestions.isNotEmpty()) {
+                            FormItem(
+                                label = { Text(projectSettingsSuggestedTitle) },
+                                description = { Text(projectSettingsPathKnown) },
+                            ) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    pathSuggestions.forEach { suggestion ->
+                                        SuggestionChip(
+                                            onClick = {
+                                                viewModel.updateProjectSettingsDraft(
+                                                    state.data.projectSettingsDraft.copy(filesystemPath = suggestion)
+                                                )
+                                            },
+                                            label = { Text(suggestion) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         OutlinedTextField(
                             value = state.data.projectSettingsDraft.gitUrl,
                             onValueChange = {
