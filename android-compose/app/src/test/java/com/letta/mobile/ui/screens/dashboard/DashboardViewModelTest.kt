@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import io.mockk.coVerify
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -233,6 +234,16 @@ class DashboardViewModelTest {
         assertEquals(emptyList<String>(), state.agentResults.map { it.name })
         assertEquals(emptyList<String>(), state.toolResults.map { it.name })
         assertEquals(listOf("human"), state.blockResults.mapNotNull { it.label })
+        coVerify {
+            messageRepository.searchMessages(
+                match {
+                    it.query == "human" &&
+                        it.searchMode == "fts" &&
+                        it.roles == listOf("user", "assistant") &&
+                        it.limit == 20
+                }
+            )
+        }
     }
 
     @Test

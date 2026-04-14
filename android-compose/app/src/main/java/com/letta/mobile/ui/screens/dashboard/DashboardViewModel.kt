@@ -216,6 +216,7 @@ class DashboardViewModel @Inject constructor(
                             val results = messageRepository.searchMessages(
                                 MessageSearchRequest(
                                     query = snapshot.query,
+                                    searchMode = "fts",
                                     roles = listOf("user", "assistant"),
                                     limit = 20,
                                 )
