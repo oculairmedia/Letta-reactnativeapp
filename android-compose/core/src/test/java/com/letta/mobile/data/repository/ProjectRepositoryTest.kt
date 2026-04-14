@@ -45,6 +45,44 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `refreshProjects preserves clean git urls and iso timestamps`() = runTest {
+        fakeApi.projects.add(
+            ProjectSummary(
+                identifier = "LETMOB",
+                name = "Letta Mobile",
+                gitUrl = "https://github.com/oculairmedia/letta-mobile.git",
+                updatedAt = "2026-04-14T07:45:15.930Z",
+            )
+        )
+
+        repository.refreshProjects()
+
+        val project = repository.projects.first().single()
+        assertEquals("https://github.com/oculairmedia/letta-mobile.git", project.gitUrl)
+        assertEquals("2026-04-14T07:45:15.930Z", project.updatedAt)
+    }
+
+    @Test
+    fun `refreshProjects normalizes blank timestamps to null and preserves non epoch strings`() = runTest {
+        fakeApi.projects.add(
+            ProjectSummary(
+                identifier = "GRAPH",
+                name = "Graphiti",
+                updatedAt = "not-a-timestamp",
+                lastScanAt = "   ",
+                lastSyncAt = "1776066315930",
+            )
+        )
+
+        repository.refreshProjects()
+
+        val project = repository.projects.first().single()
+        assertEquals("not-a-timestamp", project.updatedAt)
+        assertEquals(null, project.lastScanAt)
+        assertEquals("2026-04-13T07:45:15.930Z", project.lastSyncAt)
+    }
+
+    @Test
     fun `getProject uses cache when available`() = runTest {
         fakeApi.projects.add(ProjectSummary(identifier = "GRAPH", name = "Graphiti"))
         repository.refreshProjects()
