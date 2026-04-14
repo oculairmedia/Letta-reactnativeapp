@@ -123,31 +123,18 @@ private fun ConfigContent(
             )
             item(
                 headlineContent = {
-                    key(state.mode) {
-                        if (state.mode == ServerMode.CLOUD) {
-                            Column {
-                                Text(stringResource(R.string.common_server_url))
-                                Text(
-                                    ConfigViewModel.DEFAULT_CLOUD_URL,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            OutlinedTextField(
-                                value = state.serverUrl,
-                                onValueChange = onServerUrlChange,
-                                label = { Text(stringResource(R.string.common_server_url)) },
-                                placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                leadingIcon = { Icon(LettaIcons.Link, null) },
-                            )
-                        }
-                    }
+                    val isCloud = state.mode == ServerMode.CLOUD
+                    OutlinedTextField(
+                        value = if (isCloud) ConfigViewModel.DEFAULT_CLOUD_URL else state.serverUrl,
+                        onValueChange = onServerUrlChange,
+                        label = { Text(stringResource(R.string.common_server_url)) },
+                        placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = { Icon(LettaIcons.Link, null) },
+                        readOnly = isCloud,
+                        enabled = !isCloud,
+                    )
                 },
-                leadingContent = if (state.mode == ServerMode.CLOUD) {
-                    { Icon(LettaIcons.Link, null) }
-                } else null,
             )
             item(
                 headlineContent = {
