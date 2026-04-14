@@ -92,7 +92,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // DataStore for bot config persistence
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
 
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
