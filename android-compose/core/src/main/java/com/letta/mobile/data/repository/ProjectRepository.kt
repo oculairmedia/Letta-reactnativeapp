@@ -1,6 +1,8 @@
 package com.letta.mobile.data.repository
 
 import com.letta.mobile.data.api.ProjectApi
+import com.letta.mobile.data.api.ProjectCreateRequest
+import com.letta.mobile.data.api.ProjectUpdateRequest
 import com.letta.mobile.data.model.ProjectCatalog
 import com.letta.mobile.data.model.ProjectSummary
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,51 @@ class ProjectRepository @Inject constructor(
             }
         }
         return fresh
+    }
+
+    suspend fun createProject(
+        name: String?,
+        filesystemPath: String,
+        gitUrl: String?,
+    ): ProjectSummary {
+        val created = projectApi.createProject(
+            ProjectCreateRequest(
+                name = name,
+                filesystemPath = filesystemPath,
+                gitUrl = gitUrl,
+            )
+        ).sanitize()
+        _projects.update { current ->
+            (current + created)
+                .distinctBy { it.identifier }
+                .sortedWith(compareBy<ProjectSummary> { it.name.lowercase() })
+        }
+        lastRefreshAtMillis = System.currentTimeMillis()
+        return created
+    }
+
+    suspend fun updateProject(
+        identifier: String,
+        filesystemPath: String?,
+        gitUrl: String?,
+    ): ProjectSummary {
+        val updated = projectApi.updateProject(
+            identifier = identifier,
+            request = ProjectUpdateRequest(
+                filesystemPath = filesystemPath,
+                gitUrl = gitUrl,
+            )
+        ).sanitize()
+        _projects.update { current ->
+            val index = current.indexOfFirst { it.identifier == updated.identifier }
+            if (index >= 0) {
+                current.toMutableList().apply { this[index] = updated }
+            } else {
+                current + updated
+            }
+        }
+        lastRefreshAtMillis = System.currentTimeMillis()
+        return updated
     }
 
     fun hasFreshProjects(maxAgeMs: Long): Boolean {

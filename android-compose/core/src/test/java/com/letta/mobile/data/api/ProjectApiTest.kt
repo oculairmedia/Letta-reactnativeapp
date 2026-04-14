@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -81,6 +82,71 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
 
         assertTrue(capturedUrl!!.endsWith("/api/registry/projects/GRAPH"))
         assertEquals("agent-1", result.lettaAgentId)
+    }
+
+    @Test
+    fun `createProject sends POST to registry endpoint`() = runTest {
+        var capturedMethod: HttpMethod? = null
+        var capturedUrl: String? = null
+        val client = trackClient(HttpClient(MockEngine { request: HttpRequestData ->
+            capturedMethod = request.method
+            capturedUrl = request.url.toString()
+            respond(
+                """{"project":{"identifier":"GRAPHITI","name":"Graphiti","filesystem_path":"/opt/stacks/graphiti","git_url":"https://github.com/example/graphiti.git"}}""",
+                HttpStatusCode.Created,
+                jsonHeaders,
+            )
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val api = createApi(client)
+        val result = api.createProject(
+            ProjectCreateRequest(
+                name = "Graphiti",
+                filesystemPath = "/opt/stacks/graphiti",
+                gitUrl = "https://github.com/example/graphiti.git",
+            )
+        )
+
+        assertEquals(HttpMethod.Post, capturedMethod)
+        assertTrue(capturedUrl!!.endsWith("/api/registry/projects"))
+        assertEquals("GRAPHITI", result.identifier)
+        assertEquals("/opt/stacks/graphiti", result.filesystemPath)
+    }
+
+    @Test
+    fun `updateProject sends PATCH to registry endpoint`() = runTest {
+        var capturedMethod: HttpMethod? = null
+        var capturedUrl: String? = null
+        val client = trackClient(HttpClient(MockEngine { request: HttpRequestData ->
+            capturedMethod = request.method
+            capturedUrl = request.url.toString()
+            respond(
+                """{"project":{"identifier":"GRAPH","name":"Graphiti","filesystem_path":"/opt/stacks/graphiti","git_url":"https://github.com/example/graphiti.git"}}""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val api = createApi(client)
+        val result = api.updateProject(
+            identifier = "GRAPH",
+            request = ProjectUpdateRequest(
+                filesystemPath = "/opt/stacks/graphiti",
+                gitUrl = "https://github.com/example/graphiti.git",
+            )
+        )
+
+        assertEquals(HttpMethod.Patch, capturedMethod)
+        assertTrue(capturedUrl!!.endsWith("/api/registry/projects/GRAPH"))
+        assertEquals("https://github.com/example/graphiti.git", result.gitUrl)
     }
 
     @Test(expected = ApiException::class)
