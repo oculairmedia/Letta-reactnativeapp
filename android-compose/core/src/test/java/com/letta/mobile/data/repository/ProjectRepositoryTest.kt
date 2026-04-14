@@ -39,7 +39,8 @@ class ProjectRepositoryTest {
         assertEquals(1, result.total)
         val project = repository.projects.first().single()
         assertEquals("https://github.com/getzep/graphiti.git", project.gitUrl)
-        assertEquals("1776066315930", project.updatedAt)
+        // normalizeTimestamp converts epoch-millis strings to ISO-8601
+        assertEquals("2026-04-13T07:45:15.930Z", project.updatedAt)
         assertTrue(fakeApi.calls.contains("listProjects"))
     }
 

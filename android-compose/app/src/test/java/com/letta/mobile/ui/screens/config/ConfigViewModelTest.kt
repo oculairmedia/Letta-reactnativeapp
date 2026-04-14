@@ -337,6 +337,7 @@ class ConfigViewModelTest {
         private val themePresetFlow = MutableStateFlow(ThemePreset.DEFAULT)
         private val dynamicColorFlow = MutableStateFlow(true)
         private val chatBackgroundFlow = MutableStateFlow("default")
+        private val enableProjectsFlow = MutableStateFlow(false)
 
         private var savedConfig: LettaConfig? = null
 
@@ -383,6 +384,12 @@ class ConfigViewModelTest {
 
         override suspend fun setChatBackgroundKey(key: String) {
             chatBackgroundFlow.value = key
+        }
+
+        override fun getEnableProjects() = enableProjectsFlow
+
+        override suspend fun setEnableProjects(enabled: Boolean) {
+            enableProjectsFlow.value = enabled
         }
     }
 }
