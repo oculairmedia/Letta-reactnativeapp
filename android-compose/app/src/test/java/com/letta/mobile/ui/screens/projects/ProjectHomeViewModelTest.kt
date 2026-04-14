@@ -143,9 +143,27 @@ class ProjectHomeViewModelTest {
         assertEquals(null, state.data.selectedProjectId)
         assertEquals(false, state.data.showArchiveProjectDialog)
         assertEquals(
-            ProjectHomeUiEvent.ShowMessage("Archiving Alpha isn't wired to the registry API yet."),
+            ProjectHomeUiEvent.ShowMessage("Archived Alpha."),
             event.await(),
         )
+        assertTrue(fakeApi.calls.contains("archiveProject:alpha"))
+    }
+
+    @Test
+    fun `confirmArchiveProject emits error when archive fails`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        fakeApi.archiveShouldFail = true
+        val viewModel = ProjectHomeViewModel(repository)
+        val event = async { viewModel.events.first() }
+
+        viewModel.selectProject("alpha")
+        viewModel.startArchiveProject()
+        viewModel.confirmArchiveProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals("alpha", state.data.selectedProjectId)
+        assertEquals(false, state.data.showArchiveProjectDialog)
+        assertEquals(ProjectHomeUiEvent.ShowMessage("Archive failed"), event.await())
     }
 
     @Test
@@ -176,9 +194,27 @@ class ProjectHomeViewModelTest {
         assertEquals(null, state.data.selectedProjectId)
         assertEquals(false, state.data.showDeleteProjectDialog)
         assertEquals(
-            ProjectHomeUiEvent.ShowMessage("Deleting Alpha isn't wired to the registry API yet."),
+            ProjectHomeUiEvent.ShowMessage("Deleted Alpha."),
             event.await(),
         )
+        assertTrue(fakeApi.calls.contains("deleteProject:alpha"))
+    }
+
+    @Test
+    fun `confirmDeleteProject emits error when delete fails`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        fakeApi.deleteShouldFail = true
+        val viewModel = ProjectHomeViewModel(repository)
+        val event = async { viewModel.events.first() }
+
+        viewModel.selectProject("alpha")
+        viewModel.startDeleteProject()
+        viewModel.confirmDeleteProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals("alpha", state.data.selectedProjectId)
+        assertEquals(false, state.data.showDeleteProjectDialog)
+        assertEquals(ProjectHomeUiEvent.ShowMessage("Delete failed"), event.await())
     }
 
     @Test
@@ -501,6 +537,8 @@ class ProjectHomeViewModelTest {
         var shouldFail = false
         var createShouldFail = false
         var updateShouldFail = false
+        var archiveShouldFail = false
+        var deleteShouldFail = false
         val calls = mutableListOf<String>()
 
         override suspend fun listProjects(): ProjectCatalog {
@@ -544,6 +582,22 @@ class ProjectHomeViewModelTest {
             )
             projects[index] = updated
             return updated
+        }
+
+        override suspend fun archiveProject(identifier: String): ProjectSummary {
+            calls.add("archiveProject:$identifier")
+            if (archiveShouldFail) throw ApiException(400, "Archive failed")
+            val index = projects.indexOfFirst { it.identifier == identifier }
+            val existing = projects[index]
+            val updated = existing.copy(status = "archived")
+            projects[index] = updated
+            return updated
+        }
+
+        override suspend fun deleteProject(identifier: String) {
+            calls.add("deleteProject:$identifier")
+            if (deleteShouldFail) throw ApiException(400, "Delete failed")
+            projects.removeAll { it.identifier == identifier }
         }
     }
 }

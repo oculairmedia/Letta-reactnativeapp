@@ -352,9 +352,24 @@ class ProjectHomeViewModel @Inject constructor(
 
     fun confirmArchiveProject() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        val projectName = currentProject()?.name ?: "project"
+        val project = currentProject() ?: return
         _uiState.value = UiState.Success(current.copy(showArchiveProjectDialog = false, selectedProjectId = null))
-        _events.trySend(ProjectHomeUiEvent.ShowMessage("Archiving $projectName isn't wired to the registry API yet."))
+        viewModelScope.launch {
+            runCatching {
+                projectRepository.archiveProject(project.identifier)
+            }.onSuccess { archived ->
+                loadProjects(forceRefresh = true)
+                _events.trySend(ProjectHomeUiEvent.ShowMessage("Archived ${archived.name}."))
+            }.onFailure { error ->
+                val refreshed = (_uiState.value as? UiState.Success)?.data ?: return@onFailure
+                _uiState.value = UiState.Success(
+                    refreshed.copy(
+                        selectedProjectId = project.identifier,
+                    )
+                )
+                _events.trySend(ProjectHomeUiEvent.ShowMessage(error.message ?: "Failed to archive project"))
+            }
+        }
     }
 
     fun startDeleteProject() {
@@ -375,9 +390,24 @@ class ProjectHomeViewModel @Inject constructor(
 
     fun confirmDeleteProject() {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
-        val projectName = currentProject()?.name ?: "project"
+        val project = currentProject() ?: return
         _uiState.value = UiState.Success(current.copy(showDeleteProjectDialog = false, selectedProjectId = null))
-        _events.trySend(ProjectHomeUiEvent.ShowMessage("Deleting $projectName isn't wired to the registry API yet."))
+        viewModelScope.launch {
+            runCatching {
+                projectRepository.deleteProject(project.identifier)
+            }.onSuccess {
+                loadProjects(forceRefresh = true)
+                _events.trySend(ProjectHomeUiEvent.ShowMessage("Deleted ${project.name}."))
+            }.onFailure { error ->
+                val refreshed = (_uiState.value as? UiState.Success)?.data ?: return@onFailure
+                _uiState.value = UiState.Success(
+                    refreshed.copy(
+                        selectedProjectId = project.identifier,
+                    )
+                )
+                _events.trySend(ProjectHomeUiEvent.ShowMessage(error.message ?: "Failed to delete project"))
+            }
+        }
     }
 
     fun currentProject(): ProjectSummary? {
