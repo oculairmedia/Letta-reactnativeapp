@@ -1,6 +1,5 @@
 package com.letta.mobile.ui.screens.usage
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,7 +36,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -50,6 +47,7 @@ import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.components.StatusChip
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaTopBarDefaults
 import com.letta.mobile.ui.theme.customColors
@@ -490,25 +488,6 @@ private fun RunSummaryCard(run: RunSummary) {
             }
         }
     }
-}
-
-@Composable
-private fun StatusChip(status: String) {
-    val (bgColor, textColor) = when (status) {
-        "completed" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        "error" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        "running" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Text(
-        text = status,
-        style = MaterialTheme.typography.labelSmall,
-        color = textColor,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(bgColor)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
 }
 
 private fun formatCompact(value: Int): String = when {
