@@ -213,6 +213,8 @@ class LettaChatClient(
             MessageType.REASONING -> MessageRole.Assistant
             MessageType.TOOL_CALL -> MessageRole.Tool
             MessageType.TOOL_RETURN -> MessageRole.Tool
+            MessageType.APPROVAL_REQUEST -> MessageRole.Assistant
+            MessageType.APPROVAL_RESPONSE -> MessageRole.User
         }
         val name = toolName
         val toolCalls = when {
