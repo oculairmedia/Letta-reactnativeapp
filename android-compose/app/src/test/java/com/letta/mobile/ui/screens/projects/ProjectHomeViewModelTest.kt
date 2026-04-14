@@ -116,6 +116,72 @@ class ProjectHomeViewModelTest {
     }
 
     @Test
+    fun `startArchiveProject opens archive confirmation for selected project`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        val viewModel = ProjectHomeViewModel(repository)
+
+        viewModel.selectProject("alpha")
+        viewModel.startArchiveProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals("alpha", state.data.selectedProjectId)
+        assertEquals(true, state.data.showArchiveProjectDialog)
+        assertEquals(false, state.data.showDeleteProjectDialog)
+    }
+
+    @Test
+    fun `confirmArchiveProject dismisses confirmation and emits honest pending message`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        val viewModel = ProjectHomeViewModel(repository)
+        val event = async { viewModel.events.first() }
+
+        viewModel.selectProject("alpha")
+        viewModel.startArchiveProject()
+        viewModel.confirmArchiveProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals(null, state.data.selectedProjectId)
+        assertEquals(false, state.data.showArchiveProjectDialog)
+        assertEquals(
+            ProjectHomeUiEvent.ShowMessage("Archiving Alpha isn't wired to the registry API yet."),
+            event.await(),
+        )
+    }
+
+    @Test
+    fun `startDeleteProject opens delete confirmation for selected project`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        val viewModel = ProjectHomeViewModel(repository)
+
+        viewModel.selectProject("alpha")
+        viewModel.startDeleteProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals("alpha", state.data.selectedProjectId)
+        assertEquals(true, state.data.showDeleteProjectDialog)
+        assertEquals(false, state.data.showArchiveProjectDialog)
+    }
+
+    @Test
+    fun `confirmDeleteProject dismisses confirmation and emits honest pending message`() = runTest {
+        fakeApi.projects += project(identifier = "alpha", name = "Alpha")
+        val viewModel = ProjectHomeViewModel(repository)
+        val event = async { viewModel.events.first() }
+
+        viewModel.selectProject("alpha")
+        viewModel.startDeleteProject()
+        viewModel.confirmDeleteProject()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals(null, state.data.selectedProjectId)
+        assertEquals(false, state.data.showDeleteProjectDialog)
+        assertEquals(
+            ProjectHomeUiEvent.ShowMessage("Deleting Alpha isn't wired to the registry API yet."),
+            event.await(),
+        )
+    }
+
+    @Test
     fun `startManualProjectCreation opens manual dialog and hides create options`() = runTest {
         val viewModel = ProjectHomeViewModel(repository)
 

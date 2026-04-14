@@ -50,6 +50,7 @@ import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ActionSheet
 import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.MultiFieldInputDialog
@@ -70,8 +71,6 @@ fun ProjectHomeScreen(
     val snackbar = LocalSnackbarDispatcher.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val missingAgentMessage = stringResource(R.string.screen_projects_missing_agent, "%s")
-    val archivePendingMessage = stringResource(R.string.screen_projects_archive_pending, "%s")
-    val deletePendingMessage = stringResource(R.string.screen_projects_delete_pending, "%s")
     val projectSettingsTitle = stringResource(R.string.screen_projects_settings_title)
     val projectSettingsPathLabel = stringResource(R.string.screen_projects_settings_path_label)
     val projectSettingsGitUrlLabel = stringResource(R.string.screen_projects_settings_git_url_label)
@@ -308,21 +307,42 @@ fun ProjectHomeScreen(
                     ActionSheetItem(
                         text = stringResource(R.string.screen_projects_archive_action),
                         icon = LettaIcons.Archive,
-                        onClick = {
-                            viewModel.selectProject(null)
-                            snackbar.dispatch(archivePendingMessage.format(project.name))
-                        },
+                        onClick = viewModel::startArchiveProject,
                     )
                     ActionSheetItem(
                         text = stringResource(R.string.action_delete),
                         icon = LettaIcons.Delete,
-                        onClick = {
-                            viewModel.selectProject(null)
-                            snackbar.dispatch(deletePendingMessage.format(project.name))
-                        },
+                        onClick = viewModel::startDeleteProject,
                         destructive = true,
                     )
                 }
+
+                ConfirmDialog(
+                    show = state.data.showArchiveProjectDialog && selectedProject != null,
+                    title = stringResource(R.string.screen_projects_archive_action),
+                    message = stringResource(
+                        R.string.screen_projects_archive_confirm_message,
+                        selectedProject?.name.orEmpty(),
+                    ),
+                    confirmText = stringResource(R.string.screen_projects_archive_action),
+                    dismissText = stringResource(R.string.action_cancel),
+                    onConfirm = viewModel::confirmArchiveProject,
+                    onDismiss = viewModel::dismissArchiveProject,
+                )
+
+                ConfirmDialog(
+                    show = state.data.showDeleteProjectDialog && selectedProject != null,
+                    title = stringResource(R.string.action_delete),
+                    message = stringResource(
+                        R.string.screen_projects_delete_confirm_message,
+                        selectedProject?.name.orEmpty(),
+                    ),
+                    confirmText = stringResource(R.string.action_delete),
+                    dismissText = stringResource(R.string.action_cancel),
+                    onConfirm = viewModel::confirmDeleteProject,
+                    onDismiss = viewModel::dismissDeleteProject,
+                    destructive = true,
+                )
             }
         }
     }

@@ -76,6 +76,8 @@ data class ProjectHomeUiState(
     val newProjectDraft: NewProjectDraft = NewProjectDraft(),
     val showProjectSettingsDialog: Boolean = false,
     val projectSettingsDraft: ProjectSettingsDraft = ProjectSettingsDraft(),
+    val showArchiveProjectDialog: Boolean = false,
+    val showDeleteProjectDialog: Boolean = false,
     val isSubmittingManualCreate: Boolean = false,
     val isSubmittingProjectSettings: Boolean = false,
 )
@@ -137,6 +139,8 @@ class ProjectHomeViewModel @Inject constructor(
                     newProjectDraft = current?.newProjectDraft ?: NewProjectDraft(),
                     showProjectSettingsDialog = current?.showProjectSettingsDialog ?: false,
                     projectSettingsDraft = current?.projectSettingsDraft ?: ProjectSettingsDraft(),
+                    showArchiveProjectDialog = current?.showArchiveProjectDialog ?: false,
+                    showDeleteProjectDialog = current?.showDeleteProjectDialog ?: false,
                     isSubmittingManualCreate = false,
                     isSubmittingProjectSettings = false,
                     isRefreshing = false,
@@ -158,6 +162,8 @@ class ProjectHomeViewModel @Inject constructor(
                 newProjectDraft = if (projectId == null) current.newProjectDraft else NewProjectDraft(),
                 showProjectSettingsDialog = if (projectId == null) current.showProjectSettingsDialog else false,
                 projectSettingsDraft = if (projectId == null) current.projectSettingsDraft else ProjectSettingsDraft(),
+                showArchiveProjectDialog = if (projectId == null) current.showArchiveProjectDialog else false,
+                showDeleteProjectDialog = if (projectId == null) current.showDeleteProjectDialog else false,
             )
         )
     }
@@ -328,6 +334,52 @@ class ProjectHomeViewModel @Inject constructor(
         }
     }
 
+    fun startArchiveProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        if (current.selectedProjectId == null) return
+        _uiState.value = UiState.Success(
+            current.resetTransientProjectActions().copy(
+                selectedProjectId = current.selectedProjectId,
+                showArchiveProjectDialog = true,
+            )
+        )
+    }
+
+    fun dismissArchiveProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(current.copy(showArchiveProjectDialog = false))
+    }
+
+    fun confirmArchiveProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        val projectName = currentProject()?.name ?: "project"
+        _uiState.value = UiState.Success(current.copy(showArchiveProjectDialog = false, selectedProjectId = null))
+        _events.trySend(ProjectHomeUiEvent.ShowMessage("Archiving $projectName isn't wired to the registry API yet."))
+    }
+
+    fun startDeleteProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        if (current.selectedProjectId == null) return
+        _uiState.value = UiState.Success(
+            current.resetTransientProjectActions().copy(
+                selectedProjectId = current.selectedProjectId,
+                showDeleteProjectDialog = true,
+            )
+        )
+    }
+
+    fun dismissDeleteProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(current.copy(showDeleteProjectDialog = false))
+    }
+
+    fun confirmDeleteProject() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        val projectName = currentProject()?.name ?: "project"
+        _uiState.value = UiState.Success(current.copy(showDeleteProjectDialog = false, selectedProjectId = null))
+        _events.trySend(ProjectHomeUiEvent.ShowMessage("Deleting $projectName isn't wired to the registry API yet."))
+    }
+
     fun currentProject(): ProjectSummary? {
         val current = (_uiState.value as? UiState.Success)?.data ?: return null
         return current.projects.firstOrNull { it.identifier == current.selectedProjectId }
@@ -347,6 +399,8 @@ class ProjectHomeViewModel @Inject constructor(
         newProjectDraft = NewProjectDraft(),
         showProjectSettingsDialog = false,
         projectSettingsDraft = ProjectSettingsDraft(),
+        showArchiveProjectDialog = false,
+        showDeleteProjectDialog = false,
         isSubmittingManualCreate = false,
         isSubmittingProjectSettings = false,
     )
