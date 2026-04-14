@@ -64,6 +64,7 @@ class SettingsRepository @Inject constructor(
         val PINNED_AGENT_IDS = stringSetPreferencesKey("pinned_agent_ids")
         val CHAT_FONT_SCALE = floatPreferencesKey("chat_font_scale")
         val ENABLE_PROJECTS = booleanPreferencesKey("enable_projects")
+        val PINNED_SHORTCUT_ORDER = stringPreferencesKey("pinned_shortcut_order")
     }
 
     init {
@@ -273,6 +274,45 @@ class SettingsRepository @Inject constructor(
     suspend fun setEnableProjects(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[Keys.ENABLE_PROJECTS] = enabled
+        }
+    }
+
+    fun getPinnedShortcutOrder(): Flow<List<String>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.PINNED_SHORTCUT_ORDER]
+        if (raw != null) {
+            try {
+                json.decodeFromString<List<String>>(raw)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    suspend fun setPinnedShortcutOrder(order: List<String>) {
+        dataStore.edit { prefs ->
+            prefs[Keys.PINNED_SHORTCUT_ORDER] = json.encodeToString(order)
+        }
+    }
+
+    suspend fun addPinnedShortcut(name: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.PINNED_SHORTCUT_ORDER]?.let {
+                try { json.decodeFromString<List<String>>(it) } catch (_: Exception) { emptyList() }
+            } ?: emptyList()
+            if (name !in current) {
+                prefs[Keys.PINNED_SHORTCUT_ORDER] = json.encodeToString(current + name)
+            }
+        }
+    }
+
+    suspend fun removePinnedShortcut(name: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.PINNED_SHORTCUT_ORDER]?.let {
+                try { json.decodeFromString<List<String>>(it) } catch (_: Exception) { emptyList() }
+            } ?: emptyList()
+            prefs[Keys.PINNED_SHORTCUT_ORDER] = json.encodeToString(current - name)
         }
     }
 

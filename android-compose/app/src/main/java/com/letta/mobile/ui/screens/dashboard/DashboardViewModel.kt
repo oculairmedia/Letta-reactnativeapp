@@ -50,6 +50,7 @@ data class DashboardUiState(
     val favoriteAgentId: String? = null,
     val favoriteAgentName: String? = null,
     val pinnedAgents: ImmutableList<PinnedAgent> = persistentListOf(),
+    val pinnedShortcuts: ImmutableList<DashboardShortcut> = persistentListOf(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
     val isSearchActive: Boolean = false,
@@ -87,6 +88,7 @@ class DashboardViewModel @Inject constructor(
         migrateAdminToFavorite()
         loadProgressively()
         observeFavoriteAndPinned()
+        observePinnedShortcuts()
         setupSearch()
     }
 
@@ -209,6 +211,41 @@ class DashboardViewModel @Inject constructor(
     fun unpinAgent(agentId: String) {
         viewModelScope.launch {
             settingsRepository.setAgentPinned(agentId, false)
+        }
+    }
+
+    private fun observePinnedShortcuts() {
+        viewModelScope.launch {
+            settingsRepository.getPinnedShortcutOrder().collect { names ->
+                val shortcuts = names.mapNotNull { name ->
+                    try {
+                        DashboardShortcut.valueOf(name)
+                    } catch (_: IllegalArgumentException) {
+                        null
+                    }
+                }
+                _uiState.value = _uiState.value.copy(
+                    pinnedShortcuts = shortcuts.toImmutableList(),
+                )
+            }
+        }
+    }
+
+    fun pinShortcut(shortcut: DashboardShortcut) {
+        viewModelScope.launch {
+            settingsRepository.addPinnedShortcut(shortcut.name)
+        }
+    }
+
+    fun unpinShortcut(shortcut: DashboardShortcut) {
+        viewModelScope.launch {
+            settingsRepository.removePinnedShortcut(shortcut.name)
+        }
+    }
+
+    fun reorderShortcuts(newOrder: List<DashboardShortcut>) {
+        viewModelScope.launch {
+            settingsRepository.setPinnedShortcutOrder(newOrder.map { it.name })
         }
     }
 
