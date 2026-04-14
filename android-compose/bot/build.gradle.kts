@@ -89,7 +89,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     // WorkManager for background tasks
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
 
     // DataStore for bot config persistence
     implementation("androidx.datastore:datastore-preferences:1.2.1")

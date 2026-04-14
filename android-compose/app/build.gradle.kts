@@ -183,11 +183,11 @@ dependencies {
     implementation("com.patrykandpatrick.vico:compose-m3:2.1.2")
 
     // Paging 3
-    implementation("androidx.paging:paging-runtime-ktx:3.3.5")
-    implementation("androidx.paging:paging-compose:3.3.5")
+    implementation("androidx.paging:paging-runtime-ktx:3.4.2")
+    implementation("androidx.paging:paging-compose:3.4.2")
 
     // Background sync
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
