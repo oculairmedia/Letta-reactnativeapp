@@ -283,11 +283,19 @@ class SettingsRepository @Inject constructor(
             try {
                 json.decodeFromString<List<String>>(raw)
             } catch (_: Exception) {
-                emptyList()
+                DEFAULT_PINNED_SHORTCUTS
             }
         } else {
-            emptyList()
+            DEFAULT_PINNED_SHORTCUTS
         }
+    }
+
+    companion object {
+        /** Shortcuts pinned by default on first launch. */
+        val DEFAULT_PINNED_SHORTCUTS = listOf(
+            "CONVERSATIONS", "AGENTS", "TOOLS", "BLOCKS",
+            "USAGE", "FAVORITE_AGENT",
+        )
     }
 
     suspend fun setPinnedShortcutOrder(order: List<String>) {

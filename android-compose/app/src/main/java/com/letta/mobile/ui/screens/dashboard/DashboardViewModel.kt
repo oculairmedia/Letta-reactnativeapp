@@ -81,6 +81,7 @@ class DashboardViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     private val _cachedBlocks = MutableStateFlow<List<Block>>(emptyList())
+    private var messageSearchJob: kotlinx.coroutines.Job? = null
 
     private val _uiState = MutableStateFlow(
         DashboardUiState(
@@ -133,6 +134,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun updateSearchQuery(query: String) {
+        Log.d("DashboardVM", "updateSearchQuery: '$query'")
         _searchQuery.value = query
         _uiState.value = _uiState.value.copy(
             searchQuery = query,
@@ -165,6 +167,9 @@ class DashboardViewModel @Inject constructor(
                 .debounce(300L)
                 .distinctUntilChanged()
                 .collect { snapshot ->
+                    // Cancel any in-flight message search from the previous query.
+                    messageSearchJob?.cancel()
+
                     if (snapshot.query.isBlank()) {
                         _uiState.value = _uiState.value.copy(
                             agentResults = persistentListOf(),
@@ -176,6 +181,7 @@ class DashboardViewModel @Inject constructor(
                         return@collect
                     }
 
+                    // Local filtering is instant — apply immediately.
                     val q = snapshot.query.trim().lowercase()
                     val agents = snapshot.agents.filter { agent ->
                         agent.name.lowercase().contains(q) ||
@@ -190,28 +196,40 @@ class DashboardViewModel @Inject constructor(
                             (block.description?.lowercase()?.contains(q) == true) ||
                             block.value.lowercase().contains(q)
                     }
+                    Log.d(
+                        "DashboardVM",
+                        "Search '$q': ${agents.size} agents, ${tools.size} tools, ${blocks.size} blocks " +
+                            "(from ${snapshot.agents.size} agents, ${snapshot.tools.size} tools, ${snapshot.blocks.size} blocks)",
+                    )
                     _uiState.value = _uiState.value.copy(
                         agentResults = agents.toImmutableList(),
                         toolResults = tools.toImmutableList(),
                         blockResults = blocks.toImmutableList(),
+                        messageResults = persistentListOf(),
                         isSearching = true,
                     )
 
-                    try {
-                        val results = messageRepository.searchMessages(
-                            MessageSearchRequest(
-                                query = snapshot.query,
-                                roles = listOf("user", "assistant"),
-                                limit = 20,
+                    // Remote message search runs in a separate job so it doesn't
+                    // block the collect loop from processing the next query.
+                    messageSearchJob = viewModelScope.launch {
+                        try {
+                            val results = messageRepository.searchMessages(
+                                MessageSearchRequest(
+                                    query = snapshot.query,
+                                    roles = listOf("user", "assistant"),
+                                    limit = 20,
+                                )
                             )
-                        )
-                        _uiState.value = _uiState.value.copy(
-                            messageResults = results.map { it.toParsed() }.toImmutableList(),
-                            isSearching = false,
-                        )
-                    } catch (e: Exception) {
-                        Log.w("DashboardVM", "Message search failed", e)
-                        _uiState.value = _uiState.value.copy(isSearching = false)
+                            _uiState.value = _uiState.value.copy(
+                                messageResults = results.map { it.toParsed() }.toImmutableList(),
+                                isSearching = false,
+                            )
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("DashboardVM", "Message search failed", e)
+                            _uiState.value = _uiState.value.copy(isSearching = false)
+                        }
                     }
                 }
         }

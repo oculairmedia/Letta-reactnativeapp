@@ -69,6 +69,7 @@ sealed interface ProjectHomeUiEvent {
 @androidx.compose.runtime.Immutable
 data class ProjectHomeUiState(
     val projects: ImmutableList<ProjectSummary> = persistentListOf(),
+    val searchQuery: String = "",
     val selectedProjectId: String? = null,
     val isRefreshing: Boolean = false,
     val showCreateOptions: Boolean = false,
@@ -133,6 +134,7 @@ class ProjectHomeViewModel @Inject constructor(
             _uiState.value = UiState.Success(
                 ProjectHomeUiState(
                     projects = projects.toImmutableList(),
+                    searchQuery = current?.searchQuery ?: "",
                     selectedProjectId = current?.selectedProjectId,
                     showCreateOptions = current?.showCreateOptions ?: false,
                     showManualCreateDialog = current?.showManualCreateDialog ?: false,
@@ -151,6 +153,11 @@ class ProjectHomeViewModel @Inject constructor(
 
     fun refresh() {
         loadProjects(forceRefresh = true)
+    }
+
+    fun updateSearchQuery(query: String) {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(current.copy(searchQuery = query))
     }
 
     fun selectProject(projectId: String?) {

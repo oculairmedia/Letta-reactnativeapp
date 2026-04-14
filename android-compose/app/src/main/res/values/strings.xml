@@ -43,6 +43,10 @@
     <string name="widget_desc_models">Browse LLM models</string>
     <string name="widget_desc_settings">App preferences</string>
     <string name="widget_desc_about">App info &amp; version</string>
+    <string name="widget_desc_usage">Token analytics</string>
+    <string name="widget_desc_favorite_agent">Quick chat</string>
+    <string name="screen_nav_usage">Usage</string>
+    <string name="screen_nav_favorite_agent">Favorite Agent</string>
     <string name="widget_tile_count_format">%d items</string>
     <string name="screen_home_usage_title">Usage</string>
     <string name="screen_home_usage_subtitle">Last 24 hours</string>
@@ -85,6 +89,7 @@
     <string name="screen_projects_settings_update_success">Saved project settings for %1$s.</string>
     <string name="screen_projects_last_activity_unknown">Last activity unavailable</string>
     <string name="screen_projects_last_activity">Updated %1$s</string>
+    <string name="screen_projects_search_hint">Search projects…</string>
 
     <string name="screen_usage_title">Usage Analytics</string>
     <string name="screen_usage_total_tokens">Total Tokens</string>

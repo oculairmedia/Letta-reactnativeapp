@@ -236,6 +236,93 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun `search returns results across agents tools and blocks simultaneously`() = runTest {
+        // Setup data with overlapping name "test" across categories
+        every { agentRepository.agents } returns MutableStateFlow(
+            listOf(
+                TestData.agent(id = "a1", name = "Test Agent", description = "desc"),
+                TestData.agent(id = "a2", name = "Other Agent", description = "a test description"),
+                TestData.agent(id = "a3", name = "Unrelated", description = "nothing"),
+            )
+        )
+        every { toolRepository.getTools() } returns MutableStateFlow(
+            listOf(
+                TestData.tool(id = "t1", name = "test_tool", description = "does testing"),
+                TestData.tool(id = "t2", name = "send_email", description = "sends email"),
+            )
+        )
+        coEvery { blockRepository.listAllBlocks() } returns listOf(
+            TestData.block(id = "b1", label = "test_block", value = "value"),
+            TestData.block(id = "b2", label = "persona", value = "I am a test assistant"),
+            TestData.block(id = "b3", label = "system", value = "No match here"),
+        )
+
+        val viewModel = DashboardViewModel(
+            agentRepository = agentRepository,
+            allConversationsRepository = conversationsRepository,
+            toolRepository = toolRepository,
+            blockRepository = blockRepository,
+            settingsRepository = settingsRepository,
+            messageRepository = messageRepository,
+            runRepository = runRepository,
+        )
+
+        viewModel.updateSearchQuery("test")
+        advanceTimeBy(350)
+
+        val state = viewModel.uiState.value
+        assertTrue("Search should be active", state.isSearchActive)
+        assertEquals(
+            "Should match 2 agents (name contains 'test' or description contains 'test')",
+            listOf("Test Agent", "Other Agent"),
+            state.agentResults.map { it.name },
+        )
+        assertEquals(
+            "Should match 1 tool (name contains 'test')",
+            listOf("test_tool"),
+            state.toolResults.map { it.name },
+        )
+        assertEquals(
+            "Should match 2 blocks (label or value contains 'test')",
+            listOf("test_block", "persona"),
+            state.blockResults.mapNotNull { it.label },
+        )
+    }
+
+    @Test
+    fun `search narrows results as query becomes more specific`() = runTest {
+        every { agentRepository.agents } returns MutableStateFlow(
+            listOf(
+                TestData.agent(id = "a1", name = "Agent Alpha", description = null),
+                TestData.agent(id = "a2", name = "Agent Beta", description = null),
+                TestData.agent(id = "a3", name = "Alpha Bot", description = null),
+            )
+        )
+
+        val viewModel = DashboardViewModel(
+            agentRepository = agentRepository,
+            allConversationsRepository = conversationsRepository,
+            toolRepository = toolRepository,
+            blockRepository = blockRepository,
+            settingsRepository = settingsRepository,
+            messageRepository = messageRepository,
+            runRepository = runRepository,
+        )
+
+        viewModel.updateSearchQuery("agent")
+        advanceTimeBy(350)
+        assertEquals(2, viewModel.uiState.value.agentResults.size)
+
+        viewModel.updateSearchQuery("agent alpha")
+        advanceTimeBy(350)
+        assertEquals(
+            "Narrower query should match fewer results",
+            listOf("Agent Alpha"),
+            viewModel.uiState.value.agentResults.map { it.name },
+        )
+    }
+
+    @Test
     fun `clearSearch resets homepage search results`() = runTest {
         val viewModel = DashboardViewModel(
             agentRepository = agentRepository,

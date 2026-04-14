@@ -33,6 +33,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +57,7 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaSpacing
@@ -63,6 +68,7 @@ import com.letta.mobile.util.formatRelativeTime
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProjectHomeScreen(
+    onNavigateBack: () -> Unit,
     onNavigateToProjectChat: (project: ProjectSummary) -> Unit,
     onNavigateToSettings: () -> Unit,
     viewModel: ProjectHomeViewModel = hiltViewModel(),
@@ -70,6 +76,7 @@ fun ProjectHomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarDispatcher.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
     val missingAgentMessage = stringResource(R.string.screen_projects_missing_agent, "%s")
     val projectSettingsTitle = stringResource(R.string.screen_projects_settings_title)
     val projectSettingsPathLabel = stringResource(R.string.screen_projects_settings_path_label)
@@ -82,10 +89,30 @@ fun ProjectHomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            val searchQuery = (uiState as? UiState.Success)?.data?.searchQuery ?: ""
             LargeFlexibleTopAppBar(
-                title = { Text(stringResource(R.string.screen_projects_title)) },
+                title = {
+                    ExpandableTitleSearch(
+                        query = searchQuery,
+                        onQueryChange = viewModel::updateSearchQuery,
+                        onClear = { viewModel.updateSearchQuery("") },
+                        expanded = isSearchExpanded,
+                        onExpandedChange = { isSearchExpanded = it },
+                        placeholder = stringResource(R.string.screen_projects_search_hint),
+                        openSearchContentDescription = stringResource(R.string.action_search),
+                        closeSearchContentDescription = stringResource(R.string.action_close),
+                        titleContent = {
+                            Text(stringResource(R.string.screen_projects_title))
+                        },
+                    )
+                },
                 scrollBehavior = scrollBehavior,
                 colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(LettaIcons.Settings, contentDescription = stringResource(R.string.common_settings))
@@ -131,6 +158,19 @@ fun ProjectHomeScreen(
                     }
                 }
 
+                val filteredProjects = remember(state.data.projects, state.data.searchQuery) {
+                    if (state.data.searchQuery.isBlank()) {
+                        state.data.projects
+                    } else {
+                        val q = state.data.searchQuery.trim().lowercase()
+                        state.data.projects.filter { project ->
+                            project.name.lowercase().contains(q) ||
+                                project.identifier.lowercase().contains(q) ||
+                                project.filesystemPath?.lowercase()?.contains(q) == true
+                        }
+                    }
+                }
+
                 PullToRefreshBox(
                     isRefreshing = state.data.isRefreshing,
                     onRefresh = viewModel::refresh,
@@ -138,10 +178,11 @@ fun ProjectHomeScreen(
                         .padding(paddingValues)
                         .fillMaxSize(),
                 ) {
-                    if (state.data.projects.isEmpty()) {
+                    if (filteredProjects.isEmpty()) {
                         EmptyState(
                             icon = LettaIcons.Apps,
-                            message = stringResource(R.string.screen_projects_empty),
+                            message = if (state.data.searchQuery.isBlank()) stringResource(R.string.screen_projects_empty)
+                            else "No projects matching \"${state.data.searchQuery}\"",
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
@@ -153,7 +194,7 @@ fun ProjectHomeScreen(
                             verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
                             horizontalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
                         ) {
-                            items(state.data.projects, key = { it.identifier }) { project ->
+                            items(filteredProjects, key = { it.identifier }) { project ->
                                 ProjectTile(
                                     project = project,
                                     onClick = {

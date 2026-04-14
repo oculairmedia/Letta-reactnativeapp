@@ -1,7 +1,6 @@
 package com.letta.mobile.ui.screens.dashboard
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.rememberScrollState
@@ -12,11 +11,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -31,7 +28,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -69,12 +65,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -100,10 +94,7 @@ import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LettaInputBar
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaSpacing
-import com.letta.mobile.ui.theme.LocalWindowSizeClass
 import com.letta.mobile.ui.theme.customColors
-import com.letta.mobile.ui.theme.isExpandedWidth
-import com.letta.mobile.ui.theme.statValue
 import kotlinx.collections.immutable.ImmutableList
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -164,6 +155,15 @@ fun HomeScreen(
         DashboardShortcut.BOT_SETTINGS -> onNavigateToBotSettings
         DashboardShortcut.PROJECTS -> onNavigateToProjects
         DashboardShortcut.MODELS -> onNavigateToModels
+        DashboardShortcut.USAGE -> onNavigateToUsage
+        DashboardShortcut.FAVORITE_AGENT -> {
+            val agentId = uiState.favoriteAgentId
+            if (agentId != null) {
+                { onNavigateToChat(agentId, null) }
+            } else {
+                onNavigateToAgents
+            }
+        }
         DashboardShortcut.SETTINGS -> onNavigateToSettings
         DashboardShortcut.ABOUT -> onNavigateToAbout
     }
@@ -286,15 +286,11 @@ fun HomeScreen(
     ) { paddingValues ->
         HomeContent(
             state = uiState,
-            onNavigateToAgents = onNavigateToAgents,
-            onNavigateToConversations = onNavigateToConversations,
             onNavigateToTools = onNavigateToTools,
             onNavigateToBlocks = onNavigateToBlocks,
             onNavigateToChat = onNavigateToChat,
             onNavigateToChatMessage = onNavigateToChatMessage,
             onNavigateToEditAgent = onNavigateToEditAgent,
-            onNavigateToUsage = onNavigateToUsage,
-            onClearFavorite = viewModel::clearFavorite,
             onUnpinAgent = viewModel::unpinAgent,
             onShortcutClick = { shortcut -> shortcutNavigator(shortcut)() },
             onUnpinShortcut = viewModel::unpinShortcut,
@@ -308,15 +304,11 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     state: DashboardUiState,
-    onNavigateToAgents: () -> Unit,
-    onNavigateToConversations: () -> Unit,
     onNavigateToTools: () -> Unit,
     onNavigateToBlocks: () -> Unit,
     onNavigateToChat: (String, String?) -> Unit,
     onNavigateToChatMessage: (String, String, String) -> Unit,
     onNavigateToEditAgent: (String) -> Unit,
-    onNavigateToUsage: () -> Unit,
-    onClearFavorite: () -> Unit,
     onUnpinAgent: (String) -> Unit,
     onShortcutClick: (DashboardShortcut) -> Unit,
     onUnpinShortcut: (DashboardShortcut) -> Unit,
@@ -394,106 +386,20 @@ private fun HomeContent(
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = LettaSpacing.screenHorizontal),
-                    horizontalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
-                ) {
-                    StatCard(
-                        label = "Agents",
-                        value = state.agentCount?.toString(),
-                        icon = LettaIcons.People,
-                        onClick = onNavigateToAgents,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Chats",
-                        value = state.conversationCount?.toString(),
-                        icon = LettaIcons.Chat,
-                        onClick = onNavigateToConversations,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Tools",
-                        value = state.toolCount?.toString(),
-                        icon = LettaIcons.Tool,
-                        onClick = onNavigateToTools,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "Blocks",
-                        value = state.blockCount?.toString(),
-                        icon = LettaIcons.ViewModule,
-                        onClick = onNavigateToBlocks,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                val isWide = LocalWindowSizeClass.current.isExpandedWidth
-
-                if (isWide) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = LettaSpacing.screenHorizontal),
-                        horizontalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
-                    ) {
-                        UsageAnalyticsCard(
-                            usageSummary = state.usageSummary,
-                            isLoading = state.isUsageLoading,
-                            onClick = onNavigateToUsage,
-                            modifier = Modifier.weight(1f),
-                        )
-                        FavoriteAgentCard(
-                            favoriteAgentId = state.favoriteAgentId,
-                            favoriteAgentName = state.favoriteAgentName,
-                            onNavigateToChat = { onNavigateToChat(it, null) },
-                            onSetFavorite = onNavigateToAgents,
-                            onClearFavorite = onClearFavorite,
-                            onConfigure = { id -> onNavigateToEditAgent(id) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                } else {
-                    UsageAnalyticsCard(
-                        usageSummary = state.usageSummary,
-                        isLoading = state.isUsageLoading,
-                        onClick = onNavigateToUsage,
-                        modifier = Modifier.padding(horizontal = LettaSpacing.screenHorizontal),
-                    )
-
-                    FavoriteAgentCard(
-                        favoriteAgentId = state.favoriteAgentId,
-                        favoriteAgentName = state.favoriteAgentName,
-                        onNavigateToChat = { onNavigateToChat(it, null) },
-                        onSetFavorite = onNavigateToAgents,
-                        onClearFavorite = onClearFavorite,
-                        onConfigure = { id -> onNavigateToEditAgent(id) },
-                    )
-                }
-
                 if (state.pinnedShortcuts.isNotEmpty()) {
-                    Column(
+                    ReorderableWidgetGrid(
+                        shortcuts = state.pinnedShortcuts,
+                        state = state,
+                        onShortcutClick = onShortcutClick,
+                        onUnpinShortcut = onUnpinShortcut,
+                        onReorder = onReorderShortcuts,
+                        columns = 3,
                         modifier = Modifier.padding(horizontal = LettaSpacing.screenHorizontal),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.screen_home_shortcuts_title),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                        ReorderableWidgetGrid(
-                            shortcuts = state.pinnedShortcuts,
-                            state = state,
-                            onShortcutClick = onShortcutClick,
-                            onUnpinShortcut = onUnpinShortcut,
-                            onReorder = onReorderShortcuts,
-                            columns = if (isWide) 3 else 2,
-                        )
-                    }
+                    )
                 }
 
                 if (state.pinnedAgents.isNotEmpty()) {
-                    val agentColumns = if (isWide) 3 else 2
+                    val agentColumns = 3
                     Column(
                         modifier = Modifier.padding(horizontal = LettaSpacing.screenHorizontal),
                     ) {
@@ -539,281 +445,6 @@ private fun HomeContent(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun UsageAnalyticsCard(
-    usageSummary: DashboardUsageSummary?,
-    isLoading: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accentColors = MaterialTheme.customColors
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = accentColors.freshAccentContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.screen_home_usage_title),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        text = stringResource(R.string.screen_home_usage_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Icon(
-                    imageVector = LettaIcons.Sparkles,
-                    contentDescription = null,
-                    tint = accentColors.freshAccent,
-                )
-                Icon(
-                    imageVector = LettaIcons.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-
-            when {
-                isLoading -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        ContainedLoadingIndicator()
-                    }
-                }
-
-                usageSummary == null || usageSummary.sampledSteps == 0 -> {
-                    Text(
-                        text = stringResource(R.string.screen_home_usage_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                else -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        UsageMetricCard(
-                            label = stringResource(R.string.screen_home_usage_total_label),
-                            value = formatNumber(usageSummary.totalTokens),
-                            icon = LettaIcons.Database,
-                            modifier = Modifier.weight(1f),
-                        )
-                        UsageMetricCard(
-                            label = stringResource(R.string.screen_home_usage_hourly_label),
-                            value = formatNumber(usageSummary.averageTokensPerHour),
-                            icon = LettaIcons.AccessTime,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-
-                    HorizontalDivider()
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = stringResource(R.string.screen_home_usage_model_split_title),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        usageSummary.modelUsage.take(5).forEachIndexed { index, modelUsage ->
-                            ModelUsageRow(modelUsage = modelUsage)
-                            if (index < usageSummary.modelUsage.take(5).lastIndex) {
-                                HorizontalDivider()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UsageMetricCard(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-) {
-    val accentColors = MaterialTheme.customColors
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = accentColors.freshAccentContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accentColors.freshAccent,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(text = value, style = MaterialTheme.typography.statValue)
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ModelUsageRow(
-    modelUsage: ModelTokenUsage,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = modelUsage.model,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(R.string.screen_home_usage_model_tokens_label, formatNumber(modelUsage.totalTokens)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = stringResource(R.string.screen_home_usage_model_share_label, modelUsage.sharePercent),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FavoriteAgentCard(
-    favoriteAgentId: String?,
-    favoriteAgentName: String?,
-    onNavigateToChat: (String) -> Unit,
-    onSetFavorite: () -> Unit,
-    onClearFavorite: () -> Unit,
-    onConfigure: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (favoriteAgentId != null && favoriteAgentName != null) {
-        var showMenu by remember { mutableStateOf(false) }
-        val haptic = LocalHapticFeedback.current
-
-        Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = LettaSpacing.screenHorizontal)
-                .combinedClickable(
-                    onClick = { onNavigateToChat(favoriteAgentId) },
-                    onLongClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showMenu = true
-                    },
-                ),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-            ),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    LettaIcons.Agent,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = favoriteAgentName,
-                    style = MaterialTheme.typography.statValue,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.screen_home_favorite_subtitle),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        ActionSheet(
-            show = showMenu,
-            onDismiss = { showMenu = false },
-            title = favoriteAgentName,
-        ) {
-            ActionSheetItem(
-                text = stringResource(R.string.action_configure_agent),
-                icon = LettaIcons.Edit,
-                onClick = { showMenu = false; onConfigure(favoriteAgentId) },
-            )
-            ActionSheetItem(
-                text = stringResource(R.string.action_remove_favorite),
-                icon = LettaIcons.FavoriteBorder,
-                onClick = { showMenu = false; onClearFavorite() },
-            )
-        }
-    } else {
-        Card(
-            onClick = onSetFavorite,
-            modifier = modifier.fillMaxWidth().padding(horizontal = LettaSpacing.screenHorizontal),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            ),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    LettaIcons.Star,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.screen_home_set_favorite_prompt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -827,6 +458,7 @@ private fun PinnedAgentCard(
     var showMenu by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
+    val accentColors = MaterialTheme.customColors
     Card(
         modifier = modifier
             .combinedClickable(
@@ -837,7 +469,7 @@ private fun PinnedAgentCard(
                 },
             ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            containerColor = accentColors.freshAccentContainer,
         ),
     ) {
         Column(
@@ -847,20 +479,20 @@ private fun PinnedAgentCard(
             Icon(
                 LettaIcons.Agent,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = accentColors.freshAccent,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = name,
-                style = MaterialTheme.typography.statValue,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = stringResource(R.string.screen_home_pinned_subtitle),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
@@ -903,6 +535,11 @@ private fun resolveContextualInfo(
         DashboardShortcut.BLOCKS -> state.blockCount?.let {
             stringResource(R.string.widget_tile_count_format, it)
         }
+        DashboardShortcut.USAGE -> state.usageSummary?.let {
+            formatNumber(it.totalTokens) + " tokens"
+        } ?: if (state.isUsageLoading) "Loading…" else stringResource(shortcut.descriptionResId)
+        DashboardShortcut.FAVORITE_AGENT -> state.favoriteAgentName
+            ?: stringResource(shortcut.descriptionResId)
         else -> {
             if (shortcut.descriptionResId != 0) {
                 stringResource(shortcut.descriptionResId)
@@ -925,16 +562,8 @@ private fun DashboardWidgetTile(
     var showMenu by remember { mutableStateOf(false) }
     val accentColors = MaterialTheme.customColors
 
-    val containerColor = when (shortcut.group) {
-        DashboardShortcut.Group.PRIMARY -> accentColors.freshAccentContainer
-        DashboardShortcut.Group.SECONDARY -> MaterialTheme.colorScheme.secondaryContainer
-        DashboardShortcut.Group.UTILITY -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = when (shortcut.group) {
-        DashboardShortcut.Group.PRIMARY -> accentColors.freshAccent
-        DashboardShortcut.Group.SECONDARY -> MaterialTheme.colorScheme.onSecondaryContainer
-        DashboardShortcut.Group.UTILITY -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val containerColor = accentColors.freshAccentContainer
+    val contentColor = accentColors.freshAccent
 
     val scale by animateFloatAsState(
         targetValue = if (isDragging) 1.05f else 1f,
@@ -982,14 +611,15 @@ private fun DashboardWidgetTile(
             if (contextualInfo != null) {
                 Text(
                     text = contextualInfo,
-                    style = MaterialTheme.typography.statValue,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             Text(
                 text = stringResource(shortcut.labelResId),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1192,7 +822,45 @@ private fun ReorderableWidgetGrid(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    topPadding: Boolean = false,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable(onClick = onToggle)
+            .padding(top = if (topPadding) 8.dp else 0.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "($count)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = if (expanded) LettaIcons.ExpandLess else LettaIcons.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SearchResultsContent(
     agentResults: List<Agent>,
@@ -1210,6 +878,11 @@ private fun SearchResultsContent(
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
     val highlightTextColor = MaterialTheme.colorScheme.primary
 
+    var agentsExpanded by rememberSaveable { mutableStateOf(true) }
+    var toolsExpanded by rememberSaveable { mutableStateOf(true) }
+    var blocksExpanded by rememberSaveable { mutableStateOf(true) }
+    var messagesExpanded by rememberSaveable { mutableStateOf(true) }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -1217,44 +890,46 @@ private fun SearchResultsContent(
     ) {
         if (agentResults.isNotEmpty()) {
             item(key = "agents-header") {
-                Text(
-                    text = stringResource(R.string.screen_home_search_agents_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.screen_home_search_agents_section),
+                    count = agentResults.size,
+                    expanded = agentsExpanded,
+                    onToggle = { agentsExpanded = !agentsExpanded },
                 )
             }
-            items(agentResults, key = { "agent-${it.id}" }) { agent ->
-                Card(
-                    onClick = { onAgentClick(agent.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+            if (agentsExpanded) {
+                items(agentResults, key = { "agent-${it.id}" }) { agent ->
+                    Card(
+                        onClick = { onAgentClick(agent.id) },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                     ) {
-                        Icon(
-                            LettaIcons.Agent,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = highlightMatches(agent.name, searchQuery, highlightColor, highlightTextColor),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                LettaIcons.Agent,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
                             )
-                            agent.description?.let { desc ->
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
                                 Text(
-                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = highlightMatches(agent.name, searchQuery, highlightColor, highlightTextColor),
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                agent.description?.let { desc ->
+                                    Text(
+                                        text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
@@ -1264,44 +939,47 @@ private fun SearchResultsContent(
 
         if (toolResults.isNotEmpty()) {
             item(key = "tools-header") {
-                Text(
-                    text = stringResource(R.string.screen_home_search_tools_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.screen_home_search_tools_section),
+                    count = toolResults.size,
+                    expanded = toolsExpanded,
+                    onToggle = { toolsExpanded = !toolsExpanded },
+                    topPadding = true,
                 )
             }
-            items(toolResults, key = { "tool-${it.id}" }) { tool ->
-                Card(
-                    onClick = { onToolClick(tool.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+            if (toolsExpanded) {
+                items(toolResults, key = { "tool-${it.id}" }) { tool ->
+                    Card(
+                        onClick = { onToolClick(tool.id) },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                     ) {
-                        Icon(
-                            LettaIcons.Tool,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = highlightMatches(tool.name, searchQuery, highlightColor, highlightTextColor),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                LettaIcons.Tool,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
                             )
-                            tool.description?.let { desc ->
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
                                 Text(
-                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = highlightMatches(tool.name, searchQuery, highlightColor, highlightTextColor),
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                tool.description?.let { desc ->
+                                    Text(
+                                        text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
@@ -1311,44 +989,47 @@ private fun SearchResultsContent(
 
         if (blockResults.isNotEmpty()) {
             item(key = "blocks-header") {
-                Text(
-                    text = stringResource(R.string.screen_home_search_blocks_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.screen_home_search_blocks_section),
+                    count = blockResults.size,
+                    expanded = blocksExpanded,
+                    onToggle = { blocksExpanded = !blocksExpanded },
+                    topPadding = true,
                 )
             }
-            items(blockResults, key = { "block-${it.id}" }) { block ->
-                Card(
-                    onClick = { onBlockClick(block.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+            if (blocksExpanded) {
+                items(blockResults, key = { "block-${it.id}" }) { block ->
+                    Card(
+                        onClick = { onBlockClick(block.id) },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
                     ) {
-                        Icon(
-                            LettaIcons.ViewModule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = highlightMatches(block.label ?: "Unnamed", searchQuery, highlightColor, highlightTextColor),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                LettaIcons.ViewModule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
                             )
-                            block.description?.let { desc ->
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
                                 Text(
-                                    text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = highlightMatches(block.label ?: "Unnamed", searchQuery, highlightColor, highlightTextColor),
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                block.description?.let { desc ->
+                                    Text(
+                                        text = highlightMatches(desc, searchQuery, highlightColor, highlightTextColor),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
@@ -1358,53 +1039,67 @@ private fun SearchResultsContent(
 
         if (messageResults.isNotEmpty()) {
             item(key = "messages-header") {
-                Text(
-                    text = stringResource(R.string.screen_home_search_messages_section),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.screen_home_search_messages_section),
+                    count = messageResults.size,
+                    expanded = messagesExpanded,
+                    onToggle = { messagesExpanded = !messagesExpanded },
+                    topPadding = true,
                 )
             }
-            items(messageResults.size, key = { "msg-$it" }) { index ->
-                val msg = messageResults[index]
-                Card(
-                    onClick = { onMessageClick(msg) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                LettaIcons.Chat,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+            if (messagesExpanded) {
+                items(messageResults.size, key = { "msg-$it" }) { index ->
+                    val msg = messageResults[index]
+                    Card(
+                        onClick = { onMessageClick(msg) },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    LettaIcons.Chat,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = msg.role?.replaceFirstChar { it.uppercase() } ?: "Message",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = msg.role?.replaceFirstChar { it.uppercase() } ?: "Message",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = highlightMatches(msg.content ?: "", searchQuery, highlightColor, highlightTextColor),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = highlightMatches(msg.content ?: "", searchQuery, highlightColor, highlightTextColor),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
                     }
                 }
             }
         }
 
-        if (isSearching) {
-            item(key = "loading") {
+        if (isSearching && messageResults.isEmpty()) {
+            item(key = "messages-loading") {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    LoadingIndicator()
+                    Text(
+                        text = stringResource(R.string.screen_home_search_messages_section),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                    )
                 }
             }
         }
@@ -1459,51 +1154,3 @@ private fun highlightMatches(
 
 private fun formatNumber(value: Int): String = String.format(Locale.US, "%,d", value)
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun StatCard(
-    label: String,
-    value: String?,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accentColors = MaterialTheme.customColors
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = accentColors.freshAccentContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accentColors.freshAccent,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (value != null) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.statValue,
-                )
-            } else {
-                Text(
-                    text = "—",
-                    style = MaterialTheme.typography.statValue,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                )
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}

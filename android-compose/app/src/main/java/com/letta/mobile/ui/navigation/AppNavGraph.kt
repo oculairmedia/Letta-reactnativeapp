@@ -408,6 +408,7 @@ fun AppNavGraph(
             popExitTransition = drillInPopExit,
         ) {
             ProjectHomeScreen(
+                onNavigateBack = { navController.popBackStack() },
                 onNavigateToProjectChat = { project ->
                     navController.navigate(
                         AgentChatRoute(

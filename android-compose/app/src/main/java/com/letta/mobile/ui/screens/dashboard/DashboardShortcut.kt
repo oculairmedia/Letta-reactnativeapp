@@ -42,6 +42,9 @@ enum class DashboardShortcut(
     PROJECTS(LettaIcons.Apps, R.string.screen_projects_title, Group.SECONDARY, R.string.widget_desc_projects),
     MODELS(LettaIcons.Sparkles, R.string.screen_models_title, Group.SECONDARY, R.string.widget_desc_models),
 
+    USAGE(LettaIcons.Database, R.string.screen_nav_usage, Group.SECONDARY, R.string.widget_desc_usage),
+    FAVORITE_AGENT(LettaIcons.Star, R.string.screen_nav_favorite_agent, Group.SECONDARY, R.string.widget_desc_favorite_agent),
+
     // --- Group UTILITY (below second divider) ---
     SETTINGS(LettaIcons.Settings, R.string.common_settings, Group.UTILITY, R.string.widget_desc_settings),
     ABOUT(LettaIcons.Info, R.string.screen_about_title, Group.UTILITY, R.string.widget_desc_about);
