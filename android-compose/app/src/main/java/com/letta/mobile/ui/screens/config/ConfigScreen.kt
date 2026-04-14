@@ -121,26 +121,34 @@ private fun ConfigContent(
                     }
                 },
             )
-            if (state.mode == ServerMode.CLOUD) {
-                item(
-                    headlineContent = { Text(stringResource(R.string.common_server_url)) },
-                    supportingContent = { Text(ConfigViewModel.DEFAULT_CLOUD_URL) },
-                    leadingContent = { Icon(LettaIcons.Link, null) },
-                )
-            } else {
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.serverUrl,
-                            onValueChange = onServerUrlChange,
-                            label = { Text(stringResource(R.string.common_server_url)) },
-                            placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            leadingIcon = { Icon(LettaIcons.Link, null) },
-                        )
-                    },
-                )
-            }
+            item(
+                headlineContent = {
+                    key(state.mode) {
+                        if (state.mode == ServerMode.CLOUD) {
+                            Column {
+                                Text(stringResource(R.string.common_server_url))
+                                Text(
+                                    ConfigViewModel.DEFAULT_CLOUD_URL,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = state.serverUrl,
+                                onValueChange = onServerUrlChange,
+                                label = { Text(stringResource(R.string.common_server_url)) },
+                                placeholder = { Text(stringResource(R.string.screen_config_server_url_placeholder)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                leadingIcon = { Icon(LettaIcons.Link, null) },
+                            )
+                        }
+                    }
+                },
+                leadingContent = if (state.mode == ServerMode.CLOUD) {
+                    { Icon(LettaIcons.Link, null) }
+                } else null,
+            )
             item(
                 headlineContent = {
                     OutlinedTextField(
