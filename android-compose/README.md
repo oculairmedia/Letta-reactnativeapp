@@ -89,3 +89,8 @@ pkill -f kotlin-daemon 2>/dev/null || true
 ```
 
 See `gradle.properties` for IC hardening settings that reduce these failures.
+The repo now defaults to `org.gradle.daemon=false`, `org.gradle.parallel=false`,
+and `org.gradle.caching=false` because reused daemon state, overlapped project
+work, and cache-entry packing each caused reproducible Android verification
+failures in this codebase. Keep verification commands in separate `--no-daemon`
+invocations instead of batching unrelated tasks into one Gradle call.
