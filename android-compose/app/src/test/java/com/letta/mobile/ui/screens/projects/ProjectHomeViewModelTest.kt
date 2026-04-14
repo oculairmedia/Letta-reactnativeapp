@@ -322,6 +322,53 @@ class ProjectHomeViewModelTest {
     }
 
     @Test
+    fun `knownProjectPathSuggestions returns distinct sorted absolute paths`() {
+        val suggestions = knownProjectPathSuggestions(
+            listOf(
+                project(identifier = "b", name = "Beta", filesystemPath = "/opt/stacks/beta"),
+                project(identifier = "a", name = "Alpha", filesystemPath = "/opt/stacks/alpha"),
+                project(identifier = "dup", name = "Duplicate", filesystemPath = " /opt/stacks/alpha "),
+                project(identifier = "blank", name = "Blank", filesystemPath = "   "),
+                project(identifier = "missing", name = "Missing", filesystemPath = null),
+            )
+        )
+
+        assertEquals(listOf("/opt/stacks/alpha", "/opt/stacks/beta"), suggestions)
+    }
+
+    @Test
+    fun `projectSettingsPathGuidance distinguishes known and unknown server paths`() {
+        assertEquals(
+            ProjectSettingsPathGuidance.KnownProjectPath,
+            projectSettingsPathGuidance(
+                draft = ProjectSettingsDraft(filesystemPath = "/opt/stacks/letta-mobile"),
+                knownProjectPaths = setOf("/opt/stacks/letta-mobile"),
+            )
+        )
+        assertEquals(
+            ProjectSettingsPathGuidance.UnknownServerAccess,
+            projectSettingsPathGuidance(
+                draft = ProjectSettingsDraft(filesystemPath = "/srv/projects/new-app"),
+                knownProjectPaths = setOf("/opt/stacks/letta-mobile"),
+            )
+        )
+        assertEquals(
+            ProjectSettingsPathGuidance.MustBeAbsolute,
+            projectSettingsPathGuidance(
+                draft = ProjectSettingsDraft(filesystemPath = "srv/projects/new-app"),
+                knownProjectPaths = emptySet(),
+            )
+        )
+        assertEquals(
+            ProjectSettingsPathGuidance.Missing,
+            projectSettingsPathGuidance(
+                draft = ProjectSettingsDraft(filesystemPath = "   "),
+                knownProjectPaths = emptySet(),
+            )
+        )
+    }
+
+    @Test
     fun `submitProjectSettingsEdit ignores invalid path draft`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
         val viewModel = ProjectHomeViewModel(repository)
@@ -367,6 +414,32 @@ class ProjectHomeViewModelTest {
         assertEquals("", state.data.projectSettingsDraft.filesystemPath)
         assertEquals(ProjectHomeUiEvent.ShowMessage("Saved project settings for Alpha."), event.await())
         assertTrue(fakeApi.calls.contains("updateProject:alpha:/opt/stacks/alpha:https://github.com/example/alpha.git"))
+    }
+
+    @Test
+    fun `submitProjectSettingsEdit clears blank git url before update`() = runTest {
+        fakeApi.projects += project(
+            identifier = "alpha",
+            name = "Alpha",
+            filesystemPath = "/opt/stacks/alpha",
+            gitUrl = "https://github.com/example/alpha.git",
+        )
+        val viewModel = ProjectHomeViewModel(repository)
+
+        viewModel.selectProject("alpha")
+        viewModel.startProjectSettingsEdit()
+        viewModel.updateProjectSettingsDraft(
+            ProjectSettingsDraft(
+                identifier = "alpha",
+                projectName = "Alpha",
+                filesystemPath = "/opt/stacks/alpha",
+                gitUrl = "   ",
+            )
+        )
+
+        viewModel.submitProjectSettingsEdit()
+
+        assertTrue(fakeApi.calls.contains("updateProject:alpha:/opt/stacks/alpha:null"))
     }
 
     @Test

@@ -108,6 +108,35 @@ data class ProjectSettingsDraft(
     fun isReadyToSubmit(): Boolean = filesystemPathValidation() == FilesystemPathValidation.Valid
 }
 
+internal enum class ProjectSettingsPathGuidance {
+    Missing,
+    MustBeAbsolute,
+    KnownProjectPath,
+    UnknownServerAccess,
+}
+
+internal fun knownProjectPathSuggestions(projects: List<ProjectSummary>): List<String> {
+    return projects
+        .mapNotNull { it.filesystemPath?.trim()?.takeIf(String::isNotBlank) }
+        .distinct()
+        .sorted()
+}
+
+internal fun projectSettingsPathGuidance(
+    draft: ProjectSettingsDraft,
+    knownProjectPaths: Set<String>,
+): ProjectSettingsPathGuidance = when (draft.filesystemPathValidation()) {
+    ProjectSettingsDraft.FilesystemPathValidation.Missing -> ProjectSettingsPathGuidance.Missing
+    ProjectSettingsDraft.FilesystemPathValidation.MustBeAbsolute -> ProjectSettingsPathGuidance.MustBeAbsolute
+    ProjectSettingsDraft.FilesystemPathValidation.Valid -> {
+        if (draft.filesystemPath.trim() in knownProjectPaths) {
+            ProjectSettingsPathGuidance.KnownProjectPath
+        } else {
+            ProjectSettingsPathGuidance.UnknownServerAccess
+        }
+    }
+}
+
 sealed interface ProjectHomeUiEvent {
     data class ShowMessage(val message: String) : ProjectHomeUiEvent
 }
