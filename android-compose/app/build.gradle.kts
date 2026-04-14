@@ -180,7 +180,7 @@ dependencies {
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
 
     // Vico charts
-    implementation("com.patrykandpatrick.vico:compose-m3:2.1.2")
+    implementation("com.patrykandpatrick.vico:compose-m3:3.1.0")
 
     // Paging 3
     implementation("androidx.paging:paging-runtime-ktx:3.4.2")
