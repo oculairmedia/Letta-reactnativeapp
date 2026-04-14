@@ -152,11 +152,8 @@ class ConfigViewModel @Inject constructor(
                         onError?.invoke("Server URL is required")
                         return@launch
                     }
-                    if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
-                        onError?.invoke("Server URL must start with http:// or https://")
-                        return@launch
-                    }
-                    raw
+                    if (raw.startsWith("http://") || raw.startsWith("https://")) raw
+                    else "https://$raw"
                 }
                 val existingConfig = settingsRepository.activeConfig.value
                 val config = LettaConfig(

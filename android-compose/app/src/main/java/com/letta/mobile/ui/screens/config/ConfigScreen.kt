@@ -8,7 +8,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -138,13 +142,22 @@ private fun ConfigContent(
             )
             item(
                 headlineContent = {
+                    var tokenVisible by remember { mutableStateOf(false) }
                     OutlinedTextField(
                         value = state.apiToken,
                         onValueChange = onApiTokenChange,
                         label = { Text(stringResource(R.string.common_api_token)) },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(LettaIcons.Key, null) },
+                        trailingIcon = {
+                            IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                                Icon(
+                                    imageVector = if (tokenVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (tokenVisible) "Hide token" else "Show token",
+                                )
+                            }
+                        },
                     )
                 },
             )
