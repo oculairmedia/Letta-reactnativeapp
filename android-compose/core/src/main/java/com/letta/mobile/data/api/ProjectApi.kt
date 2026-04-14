@@ -3,6 +3,7 @@ package com.letta.mobile.data.api
 import com.letta.mobile.data.model.ProjectCatalog
 import com.letta.mobile.data.model.ProjectSummary
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -24,6 +25,7 @@ data class ProjectCreateRequest(
 
 @Serializable
 data class ProjectUpdateRequest(
+    val status: String? = null,
     @SerialName("filesystem_path") val filesystemPath: String? = null,
     @SerialName("git_url") val gitUrl: String? = null,
 )
@@ -85,5 +87,22 @@ open class ProjectApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
         return response.body<ProjectMutationResponse>().project
+    }
+
+    open suspend fun archiveProject(identifier: String): ProjectSummary {
+        return updateProject(
+            identifier = identifier,
+            request = ProjectUpdateRequest(status = "archived"),
+        )
+    }
+
+    open suspend fun deleteProject(identifier: String) {
+        val client = apiClient.getClient()
+        val baseUrl = apiClient.getBaseUrl().trimEnd('/')
+
+        val response = client.delete("$baseUrl/api/registry/projects/$identifier")
+        if (response.status.value !in 200..299) {
+            throw ApiException(response.status.value, response.bodyAsText())
+        }
     }
 }

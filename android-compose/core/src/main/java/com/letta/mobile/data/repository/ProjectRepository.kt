@@ -91,6 +91,26 @@ class ProjectRepository @Inject constructor(
         return updated
     }
 
+    suspend fun archiveProject(identifier: String): ProjectSummary {
+        val updated = projectApi.archiveProject(identifier).sanitize()
+        _projects.update { current ->
+            val index = current.indexOfFirst { it.identifier == updated.identifier }
+            if (index >= 0) {
+                current.toMutableList().apply { this[index] = updated }
+            } else {
+                current + updated
+            }
+        }
+        lastRefreshAtMillis = System.currentTimeMillis()
+        return updated
+    }
+
+    suspend fun deleteProject(identifier: String) {
+        projectApi.deleteProject(identifier)
+        _projects.update { current -> current.filterNot { it.identifier == identifier } }
+        lastRefreshAtMillis = System.currentTimeMillis()
+    }
+
     fun hasFreshProjects(maxAgeMs: Long): Boolean {
         return _projects.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }

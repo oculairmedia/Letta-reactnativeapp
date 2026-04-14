@@ -149,6 +149,57 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
         assertEquals("https://github.com/example/graphiti.git", result.gitUrl)
     }
 
+    @Test
+    fun `archiveProject sends PATCH with archived status`() = runTest {
+        var capturedMethod: HttpMethod? = null
+        var capturedUrl: String? = null
+        val client = trackClient(HttpClient(MockEngine { request: HttpRequestData ->
+            capturedMethod = request.method
+            capturedUrl = request.url.toString()
+            respond(
+                """{"project":{"identifier":"GRAPH","name":"Graphiti","status":"archived","filesystem_path":"/opt/stacks/graphiti"}}""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val api = createApi(client)
+        val result = api.archiveProject("GRAPH")
+
+        assertEquals(HttpMethod.Patch, capturedMethod)
+        assertTrue(capturedUrl!!.endsWith("/api/registry/projects/GRAPH"))
+        assertEquals("archived", result.status)
+    }
+
+    @Test
+    fun `deleteProject sends DELETE to registry endpoint`() = runTest {
+        var capturedMethod: HttpMethod? = null
+        var capturedUrl: String? = null
+        val client = trackClient(HttpClient(MockEngine { request: HttpRequestData ->
+            capturedMethod = request.method
+            capturedUrl = request.url.toString()
+            respond(
+                """{"message":"Project deleted","identifier":"GRAPH"}""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val api = createApi(client)
+        api.deleteProject("GRAPH")
+
+        assertEquals(HttpMethod.Delete, capturedMethod)
+        assertTrue(capturedUrl!!.endsWith("/api/registry/projects/GRAPH"))
+    }
+
     @Test(expected = ApiException::class)
     fun `listProjects throws on non success`() = runTest {
         val client = trackClient(HttpClient(MockEngine {
