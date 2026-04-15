@@ -41,11 +41,11 @@ class LettaChatClientTest : WordSpec({
         val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
             override suspend fun fetchMessages(
                 agentId: String,
-                conversationId: String?,
+                conversationId: String,
                 targetMessageId: String?,
             ): List<AppMessage> = messages
-            override fun getMessages(agentId: String, conversationId: String?): Flow<List<AppMessage>> = flowOf(messages)
-            override fun sendMessage(agentId: String, text: String, conversationId: String?): Flow<StreamState> = flow {
+            override fun getMessages(agentId: String, conversationId: String): Flow<List<AppMessage>> = flowOf(messages)
+            override fun sendMessage(agentId: String, text: String, conversationId: String): Flow<StreamState> = flow {
                 streamStates.forEach { emit(it) }
             }
             override suspend fun resetMessages(agentId: String) {}

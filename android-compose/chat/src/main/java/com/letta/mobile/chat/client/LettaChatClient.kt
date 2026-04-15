@@ -139,7 +139,13 @@ class LettaChatClient(
 
     private suspend fun loadMessages() {
         try {
-            val appMessages = messageRepository.fetchMessages(agentId, activeConversationId)
+            val conversationId = activeConversationId ?: run {
+                _messages.update { emptyList() }
+                seenMessageIds.clear()
+                hasSummary = false
+                return
+            }
+            val appMessages = messageRepository.fetchMessages(agentId, conversationId)
             val chatMessages = appMessages.map { it.toChatMessage() }
             _messages.update { chatMessages }
             seenMessageIds.clear()
@@ -196,7 +202,8 @@ class LettaChatClient(
 
     private suspend fun reloadFromServer() {
         try {
-            val appMessages = messageRepository.fetchMessages(agentId, activeConversationId)
+            val conversationId = activeConversationId ?: return
+            val appMessages = messageRepository.fetchMessages(agentId, conversationId)
             val chatMessages = appMessages.map { it.toChatMessage() }
             if (chatMessages.isNotEmpty()) {
                 _messages.update { chatMessages }
