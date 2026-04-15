@@ -17,6 +17,7 @@ import com.letta.mobile.data.model.ProjectBugReport
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
+import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -57,6 +58,7 @@ class ChatViewModelTest {
     private lateinit var bugReportRepository: BugReportRepository
     private lateinit var folderRepository: FolderRepository
     private lateinit var conversationRepository: ConversationRepository
+    private lateinit var conversationManager: ConversationManager
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var botGateway: BotGateway
     private lateinit var botConfigStore: BotConfigStore
@@ -64,6 +66,7 @@ class ChatViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private var messages: List<AppMessage> = emptyList()
     private var streamStates: List<StreamState> = emptyList()
+    private val activeConversationIds = mutableMapOf<String, String?>()
 
     @Before
     fun setup() {
@@ -74,12 +77,22 @@ class ChatViewModelTest {
         bugReportRepository = mockk(relaxed = true)
         folderRepository = FolderRepository(FakeFolderApi())
         conversationRepository = mockk(relaxed = true)
+        conversationManager = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
         botGateway = mockk(relaxed = true)
         botConfigStore = mockk(relaxed = true)
         internalBotClient = mockk(relaxed = true)
+        activeConversationIds.clear()
 
         every { settingsRepository.getChatBackgroundKey() } returns flowOf("default")
+        every { settingsRepository.getChatFontScale() } returns flowOf(1f)
+        every { conversationManager.getActiveConversationId(any()) } answers {
+            activeConversationIds[firstArg()]
+        }
+        every { conversationManager.setActiveConversation(any(), any()) } answers {
+            activeConversationIds[firstArg()] = secondArg()
+            Unit
+        }
 
         every { messageRepository.getMessages(any(), any()) } answers { flowOf(messages) }
         coEvery { messageRepository.fetchMessages(any(), any()) } answers { messages }
@@ -100,6 +113,19 @@ class ChatViewModelTest {
             TestData.conversation(id = "new-conv", agentId = firstArg(), summary = secondArg())
         }
         coEvery { conversationRepository.updateConversation(any(), any(), any()) } returns Unit
+        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } answers {
+            val agentId = firstArg<String>()
+            val resolved = "conv-1"
+            activeConversationIds[agentId] = resolved
+            resolved
+        }
+        coEvery { conversationManager.createAndSetActiveConversation(any(), any()) } answers {
+            val agentId = firstArg<String>()
+            val summary = secondArg<String?>()
+            val conversation = TestData.conversation(id = "new-conv", agentId = agentId, summary = summary)
+            activeConversationIds[agentId] = conversation.id
+            conversation.id
+        }
     }
 
     @After
@@ -122,6 +148,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -309,6 +336,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -375,6 +403,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -416,6 +445,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -454,6 +484,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -492,6 +523,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -530,6 +562,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -578,6 +611,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -610,6 +644,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,
@@ -646,6 +681,7 @@ class ChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
+            conversationManager,
             conversationRepository,
             settingsRepository,
             botGateway,

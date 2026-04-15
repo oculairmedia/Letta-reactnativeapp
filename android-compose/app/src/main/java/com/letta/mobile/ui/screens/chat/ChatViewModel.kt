@@ -19,6 +19,7 @@ import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
+import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -158,6 +159,7 @@ class ChatViewModel @Inject constructor(
     private val blockRepository: BlockRepository,
     private val bugReportRepository: BugReportRepository,
     private val folderRepository: FolderRepository,
+    private val conversationManager: ConversationManager,
     private val conversationRepository: ConversationRepository,
     private val settingsRepository: SettingsRepository,
     private val botGateway: BotGateway,
@@ -169,9 +171,10 @@ class ChatViewModel @Inject constructor(
     }
 
     val agentId: String = savedStateHandle.get<String>("agentId")!!
-    private var activeConversationId: String? = savedStateHandle.get<String>("conversationId")
     private val initialMessage: String? = savedStateHandle.get<String>("initialMessage")
     val scrollToMessageId: String? = savedStateHandle.get<String>("scrollToMessageId")
+    private val activeConversationId: String?
+        get() = conversationManager.getActiveConversationId(agentId)
     val conversationId: String? get() = activeConversationId
     val projectContext: ProjectChatContext? = savedStateHandle.get<String>("projectIdentifier")?.let { identifier ->
         val name = savedStateHandle.get<String>("projectName") ?: identifier
@@ -215,6 +218,9 @@ class ChatViewModel @Inject constructor(
     private var hasSummary = false
 
     init {
+        savedStateHandle.get<String>("conversationId")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { conversationManager.setActiveConversation(agentId, it) }
         if (agentId.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "No agent selected")
         } else {
@@ -384,14 +390,12 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             if (activeConversationId == null) {
                 try {
-                    conversationRepository.refreshConversationsIfStale(agentId, CONVERSATION_CACHE_TTL_MS)
-                    val conversations = conversationRepository.getCachedConversations(agentId)
-                    val mostRecent = conversations
-                        .sortedByDescending { it.lastMessageAt ?: it.createdAt ?: "" }
-                        .firstOrNull()
-                    if (mostRecent != null) {
-                        activeConversationId = mostRecent.id
-                        android.util.Log.d("ChatViewModel", "Resolved to most recent conversation: ${mostRecent.id}")
+                    val resolvedConversationId = conversationManager.resolveAndSetActiveConversation(
+                        agentId = agentId,
+                        maxAgeMs = CONVERSATION_CACHE_TTL_MS,
+                    )
+                    if (resolvedConversationId != null) {
+                        android.util.Log.d("ChatViewModel", "Resolved to most recent conversation: $resolvedConversationId")
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("ChatViewModel", "Failed to resolve conversation", e)
@@ -483,9 +487,7 @@ class ChatViewModel @Inject constructor(
                 if (convId == null) {
                     try {
                         val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
-                        val newConversation = conversationRepository.createConversation(agentId, summary)
-                        convId = newConversation.id
-                        activeConversationId = convId
+                        convId = conversationManager.createAndSetActiveConversation(agentId, summary)
                         hasSummary = true
                         android.util.Log.d("ChatViewModel", "Created new conversation: $convId")
                     } catch (e: Exception) {
@@ -579,7 +581,7 @@ class ChatViewModel @Inject constructor(
 
         response.conversationId
             ?.takeIf { it.isNotBlank() && it != activeConversationId }
-            ?.let { activeConversationId = it }
+            ?.let { conversationManager.setActiveConversation(agentId, it) }
 
         val assistantMessage = AppMessage(
             id = "bot-${System.currentTimeMillis()}",

@@ -11,6 +11,7 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
+import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -85,6 +86,7 @@ class ChatViewModelE2eTest {
                 """.trimIndent(),
             )
             val conversationRepo = mockk<ConversationRepository>(relaxed = true)
+            val conversationManager = ConversationManager(conversationRepo)
             val agentRepo = mockk<AgentRepository>(relaxed = true)
             val blockRepository = BlockRepository(FakeBlockApi())
             val bugReportRepository = mockk<BugReportRepository>(relaxed = true)
@@ -108,6 +110,7 @@ class ChatViewModelE2eTest {
                 blockRepository,
                 bugReportRepository,
                 folderRepository,
+                conversationManager,
                 conversationRepo,
                 settingsRepo,
                 botGateway,
@@ -120,15 +123,21 @@ class ChatViewModelE2eTest {
             advanceUntilIdle()
 
             val state = vm.uiState.first {
-                it.messages.size == 2 && !it.isStreaming && !it.isAgentTyping
+                it.messages.size == 2 &&
+                    !it.isStreaming &&
+                    !it.isAgentTyping &&
+                    it.messages.any { message -> message.content == "Hello agent" } &&
+                    it.messages.any { message -> message.content == "Hi from stream" }
             }
             assertEquals(2, state.messages.size)
-            assertEquals("Hello agent", state.messages[0].content)
-            assertEquals("Hi from stream", state.messages[1].content)
+            assertTrue(state.messages.any { it.content == "Hello agent" && it.role == "user" })
+            assertTrue(state.messages.any { it.content == "Hi from stream" && it.role == "assistant" })
             assertFalse(state.isStreaming)
             assertFalse(state.isAgentTyping)
             assertEquals("", vm.inputText.value)
+            advanceUntilIdle()
         } finally {
+            advanceUntilIdle()
             Dispatchers.resetMain()
         }
     }
@@ -154,6 +163,7 @@ class ChatViewModelE2eTest {
                 """.trimIndent(),
             )
             val conversationRepo = mockk<ConversationRepository>(relaxed = true)
+            val conversationManager = ConversationManager(conversationRepo)
             val agentRepo = mockk<AgentRepository>(relaxed = true)
             val blockRepository = BlockRepository(FakeBlockApi())
             val bugReportRepository = mockk<BugReportRepository>(relaxed = true)
@@ -185,6 +195,7 @@ class ChatViewModelE2eTest {
                 blockRepository,
                 bugReportRepository,
                 folderRepository,
+                conversationManager,
                 conversationRepo,
                 settingsRepo,
                 botGateway,
@@ -200,7 +211,9 @@ class ChatViewModelE2eTest {
             assertEquals(2, vm.uiState.value.messages.size)
             assertEquals("New conversation reply", vm.uiState.value.messages[1].content)
             assertTrue(vm.conversationId == "new-conv")
+            advanceUntilIdle()
         } finally {
+            advanceUntilIdle()
             Dispatchers.resetMain()
         }
     }
