@@ -656,6 +656,8 @@ class ChatViewModel @Inject constructor(
 
     private fun reloadMessagesFromServer() {
         viewModelScope.launch {
+            // Small delay to let server persist the messages we just streamed
+            kotlinx.coroutines.delay(500)
             try {
                 val requestedConversationId = activeConversationId
                 val appMessages = messageRepository.fetchMessages(
@@ -666,9 +668,21 @@ class ChatViewModel @Inject constructor(
                 if (requestedConversationId != activeConversationId) {
                     return@launch
                 }
-                val messages = appMessages.toUiMessages()
-                if (messages.isNotEmpty()) {
-                    _uiState.value = _uiState.value.copy(messages = messages.toImmutableList())
+                val serverMessages = appMessages.toUiMessages()
+                if (serverMessages.isNotEmpty()) {
+                    // Merge: keep existing messages, add any new ones from server
+                    // This prevents "flash" where server hasn't persisted yet
+                    val existingIds = _uiState.value.messages.map { it.id }.toSet()
+                    val existingMessages = _uiState.value.messages
+                    val newFromServer = serverMessages.filter { it.id !in existingIds }
+                    
+                    // If server has MORE messages, it's authoritative; otherwise keep what we have
+                    val merged = if (serverMessages.size >= existingMessages.size) {
+                        serverMessages
+                    } else {
+                        existingMessages + newFromServer
+                    }
+                    _uiState.value = _uiState.value.copy(messages = merged.toImmutableList())
                 }
             } catch (e: Exception) {
                 android.util.Log.w("ChatViewModel", "Silent reload failed", e)
