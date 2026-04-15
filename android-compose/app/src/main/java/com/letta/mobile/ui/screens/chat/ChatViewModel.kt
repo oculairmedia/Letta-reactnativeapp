@@ -552,7 +552,7 @@ class ChatViewModel @Inject constructor(
                                 isAgentTyping = false,
                                 pendingTools = persistentListOf(),
                             )
-                            reloadMessagesFromServer()
+                            reloadMessagesFromServer(convId)
                             if (projectContext != null) {
                                 loadProjectAgents()
                                 loadProjectBrief()
@@ -649,7 +649,7 @@ class ChatViewModel @Inject constructor(
                     approve = approve,
                     reason = reason,
                 )
-                reloadMessagesFromServer()
+                reloadMessagesFromServer(convId)
                 _uiState.value = _uiState.value.copy(
                     isStreaming = false,
                     isAgentTyping = false,
@@ -666,38 +666,57 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun reloadMessagesFromServer() {
+    private suspend fun reloadMessagesFromServer(conversationId: String) {
         // Small delay to let server persist the messages we just streamed
         kotlinx.coroutines.delay(500)
         try {
-            val requestedConversationId = activeConversationId ?: return
             val appMessages = messageRepository.fetchMessages(
                 agentId = agentId,
-                conversationId = requestedConversationId,
+                conversationId = conversationId,
                 targetMessageId = scrollToMessageId,
             )
-            if (requestedConversationId != activeConversationId) {
+            if (conversationId != activeConversationId) {
                 return
             }
             val serverMessages = appMessages.toUiMessages()
             if (serverMessages.isNotEmpty()) {
-                // Merge: keep existing messages, add any new ones from server
-                // This prevents "flash" where server hasn't persisted yet
-                val existingIds = _uiState.value.messages.map { it.id }.toSet()
-                val existingMessages = _uiState.value.messages
-                val newFromServer = serverMessages.filter { it.id !in existingIds }
-
-                // If server has MORE messages, it's authoritative; otherwise keep what we have
-                val merged = if (serverMessages.size >= existingMessages.size) {
-                    serverMessages
-                } else {
-                    existingMessages + newFromServer
-                }
+                val merged = mergeReloadedMessages(
+                    existingMessages = _uiState.value.messages,
+                    serverMessages = serverMessages,
+                )
                 _uiState.value = _uiState.value.copy(messages = merged.toImmutableList())
             }
         } catch (e: Exception) {
             android.util.Log.w("ChatViewModel", "Silent reload failed", e)
         }
+    }
+
+    private fun mergeReloadedMessages(
+        existingMessages: List<UiMessage>,
+        serverMessages: List<UiMessage>,
+    ): List<UiMessage> {
+        if (existingMessages.isEmpty()) return serverMessages
+        if (serverMessages.isEmpty()) return existingMessages
+
+        val pendingIdsToReplace = existingMessages
+            .filter { existing ->
+                existing.id.startsWith("pending-") && serverMessages.any { server ->
+                    server.role == existing.role && server.content == existing.content
+                }
+            }
+            .map { it.id }
+            .toSet()
+
+        val merged = LinkedHashMap<String, UiMessage>()
+        existingMessages
+            .filterNot { it.id in pendingIdsToReplace }
+            .forEach { merged[it.id] = it }
+
+        serverMessages.forEach { serverMessage ->
+            merged[serverMessage.id] = serverMessage
+        }
+
+        return merged.values.toList()
     }
 
     fun resetMessages() {

@@ -261,6 +261,39 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `sendMessage keeps visible response when delayed reload returns stale same-sized snapshot`() = runTest {
+        val history = listOf(
+            TestData.appMessage(id = "old-1", messageType = MessageType.USER, content = "Old question"),
+            TestData.appMessage(id = "old-2", messageType = MessageType.ASSISTANT, content = "Old answer"),
+        )
+        val streamedReply = listOf(
+            TestData.appMessage(id = "reply-1", messageType = MessageType.ASSISTANT, content = "Fresh answer"),
+        )
+
+        messages = history
+        streamStates = listOf(StreamState.Complete(streamedReply))
+
+        val vm = createViewModel()
+        assertEquals(2, vm.uiState.value.messages.size)
+
+        messages = listOf(
+            TestData.appMessage(id = "old-1", messageType = MessageType.USER, content = "Old question"),
+            TestData.appMessage(id = "server-user-2", messageType = MessageType.USER, content = "Follow-up question"),
+            TestData.appMessage(id = "old-2", messageType = MessageType.ASSISTANT, content = "Old answer"),
+            TestData.appMessage(id = "server-assistant-2", messageType = MessageType.ASSISTANT, content = "Older persisted answer"),
+        )
+
+        vm.sendMessage("Follow-up question")
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+
+        assertTrue(state.messages.any { it.content == "Follow-up question" })
+        assertTrue(state.messages.any { it.content == "Fresh answer" })
+        assertEquals(5, state.messages.size)
+    }
+
+    @Test
     fun `sendMessage does NOT replace history with streaming response`() = runTest {
         val history = listOf(
             TestData.appMessage(id = "old-1", messageType = MessageType.USER, content = "Old message 1"),
