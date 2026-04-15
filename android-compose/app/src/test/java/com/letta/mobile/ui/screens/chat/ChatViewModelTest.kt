@@ -466,9 +466,9 @@ class ChatViewModelTest {
 
     @Test
     fun `loadMessages forwards scroll target to repository fetch`() = runTest {
-        val targetSlot = slot<String?>()
+        val targetSlot = slot<String>()
         coEvery {
-            messageRepository.fetchMessages(any(), any(), captureNullable(targetSlot))
+            messageRepository.fetchMessages(any(), any(), capture(targetSlot))
         } answers { messages }
 
         val savedState = SavedStateHandle().apply {

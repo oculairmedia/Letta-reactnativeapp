@@ -413,8 +413,18 @@ class ChatViewModel @Inject constructor(
 
     private suspend fun loadMessagesInternal() {
         val requestedConversationId = activeConversationId
+        if (requestedConversationId == null) {
+            if (requestedConversationId == activeConversationId) {
+                _uiState.value = _uiState.value.copy(
+                    messages = persistentListOf(),
+                    isLoadingMessages = false,
+                    error = null,
+                )
+            }
+            return
+        }
         val cachedAgent = agentRepository.getCachedAgent(agentId)
-        val cachedMessages = messageRepository.getCachedMessages(agentId, requestedConversationId)
+        val cachedMessages = messageRepository.getCachedMessages(requestedConversationId)
         if (cachedAgent != null || cachedMessages.isNotEmpty()) {
             if (requestedConversationId == activeConversationId) {
                 _uiState.value = _uiState.value.copy(
@@ -430,7 +440,7 @@ class ChatViewModel @Inject constructor(
             }
         }
         try {
-            val targetMessageId = scrollToMessageId?.takeIf { requestedConversationId != null }
+            val targetMessageId = scrollToMessageId
             val (agent, appMessages) = supervisorScope {
                 val agentDeferred = async { agentRepository.getAgent(agentId).first() }
                 val messagesDeferred = async {
@@ -656,46 +666,48 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun reloadMessagesFromServer() {
-        viewModelScope.launch {
-            // Small delay to let server persist the messages we just streamed
-            kotlinx.coroutines.delay(500)
-            try {
-                val requestedConversationId = activeConversationId
-                val appMessages = messageRepository.fetchMessages(
-                    agentId = agentId,
-                    conversationId = requestedConversationId,
-                    targetMessageId = scrollToMessageId?.takeIf { requestedConversationId != null },
-                )
-                if (requestedConversationId != activeConversationId) {
-                    return@launch
-                }
-                val serverMessages = appMessages.toUiMessages()
-                if (serverMessages.isNotEmpty()) {
-                    // Merge: keep existing messages, add any new ones from server
-                    // This prevents "flash" where server hasn't persisted yet
-                    val existingIds = _uiState.value.messages.map { it.id }.toSet()
-                    val existingMessages = _uiState.value.messages
-                    val newFromServer = serverMessages.filter { it.id !in existingIds }
-                    
-                    // If server has MORE messages, it's authoritative; otherwise keep what we have
-                    val merged = if (serverMessages.size >= existingMessages.size) {
-                        serverMessages
-                    } else {
-                        existingMessages + newFromServer
-                    }
-                    _uiState.value = _uiState.value.copy(messages = merged.toImmutableList())
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("ChatViewModel", "Silent reload failed", e)
+    private suspend fun reloadMessagesFromServer() {
+        // Small delay to let server persist the messages we just streamed
+        kotlinx.coroutines.delay(500)
+        try {
+            val requestedConversationId = activeConversationId ?: return
+            val appMessages = messageRepository.fetchMessages(
+                agentId = agentId,
+                conversationId = requestedConversationId,
+                targetMessageId = scrollToMessageId,
+            )
+            if (requestedConversationId != activeConversationId) {
+                return
             }
+            val serverMessages = appMessages.toUiMessages()
+            if (serverMessages.isNotEmpty()) {
+                // Merge: keep existing messages, add any new ones from server
+                // This prevents "flash" where server hasn't persisted yet
+                val existingIds = _uiState.value.messages.map { it.id }.toSet()
+                val existingMessages = _uiState.value.messages
+                val newFromServer = serverMessages.filter { it.id !in existingIds }
+
+                // If server has MORE messages, it's authoritative; otherwise keep what we have
+                val merged = if (serverMessages.size >= existingMessages.size) {
+                    serverMessages
+                } else {
+                    existingMessages + newFromServer
+                }
+                _uiState.value = _uiState.value.copy(messages = merged.toImmutableList())
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ChatViewModel", "Silent reload failed", e)
         }
     }
 
     fun resetMessages() {
         viewModelScope.launch {
             try {
-                messageRepository.resetMessages(agentId)
+                val convId = activeConversationId ?: run {
+                    _uiState.value = _uiState.value.copy(error = "No active conversation to reset")
+                    return@launch
+                }
+                messageRepository.resetMessages(agentId, convId)
                 _uiState.value = _uiState.value.copy(messages = persistentListOf())
             } catch (e: Exception) {
                 android.util.Log.w("ChatViewModel", "Failed to reset messages", e)

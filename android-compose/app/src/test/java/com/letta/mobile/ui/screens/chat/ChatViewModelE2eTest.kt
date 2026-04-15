@@ -208,8 +208,15 @@ class ChatViewModelE2eTest {
             advanceUntilIdle()
 
             assertEquals(listOf("Start a new thread"), createdSummaries)
-            assertEquals(2, vm.uiState.value.messages.size)
-            assertEquals("New conversation reply", vm.uiState.value.messages[1].content)
+            val state = vm.uiState.first {
+                it.messages.size == 2 &&
+                    !it.isStreaming &&
+                    !it.isAgentTyping &&
+                    it.messages.any { message -> message.content == "Start a new thread" } &&
+                    it.messages.any { message -> message.content == "New conversation reply" }
+            }
+            assertEquals(2, state.messages.size)
+            assertEquals("New conversation reply", state.messages[1].content)
             assertTrue(vm.conversationId == "new-conv")
             advanceUntilIdle()
         } finally {
