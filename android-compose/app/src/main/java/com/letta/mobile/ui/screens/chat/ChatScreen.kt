@@ -26,6 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -76,6 +78,11 @@ fun ChatScreen(
 
     var activeFontScale by remember { mutableFloatStateOf(fontScale) }
     LaunchedEffect(fontScale) { activeFontScale = fontScale }
+
+    // Refresh messages when returning to this screen (catches responses received while away)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.loadMessages()
+    }
 
     val backgroundModifier = when (chatBackground) {
         is ChatBackground.Default -> Modifier
