@@ -14,6 +14,7 @@ import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.StreamState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -117,7 +118,7 @@ class LettaChatClient(
                         appendStreamMessages(newMessages)
                         _isStreaming.update { false }
                         emit(StreamEvent.Complete(newMessages))
-                        reloadFromServer()
+                        reloadFromServer(convId)
                     }
                     is StreamState.Error -> {
                         _isStreaming.update { false }
@@ -200,19 +201,52 @@ class LettaChatClient(
         }
     }
 
-    private suspend fun reloadFromServer() {
+    private suspend fun reloadFromServer(conversationId: String) {
+        kotlinx.coroutines.delay(500)
         try {
-            val conversationId = activeConversationId ?: return
             val appMessages = messageRepository.fetchMessages(agentId, conversationId)
+            if (conversationId != activeConversationId) {
+                return
+            }
             val chatMessages = appMessages.map { it.toChatMessage() }
             if (chatMessages.isNotEmpty()) {
-                _messages.update { chatMessages }
+                _messages.update { existing ->
+                    mergeReloadedMessages(existing, chatMessages)
+                }
                 seenMessageIds.clear()
-                chatMessages.forEach { seenMessageIds.add(it.id) }
+                _messages.value.forEach { seenMessageIds.add(it.id) }
             }
         } catch (e: Exception) {
             logWarning("Silent reload failed", e)
         }
+    }
+
+    private fun mergeReloadedMessages(
+        existingMessages: List<ChatMessage>,
+        serverMessages: List<ChatMessage>,
+    ): List<ChatMessage> {
+        if (existingMessages.isEmpty()) return serverMessages
+        if (serverMessages.isEmpty()) return existingMessages
+
+        val pendingIdsToReplace = existingMessages
+            .filter { existing ->
+                existing.id.startsWith("pending-") && serverMessages.any { server ->
+                    server.role == existing.role && server.content == existing.content
+                }
+            }
+            .map { it.id }
+            .toSet()
+
+        val merged = LinkedHashMap<String, ChatMessage>()
+        existingMessages
+            .filterNot { it.id in pendingIdsToReplace }
+            .forEach { merged[it.id] = it }
+
+        serverMessages.forEach { serverMessage ->
+            merged[serverMessage.id] = serverMessage
+        }
+
+        return merged.values.toList()
     }
 
     private fun logDebug(message: String) {
