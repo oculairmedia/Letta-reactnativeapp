@@ -40,6 +40,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -387,11 +388,14 @@ open class MessageRepository @Inject constructor(
     ): Flow<StreamState> = flow {
         emit(StreamState.Sending)
 
+        val localId = UUID.randomUUID().toString()
         val optimisticMessage = AppMessage(
-            id = "temp-${System.currentTimeMillis()}",
+            id = "pending-$localId",
             date = Instant.now(),
             messageType = MessageType.USER,
-            content = text
+            content = text,
+            isPending = true,
+            localId = localId,
         )
 
         addMessageToCache(conversationId, optimisticMessage)
@@ -520,8 +524,16 @@ open class MessageRepository @Inject constructor(
 
     private fun mergeMessageLists(existing: List<AppMessage>, incoming: List<AppMessage>): List<AppMessage> {
         val merged = LinkedHashMap<String, AppMessage>()
-        existing.forEach { merged[it.id] = it }
+        existing.filterNot { it.isPending }.forEach { merged[it.id] = it }
         incoming.forEach { merged[it.id] = it }
+
+        val incomingHashes = incoming.mapTo(mutableSetOf()) { it.contentHash() }
+        existing.filter { it.isPending }.forEach { pendingMessage ->
+            if (pendingMessage.contentHash() !in incomingHashes) {
+                merged[pendingMessage.id] = pendingMessage
+            }
+        }
+
         return merged.values.toList()
     }
 }

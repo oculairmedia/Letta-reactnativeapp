@@ -121,6 +121,7 @@ class LettaChatClientTest : WordSpec({
                 client.connect()
                 client.sendMessage("Hello").first()
                 client.messages.value.any { it.content == "Hello" && it.role == MessageRole.User } shouldBe true
+                client.messages.value.any { it.content == "Hello" && it.isPending } shouldBe true
             }
         }
 
@@ -196,6 +197,60 @@ class LettaChatClientTest : WordSpec({
                 staleReloadClient.messages.value.any { it.content == "Q2" } shouldBe true
                 staleReloadClient.messages.value.any { it.content == "Fresh reply" } shouldBe true
                 staleReloadClient.messages.value.size shouldBe 5
+            }
+        }
+
+        "replace pending user message when reload returns matching server message" {
+            runTest {
+                val history = listOf(
+                    fakeMessage("old-1", MessageType.USER, "Q1"),
+                    fakeMessage("old-2", MessageType.ASSISTANT, "A1"),
+                )
+                val streamResponse = listOf(
+                    fakeMessage("reply-1", MessageType.ASSISTANT, "Fresh reply"),
+                )
+                val persistedServerSnapshot = listOf(
+                    fakeMessage("old-1", MessageType.USER, "Q1"),
+                    fakeMessage("server-user-2", MessageType.USER, "Q2"),
+                    fakeMessage("old-2", MessageType.ASSISTANT, "A1"),
+                    fakeMessage("reply-1", MessageType.ASSISTANT, "Fresh reply"),
+                )
+                val fetchResponses = ArrayDeque(listOf(history, persistedServerSnapshot))
+                val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
+                    override suspend fun fetchMessages(
+                        agentId: String,
+                        conversationId: String,
+                        targetMessageId: String?,
+                    ): List<AppMessage> = fetchResponses.removeFirstOrNull() ?: persistedServerSnapshot
+
+                    override fun getMessages(agentId: String, conversationId: String): Flow<List<AppMessage>> = flowOf(history)
+
+                    override fun sendMessage(agentId: String, text: String, conversationId: String): Flow<StreamState> = flow {
+                        emit(StreamState.Complete(streamResponse))
+                    }
+
+                    override suspend fun resetMessages(agentId: String) {}
+                }
+                val conversationRepo = object : ConversationRepository(mockk(relaxed = true)) {
+                    override fun getConversations(agentId: String): Flow<List<Conversation>> = flowOf(listOf(fakeConversation("conv-1", "agent-1")))
+                    override suspend fun refreshConversations(agentId: String) {}
+                    override fun getCachedConversations(agentId: String): List<Conversation> = listOf(fakeConversation("conv-1", "agent-1"))
+                    override suspend fun getConversation(id: String): Conversation = fakeConversation(id, "agent-1")
+                    override suspend fun createConversation(agentId: String, summary: String?): Conversation = fakeConversation("new-conv", agentId)
+                    override suspend fun updateConversation(id: String, agentId: String, summary: String) {}
+                    override suspend fun deleteConversation(id: String, agentId: String) {}
+                    override suspend fun forkConversation(id: String, agentId: String): Conversation = fakeConversation("fork-$id", agentId)
+                }
+                val conversationManager = ConversationManager(conversationRepo)
+                val client = LettaChatClient(messageRepo, conversationManager, conversationRepo, "agent-1", "conv-1")
+
+                client.connect()
+                client.sendMessage("Q2").toList()
+
+                val matchingMessages = client.messages.value.filter { it.content == "Q2" }
+                matchingMessages shouldHaveSize 1
+                matchingMessages.single().id shouldBe "server-user-2"
+                matchingMessages.single().isPending shouldBe false
             }
         }
 

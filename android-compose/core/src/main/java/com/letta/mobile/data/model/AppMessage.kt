@@ -11,13 +11,17 @@ data class AppMessage(
     val date: Instant,
     val messageType: MessageType,
     val content: String,
+    val isPending: Boolean = false,
+    val localId: String? = null,
     val toolName: String? = null,
     val toolCallId: String? = null,
     val toolReturnStatus: String? = null,
     val generatedUi: GeneratedUiPayload? = null,
     val approvalRequest: ApprovalRequestPayload? = null,
     val approvalResponse: ApprovalResponsePayload? = null,
-)
+) {
+    fun contentHash(): String = "${messageType.name}:${content.hashCode()}"
+}
 
 enum class MessageType {
     USER,

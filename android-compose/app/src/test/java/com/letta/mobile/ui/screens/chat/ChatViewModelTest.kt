@@ -219,6 +219,46 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `resolveConversationAndLoad exposes error state when conversation resolution fails`() = runTest {
+        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } throws IllegalStateException("Resolver offline")
+
+        val vm = createViewModel(conversationId = null)
+        advanceUntilIdle()
+
+        assertEquals(
+            ConversationState.Error("Resolver offline"),
+            vm.uiState.value.conversationState,
+        )
+        assertTrue(vm.uiState.value.messages.isEmpty())
+        assertFalse(vm.uiState.value.isLoadingMessages)
+    }
+
+    @Test
+    fun `resolveConversationAndLoad exposes no conversation state when no conversation exists`() = runTest {
+        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } returns null
+
+        val vm = createViewModel(conversationId = null)
+        advanceUntilIdle()
+
+        assertEquals(ConversationState.NoConversation, vm.uiState.value.conversationState)
+        assertTrue(vm.uiState.value.messages.isEmpty())
+        assertFalse(vm.uiState.value.isLoadingMessages)
+    }
+
+    @Test
+    fun `sendMessage is blocked while conversation resolution is in error state`() = runTest {
+        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } throws IllegalStateException("Resolver offline")
+
+        val vm = createViewModel(conversationId = null)
+        advanceUntilIdle()
+
+        vm.sendMessage("Hello agent")
+
+        assertEquals("Retry conversation loading before sending a message", vm.uiState.value.error)
+        verify(exactly = 0) { messageRepository.sendMessage(any(), any(), any()) }
+    }
+
+    @Test
     fun `sendMessage shows user message immediately`() = runTest {
         messages = emptyList()
         streamStates = listOf(StreamState.Sending)
@@ -228,6 +268,7 @@ class ChatViewModelTest {
         val state = vm.uiState.value
 
         assertTrue(state.messages.any { it.content == "Hello agent" && it.role == "user" })
+        assertTrue(state.messages.any { it.content == "Hello agent" && it.isPending })
     }
 
     @Test
@@ -292,6 +333,34 @@ class ChatViewModelTest {
         assertTrue(state.messages.any { it.content == "Follow-up question" })
         assertTrue(state.messages.any { it.content == "Fresh answer" })
         assertEquals(5, state.messages.size)
+    }
+
+    @Test
+    fun `sendMessage replaces pending user bubble when reload returns matching persisted user message`() = runTest {
+        val history = listOf(
+            TestData.appMessage(id = "old-1", messageType = MessageType.USER, content = "Old question"),
+            TestData.appMessage(id = "old-2", messageType = MessageType.ASSISTANT, content = "Old answer"),
+        )
+        val streamedReply = listOf(
+            TestData.appMessage(id = "reply-1", messageType = MessageType.ASSISTANT, content = "Fresh answer"),
+        )
+
+        messages = history
+        streamStates = listOf(StreamState.Complete(streamedReply))
+
+        val vm = createViewModel()
+        messages = history + listOf(
+            TestData.appMessage(id = "server-user-2", messageType = MessageType.USER, content = "Follow-up question"),
+            TestData.appMessage(id = "reply-1", messageType = MessageType.ASSISTANT, content = "Fresh answer"),
+        )
+
+        vm.sendMessage("Follow-up question")
+        advanceUntilIdle()
+
+        val matchingMessages = vm.uiState.value.messages.filter { it.content == "Follow-up question" }
+        assertEquals(1, matchingMessages.size)
+        assertFalse(matchingMessages.single().isPending)
+        assertEquals("server-user-2", matchingMessages.single().id)
     }
 
     @Test

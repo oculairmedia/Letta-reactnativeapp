@@ -72,6 +72,17 @@ class MessageMapperTest : WordSpec({
             TestData.appMessage(id = "unique-id-123").toUiMessage().id shouldBe "unique-id-123"
         }
 
+        "propagate pending state to ui message" {
+            val uiMsg = TestData.appMessage(
+                id = "pending-local",
+                content = "Queued",
+                isPending = true,
+                localId = "local-1",
+            ).toUiMessage()
+
+            uiMsg.isPending shouldBe true
+        }
+
         "always produce toolCalls for TOOL_CALL even without name" {
             val uiMsg = TestData.appMessage(
                 messageType = MessageType.TOOL_CALL,

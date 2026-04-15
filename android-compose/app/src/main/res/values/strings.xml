@@ -270,6 +270,9 @@
     <string name="screen_tag_drill_in_steps_section">Run steps</string>
     <string name="screen_chat_input_hint">Type a message…</string>
     <string name="screen_chat_empty">Start a conversation</string>
+    <string name="screen_chat_empty_title">Start a conversation</string>
+    <string name="screen_chat_empty_subtitle">Send a message to create a new conversation.</string>
+    <string name="screen_chat_pending_content_description">Message sending</string>
     <string name="screen_chat_title">Agent Chat</string>
     <string name="screen_project_chat_path_label">Path</string>
     <string name="screen_project_chat_git_url_label">Git URL</string>

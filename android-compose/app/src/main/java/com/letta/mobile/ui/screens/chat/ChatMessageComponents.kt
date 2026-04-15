@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -206,11 +207,26 @@ private fun MessageBubbleSurface(
             verticalArrangement = Arrangement.spacedBy(dimens.messageSpacing),
         ) {
             if (groupPosition == GroupPosition.First || groupPosition == GroupPosition.None) {
-                Text(
-                    text = message.displayRoleLabel(style.roleLabel),
-                    style = typo.roleLabel,
-                    color = style.roleColor,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = message.displayRoleLabel(style.roleLabel),
+                        style = typo.roleLabel,
+                        color = style.roleColor,
+                    )
+                    if (message.isPending) {
+                        Icon(
+                            imageVector = LettaIcons.AccessTime,
+                            contentDescription = stringResource(R.string.screen_chat_pending_content_description),
+                            modifier = Modifier
+                                .size(LettaIconSizing.Inline)
+                                .alpha(0.7f),
+                            tint = style.roleColor,
+                        )
+                    }
+                }
             }
 
             val approvalRequest = message.approvalRequest

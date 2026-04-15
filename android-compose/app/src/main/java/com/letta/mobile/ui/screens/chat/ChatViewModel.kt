@@ -134,7 +134,22 @@ data class ProjectAgentsUiState(
     val error: String? = null,
 )
 
+sealed interface ConversationState {
+    @androidx.compose.runtime.Immutable
+    data object Loading : ConversationState
+
+    @androidx.compose.runtime.Immutable
+    data class Ready(val conversationId: String) : ConversationState
+
+    @androidx.compose.runtime.Immutable
+    data object NoConversation : ConversationState
+
+    @androidx.compose.runtime.Immutable
+    data class Error(val message: String) : ConversationState
+}
+
 data class ChatUiState(
+    val conversationState: ConversationState = ConversationState.Loading,
     val messages: ImmutableList<UiMessage> = persistentListOf(),
     val isLoadingMessages: Boolean = true,
     val isStreaming: Boolean = false,
@@ -388,8 +403,14 @@ class ChatViewModel @Inject constructor(
 
     private fun resolveConversationAndLoad() {
         viewModelScope.launch {
-            if (activeConversationId == null) {
-                try {
+            _uiState.value = _uiState.value.copy(
+                conversationState = ConversationState.Loading,
+                isLoadingMessages = true,
+                error = null,
+            )
+
+            try {
+                if (activeConversationId == null) {
                     val resolvedConversationId = conversationManager.resolveAndSetActiveConversation(
                         agentId = agentId,
                         maxAgeMs = CONVERSATION_CACHE_TTL_MS,
@@ -397,16 +418,41 @@ class ChatViewModel @Inject constructor(
                     if (resolvedConversationId != null) {
                         android.util.Log.d("ChatViewModel", "Resolved to most recent conversation: $resolvedConversationId")
                     }
-                } catch (e: Exception) {
-                    android.util.Log.w("ChatViewModel", "Failed to resolve conversation", e)
                 }
-            }
-            loadMessagesInternal()
 
-            initialMessage?.let { message ->
-                if (message.isNotBlank()) {
-                    sendMessage(message)
+                val conversationId = activeConversationId
+                if (conversationId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        conversationState = ConversationState.NoConversation,
+                        messages = persistentListOf(),
+                        isLoadingMessages = false,
+                        error = null,
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        conversationState = ConversationState.Ready(conversationId),
+                        error = null,
+                    )
+                    loadMessagesInternal()
                 }
+
+                initialMessage?.let { message ->
+                    if (message.isNotBlank()) {
+                        sendMessage(message)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("ChatViewModel", "Failed to resolve conversation", e)
+                _uiState.value = _uiState.value.copy(
+                    conversationState = ConversationState.Error(
+                        message = e.message ?: "Failed to load conversation",
+                    ),
+                    messages = persistentListOf(),
+                    isLoadingMessages = false,
+                    isStreaming = false,
+                    isAgentTyping = false,
+                    error = null,
+                )
             }
         }
     }
@@ -416,6 +462,7 @@ class ChatViewModel @Inject constructor(
         if (requestedConversationId == null) {
             if (requestedConversationId == activeConversationId) {
                 _uiState.value = _uiState.value.copy(
+                    conversationState = ConversationState.NoConversation,
                     messages = persistentListOf(),
                     isLoadingMessages = false,
                     error = null,
@@ -455,7 +502,10 @@ class ChatViewModel @Inject constructor(
             if (requestedConversationId != activeConversationId) {
                 return
             }
-            _uiState.value = _uiState.value.copy(agentName = agent.name)
+            _uiState.value = _uiState.value.copy(
+                agentName = agent.name,
+                conversationState = ConversationState.Ready(requestedConversationId),
+            )
             val messages = appMessages.toUiMessages()
             if (messages.isNotEmpty()) hasSummary = true
             _uiState.value = _uiState.value.copy(
@@ -466,6 +516,7 @@ class ChatViewModel @Inject constructor(
                 return
             }
             _uiState.value = _uiState.value.copy(
+                conversationState = ConversationState.Ready(requestedConversationId),
                 isLoadingMessages = false,
                 error = e.message ?: "Failed to load messages",
             )
@@ -473,16 +524,39 @@ class ChatViewModel @Inject constructor(
     }
 
     fun loadMessages() {
+        if (activeConversationId == null) {
+            resolveConversationAndLoad()
+            return
+        }
         viewModelScope.launch { loadMessagesInternal() }
     }
 
+    fun retryConversationLoad() {
+        resolveConversationAndLoad()
+    }
+
     fun sendMessage(text: String) {
+        when (_uiState.value.conversationState) {
+            ConversationState.Loading -> {
+                _uiState.value = _uiState.value.copy(error = "Conversation is still loading")
+                return
+            }
+            is ConversationState.Error -> {
+                _uiState.value = _uiState.value.copy(error = "Retry conversation loading before sending a message")
+                return
+            }
+            ConversationState.NoConversation,
+            is ConversationState.Ready,
+            -> Unit
+        }
+
         viewModelScope.launch {
             val userMessage = UiMessage(
                 id = "pending-${System.currentTimeMillis()}",
                 role = "user",
                 content = text,
                 timestamp = java.time.Instant.now().toString(),
+                isPending = true,
             )
             _inputText.value = ""
             val existingMessages = (_uiState.value.messages + userMessage).toImmutableList()
@@ -499,6 +573,9 @@ class ChatViewModel @Inject constructor(
                         val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
                         convId = conversationManager.createAndSetActiveConversation(agentId, summary)
                         hasSummary = true
+                        _uiState.value = _uiState.value.copy(
+                            conversationState = ConversationState.Ready(convId),
+                        )
                         android.util.Log.d("ChatViewModel", "Created new conversation: $convId")
                     } catch (e: Exception) {
                         _uiState.value = _uiState.value.copy(
@@ -702,8 +779,8 @@ class ChatViewModel @Inject constructor(
 
         val pendingIdsToReplace = existingMessages
             .filter { existing ->
-                existing.id.startsWith("pending-") && serverMessages.any { server ->
-                    server.role == existing.role && server.content == existing.content
+                existing.isPending && serverMessages.any { server ->
+                    server.contentHash() == existing.contentHash()
                 }
             }
             .map { it.id }
@@ -739,6 +816,15 @@ class ChatViewModel @Inject constructor(
     fun updateInputText(text: String) {
         _inputText.value = text
     }
+
+    val canSendMessages: Boolean
+        get() = when (_uiState.value.conversationState) {
+            ConversationState.Loading -> false
+            is ConversationState.Error -> false
+            ConversationState.NoConversation,
+            is ConversationState.Ready,
+            -> true
+        }
 
     private suspend fun buildProjectAgentActivities(
         project: ProjectChatContext,

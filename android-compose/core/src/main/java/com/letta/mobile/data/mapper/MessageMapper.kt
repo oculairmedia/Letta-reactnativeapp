@@ -355,6 +355,7 @@ fun AppMessage.toUiMessage(): UiMessage {
         role = role,
         content = displayContent,
         timestamp = date.toString(),
+        isPending = isPending,
         isReasoning = messageType == MessageType.REASONING,
         toolCalls = toolCalls,
         generatedUi = generatedUi?.let {

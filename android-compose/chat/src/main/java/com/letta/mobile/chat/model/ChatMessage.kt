@@ -13,9 +13,12 @@ data class ChatMessage(
     val content: String,
     val timestamp: String,
     val status: MessageStatus = MessageStatus.Complete,
+    val isPending: Boolean = false,
     val isReasoning: Boolean = false,
     val toolCalls: List<ChatToolCall>? = null,
-)
+) {
+    fun contentHash(): String = "${role.name}:${content.hashCode()}"
+}
 
 @Immutable
 data class ChatToolCall(

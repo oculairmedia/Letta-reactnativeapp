@@ -37,9 +37,9 @@ val sampleMessages = persistentListOf(
 class ChatUiStateProvider : PreviewParameterProvider<UiState<ChatUiState>> {
     override val values = sequenceOf(
         UiState.Loading,
-        UiState.Success(ChatUiState()),
-        UiState.Success(ChatUiState(messages = sampleMessages, agentName = "Letta Agent")),
-        UiState.Success(ChatUiState(messages = sampleMessages, isStreaming = true, isAgentTyping = true, agentName = "Letta Agent")),
+        UiState.Success(ChatUiState(conversationState = ConversationState.NoConversation, isLoadingMessages = false)),
+        UiState.Success(ChatUiState(conversationState = ConversationState.Ready("preview-conv"), messages = sampleMessages, isLoadingMessages = false, agentName = "Letta Agent")),
+        UiState.Success(ChatUiState(conversationState = ConversationState.Ready("preview-conv"), messages = sampleMessages, isStreaming = true, isAgentTyping = true, isLoadingMessages = false, agentName = "Letta Agent")),
         UiState.Error("Failed to connect to server"),
     )
 }

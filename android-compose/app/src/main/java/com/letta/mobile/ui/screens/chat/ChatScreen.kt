@@ -85,28 +85,45 @@ fun ChatScreen(
 
     LettaChatTheme(fontScale = activeFontScale) {
     Column(modifier = modifier.fillMaxSize().then(backgroundModifier).imePadding()) {
-        if (state.isLoadingMessages && state.messages.isEmpty()) {
-            MessageSkeletonList(modifier = Modifier.weight(1f))
-        } else if (state.error != null && state.messages.isEmpty()) {
-            ErrorContent(
-                message = state.error!!,
-                onRetry = { viewModel.loadMessages() },
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            ChatContent(
-                state = state,
-                scrollToMessageId = viewModel.scrollToMessageId,
-                onSendMessage = { viewModel.sendMessage(it) },
-                onSubmitApproval = { requestId, toolCallIds, approve, reason ->
-                    viewModel.submitApproval(requestId, toolCallIds, approve, reason)
-                },
-                onInputTextChange = { viewModel.updateInputText(it) },
-                activeFontScale = activeFontScale,
-                onActiveFontScaleChange = { activeFontScale = it },
-                onFontScaleChange = { viewModel.setChatFontScale(it) },
-                modifier = Modifier.weight(1f),
-            )
+        when (val conversationState = state.conversationState) {
+            ConversationState.Loading -> {
+                MessageSkeletonList(modifier = Modifier.weight(1f))
+            }
+            is ConversationState.Error -> {
+                ErrorContent(
+                    message = conversationState.message,
+                    onRetry = { viewModel.retryConversationLoad() },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            ConversationState.NoConversation -> {
+                NoConversationContent(modifier = Modifier.weight(1f))
+            }
+            is ConversationState.Ready -> {
+                if (state.isLoadingMessages && state.messages.isEmpty()) {
+                    MessageSkeletonList(modifier = Modifier.weight(1f))
+                } else if (state.error != null && state.messages.isEmpty()) {
+                    ErrorContent(
+                        message = state.error!!,
+                        onRetry = { viewModel.loadMessages() },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    ChatContent(
+                        state = state,
+                        scrollToMessageId = viewModel.scrollToMessageId,
+                        onSendMessage = { viewModel.sendMessage(it) },
+                        onSubmitApproval = { requestId, toolCallIds, approve, reason ->
+                            viewModel.submitApproval(requestId, toolCallIds, approve, reason)
+                        },
+                        onInputTextChange = { viewModel.updateInputText(it) },
+                        activeFontScale = activeFontScale,
+                        onActiveFontScaleChange = { activeFontScale = it },
+                        onFontScaleChange = { viewModel.setChatFontScale(it) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
 
         LettaInputBar(
@@ -133,7 +150,7 @@ fun ChatScreen(
             },
             placeholder = stringResource(R.string.screen_chat_input_hint),
             sendContentDescription = stringResource(R.string.action_send_message),
-            enabled = !state.isStreaming,
+            enabled = !state.isStreaming && viewModel.canSendMessages,
         )
     }
     }
@@ -452,5 +469,27 @@ private fun ErrorContent(
         Button(onClick = onRetry) {
             Text(stringResource(R.string.action_retry))
         }
+    }
+}
+
+@Composable
+private fun NoConversationContent(
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.screen_chat_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.screen_chat_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

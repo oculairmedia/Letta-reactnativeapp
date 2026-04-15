@@ -23,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -225,6 +226,48 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
         assertTrue(messages.first().detailLines.any { it.first == "Arguments" && it.second == "{}" })
         assertEquals("heartbeat", messages.last().summary)
         assertTrue(messages.last().detailLines.any { it.first == "phase" && it.second == "streaming" })
+    }
+
+    @Test
+    fun `sendMessage replaces pending cache entry when server returns matching content`() = runTest {
+        val reloadJson = """
+            [
+              {"id":"assistant-1","message_type":"assistant_message","content":"Done"},
+              {"id":"user-1","message_type":"user_message","content":"Hello"}
+            ]
+        """.trimIndent()
+        val repository = createRepository(
+            streamConversationId = "conv-1",
+            conversationMessagesJson = "[]",
+            ssePayload = """
+                data: {"id":"assistant-1","message_type":"assistant_message","content":"Done"}
+
+                data: [DONE]
+            """.trimIndent(),
+            overrideGetResponse = { reloadJson },
+        )
+
+        repository.sendMessage("agent-1", "Hello", "conv-1").toList()
+        val cachedMessages = repository.getMessages("agent-1", "conv-1").toList().last()
+
+        assertEquals(listOf("user-1", "assistant-1"), cachedMessages.map { it.id })
+        assertFalse(cachedMessages.first().isPending)
+    }
+
+    @Test
+    fun `pending cache entry has explicit pending identity before server merge`() = runTest {
+        val repository = createRepository(
+            streamConversationId = "conv-1",
+            conversationMessagesJson = "[]",
+            ssePayload = "data: [DONE]\n\n",
+        )
+
+        val states = repository.sendMessage("agent-1", "Hello", "conv-1").toList()
+
+        assertTrue(states.first() is StreamState.Sending)
+        val cachedMessages = repository.getMessages("agent-1", "conv-1").toList().last()
+        assertTrue(cachedMessages.first().isPending)
+        assertTrue(cachedMessages.first().id.startsWith("pending-"))
     }
 
     private fun createRepository(

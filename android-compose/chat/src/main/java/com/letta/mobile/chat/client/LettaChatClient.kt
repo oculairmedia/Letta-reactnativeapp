@@ -82,6 +82,7 @@ class LettaChatClient(
             content = text,
             timestamp = Instant.now().toString(),
             status = MessageStatus.Sent,
+            isPending = true,
         )
         addMessage(userMessage)
         _isStreaming.update { true }
@@ -230,8 +231,8 @@ class LettaChatClient(
 
         val pendingIdsToReplace = existingMessages
             .filter { existing ->
-                existing.id.startsWith("pending-") && serverMessages.any { server ->
-                    server.role == existing.role && server.content == existing.content
+                existing.isPending && serverMessages.any { server ->
+                    server.contentHash() == existing.contentHash()
                 }
             }
             .map { it.id }
@@ -289,6 +290,7 @@ class LettaChatClient(
             content = displayContent,
             timestamp = date.toString(),
             isReasoning = messageType == MessageType.REASONING,
+            isPending = isPending,
             toolCalls = toolCalls,
         )
     }
