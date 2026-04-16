@@ -39,9 +39,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
@@ -235,38 +233,8 @@ class AdminChatViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Start polling for new messages from server.
-     * This handles messages added by other clients (web UI, CLI, etc.).
-     */
-    private fun startMessageSync(conversationId: String) {
-        // Disabled: background sync was causing UI flashes
-        // Messages are already shown via streaming
-        // Manual pull-to-refresh can be added if needed
-    }
-
-    private fun stopMessageSync() {
-        messageSyncJob?.cancel()
-        messageSyncJob = null
-    }
-
-    private fun mergeNewSyncedMessages(
-        existing: ImmutableList<UiMessage>,
-        incoming: List<UiMessage>,
-    ): ImmutableList<UiMessage> {
-        val existingIds = existing.map { it.id }.toSet()
-        val newOnly = incoming.filter { it.id !in existingIds }
-        return (existing + newOnly).toImmutableList()
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        stopMessageSync()
-    }
-
     private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     private var hasSummary = false
-    private var messageSyncJob: Job? = null
 
     init {
         savedStateHandle.get<String>("conversationId")
@@ -557,8 +525,7 @@ class AdminChatViewModel @Inject constructor(
                 hasMoreOlderMessages = targetMessageId != null || fetchedMessages.size >= MessageRepository.INITIAL_FETCH_LIMIT,
             )
 
-            // Start background sync for messages from other clients
-            startMessageSync(requestedConversationId)
+            // Background sync disabled - was causing UI flashes
         } catch (e: Exception) {
             if (requestedConversationId != activeConversationId) {
                 return
@@ -860,34 +827,6 @@ class AdminChatViewModel @Inject constructor(
         } catch (e: Exception) {
             android.util.Log.w("AdminChatViewModel", "Silent reload failed", e)
         }
-    }
-
-    private fun mergeReloadedMessages(
-        existingMessages: List<UiMessage>,
-        serverMessages: List<UiMessage>,
-    ): List<UiMessage> {
-        if (existingMessages.isEmpty()) return serverMessages
-        if (serverMessages.isEmpty()) return existingMessages
-
-        val pendingIdsToReplace = existingMessages
-            .filter { existing ->
-                existing.isPending && serverMessages.any { server ->
-                    server.contentHash() == existing.contentHash()
-                }
-            }
-            .map { it.id }
-            .toSet()
-
-        val merged = LinkedHashMap<String, UiMessage>()
-        existingMessages
-            .filterNot { it.id in pendingIdsToReplace }
-            .forEach { merged[it.id] = it }
-
-        serverMessages.forEach { serverMessage ->
-            merged[serverMessage.id] = serverMessage
-        }
-
-        return merged.values.toList()
     }
 
     private fun mergeOlderMessages(

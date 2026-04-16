@@ -634,32 +634,4 @@ open class MessageRepository @Inject constructor(
 
         return merged.values.toList()
     }
-
-    private fun mergeFetchedMessages(existing: List<AppMessage>, fetched: List<AppMessage>): List<AppMessage> {
-        if (fetched.isEmpty()) return existing
-        if (existing.isEmpty()) return fetched
-
-        val merged = LinkedHashMap<String, AppMessage>()
-        val fetchedIds = fetched.mapTo(mutableSetOf()) { it.id }
-        val fetchedHashes = fetched.mapTo(mutableSetOf()) { it.contentHash() }
-        val oldestFetchedDate = fetched.minOfOrNull { it.date }
-
-        // 1. Preserve older history (messages before the oldest fetched message)
-        if (oldestFetchedDate != null) {
-            existing.filter { it.date < oldestFetchedDate && it.id !in fetchedIds && !it.isPending }
-                .forEach { merged[it.id] = it }
-        }
-
-        // 2. Add all fetched messages
-        fetched.forEach { merged[it.id] = it }
-
-        // 3. Preserve pending messages that haven't been matched by server response
-        existing.filter { it.isPending }.forEach { pendingMessage ->
-            if (pendingMessage.contentHash() !in fetchedHashes) {
-                merged[pendingMessage.id] = pendingMessage
-            }
-        }
-
-        return merged.values.toList()
-    }
 }
