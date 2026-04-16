@@ -80,10 +80,8 @@ fun ChatScreen(
     var activeFontScale by remember { mutableFloatStateOf(fontScale) }
     LaunchedEffect(fontScale) { activeFontScale = fontScale }
 
-    // Refresh messages when returning to this screen (catches responses received while away)
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        viewModel.loadMessages()
-    }
+    // Disabled: ON_RESUME reload was causing UI flashes
+    // Messages persist in ViewModel state across navigation
 
     val backgroundModifier = when (chatBackground) {
         is ChatBackground.Default -> Modifier

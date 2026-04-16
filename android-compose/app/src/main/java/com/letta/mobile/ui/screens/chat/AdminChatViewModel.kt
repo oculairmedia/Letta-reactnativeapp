@@ -240,34 +240,9 @@ class AdminChatViewModel @Inject constructor(
      * This handles messages added by other clients (web UI, CLI, etc.).
      */
     private fun startMessageSync(conversationId: String) {
-        stopMessageSync()
-
-        // Don't sync for project chat (uses different server)
-        if (projectContext != null) return
-
-        messageSyncJob = viewModelScope.launch {
-            while (isActive) {
-                delay(MESSAGE_SYNC_INTERVAL_MS)
-
-                // Stop if conversation changed
-                if (conversationId != activeConversationId) break
-
-                // Skip if currently streaming
-                if (_uiState.value.isStreaming) continue
-
-                val newMessages = messageRepository.checkForNewMessages(
-                    agentId = agentId,
-                    conversationId = conversationId,
-                )
-
-                if (newMessages.isNotEmpty()) {
-                    val uiMessages = newMessages.toUiMessages()
-                    _uiState.value = _uiState.value.copy(
-                        messages = mergeNewSyncedMessages(_uiState.value.messages, uiMessages)
-                    )
-                }
-            }
-        }
+        // Disabled: background sync was causing UI flashes
+        // Messages are already shown via streaming
+        // Manual pull-to-refresh can be added if needed
     }
 
     private fun stopMessageSync() {
@@ -750,9 +725,8 @@ class AdminChatViewModel @Inject constructor(
                                 isAgentTyping = false,
                                 pendingTools = persistentListOf(),
                             )
-                            if (projectContext == null) {
-                                reloadMessagesFromServer(convId)
-                            }
+                            // Don't reload after streaming - streamed messages are already displayed
+                            // Reload was causing flash by replacing UI state
                             if (projectContext != null) {
                                 loadProjectAgents()
                                 loadProjectBrief()
@@ -849,7 +823,7 @@ class AdminChatViewModel @Inject constructor(
                     approve = approve,
                     reason = reason,
                 )
-                reloadMessagesFromServer(convId)
+                // Don't reload - approval response will come via streaming
                 _uiState.value = _uiState.value.copy(
                     isStreaming = false,
                     isAgentTyping = false,
