@@ -111,7 +111,7 @@ fun AgentScaffold(
     onNavigateToArchival: ((String) -> Unit)? = null,
     onNavigateToTools: (() -> Unit)? = null,
     onSwitchConversation: ((String, String) -> Unit)? = null,
-    viewModel: ChatViewModel = hiltViewModel()
+    viewModel: AdminChatViewModel = hiltViewModel()
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()

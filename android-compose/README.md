@@ -11,6 +11,33 @@ This directory contains the production Letta Mobile Android app.
 | `designsystem` | Shared Compose components, theme, dialogs, `LettaIcons`   |
 | `chat`         | Streaming chat client and chat-domain support             |
 
+## Chat architecture boundary
+
+The codebase intentionally has two chat layers:
+
+- `AdminChatViewModel` in `app/` is the active app-facing chat stack.
+  - Route owner: `AgentChatRoute`
+  - UI owner: `AgentScaffold` + `ChatScreen`
+  - Backend behavior:
+    - standard vanilla Letta server flow for normal agent chat
+    - embedded bot gateway flow for project-scoped chat when `projectIdentifier` is present
+- `LettaChatClient` in `chat/` is a separate LettaBot chat primitive.
+  - Status: reusable lower-level client, not wired into app navigation today
+  - Current production usage: test-only in this repo
+
+This split is intentional, not accidental duplication. Shared primitives remain below both paths:
+
+- `ConversationManager`
+- `ConversationRepository`
+- `MessageRepository`
+
+When changing chat behavior, decide first whether the change belongs to:
+
+1. the admin app route/UI (`AdminChatViewModel`), or
+2. the reusable LettaBot client primitive (`LettaChatClient`)
+
+Do not assume changes to one path automatically belong in the other.
+
 ## Prerequisites
 
 - Android Studio with Android SDK Platform 36 and Build-Tools 36 installed

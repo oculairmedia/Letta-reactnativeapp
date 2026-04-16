@@ -51,7 +51,7 @@ import org.junit.Test
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ChatViewModelTest {
+class AdminChatViewModelTest {
 
     private lateinit var messageRepository: MessageRepository
     private lateinit var agentRepository: AgentRepository
@@ -97,6 +97,7 @@ class ChatViewModelTest {
 
         every { messageRepository.getMessages(any(), any()) } answers { flowOf(messages) }
         coEvery { messageRepository.fetchMessages(any(), any()) } answers { messages }
+        coEvery { messageRepository.fetchOlderMessages(any(), any(), any()) } returns emptyList()
         every { messageRepository.sendMessage(any(), any(), any()) } answers {
             flow {
                 streamStates.forEach { emit(it) }
@@ -137,12 +138,12 @@ class ChatViewModelTest {
     private fun createViewModel(
         agentId: String = "agent-1",
         conversationId: String? = "conv-1",
-    ): ChatViewModel {
+    ): AdminChatViewModel {
         val savedState = SavedStateHandle().apply {
             set("agentId", agentId)
             conversationId?.let { set("conversationId", it) }
         }
-        return ChatViewModel(
+        return AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -432,7 +433,7 @@ class ChatViewModelTest {
             set("projectActiveCodingAgents", "android, pm-agent")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -499,7 +500,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -547,7 +548,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -589,7 +590,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -628,7 +629,7 @@ class ChatViewModelTest {
             set("scrollToMessageId", "msg-target")
         }
 
-        ChatViewModel(
+        AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -645,6 +646,52 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         assertEquals("msg-target", targetSlot.captured)
+    }
+
+    @Test
+    fun `loadOlderMessages prepends older history and keeps existing newer messages`() = runTest {
+        messages = (11..20).map { index ->
+            TestData.appMessage(
+                id = "msg-$index",
+                messageType = if (index % 2 == 0) MessageType.ASSISTANT else MessageType.USER,
+                content = "Loaded message $index",
+            )
+        }
+        coEvery {
+            messageRepository.fetchOlderMessages("agent-1", "conv-1", "msg-11")
+        } returns listOf(
+            TestData.appMessage(id = "msg-9", messageType = MessageType.USER, content = "Older question"),
+            TestData.appMessage(id = "msg-10", messageType = MessageType.ASSISTANT, content = "Older answer"),
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.loadOlderMessages()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("msg-9", "msg-10") + (11..20).map { "msg-$it" },
+            vm.uiState.value.messages.map { it.id },
+        )
+        assertFalse(vm.uiState.value.isLoadingOlderMessages)
+        assertFalse(vm.uiState.value.hasMoreOlderMessages)
+    }
+
+    @Test
+    fun `loadOlderMessages skips fetch when initial page proves there is no older history`() = runTest {
+        messages = listOf(
+            TestData.appMessage(id = "msg-1", messageType = MessageType.USER, content = "Only message"),
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.loadOlderMessages()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { messageRepository.fetchOlderMessages(any(), any(), any()) }
+        assertFalse(vm.uiState.value.hasMoreOlderMessages)
     }
 
     @Test
@@ -667,7 +714,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -706,7 +753,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -755,7 +802,7 @@ class ChatViewModelTest {
             set("projectLettaFolderId", "folder-1")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -788,7 +835,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,
@@ -825,7 +872,7 @@ class ChatViewModelTest {
             set("projectName", "Letta Mobile")
         }
 
-        val vm = ChatViewModel(
+        val vm = AdminChatViewModel(
             savedState,
             messageRepository,
             agentRepository,

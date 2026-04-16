@@ -170,7 +170,7 @@ data class ChatUiState(
 )
 
 @HiltViewModel
-class ChatViewModel @Inject constructor(
+class AdminChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val messageRepository: MessageRepository,
     private val agentRepository: AgentRepository,
@@ -475,7 +475,7 @@ class ChatViewModel @Inject constructor(
                         maxAgeMs = CONVERSATION_CACHE_TTL_MS,
                     )
                     if (resolvedConversationId != null) {
-                        android.util.Log.d("ChatViewModel", "Resolved to most recent conversation: $resolvedConversationId")
+                        android.util.Log.d("AdminChatViewModel", "Resolved to most recent conversation: $resolvedConversationId")
                     }
                 }
 
@@ -501,7 +501,7 @@ class ChatViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.w("ChatViewModel", "Failed to resolve conversation", e)
+                android.util.Log.w("AdminChatViewModel", "Failed to resolve conversation", e)
                 _uiState.value = _uiState.value.copy(
                     conversationState = ConversationState.Error(
                         message = e.message ?: "Failed to load conversation",
@@ -547,7 +547,7 @@ class ChatViewModel @Inject constructor(
         }
         try {
             val targetMessageId = scrollToMessageId
-            val (agent, appMessages) = supervisorScope {
+            val (agent, fetchedMessages) = supervisorScope {
                 val agentDeferred = async { agentRepository.getAgent(agentId).first() }
                 val messagesDeferred = async {
                     messageRepository.fetchMessages(
@@ -565,10 +565,11 @@ class ChatViewModel @Inject constructor(
                 agentName = agent.name,
                 conversationState = ConversationState.Ready(requestedConversationId),
             )
-            val messages = appMessages.toUiMessages()
+            val messages = fetchedMessages.toUiMessages()
             if (messages.isNotEmpty()) hasSummary = true
             _uiState.value = _uiState.value.copy(
-                messages = messages.toImmutableList(), isLoadingMessages = false
+                messages = messages.toImmutableList(),
+                isLoadingMessages = false,
             )
 
             // Start background sync for messages from other clients
@@ -638,7 +639,7 @@ class ChatViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(
                             conversationState = ConversationState.Ready(convId),
                         )
-                        android.util.Log.d("ChatViewModel", "Created new conversation: $convId")
+                        android.util.Log.d("AdminChatViewModel", "Created new conversation: $convId")
                     } catch (e: Exception) {
                         _uiState.value = _uiState.value.copy(
                             error = "Failed to create conversation: ${e.message}",
@@ -653,7 +654,7 @@ class ChatViewModel @Inject constructor(
                         conversationRepository.updateConversation(convId, agentId, summary)
                         hasSummary = true
                     } catch (e: Exception) {
-                        android.util.Log.w("ChatViewModel", "Failed to set conversation summary", e)
+                        android.util.Log.w("AdminChatViewModel", "Failed to set conversation summary", e)
                     }
                 }
                 val stream = if (projectContext != null) {
@@ -811,7 +812,7 @@ class ChatViewModel @Inject constructor(
         // Small delay to let server persist the messages we just streamed
         kotlinx.coroutines.delay(500)
         try {
-            val appMessages = messageRepository.fetchMessages(
+            messageRepository.fetchMessages(
                 agentId = agentId,
                 conversationId = conversationId,
                 targetMessageId = scrollToMessageId,
@@ -819,7 +820,7 @@ class ChatViewModel @Inject constructor(
             if (conversationId != activeConversationId) {
                 return
             }
-            val serverMessages = appMessages.toUiMessages()
+            val serverMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
             if (serverMessages.isNotEmpty()) {
                 val merged = mergeReloadedMessages(
                     existingMessages = _uiState.value.messages,
@@ -828,7 +829,7 @@ class ChatViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(messages = merged.toImmutableList())
             }
         } catch (e: Exception) {
-            android.util.Log.w("ChatViewModel", "Silent reload failed", e)
+            android.util.Log.w("AdminChatViewModel", "Silent reload failed", e)
         }
     }
 
@@ -870,7 +871,7 @@ class ChatViewModel @Inject constructor(
                 messageRepository.resetMessages(agentId, convId)
                 _uiState.value = _uiState.value.copy(messages = persistentListOf())
             } catch (e: Exception) {
-                android.util.Log.w("ChatViewModel", "Failed to reset messages", e)
+                android.util.Log.w("AdminChatViewModel", "Failed to reset messages", e)
             }
         }
     }

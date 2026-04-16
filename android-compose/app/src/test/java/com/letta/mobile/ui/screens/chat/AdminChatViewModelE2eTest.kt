@@ -51,7 +51,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ChatViewModelE2eTest {
+class AdminChatViewModelE2eTest {
     private val trackedClients = mutableListOf<HttpClient>()
 
     private fun trackClient(client: HttpClient): HttpClient {
@@ -103,7 +103,7 @@ class ChatViewModelE2eTest {
             val botConfigStore = mockk<BotConfigStore>(relaxed = true)
             val internalBotClient = mockk<InternalBotClient>(relaxed = true)
 
-            val vm = ChatViewModel(
+            val vm = AdminChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1", "conversationId" to "conv-1")),
                 messageRepository,
                 agentRepo,
@@ -188,7 +188,7 @@ class ChatViewModelE2eTest {
             val botConfigStore = mockk<BotConfigStore>(relaxed = true)
             val internalBotClient = mockk<InternalBotClient>(relaxed = true)
 
-            val vm = ChatViewModel(
+            val vm = AdminChatViewModel(
                 SavedStateHandle(mapOf("agentId" to "agent-1")),
                 messageRepository,
                 agentRepo,

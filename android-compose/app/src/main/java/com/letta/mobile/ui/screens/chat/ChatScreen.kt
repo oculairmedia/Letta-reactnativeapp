@@ -70,7 +70,7 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
     chatBackground: ChatBackground = ChatBackground.Default,
     onBugCommand: (() -> Unit)? = null,
-    viewModel: ChatViewModel = hiltViewModel()
+    viewModel: AdminChatViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val inputText by viewModel.inputText.collectAsStateWithLifecycle()
@@ -385,6 +385,7 @@ private fun ChatContent(
                             }
                         }
                     }
+
                 }
 
                 ScrollToBottomFab(
