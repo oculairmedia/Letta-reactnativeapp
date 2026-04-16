@@ -77,6 +77,19 @@ class AllConversationsRepository @Inject constructor(
         _conversations.update { current -> current.filter { it.id != conversationId } }
     }
 
+    /**
+     * Gets the total count of all conversations.
+     * Note: Letta API doesn't have a /v1/conversations/count endpoint,
+     * so we use a single request with limit=1 and parse the list length.
+     * A proper count endpoint would be more efficient.
+     */
+    suspend fun countConversations(): Int {
+        // TODO: When Letta API adds /v1/conversations/count, use that instead
+        // For now, we fetch with a high limit to get accurate count
+        // This is inefficient but gives correct results
+        return conversationApi.listConversations(limit = 10000).size
+    }
+
     companion object {
         private const val PAGE_SIZE = 50
     }

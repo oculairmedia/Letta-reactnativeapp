@@ -284,11 +284,14 @@ class DashboardViewModel @Inject constructor(
     fun loadProgressively() {
         viewModelScope.launch {
             try {
-                agentRepository.refreshAgents()
+                // Use the dedicated count endpoint for accurate count
+                val count = agentRepository.countAgents()
                 _uiState.value = _uiState.value.copy(
-                    agentCount = agentRepository.agents.value.size,
+                    agentCount = count,
                     isConnected = true,
                 )
+                // Also refresh the agents list for search functionality
+                agentRepository.refreshAgents()
             } catch (e: Exception) {
                 Log.w("DashboardVM", "Agent count failed", e)
                 _uiState.value = _uiState.value.copy(error = e.message)
@@ -297,10 +300,14 @@ class DashboardViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                allConversationsRepository.refresh()
+                // Use dedicated count method for accurate count
+                // The refresh() method only loads PAGE_SIZE (50) which gives incorrect counts
+                val count = allConversationsRepository.countConversations()
                 _uiState.value = _uiState.value.copy(
-                    conversationCount = allConversationsRepository.conversations.value.size,
+                    conversationCount = count,
                 )
+                // Also refresh the conversations list for browsing
+                allConversationsRepository.refresh()
             } catch (e: Exception) {
                 Log.w("DashboardVM", "Conversation count failed", e)
             }
@@ -308,10 +315,14 @@ class DashboardViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                toolRepository.refreshTools()
+                // Use the dedicated count endpoint instead of list size
+                // The list endpoint defaults to 50 items which gives incorrect counts
+                val count = toolRepository.countTools()
                 _uiState.value = _uiState.value.copy(
-                    toolCount = toolRepository.getTools().value.size,
+                    toolCount = count,
                 )
+                // Also refresh the tools list for search functionality
+                toolRepository.refreshTools()
             } catch (e: Exception) {
                 Log.w("DashboardVM", "Tool count failed", e)
             }
