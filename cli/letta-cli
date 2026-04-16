@@ -1,0 +1,86 @@
+#!/bin/bash
+# Simple CLI for testing Letta SDK endpoints
+
+BASE_URL="${LETTA_URL:-http://192.168.50.90:8289}"
+
+usage() {
+    echo "letta-cli - Test Letta SDK endpoints"
+    echo ""
+    echo "Usage:"
+    echo "  letta-cli messages <agent_id> [--limit N] [--order asc|desc] [--after ID] [--conversation ID]"
+    echo "  letta-cli count <resource>  # agents, tools, blocks"
+    echo "  letta-cli check-new <agent_id> <after_id> [--conversation ID]"
+    echo "  letta-cli conversations [--limit N]"
+    echo ""
+    echo "Environment:"
+    echo "  LETTA_URL  - Server URL (default: http://192.168.50.90:8289)"
+}
+
+cmd_messages() {
+    local agent_id="$1"
+    shift
+    local limit=10 order="desc" after="" conversation=""
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --limit) limit="$2"; shift 2 ;;
+            --order) order="$2"; shift 2 ;;
+            --after) after="$2"; shift 2 ;;
+            --conversation) conversation="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    
+    local url="$BASE_URL/v1/agents/$agent_id/messages?limit=$limit&order=$order"
+    [[ -n "$after" ]] && url+="&after=$after"
+    [[ -n "$conversation" ]] && url+="&conversation_id=$conversation"
+    
+    echo "=== Fetching messages from: $url ==="
+    curl -s "$url" | jq -r '
+        "Found \(length) messages\n",
+        (.[] | "\(.date[:19] // "?") | \(.message_type | .[0:20] | . + " " * (20 - length)) | \((.content // .reasoning // (.tool_calls[0].name // .message_type))[:70] | gsub("\n"; " "))\n  ID: \(.id)")
+    '
+}
+
+cmd_count() {
+    local resource="$1"
+    local url="$BASE_URL/v1/${resource}/count"
+    echo "$resource count: $(curl -s "$url")"
+}
+
+cmd_check_new() {
+    local agent_id="$1"
+    local after_id="$2"
+    shift 2
+    local conversation=""
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --conversation) conversation="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    
+    local url="$BASE_URL/v1/agents/$agent_id/messages?limit=50&order=asc&after=$after_id"
+    [[ -n "$conversation" ]] && url+="&conversation_id=$conversation"
+    
+    echo "=== Checking for NEW messages after: $after_id ==="
+    curl -s "$url" | jq -r '
+        "Found \(length) NEW messages\n",
+        (.[] | "\(.date[:19] // "?") | \(.message_type | .[0:20] | . + " " * (20 - length)) | \((.content // .reasoning // (.tool_calls[0].name // .message_type))[:70] | gsub("\n"; " "))")
+    '
+}
+
+cmd_conversations() {
+    local limit="${1:-20}"
+    echo "=== Conversations (limit=$limit) ==="
+    curl -s "$BASE_URL/v1/conversations/?limit=$limit" | jq -r '.[] | "\(.id) | \(.agent_id[:20])... | \(.created_at[:19])"'
+}
+
+case "$1" in
+    messages) shift; cmd_messages "$@" ;;
+    count) shift; cmd_count "$@" ;;
+    check-new) shift; cmd_check_new "$@" ;;
+    conversations) shift; cmd_conversations "$@" ;;
+    *) usage ;;
+esac
