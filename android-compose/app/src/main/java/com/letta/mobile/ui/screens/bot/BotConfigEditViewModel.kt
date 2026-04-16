@@ -14,6 +14,7 @@ import com.letta.mobile.bot.config.BotConfig
 import com.letta.mobile.bot.config.BotConfigStore
 import com.letta.mobile.bot.config.BotScheduledJob
 import com.letta.mobile.bot.core.ConversationMode
+import com.letta.mobile.bot.skills.BotSkill
 import com.letta.mobile.bot.skills.BotSkillRegistry
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.repository.AgentRepository
@@ -72,10 +73,12 @@ class BotConfigEditViewModel @Inject constructor(
     var directivesEnabled by mutableStateOf(true)
     var envelopeTemplate by mutableStateOf("")
     var contextProviders by mutableStateOf("")
-    var enabledSkills by mutableStateOf("")
+    var enabledSkills by mutableStateOf<List<String>>(emptyList())
 
     val scheduledJobs = mutableStateListOf<BotScheduledJob>()
-    val availableSkillIds: String = skillRegistry.listAvailableSkills().joinToString(", ") { it.id }
+    private val availableSkillsById: Map<String, BotSkill> = skillRegistry.listAvailableSkills().associateBy { it.id }
+    val availableSkills: List<BotSkill> = availableSkillsById.values.sortedBy { it.id }
+    val availableSkillIds: String = availableSkills.joinToString(", ") { it.id }
 
     private var configId: String = route.configId ?: UUID.randomUUID().toString()
 
@@ -129,7 +132,7 @@ class BotConfigEditViewModel @Inject constructor(
         directivesEnabled = config.directivesEnabled
         envelopeTemplate = config.envelopeTemplate ?: ""
         contextProviders = config.contextProviders.joinToString(", ")
-        enabledSkills = config.enabledSkills.joinToString(", ")
+        enabledSkills = config.enabledSkills
         scheduledJobs.clear()
         scheduledJobs.addAll(config.scheduledJobs)
 
@@ -158,9 +161,29 @@ class BotConfigEditViewModel @Inject constructor(
         if (index >= 0) scheduledJobs[index] = updated
     }
 
+    fun updateEnabledSkills(skillIds: List<String>) {
+        enabledSkills = skillIds
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    fun removeEnabledSkill(skillId: String) {
+        enabledSkills = enabledSkills.filterNot { it == skillId }
+    }
+
+    fun getSkill(skillId: String): BotSkill? = availableSkillsById[skillId]
+
+    fun unknownEnabledSkillIds(): List<String> = enabledSkills.filterNot { it in availableSkillsById }
+
     fun save(onSuccess: () -> Unit, onError: (String) -> Unit) {
         if (agentId.isBlank()) {
             onError("Agent ID is required")
+            return
+        }
+        val unknownSkillIds = unknownEnabledSkillIds()
+        if (unknownSkillIds.isNotEmpty()) {
+            onError("Unknown skill IDs: ${unknownSkillIds.joinToString(", ")}")
             return
         }
         val config = BotConfig(
@@ -176,7 +199,7 @@ class BotConfigEditViewModel @Inject constructor(
             envelopeTemplate = envelopeTemplate.trim().ifBlank { null },
             directivesEnabled = directivesEnabled,
             contextProviders = contextProviders.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-            enabledSkills = enabledSkills.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+            enabledSkills = enabledSkills,
             autoStart = autoStart,
             heartbeatEnabled = heartbeatEnabled,
             heartbeatIntervalMinutes = heartbeatIntervalMinutes,

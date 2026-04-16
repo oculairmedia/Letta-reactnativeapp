@@ -2,8 +2,10 @@ package com.letta.mobile.ui.screens.bot
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -45,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,12 +58,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.bot.config.BotConfig
 import com.letta.mobile.bot.config.BotScheduledJob
 import com.letta.mobile.bot.core.ConversationMode
+import com.letta.mobile.bot.skills.BotSkill
+import com.letta.mobile.bot.skills.BotSkillActivationRule
 import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.LettaSearchBar
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaTopBarDefaults
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -779,6 +786,7 @@ private fun ScheduledJobEditor(
 @Composable
 private fun AdvancedSection(vm: BotConfigEditViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    var showSkillPicker by remember { mutableStateOf(false) }
     Accordions(
         title = "Advanced",
         subtitle = "Auto start, directives, envelope, context",
@@ -818,29 +826,24 @@ private fun AdvancedSection(vm: BotConfigEditViewModel) {
                 },
             )
             item(
-                headlineContent = {
-                    OutlinedTextField(
-                        value = vm.enabledSkills,
-                        onValueChange = { vm.enabledSkills = it },
-                        label = { Text("Enabled Skills") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                },
+                headlineContent = { SkillsEditor(vm = vm, onOpenPicker = { showSkillPicker = true }) },
                 supportingContent = {
+                    val unknownSkillIds = vm.unknownEnabledSkillIds()
                     Text(
-                        text = if (vm.availableSkillIds.isBlank()) {
-                            "Comma-separated skill IDs. No bundled skills are available."
+                        text = when {
+                            unknownSkillIds.isNotEmpty() -> "Unknown skill IDs: ${unknownSkillIds.joinToString(", ")}"
+                            vm.availableSkillIds.isBlank() -> "No bundled skills are available."
                         } else {
-                            "Comma-separated skill IDs. Bundled skills: ${vm.availableSkillIds}"
+                            "Bundled skills: ${vm.availableSkillIds}"
                         },
                         style = MaterialTheme.typography.bodySmall,
+                        color = if (unknownSkillIds.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailingContent = {
                     HelpIcon(
                         title = "Enabled Skills",
-                        description = "Optional comma-separated skill IDs to load for this bot session. Skills add prompt guidance and limit synced local tools to the capabilities required by the enabled bundles.",
+                        description = "Optional bundled skills to load for this bot session. Skills add prompt guidance and limit synced local tools to the capabilities required by the enabled bundles.",
                     )
                 },
             )
@@ -860,6 +863,100 @@ private fun AdvancedSection(vm: BotConfigEditViewModel) {
                         description = "Comma-separated list of device context providers to include in the message envelope.\n\nAvailable providers:\n\u2022 battery \u2014 battery level and charging status\n\u2022 connectivity \u2014 network type (WiFi, cellular)\n\u2022 time \u2014 current date, time, and timezone",
                     )
                 },
+            )
+        }
+
+        if (showSkillPicker) {
+            SkillPickerDialog(
+                availableSkills = vm.availableSkills,
+                selectedSkillIds = vm.enabledSkills,
+                onDismiss = { showSkillPicker = false },
+                onConfirm = {
+                    vm.updateEnabledSkills(it)
+                    showSkillPicker = false
+                },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SkillsEditor(
+    vm: BotConfigEditViewModel,
+    onOpenPicker: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Enabled Skills", style = MaterialTheme.typography.bodyMedium)
+        if (vm.enabledSkills.isEmpty()) {
+            Text(
+                text = "No skills selected. Choose a bundled skill to add prompt guidance and scoped tool access.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                vm.enabledSkills.forEach { skillId ->
+                    val skill = vm.getSkill(skillId)
+                    InputChip(
+                        selected = false,
+                        onClick = { vm.removeEnabledSkill(skillId) },
+                        label = { Text(skill?.displayName ?: skillId) },
+                        trailingIcon = {
+                            Icon(
+                                LettaIcons.Close,
+                                contentDescription = stringResource(com.letta.mobile.R.string.action_remove),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                vm.enabledSkills.forEach { skillId ->
+                    val skill = vm.getSkill(skillId)
+                    if (skill != null) {
+                        SelectedSkillSummary(skill = skill)
+                    } else {
+                        Text(
+                            text = "$skillId — Unknown bundled skill",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+
+        TextButton(onClick = onOpenPicker) {
+            Text(if (vm.availableSkills.isEmpty()) "No bundled skills available" else "Choose Skills")
+        }
+    }
+}
+
+@Composable
+private fun SelectedSkillSummary(skill: BotSkill) {
+    val isActiveToday = skill.activationRule.isActive(LocalDate.now())
+    val activationLabel = when (skill.activationRule) {
+        BotSkillActivationRule.Always -> "Always active"
+        is BotSkillActivationRule.WeekdayOnly -> if (isActiveToday) "Active today" else "Inactive today"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "${skill.displayName} • $activationLabel",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        skill.description.takeIf { it.isNotBlank() }?.let { description ->
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
