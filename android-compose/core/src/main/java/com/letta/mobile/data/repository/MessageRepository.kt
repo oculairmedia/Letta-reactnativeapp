@@ -130,6 +130,7 @@ open class MessageRepository @Inject constructor(
 
             // Track last message ID for incremental sync
             appMessages.lastOrNull()?.id?.let { lastId ->
+                android.util.Log.d("MessageRepository", "fetchMessages: setting lastSyncedMessageId=$lastId for conv=$conversationId (${appMessages.size} messages)")
                 setLastSyncedMessageId(conversationId, lastId)
             }
 
@@ -155,6 +156,7 @@ open class MessageRepository @Inject constructor(
         conversationId: String,
     ): List<AppMessage> {
         val lastKnownId = getLastSyncedMessageId(conversationId)
+        android.util.Log.d("MessageRepository", "checkForNewMessages: conv=$conversationId, lastKnownId=$lastKnownId")
 
         return try {
             val newMessages = messageApi.listMessages(
@@ -166,6 +168,8 @@ open class MessageRepository @Inject constructor(
                 order = "asc",
             ).toAppMessages()
 
+            android.util.Log.d("MessageRepository", "checkForNewMessages: fetched ${newMessages.size} from API")
+
             if (newMessages.isNotEmpty()) {
                 // Append new messages to cache (they come after lastKnownId)
                 _messagesByConversation.update { current ->
@@ -173,18 +177,20 @@ open class MessageRepository @Inject constructor(
                         val existing = get(conversationId) ?: emptyList()
                         val existingIds = existing.mapTo(mutableSetOf()) { it.id }
                         val actuallyNew = newMessages.filterNot { it.id in existingIds }
+                        android.util.Log.d("MessageRepository", "checkForNewMessages: existing=${existing.size}, actuallyNew=${actuallyNew.size}")
                         put(conversationId, existing + actuallyNew)
                     }
                 }
                 // Update sync marker
                 newMessages.lastOrNull()?.id?.let { lastId ->
+                    android.util.Log.d("MessageRepository", "checkForNewMessages: updating lastSyncedMessageId to $lastId")
                     setLastSyncedMessageId(conversationId, lastId)
                 }
             }
 
             newMessages
         } catch (e: Exception) {
-            // Silent fail for background sync
+            android.util.Log.e("MessageRepository", "checkForNewMessages failed", e)
             emptyList()
         }
     }

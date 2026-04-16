@@ -595,32 +595,45 @@ class AdminChatViewModel @Inject constructor(
     private var pollingJob: kotlinx.coroutines.Job? = null
     
     fun startMessagePolling() {
-        val conversationId = activeConversationId ?: return
+        val conversationId = activeConversationId ?: run {
+            Log.d("AdminChatVM", "startMessagePolling: no activeConversationId, skipping")
+            return
+        }
         
         // Don't start if already polling
-        if (pollingJob?.isActive == true) return
+        if (pollingJob?.isActive == true) {
+            Log.d("AdminChatVM", "startMessagePolling: already polling, skipping")
+            return
+        }
         
+        Log.d("AdminChatVM", "startMessagePolling: starting for conv=$conversationId")
         pollingJob = viewModelScope.launch {
             while (true) {
                 delay(3000) // Poll every 3 seconds
                 
                 // Skip polling while streaming (we get real-time updates via SSE)
-                if (_uiState.value.isStreaming) continue
+                if (_uiState.value.isStreaming) {
+                    Log.d("AdminChatVM", "poll: skipping (streaming)")
+                    continue
+                }
                 
                 try {
+                    Log.d("AdminChatVM", "poll: checking for new messages...")
                     val newMessages = messageRepository.checkForNewMessages(
                         agentId = agentId,
                         conversationId = conversationId,
                     )
                     
+                    Log.d("AdminChatVM", "poll: got ${newMessages.size} new messages")
                     if (newMessages.isNotEmpty() && conversationId == activeConversationId) {
                         val allMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
+                        Log.d("AdminChatVM", "poll: updating UI with ${allMessages.size} total messages")
                         _uiState.value = _uiState.value.copy(
                             messages = allMessages.toImmutableList()
                         )
                     }
                 } catch (e: Exception) {
-                    // Silent fail for background polling
+                    Log.e("AdminChatVM", "poll: failed", e)
                 }
             }
         }
