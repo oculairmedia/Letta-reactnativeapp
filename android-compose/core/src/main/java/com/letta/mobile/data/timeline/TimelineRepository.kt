@@ -1,6 +1,7 @@
 package com.letta.mobile.data.timeline
 
 import com.letta.mobile.data.api.MessageApi
+import com.letta.mobile.util.Telemetry
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -39,7 +40,17 @@ open class TimelineRepository @Inject constructor(
      */
     suspend fun getOrCreate(conversationId: String): TimelineSyncLoop {
         loopsMutex.withLock {
-            loops[conversationId]?.let { return it }
+            loops[conversationId]?.let {
+                Telemetry.event(
+                    "TimelineRepo", "getOrCreate.cacheHit",
+                    "conversationId" to conversationId,
+                )
+                return it
+            }
+            Telemetry.event(
+                "TimelineRepo", "getOrCreate.cacheMiss",
+                "conversationId" to conversationId,
+            )
             val loop = TimelineSyncLoop(
                 messageApi = messageApi,
                 conversationId = conversationId,
@@ -50,10 +61,9 @@ open class TimelineRepository @Inject constructor(
             // let that propagate up and kill the chat screen. The user can
             // still send messages; reconcile will fill in history afterwards.
             runCatching { loop.hydrate() }.onFailure { t ->
-                android.util.Log.w(
-                    "TimelineRepository",
-                    "Hydrate failed for $conversationId — proceeding with empty timeline",
-                    t,
+                Telemetry.error(
+                    "TimelineRepo", "hydrate.failed", t,
+                    "conversationId" to conversationId,
                 )
                 // Notify observers so they can clear loading state instead of
                 // spinning forever waiting for a Hydrated event that never comes.

@@ -3,6 +3,7 @@ package com.letta.mobile.data.api
 import android.content.Context
 import android.util.Log
 import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
@@ -76,6 +77,7 @@ open class LettaApiClient @Inject constructor(
                     followSslRedirects(true)
                     cache(okhttp3.Cache(cacheDir, cacheSize))
                 }
+                addInterceptor(TelemetryInterceptor)
             }
 
             install(ContentNegotiation) {

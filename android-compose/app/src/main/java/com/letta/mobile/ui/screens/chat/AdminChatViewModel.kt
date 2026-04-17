@@ -27,6 +27,7 @@ import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
 import com.letta.mobile.ui.theme.ChatBackground
+import com.letta.mobile.util.Telemetry
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -480,6 +481,7 @@ class AdminChatViewModel @Inject constructor(
     }
 
     private suspend fun loadMessagesInternal() {
+        val loadTimer = Telemetry.startTimer("AdminChatVM", "loadMessages")
         val requestedConversationId = activeConversationId
         if (requestedConversationId == null) {
             if (requestedConversationId == activeConversationId) {
@@ -492,6 +494,7 @@ class AdminChatViewModel @Inject constructor(
                     error = null,
                 )
             }
+            loadTimer.stop("result" to "noConversation")
             return
         }
         // Read the flag directly from DataStore — the cached StateFlow starts
@@ -538,6 +541,7 @@ class AdminChatViewModel @Inject constructor(
                 agentDeferred.await() to messagesDeferred.await()
             }
             if (requestedConversationId != activeConversationId) {
+                loadTimer.stop("result" to "staleConversation")
                 return
             }
             _uiState.value = _uiState.value.copy(
@@ -556,6 +560,10 @@ class AdminChatViewModel @Inject constructor(
                     hasMoreOlderMessages = false,
                 )
                 startTimelineObserver(requestedConversationId)
+                loadTimer.stop(
+                    "conversationId" to requestedConversationId,
+                    "mode" to "timeline",
+                )
             } else {
                 val messages = messageRepository.getCachedMessages(requestedConversationId).toUiMessages()
                 if (messages.isNotEmpty()) hasSummary = true
@@ -565,10 +573,16 @@ class AdminChatViewModel @Inject constructor(
                     isLoadingOlderMessages = false,
                     hasMoreOlderMessages = targetMessageId != null || fetchedMessages.size >= MessageRepository.INITIAL_FETCH_LIMIT,
                 )
+                loadTimer.stop(
+                    "conversationId" to requestedConversationId,
+                    "mode" to "legacy",
+                    "messageCount" to messages.size,
+                )
             }
 
             // Background sync disabled - was causing UI flashes
         } catch (e: Exception) {
+            loadTimer.stopError(e, "conversationId" to requestedConversationId)
             if (requestedConversationId != activeConversationId) {
                 return
             }
@@ -769,11 +783,11 @@ class AdminChatViewModel @Inject constructor(
         }
 
         if (useTimelineSync.value) {
-            Log.d("AdminChatVM", "sendMessage: routing via TIMELINE")
+            Telemetry.event("AdminChatVM", "sendMessage.route", "via" to "timeline", "length" to text.length)
             sendMessageViaTimeline(text)
             return
         }
-        Log.d("AdminChatVM", "sendMessage: routing via LEGACY (timeline flag off)")
+        Telemetry.event("AdminChatVM", "sendMessage.route", "via" to "legacy", "length" to text.length)
 
         viewModelScope.launch {
             val userMessage = UiMessage(
@@ -887,8 +901,7 @@ class AdminChatViewModel @Inject constructor(
      */
     private fun sendMessageViaTimeline(text: String) {
         viewModelScope.launch {
-            val sendStart = System.currentTimeMillis()
-            Log.d("AdminChatVM", "sendMessageViaTimeline: start (${text.length} chars)")
+            val enqueueTimer = Telemetry.startTimer("AdminChatVM", "send.enqueue")
             _inputText.value = ""
             _uiState.value = _uiState.value.copy(isStreaming = true, isAgentTyping = true)
             try {
@@ -912,11 +925,11 @@ class AdminChatViewModel @Inject constructor(
                 // Enqueue via the Timeline sync loop — returns immediately after
                 // appending the Local event and queuing the HTTP request.
                 val otid = timelineRepository.sendMessage(convId, text)
-                val enqueueMs = System.currentTimeMillis() - sendStart
-                Log.d("AdminChatVM", "sendMessageViaTimeline: enqueued otid=$otid in ${enqueueMs}ms")
+                enqueueTimer.stop("otid" to otid, "conversationId" to convId)
                 // isStreaming / isAgentTyping will be cleared when we see a Confirmed
                 // assistant event land in the timeline (see startTimelineObserver).
             } catch (e: Exception) {
+                enqueueTimer.stopError(e)
                 _uiState.value = _uiState.value.copy(
                     error = e.message,
                     isStreaming = false,

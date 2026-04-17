@@ -2,6 +2,7 @@ package com.letta.mobile.data.timeline
 
 import android.util.Log
 import com.letta.mobile.data.api.MessageApi
+import com.letta.mobile.util.Telemetry
 import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageCreate
@@ -86,20 +87,31 @@ class TimelineSyncLoop(
      * conversation is opened.
      */
     suspend fun hydrate(limit: Int = 50) = writeMutex.withLock {
-        val response = messageApi.listConversationMessages(
-            conversationId = conversationId,
-            limit = limit,
-            order = "asc",
-        )
-        val converted = response.mapIndexedNotNull { idx, msg ->
-            msg.toTimelineEvent(position = (idx + 1).toDouble())
+        val timer = Telemetry.startTimer("TimelineSync", "hydrate")
+        try {
+            val response = messageApi.listConversationMessages(
+                conversationId = conversationId,
+                limit = limit,
+                order = "asc",
+            )
+            val converted = response.mapIndexedNotNull { idx, msg ->
+                msg.toTimelineEvent(position = (idx + 1).toDouble())
+            }
+            _state.value = Timeline(
+                conversationId = conversationId,
+                events = converted,
+                liveCursor = converted.lastOrNull()?.serverId,
+            )
+            _events.emit(TimelineSyncEvent.Hydrated(converted.size))
+            timer.stop(
+                "conversationId" to conversationId,
+                "rawCount" to response.size,
+                "eventCount" to converted.size,
+            )
+        } catch (t: Throwable) {
+            timer.stopError(t, "conversationId" to conversationId)
+            throw t
         }
-        _state.value = Timeline(
-            conversationId = conversationId,
-            events = converted,
-            liveCursor = converted.lastOrNull()?.serverId,
-        )
-        _events.emit(TimelineSyncEvent.Hydrated(converted.size))
     }
 
     /**
@@ -125,6 +137,12 @@ class TimelineSyncLoop(
             sendQueue.send(PendingSend(otid, content))  // unlimited capacity → never suspends
         }
         _events.emit(TimelineSyncEvent.LocalAppended(otid))
+        Telemetry.event(
+            "TimelineSync", "send.localAppended",
+            "otid" to otid,
+            "conversationId" to conversationId,
+            "contentLength" to content.length,
+        )
         return otid
     }
 
@@ -145,13 +163,21 @@ class TimelineSyncLoop(
     /** Background worker: processes one send at a time from the queue. */
     private suspend fun processSendQueue() {
         for (pending in sendQueue) {
-            val t0 = System.currentTimeMillis()
-            Log.d(logTag, "processSendQueue: starting otid=${pending.otid}")
+            val roundtrip = Telemetry.startTimer("TimelineSync", "send.roundtrip")
+            Telemetry.event(
+                "TimelineSync", "send.dequeued",
+                "otid" to pending.otid,
+                "conversationId" to conversationId,
+            )
             try {
                 streamAndReconcile(pending.content, pending.otid)
-                Log.d(logTag, "processSendQueue: otid=${pending.otid} done in ${System.currentTimeMillis() - t0}ms")
+                roundtrip.stop("otid" to pending.otid)
             } catch (t: Throwable) {
-                Log.e(logTag, "Send failed for otid=${pending.otid}", t)
+                Telemetry.error(
+                    "TimelineSync", "send.failed", t,
+                    "otid" to pending.otid,
+                    "conversationId" to conversationId,
+                )
                 writeMutex.withLock {
                     _state.value = _state.value.markFailed(pending.otid)
                 }
@@ -180,16 +206,20 @@ class TimelineSyncLoop(
             streaming = true,
             includeReturnMessageTypes = DEFAULT_INCLUDE_TYPES,
         )
-        val tPost = System.currentTimeMillis()
+        val postTimer = Telemetry.startTimer("TimelineSync", "send.post")
         val channel = messageApi.sendConversationMessage(conversationId, request)
-        Log.d(logTag, "POST returned in ${System.currentTimeMillis() - tPost}ms; parsing stream…")
+        postTimer.stop("otid" to otid)
+
+        val streamTimer = Telemetry.startTimer("TimelineSync", "send.stream")
         var eventCount = 0
-        val tStream = System.currentTimeMillis()
+        var firstEventLogged = false
+        val firstEventTimer = Telemetry.startTimer("TimelineSync", "send.firstEvent")
 
         SseParser.parse(channel).collect { message ->
             eventCount++
-            if (eventCount == 1) {
-                Log.d(logTag, "first SSE event in ${System.currentTimeMillis() - tStream}ms")
+            if (!firstEventLogged) {
+                firstEventLogged = true
+                firstEventTimer.stop("otid" to otid)
             }
             writeMutex.withLock {
                 val confirmed = message.toTimelineEvent(position = _state.value.nextLocalPosition())
@@ -200,7 +230,7 @@ class TimelineSyncLoop(
             _events.emit(TimelineSyncEvent.ServerEvent(message))
         }
 
-        Log.d(logTag, "stream complete: $eventCount events in ${System.currentTimeMillis() - tStream}ms")
+        streamTimer.stop("otid" to otid, "eventCount" to eventCount)
 
         // Stream completed successfully → mark our local send as SENT
         writeMutex.withLock {
@@ -216,6 +246,9 @@ class TimelineSyncLoop(
      * event for the server-confirmed version, and pull in any missed events.
      */
     private suspend fun reconcileAfterSend(otid: String) = writeMutex.withLock {
+        val timer = Telemetry.startTimer("TimelineSync", "reconcile")
+        var confirmedLocal = false
+        var appendedMissing = 0
         try {
             val serverMessages = messageApi.listConversationMessages(
                 conversationId = conversationId,
@@ -232,6 +265,7 @@ class TimelineSyncLoop(
                     if (confirmed != null) {
                         _state.value = _state.value.replaceLocal(otid, confirmed)
                         _events.emit(TimelineSyncEvent.LocalConfirmed(otid, myMatch.id))
+                        confirmedLocal = true
                     }
                 }
             }
@@ -243,6 +277,7 @@ class TimelineSyncLoop(
                     val pos = _state.value.nextLocalPosition()
                     val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
                     _state.value = _state.value.append(confirmed)
+                    appendedMissing++
                 }
             }
 
@@ -250,8 +285,14 @@ class TimelineSyncLoop(
             serverMessages.lastOrNull()?.id?.let {
                 _state.value = _state.value.copy(liveCursor = it)
             }
+            timer.stop(
+                "otid" to otid,
+                "serverCount" to serverMessages.size,
+                "confirmedLocal" to confirmedLocal,
+                "appendedMissing" to appendedMissing,
+            )
         } catch (t: Throwable) {
-            Log.w(logTag, "Reconcile failed for otid=$otid", t)
+            timer.stopError(t, "otid" to otid)
             _events.emit(TimelineSyncEvent.ReconcileError(t.message ?: "unknown"))
         }
     }

@@ -26,6 +26,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object UsageRoute
 @Serializable data object BotSettingsRoute
 @Serializable data object ProjectsRoute
+@Serializable data object TelemetryRoute
 @Serializable data class BotConfigEditRoute(val configId: String? = null)
 
 @Serializable

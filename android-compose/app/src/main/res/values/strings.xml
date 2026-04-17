@@ -43,6 +43,8 @@
     <string name="widget_desc_models">Browse LLM models</string>
     <string name="widget_desc_settings">App preferences</string>
     <string name="widget_desc_about">App info &amp; version</string>
+    <string name="screen_nav_telemetry">Telemetry</string>
+    <string name="widget_desc_telemetry">Dev latency/event log</string>
     <string name="widget_desc_usage">Token analytics</string>
     <string name="widget_desc_favorite_agent">Quick chat</string>
     <string name="screen_nav_usage">Usage</string>

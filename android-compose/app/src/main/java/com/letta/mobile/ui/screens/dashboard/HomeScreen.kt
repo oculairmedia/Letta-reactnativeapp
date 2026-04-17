@@ -124,6 +124,7 @@ fun HomeScreen(
     onNavigateToMessageBatches: () -> Unit = {},
     onNavigateToMcp: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToTelemetry: () -> Unit = {},
     onNavigateToBotSettings: () -> Unit = {},
     onNavigateToProjects: () -> Unit = {},
     onNavigateToModels: () -> Unit = {},
@@ -169,6 +170,7 @@ fun HomeScreen(
             }
         }
         DashboardShortcut.SETTINGS -> onNavigateToSettings
+        DashboardShortcut.TELEMETRY -> onNavigateToTelemetry
         DashboardShortcut.ABOUT -> onNavigateToAbout
     }
 

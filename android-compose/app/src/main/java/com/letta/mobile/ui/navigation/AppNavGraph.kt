@@ -57,6 +57,7 @@ import com.letta.mobile.ui.screens.schedules.ScheduleListScreen
 import com.letta.mobile.ui.screens.templates.TemplatesScreen
 import com.letta.mobile.ui.screens.tools.AllToolsScreen
 import com.letta.mobile.ui.screens.tools.ToolDetailScreen
+import com.letta.mobile.ui.screens.telemetry.TelemetryScreen
 import com.letta.mobile.ui.screens.usage.UsageScreen
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
@@ -199,6 +200,7 @@ fun AppNavGraph(
                 onNavigateToMessageBatches = { navController.navigate(MessageBatchesRoute) },
                 onNavigateToMcp = { navController.navigate(McpRoute) },
                 onNavigateToAbout = { navController.navigate(AboutRoute) },
+                onNavigateToTelemetry = { navController.navigate(TelemetryRoute) },
                 onNavigateToBotSettings = { navController.navigate(BotSettingsRoute) },
                 onNavigateToProjects = { navController.navigate(HomeRoute) },
                 onNavigateToModels = { navController.navigate(ModelsRoute) },
@@ -218,6 +220,15 @@ fun AppNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToRuns = { navController.navigate(RunsRoute) },
             )
+        }
+
+        composable<TelemetryRoute>(
+            enterTransition = drillInEnter,
+            exitTransition = drillInExit,
+            popEnterTransition = drillInPopEnter,
+            popExitTransition = drillInPopExit,
+        ) {
+            TelemetryScreen(onBack = { navController.popBackStack() })
         }
 
         composable<ConversationsRoute>(
