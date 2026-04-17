@@ -371,6 +371,85 @@ class MessageMapperTest : WordSpec({
             ui[0].approvalResponse!!.approved shouldBe false
             ui[0].approvalResponse!!.reason shouldBe "Unsafe command"
         }
+
+        // Regression: bypassPermissions / yolo sessions echo a tool_return as
+        // an approval_response_message with approve=null (and per-call
+        // approvals[].approve=null). Prior to the fix, the predicate
+        //   approval.approved == true || approvals.any { it.approved == true }
+        // treated null as "rejected", so EVERY auto-approved Bash call was
+        // painted as a Rejected card. We now drop these at the mapper.
+        // Repro pulled live from conv-4d764880-... after cutting v0.1.3:
+        // 109/109 approval_response_message entries had approve=null.
+        "drop auto-approval response messages with no explicit decision" {
+            val messages = listOf(
+                ApprovalResponseMessage(
+                    id = "approval-response-auto-1",
+                    approvalRequestId = "approval-1",
+                    approve = null,
+                    reason = null,
+                    approvals = listOf(
+                        ApprovalResult(
+                            toolCallId = "tool-call-1",
+                            approve = null,
+                            status = null,
+                            reason = null,
+                        )
+                    ),
+                ).toAppMessage()!!,
+            )
+
+            val ui = messages.toUiMessages()
+
+            ui shouldHaveSize 0
+        }
+
+        "preserve approval response when at least one decision is explicit" {
+            val messages = listOf(
+                ApprovalResponseMessage(
+                    id = "approval-response-mixed-1",
+                    approvalRequestId = "approval-1",
+                    approve = null,
+                    reason = null,
+                    approvals = listOf(
+                        ApprovalResult(
+                            toolCallId = "tool-call-1",
+                            approve = true,
+                            status = "approved",
+                            reason = null,
+                        ),
+                        ApprovalResult(
+                            toolCallId = "tool-call-2",
+                            approve = null,
+                            status = null,
+                            reason = null,
+                        ),
+                    ),
+                ).toAppMessage()!!,
+            )
+
+            val ui = messages.toUiMessages()
+
+            ui shouldHaveSize 1
+            ui[0].approvalResponse.shouldNotBeNull()
+            ui[0].approvalResponse!!.approvals.first().approved shouldBe true
+        }
+
+        "preserve approval response when top-level approve is true" {
+            val messages = listOf(
+                ApprovalResponseMessage(
+                    id = "approval-response-true-1",
+                    approvalRequestId = "approval-1",
+                    approve = true,
+                    reason = null,
+                    approvals = emptyList(),
+                ).toAppMessage()!!,
+            )
+
+            val ui = messages.toUiMessages()
+
+            ui shouldHaveSize 1
+            ui[0].approvalResponse!!.approved shouldBe true
+        }
     }
 
     "LettaMessage.toAppMessage" should {

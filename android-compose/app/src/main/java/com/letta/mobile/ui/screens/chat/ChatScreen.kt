@@ -27,8 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -80,16 +78,7 @@ fun ChatScreen(
     var activeFontScale by remember { mutableFloatStateOf(fontScale) }
     LaunchedEffect(fontScale) { activeFontScale = fontScale }
 
-    // Refresh on resume and start polling for new messages (admin monitoring)
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        viewModel.refreshFromCache()
-        viewModel.startMessagePolling()
-    }
-    
-    // Stop polling when leaving the screen
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        viewModel.stopMessagePolling()
-    }
+    // Timeline sync loop handles live updates — no on-resume refresh needed.
 
     val backgroundModifier = when (chatBackground) {
         is ChatBackground.Default -> Modifier

@@ -14,9 +14,7 @@ data class UiMessage(
     val generatedUi: UiGeneratedComponent? = null,
     val approvalRequest: UiApprovalRequest? = null,
     val approvalResponse: UiApprovalResponse? = null,
-) {
-    fun contentHash(): String = "$role:${content.hashCode()}"
-}
+)
 
 @Immutable
 data class UiToolCall(

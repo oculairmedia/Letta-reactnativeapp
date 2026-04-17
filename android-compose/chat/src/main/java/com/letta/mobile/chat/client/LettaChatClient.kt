@@ -13,7 +13,7 @@ import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.StreamState
+import com.letta.mobile.data.timeline.TimelineRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class LettaChatClient(
     private val messageRepository: MessageRepository,
+    private val timelineRepository: TimelineRepository,
     private val conversationManager: ConversationManager,
     private val conversationRepository: ConversationRepository,
     private val agentId: String,
@@ -100,34 +101,16 @@ class LettaChatClient(
                 return@flow
             }
 
-            messageRepository.sendMessage(agentId, text, convId).collect { state ->
-                when (state) {
-                    is StreamState.Sending -> emit(StreamEvent.Sending)
-                    is StreamState.Streaming -> {
-                        val newMessages = state.messages.map { it.toChatMessage() }
-                        appendStreamMessages(newMessages)
-                        emit(StreamEvent.Streaming(newMessages))
-                    }
-                    is StreamState.ToolExecution -> {
-                        val tool = ChatToolCall(id = state.toolName, name = state.toolName, isPending = true)
-                        pendingTools[state.toolName] = tool
-                        emit(StreamEvent.ToolExecution(state.toolName))
-                    }
-                    is StreamState.Complete -> {
-                        pendingTools.clear()
-                        val newMessages = state.messages.map { it.toChatMessage() }
-                        appendStreamMessages(newMessages)
-                        _isStreaming.update { false }
-                        emit(StreamEvent.Complete(newMessages))
-                        reloadFromServer(convId)
-                    }
-                    is StreamState.Error -> {
-                        _isStreaming.update { false }
-                        _error.update { state.message }
-                        emit(StreamEvent.Error(state.message))
-                    }
-                }
-            }
+            // Phase 5 (letta-mobile-844e): streaming is now owned by the
+            // per-conversation TimelineSyncLoop inside TimelineRepository.
+            // Delegate enqueue + HTTP + reconcile there; reflect the final
+            // confirmed snapshot back into this client's state.
+            emit(StreamEvent.Sending)
+            timelineRepository.sendMessage(convId, text)
+            reloadFromServer(convId)
+            val finalMessages = _messages.value.filter { !it.isPending }
+            _isStreaming.update { false }
+            emit(StreamEvent.Complete(finalMessages))
         } catch (e: Exception) {
             _isStreaming.update { false }
             _error.update { e.message }

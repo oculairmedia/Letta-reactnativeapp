@@ -38,17 +38,12 @@ class LettaChatClientTest : WordSpec({
         agentId: String = "agent-1",
         conversationId: String? = "conv-1",
     ): LettaChatClient {
-        val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
+        val messageRepo = object : MessageRepository(mockk(relaxed = true)) {
             override suspend fun fetchMessages(
                 agentId: String,
                 conversationId: String,
                 targetMessageId: String?,
             ): List<AppMessage> = messages
-            override fun getMessages(agentId: String, conversationId: String): Flow<List<AppMessage>> = flowOf(messages)
-            override fun sendMessage(agentId: String, text: String, conversationId: String): Flow<StreamState> = flow {
-                streamStates.forEach { emit(it) }
-            }
-            override suspend fun resetMessages(agentId: String) {}
         }
         val conversationRepo = object : ConversationRepository(mockk(relaxed = true)) {
             override fun getConversations(agentId: String): Flow<List<Conversation>> = flowOf(conversations)
@@ -65,7 +60,8 @@ class LettaChatClientTest : WordSpec({
             override suspend fun forkConversation(id: String, agentId: String): Conversation = fakeConversation("fork-$id", agentId)
         }
         val conversationManager = ConversationManager(conversationRepo)
-        return LettaChatClient(messageRepo, conversationManager, conversationRepo, agentId, conversationId)
+        val timelineRepo = mockk<com.letta.mobile.data.timeline.TimelineRepository>(relaxed = true)
+        return LettaChatClient(messageRepo, timelineRepo, conversationManager, conversationRepo, agentId, conversationId)
     }
 
     "connect" should {
@@ -125,80 +121,6 @@ class LettaChatClientTest : WordSpec({
             }
         }
 
-        "append stream response without replacing history" {
-            runTest {
-                val history = listOf(
-                    fakeMessage("old-1", MessageType.USER, "Q1"),
-                    fakeMessage("old-2", MessageType.ASSISTANT, "A1"),
-                )
-                val streamResponse = listOf(
-                    fakeMessage("new-1", MessageType.ASSISTANT, "A2"),
-                )
-                val client = createClient(
-                    messages = history,
-                    streamStates = listOf(StreamState.Complete(streamResponse)),
-                )
-                client.connect()
-                client.messages.value shouldHaveSize 2
-
-                client.sendMessage("Q2").toList()
-
-                client.messages.value.map { it.content } shouldBe listOf("Q1", "A1", "Q2", "A2")
-            }
-        }
-
-        "keep streamed reply when delayed reload returns stale same-sized snapshot" {
-            runTest {
-                val history = listOf(
-                    fakeMessage("old-1", MessageType.USER, "Q1"),
-                    fakeMessage("old-2", MessageType.ASSISTANT, "A1"),
-                )
-                val streamResponse = listOf(
-                    fakeMessage("reply-1", MessageType.ASSISTANT, "Fresh reply"),
-                )
-                val staleServerSnapshot = listOf(
-                    fakeMessage("old-1", MessageType.USER, "Q1"),
-                    fakeMessage("server-user-2", MessageType.USER, "Q2"),
-                    fakeMessage("old-2", MessageType.ASSISTANT, "A1"),
-                    fakeMessage("server-assistant-2", MessageType.ASSISTANT, "Older persisted reply"),
-                )
-                val fetchResponses = ArrayDeque(listOf(history, staleServerSnapshot))
-                val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
-                    override suspend fun fetchMessages(
-                        agentId: String,
-                        conversationId: String,
-                        targetMessageId: String?,
-                    ): List<AppMessage> = fetchResponses.removeFirstOrNull() ?: staleServerSnapshot
-
-                    override fun getMessages(agentId: String, conversationId: String): Flow<List<AppMessage>> = flowOf(history)
-
-                    override fun sendMessage(agentId: String, text: String, conversationId: String): Flow<StreamState> = flow {
-                        emit(StreamState.Complete(streamResponse))
-                    }
-
-                    override suspend fun resetMessages(agentId: String) {}
-                }
-                val conversationRepo = object : ConversationRepository(mockk(relaxed = true)) {
-                    override fun getConversations(agentId: String): Flow<List<Conversation>> = flowOf(listOf(fakeConversation("conv-1", "agent-1")))
-                    override suspend fun refreshConversations(agentId: String) {}
-                    override fun getCachedConversations(agentId: String): List<Conversation> = listOf(fakeConversation("conv-1", "agent-1"))
-                    override suspend fun getConversation(id: String): Conversation = fakeConversation(id, "agent-1")
-                    override suspend fun createConversation(agentId: String, summary: String?): Conversation = fakeConversation("new-conv", agentId)
-                    override suspend fun updateConversation(id: String, agentId: String, summary: String) {}
-                    override suspend fun deleteConversation(id: String, agentId: String) {}
-                    override suspend fun forkConversation(id: String, agentId: String): Conversation = fakeConversation("fork-$id", agentId)
-                }
-                val conversationManager = ConversationManager(conversationRepo)
-                val staleReloadClient = LettaChatClient(messageRepo, conversationManager, conversationRepo, "agent-1", "conv-1")
-
-                staleReloadClient.connect()
-                staleReloadClient.sendMessage("Q2").toList()
-
-                staleReloadClient.messages.value.any { it.content == "Q2" } shouldBe true
-                staleReloadClient.messages.value.any { it.content == "Fresh reply" } shouldBe true
-                staleReloadClient.messages.value.size shouldBe 5
-            }
-        }
 
         "replace pending user message when reload returns matching server message" {
             runTest {
@@ -216,20 +138,12 @@ class LettaChatClientTest : WordSpec({
                     fakeMessage("reply-1", MessageType.ASSISTANT, "Fresh reply"),
                 )
                 val fetchResponses = ArrayDeque(listOf(history, persistedServerSnapshot))
-                val messageRepo = object : MessageRepository(mockk(relaxed = true), mockk(relaxed = true)) {
+                val messageRepo = object : MessageRepository(mockk(relaxed = true)) {
                     override suspend fun fetchMessages(
                         agentId: String,
                         conversationId: String,
                         targetMessageId: String?,
                     ): List<AppMessage> = fetchResponses.removeFirstOrNull() ?: persistedServerSnapshot
-
-                    override fun getMessages(agentId: String, conversationId: String): Flow<List<AppMessage>> = flowOf(history)
-
-                    override fun sendMessage(agentId: String, text: String, conversationId: String): Flow<StreamState> = flow {
-                        emit(StreamState.Complete(streamResponse))
-                    }
-
-                    override suspend fun resetMessages(agentId: String) {}
                 }
                 val conversationRepo = object : ConversationRepository(mockk(relaxed = true)) {
                     override fun getConversations(agentId: String): Flow<List<Conversation>> = flowOf(listOf(fakeConversation("conv-1", "agent-1")))
@@ -242,7 +156,8 @@ class LettaChatClientTest : WordSpec({
                     override suspend fun forkConversation(id: String, agentId: String): Conversation = fakeConversation("fork-$id", agentId)
                 }
                 val conversationManager = ConversationManager(conversationRepo)
-                val client = LettaChatClient(messageRepo, conversationManager, conversationRepo, "agent-1", "conv-1")
+                val timelineRepo = mockk<com.letta.mobile.data.timeline.TimelineRepository>(relaxed = true)
+                val client = LettaChatClient(messageRepo, timelineRepo, conversationManager, conversationRepo, "agent-1", "conv-1")
 
                 client.connect()
                 client.sendMessage("Q2").toList()
@@ -266,19 +181,6 @@ class LettaChatClientTest : WordSpec({
             }
         }
 
-        "emit Error event on stream failure" {
-            runTest {
-                val client = createClient(
-                    streamStates = listOf(StreamState.Error("Network error")),
-                )
-                client.connect()
-                val events = client.sendMessage("test").toList()
-                events.last().shouldBeInstanceOf<StreamEvent.Error>()
-                client.isStreaming.value shouldBe false
-                client.error.value shouldBe "Network error"
-            }
-        }
-
         "deduplicate messages by ID" {
             runTest {
                 val msg = fakeMessage("dup-1", MessageType.ASSISTANT, "Same message")
@@ -294,18 +196,4 @@ class LettaChatClientTest : WordSpec({
         }
     }
 
-    "error handling" should {
-        "clearError resets error state" {
-            runTest {
-                val client = createClient(
-                    streamStates = listOf(StreamState.Error("boom")),
-                )
-                client.connect()
-                client.sendMessage("test").toList()
-                client.error.value shouldBe "boom"
-                client.clearError()
-                client.error.value shouldBe null
-            }
-        }
-    }
 })

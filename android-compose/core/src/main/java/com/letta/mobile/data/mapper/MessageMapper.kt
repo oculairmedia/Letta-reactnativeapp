@@ -284,7 +284,29 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
             MessageType.ASSISTANT -> result.add(msg.toUiMessage())
             MessageType.REASONING -> result.add(msg.toUiMessage())
             MessageType.APPROVAL_REQUEST -> result.add(msg.toUiMessage())
-            MessageType.APPROVAL_RESPONSE -> result.add(msg.toUiMessage())
+            MessageType.APPROVAL_RESPONSE -> {
+                // Suppress auto-approval response cards: in bypassPermissions sessions
+                // the Letta server emits approval_response_message entries with
+                // approve=null (and per-call approvals[].approve=null). These are
+                // NOT user-facing rejections — they are bookkeeping echoes of the
+                // tool_return. Rendering them as "Rejected" cards (the legacy
+                // behaviour) misled operators on every yolo session.
+                //
+                // Only render the card when SOMEONE actually made an explicit
+                // decision (approve == true OR approve == false at either the
+                // top-level or any per-call entry).
+                val response = msg.approvalResponse
+                val hasExplicitDecision = response != null && (
+                    response.approved != null ||
+                    response.approvals.any { it.approved != null }
+                )
+                if (hasExplicitDecision) {
+                    result.add(msg.toUiMessage())
+                }
+                // else: silently drop — the linked tool_return already carries
+                // the actual outcome and is rendered by the TOOL_CALL/TOOL_RETURN
+                // branches above.
+            }
         }
     }
     return result

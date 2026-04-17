@@ -3,8 +3,6 @@ package com.letta.mobile.data.repository
 import com.letta.mobile.data.api.LettaApiClient
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.data.model.MessageType
-import com.letta.mobile.domain.ClientToolRegistry
-import com.letta.mobile.domain.MessageProcessor
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -18,88 +16,34 @@ import io.ktor.serialization.kotlinx.json.json
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Integration tests for [MessageRepository] — the stateless HTTP helper that
+ * remains after Phase 5 of the Timeline migration. Legacy streaming-send and
+ * in-memory cache tests were removed alongside the underlying implementation
+ * (see `letta-mobile-844e`); live message sync is now exercised by
+ * `TimelineSyncLoopTest`.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
-
-    @Test
-    fun `sendMessage processes SSE stream through real repository stack`() = runTest {
-        val repository = createRepository(
-            streamConversationId = "conv-1",
-            conversationMessagesJson = "[]",
-            ssePayload = """
-                data: {"id":"reason-1","message_type":"reasoning_message","reasoning":"Thinking"}
-
-                data: {"id":"tool-1","message_type":"tool_call_message","tool_call":{"name":"search","arguments":"{}","type":"function"}}
-
-                data: {"id":"assistant-1","message_type":"assistant_message","content":"Done"}
-
-                data: [DONE]
-            """.trimIndent(),
-        )
-
-        val states = repository.sendMessage("agent-1", "Hello", "conv-1").toList()
-
-        assertTrue(states.first() is StreamState.Sending)
-        assertTrue(states.any { it is StreamState.ToolExecution && it.toolName == "search" })
-        val complete = states.last() as StreamState.Complete
-        assertEquals(3, complete.messages.size)
-        assertEquals(MessageType.ASSISTANT, complete.messages.last().messageType)
-        assertEquals("Done", complete.messages.last().content)
-    }
-
-    @Test
-    fun `sendMessage keeps existing cached history after streaming completes`() = runTest {
-        // After streaming, the server will have the new messages on reload
-        // API returns newest first (desc order), repo reverses for chronological display
-        val reloadJson = """
-            [
-              {"id":"assistant-1","message_type":"assistant_message","content":"Done"},
-              {"id":"user-1","message_type":"user_message","content":"Hello"}
-            ]
-        """.trimIndent()
-        var getCallCount = 0
-        val repository = createRepository(
-            streamConversationId = "conv-1",
-            conversationMessagesJson = "[]",
-            ssePayload = """
-                data: {"id":"assistant-1","message_type":"assistant_message","content":"Done"}
-
-                data: [DONE]
-            """.trimIndent(),
-            overrideGetResponse = { if (getCallCount++ > 0) reloadJson else "[]" },
-        )
-
-        val initialMessages = repository.fetchMessages("agent-1", "conv-1")
-        repository.sendMessage("agent-1", "Hello", "conv-1").toList()
-        val cachedMessages = repository.getMessages("agent-1", "conv-1").toList().last()
-
-        assertTrue(initialMessages.isEmpty())
-        assertEquals(2, cachedMessages.size)
-        assertEquals(MessageType.USER, cachedMessages.first().messageType)
-        assertEquals("Hello", cachedMessages.first().content)
-        assertEquals(MessageType.ASSISTANT, cachedMessages.last().messageType)
-        assertEquals("Done", cachedMessages.last().content)
-    }
 
     @Test
     fun `fetchMessages maps conversation messages from API`() = runTest {
         val repository = createRepository(
             streamConversationId = "conv-1",
-            // API returns newest first (desc order), repo reverses for chronological display
+            // API returns newest first (desc order); MessageApi sorts by
+            // (date, otid) before returning. Supply dates so the test
+            // exercises chronological ordering deterministically.
             conversationMessagesJson = """
                 [
-                  {"id":"assistant-1","message_type":"assistant_message","content":"Hi"},
-                  {"id":"user-1","message_type":"user_message","content":"Hello"}
+                  {"id":"assistant-1","message_type":"assistant_message","content":"Hi","date":"2024-03-15T10:01:00Z"},
+                  {"id":"user-1","message_type":"user_message","content":"Hello","date":"2024-03-15T10:00:00Z"}
                 ]
             """.trimIndent(),
             ssePayload = "data: [DONE]\n\n",
@@ -113,16 +57,15 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
     }
 
     @Test
-    fun `fetchMessages requests descending order and reverses for chronological display`() = runTest {
+    fun `fetchMessages requests descending order and sorts chronologically`() = runTest {
         var requestedOrder: String? = null
         var requestedLimit: Int? = null
         val repository = createRepository(
             streamConversationId = "conv-1",
-            // API returns newest first (desc order)
             conversationMessagesJson = """
                 [
-                  {"id":"assistant-1","message_type":"assistant_message","content":"Hi"},
-                  {"id":"user-1","message_type":"user_message","content":"Hello"}
+                  {"id":"assistant-1","message_type":"assistant_message","content":"Hi","date":"2024-03-15T10:01:00Z"},
+                  {"id":"user-1","message_type":"user_message","content":"Hello","date":"2024-03-15T10:00:00Z"}
                 ]
             """.trimIndent(),
             ssePayload = "data: [DONE]\n\n",
@@ -135,23 +78,19 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
         val messages = repository.fetchMessages("agent-1", "conv-1")
 
         assertEquals("desc", requestedOrder)
-        // SDK over-fetches to handle Letta API's run-based limit semantics
-        assertTrue("Limit should be >= INITIAL_FETCH_LIMIT", requestedLimit != null && requestedLimit!! >= MessageRepository.INITIAL_FETCH_LIMIT)
-        // Result should be reversed for chronological order (oldest first)
+        assertTrue(
+            "Limit should be >= INITIAL_FETCH_LIMIT",
+            requestedLimit != null && requestedLimit!! >= MessageRepository.INITIAL_FETCH_LIMIT,
+        )
         assertEquals(listOf("user-1", "assistant-1"), messages.map { it.id })
     }
 
     @Test
-    fun `fetchOlderMessages requests before cursor and prepends older cache entries`() = runTest {
+    fun `fetchOlderMessages returns page ordered chronologically`() = runTest {
         val requestedBeforeValues = mutableListOf<String?>()
         val repository = createRepository(
             streamConversationId = "conv-1",
-            conversationMessagesJson = """
-                [
-                  {"id":"assistant-11","message_type":"assistant_message","content":"Latest reply"},
-                  {"id":"user-11","message_type":"user_message","content":"Latest question"}
-                ]
-            """.trimIndent(),
+            conversationMessagesJson = "[]",
             ssePayload = "data: [DONE]\n\n",
             onConversationMessagesRequest = { _, _, before ->
                 requestedBeforeValues += before
@@ -160,31 +99,20 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
                 if (before == "user-11") {
                     """
                     [
-                      {"id":"assistant-10","message_type":"assistant_message","content":"Older answer"},
-                      {"id":"user-10","message_type":"user_message","content":"Older question"}
+                      {"id":"assistant-10","message_type":"assistant_message","content":"Older answer","date":"2024-03-15T09:01:00Z"},
+                      {"id":"user-10","message_type":"user_message","content":"Older question","date":"2024-03-15T09:00:00Z"}
                     ]
                     """.trimIndent()
                 } else {
-                    """
-                    [
-                      {"id":"assistant-11","message_type":"assistant_message","content":"Latest reply"},
-                      {"id":"user-11","message_type":"user_message","content":"Latest question"}
-                    ]
-                    """.trimIndent()
+                    "[]"
                 }
             },
         )
 
-        repository.fetchMessages("agent-1", "conv-1")
         val olderMessages = repository.fetchOlderMessages("agent-1", "conv-1", "user-11")
-        val cachedMessages = repository.getCachedMessages("conv-1")
 
-        assertEquals(listOf(null, "user-11"), requestedBeforeValues)
+        assertEquals(listOf("user-11"), requestedBeforeValues)
         assertEquals(listOf("user-10", "assistant-10"), olderMessages.map { it.id })
-        assertEquals(
-            listOf("user-10", "assistant-10", "user-11", "assistant-11"),
-            cachedMessages.map { it.id },
-        )
     }
 
     @Test
@@ -229,10 +157,7 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
             every { getBaseUrl() } returns "http://test"
         }
 
-        val repository = MessageRepository(
-            MessageApi(apiClient),
-            MessageProcessor(ClientToolRegistry()),
-        )
+        val repository = MessageRepository(MessageApi(apiClient))
 
         val messages = repository.fetchMessages(
             agentId = "agent-1",
@@ -280,48 +205,6 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
         assertTrue(messages.last().detailLines.any { it.first == "phase" && it.second == "streaming" })
     }
 
-    @Test
-    fun `sendMessage replaces pending cache entry when server returns matching content`() = runTest {
-        val reloadJson = """
-            [
-              {"id":"assistant-1","message_type":"assistant_message","content":"Done"},
-              {"id":"user-1","message_type":"user_message","content":"Hello"}
-            ]
-        """.trimIndent()
-        val repository = createRepository(
-            streamConversationId = "conv-1",
-            conversationMessagesJson = "[]",
-            ssePayload = """
-                data: {"id":"assistant-1","message_type":"assistant_message","content":"Done"}
-
-                data: [DONE]
-            """.trimIndent(),
-            overrideGetResponse = { reloadJson },
-        )
-
-        repository.sendMessage("agent-1", "Hello", "conv-1").toList()
-        val cachedMessages = repository.getMessages("agent-1", "conv-1").toList().last()
-
-        assertEquals(listOf("user-1", "assistant-1"), cachedMessages.map { it.id })
-        assertFalse(cachedMessages.first().isPending)
-    }
-
-    @Test
-    fun `pending cache entry has explicit pending identity before server merge`() = runTest {
-        val repository = createRepository(
-            streamConversationId = "conv-1",
-            conversationMessagesJson = "[]",
-            ssePayload = "data: [DONE]\n\n",
-        )
-
-        val states = repository.sendMessage("agent-1", "Hello", "conv-1").toList()
-
-        assertTrue(states.first() is StreamState.Sending)
-        val cachedMessages = repository.getMessages("agent-1", "conv-1").toList().last()
-        assertTrue(cachedMessages.first().isPending)
-        assertTrue(cachedMessages.first().id.startsWith("pending-"))
-    }
-
     private fun createRepository(
         streamConversationId: String,
         conversationMessagesJson: String,
@@ -335,7 +218,7 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
             val url = req.url.toString()
             when {
                 req.method == HttpMethod.Post && url.contains("/v1/conversations/$streamConversationId/messages") -> {
-                    respond(ByteReadChannel(ssePayload.toByteArray()), HttpStatusCode.OK, sseHeaders)
+                    respond(io.ktor.utils.io.ByteReadChannel(ssePayload.toByteArray()), HttpStatusCode.OK, sseHeaders)
                 }
                 req.method == HttpMethod.Get && url.contains("/v1/agents/") && url.contains("/messages") && req.url.parameters["conversation_id"] == streamConversationId -> {
                     onConversationMessagesRequest?.invoke(
@@ -356,18 +239,18 @@ class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTest
                     respond(body, HttpStatusCode.OK, jsonHeaders)
                 }
                 else -> respond("[]", HttpStatusCode.OK, jsonHeaders)
-            } }) { install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; isLenient = true })
-        } })
+            }
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true })
+            }
+        })
 
         val apiClient = mockk<LettaApiClient> {
             coEvery { getClient() } returns client
             every { getBaseUrl() } returns "http://test"
         }
 
-        return MessageRepository(
-            MessageApi(apiClient),
-            MessageProcessor(ClientToolRegistry()),
-        )
+        return MessageRepository(MessageApi(apiClient))
     }
 }

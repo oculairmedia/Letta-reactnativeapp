@@ -239,16 +239,6 @@ class AdminChatViewModel @Inject constructor(
     private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     private var hasSummary = false
 
-    /**
-     * Feature flag for the Timeline-sync migration (see
-     * docs/architecture/message-sync-migration.md). When true, [sendMessage]
-     * delegates to [timelineRepository] and a separate coroutine mirrors the
-     * unified Timeline into [_uiState.messages]. When false, the legacy
-     * [messageRepository] path is used unchanged.
-     */
-    private val useTimelineSync: StateFlow<Boolean> = settingsRepository.getUseTimelineSync()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
     private var timelineObserverJob: kotlinx.coroutines.Job? = null
 
     init {
@@ -497,13 +487,9 @@ class AdminChatViewModel @Inject constructor(
             loadTimer.stop("result" to "noConversation")
             return
         }
-        // Read the flag directly from DataStore — the cached StateFlow starts
-        // at `false` and only flips on first emission, which races against
-        // this init-time call. .first() blocks until we have the real value.
-        val timelineModeInitial = settingsRepository.getUseTimelineSync().first()
         val cachedAgent = agentRepository.getCachedAgent(agentId)
-        val cachedMessages = if (timelineModeInitial) emptyList()
-                             else messageRepository.getCachedMessages(requestedConversationId)
+        // Timeline is the source of truth — legacy cache is never read here.
+        val cachedMessages = emptyList<AppMessage>()
         if (cachedAgent != null || cachedMessages.isNotEmpty()) {
             if (requestedConversationId == activeConversationId) {
                 _uiState.value = _uiState.value.copy(
@@ -519,27 +505,7 @@ class AdminChatViewModel @Inject constructor(
             }
         }
         try {
-            val targetMessageId = scrollToMessageId
-            val timelineMode = timelineModeInitial
-
-            // In timeline mode, skip the redundant legacy message fetch.
-            // The TimelineRepository.hydrate() (called by startTimelineObserver)
-            // does the same job and feeds _uiState.messages via the observer.
-            val (agent, fetchedMessages) = supervisorScope {
-                val agentDeferred = async { agentRepository.getAgent(agentId).first() }
-                val messagesDeferred = async {
-                    if (timelineMode) {
-                        emptyList()
-                    } else {
-                        messageRepository.fetchMessages(
-                            agentId = agentId,
-                            conversationId = requestedConversationId,
-                            targetMessageId = targetMessageId,
-                        )
-                    }
-                }
-                agentDeferred.await() to messagesDeferred.await()
-            }
+            val agent = agentRepository.getAgent(agentId).first()
             if (requestedConversationId != activeConversationId) {
                 loadTimer.stop("result" to "staleConversation")
                 return
@@ -549,38 +515,20 @@ class AdminChatViewModel @Inject constructor(
                 conversationState = ConversationState.Ready(requestedConversationId),
             )
 
-            if (timelineMode) {
-                // Hand control of _uiState.messages to the timeline observer.
-                // It calls TimelineRepository.hydrate() and emits as messages
-                // arrive. Keep isLoadingMessages=true until the observer sees
-                // the first emission (see startTimelineObserver).
-                _uiState.value = _uiState.value.copy(
-                    isLoadingMessages = true,
-                    isLoadingOlderMessages = false,
-                    hasMoreOlderMessages = false,
-                )
-                startTimelineObserver(requestedConversationId)
-                loadTimer.stop(
-                    "conversationId" to requestedConversationId,
-                    "mode" to "timeline",
-                )
-            } else {
-                val messages = messageRepository.getCachedMessages(requestedConversationId).toUiMessages()
-                if (messages.isNotEmpty()) hasSummary = true
-                _uiState.value = _uiState.value.copy(
-                    messages = messages.toImmutableList(),
-                    isLoadingMessages = false,
-                    isLoadingOlderMessages = false,
-                    hasMoreOlderMessages = targetMessageId != null || fetchedMessages.size >= MessageRepository.INITIAL_FETCH_LIMIT,
-                )
-                loadTimer.stop(
-                    "conversationId" to requestedConversationId,
-                    "mode" to "legacy",
-                    "messageCount" to messages.size,
-                )
-            }
-
-            // Background sync disabled - was causing UI flashes
+            // Hand control of _uiState.messages to the timeline observer.
+            // It calls TimelineRepository.hydrate() and emits as messages
+            // arrive. Keep isLoadingMessages=true until the observer sees
+            // the first emission (see startTimelineObserver).
+            _uiState.value = _uiState.value.copy(
+                isLoadingMessages = true,
+                isLoadingOlderMessages = false,
+                hasMoreOlderMessages = false,
+            )
+            startTimelineObserver(requestedConversationId)
+            loadTimer.stop(
+                "conversationId" to requestedConversationId,
+                "mode" to "timeline",
+            )
         } catch (e: Exception) {
             loadTimer.stopError(e, "conversationId" to requestedConversationId)
             if (requestedConversationId != activeConversationId) {
@@ -601,119 +549,6 @@ class AdminChatViewModel @Inject constructor(
             return
         }
         viewModelScope.launch { loadMessagesInternal() }
-    }
-
-    /**
-     * Refresh on resume - always fetches from server for admin monitoring.
-     * Shows cached messages immediately to avoid flash, then updates with server data.
-     */
-    fun refreshFromCache() {
-        val conversationId = activeConversationId
-        if (conversationId == null) {
-            // Conversation not resolved yet - init will handle it
-            return
-        }
-
-        // Phase 3 migration: Timeline observer is the source of truth — don't
-        // overwrite _uiState.messages with the legacy cache (would clobber any
-        // pending Local events in flight).
-        if (useTimelineSync.value) {
-            return
-        }
-
-        // Show cached messages immediately (no loading indicator)
-        val cachedMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
-        if (cachedMessages.isNotEmpty()) {
-            _uiState.value = _uiState.value.copy(
-                messages = cachedMessages.toImmutableList()
-            )
-        }
-        
-        // Always fetch fresh from server - this is an admin surface that needs real-time data
-        viewModelScope.launch {
-            try {
-                // Check for new messages since last sync (incremental)
-                val newMessages = messageRepository.checkForNewMessages(
-                    agentId = agentId,
-                    conversationId = conversationId,
-                )
-                
-                // Update UI with all messages from cache (which now includes new ones)
-                val allMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
-                if (allMessages.isNotEmpty() && conversationId == activeConversationId) {
-                    _uiState.value = _uiState.value.copy(
-                        messages = allMessages.toImmutableList()
-                    )
-                }
-            } catch (e: Exception) {
-                // Silent fail - we already showed cached
-            }
-        }
-    }
-    
-    /**
-     * Start polling for new messages. Call when entering the chat screen.
-     * Polls every 3 seconds for new messages from the server.
-     */
-    private var pollingJob: kotlinx.coroutines.Job? = null
-    
-    fun startMessagePolling() {
-        // Phase 3 migration: when Timeline-sync is on, the unified sync loop
-        // owns all message updates. Legacy 3-second polling is wasteful (every
-        // poll returns []) and races with the timeline observer for control of
-        // _uiState.messages. Skip it entirely.
-        if (useTimelineSync.value) {
-            Log.d("AdminChatVM", "startMessagePolling: skipping (timeline sync active)")
-            return
-        }
-
-        val conversationId = activeConversationId ?: run {
-            Log.d("AdminChatVM", "startMessagePolling: no activeConversationId, skipping")
-            return
-        }
-        
-        // Don't start if already polling
-        if (pollingJob?.isActive == true) {
-            Log.d("AdminChatVM", "startMessagePolling: already polling, skipping")
-            return
-        }
-        
-        Log.d("AdminChatVM", "startMessagePolling: starting for conv=$conversationId")
-        pollingJob = viewModelScope.launch {
-            while (true) {
-                delay(3000) // Poll every 3 seconds
-                
-                // Skip polling while streaming (we get real-time updates via SSE)
-                if (_uiState.value.isStreaming) {
-                    Log.d("AdminChatVM", "poll: skipping (streaming)")
-                    continue
-                }
-                
-                try {
-                    Log.d("AdminChatVM", "poll: checking for new messages...")
-                    val newMessages = messageRepository.checkForNewMessages(
-                        agentId = agentId,
-                        conversationId = conversationId,
-                    )
-                    
-                    Log.d("AdminChatVM", "poll: got ${newMessages.size} new messages")
-                    if (newMessages.isNotEmpty() && conversationId == activeConversationId) {
-                        val allMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
-                        Log.d("AdminChatVM", "poll: updating UI with ${allMessages.size} total messages")
-                        _uiState.value = _uiState.value.copy(
-                            messages = allMessages.toImmutableList()
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e("AdminChatVM", "poll: failed", e)
-                }
-            }
-        }
-    }
-    
-    fun stopMessagePolling() {
-        pollingJob?.cancel()
-        pollingJob = null
     }
 
     fun retryConversationLoad() {
@@ -782,122 +617,16 @@ class AdminChatViewModel @Inject constructor(
             -> Unit
         }
 
-        if (useTimelineSync.value) {
-            Telemetry.event("AdminChatVM", "sendMessage.route", "via" to "timeline", "length" to text.length)
-            sendMessageViaTimeline(text)
-            return
-        }
-        Telemetry.event("AdminChatVM", "sendMessage.route", "via" to "legacy", "length" to text.length)
-
-        viewModelScope.launch {
-            val userMessage = UiMessage(
-                id = "pending-${System.currentTimeMillis()}",
-                role = "user",
-                content = text,
-                timestamp = java.time.Instant.now().toString(),
-                isPending = true,
-            )
-            _inputText.value = ""
-            val existingMessages = (_uiState.value.messages + userMessage).toImmutableList()
-            _uiState.value = _uiState.value.copy(
-                messages = existingMessages,
-                isStreaming = true,
-                isAgentTyping = true,
-            )
-            try {
-                // Auto-create conversation if none exists
-                var convId = activeConversationId
-                if (convId == null) {
-                    try {
-                        val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
-                        convId = conversationManager.createAndSetActiveConversation(agentId, summary)
-                        hasSummary = true
-                        _uiState.value = _uiState.value.copy(
-                            conversationState = ConversationState.Ready(convId),
-                        )
-                        android.util.Log.d("AdminChatViewModel", "Created new conversation: $convId")
-                    } catch (e: Exception) {
-                        _uiState.value = _uiState.value.copy(
-                            error = "Failed to create conversation: ${e.message}",
-                            isStreaming = false,
-                            isAgentTyping = false
-                        )
-                        return@launch
-                    }
-                } else if (!hasSummary) {
-                    try {
-                        val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
-                        conversationRepository.updateConversation(convId, agentId, summary)
-                        hasSummary = true
-                    } catch (e: Exception) {
-                        android.util.Log.w("AdminChatViewModel", "Failed to set conversation summary", e)
-                    }
-                }
-                val stream = if (projectContext != null) {
-                    sendProjectMessageViaGateway(text = text, conversationId = convId)
-                } else {
-                    messageRepository.sendMessage(agentId, text, convId)
-                }
-                stream.collect { state ->
-                    when (state) {
-                        is StreamState.Sending -> {
-                            _uiState.value = _uiState.value.copy(isAgentTyping = true)
-                        }
-                        is StreamState.Streaming -> {
-                            val newMessages = state.messages.toUiMessages()
-                            _uiState.value = _uiState.value.copy(
-                                messages = (existingMessages + newMessages).toImmutableList(),
-                                isStreaming = true,
-                                isAgentTyping = false,
-                            )
-                        }
-                        is StreamState.ToolExecution -> {
-                            val toolCall = PendingToolCall(id = state.toolName, name = state.toolName)
-                            pendingToolsMap[state.toolName] = toolCall
-                            _uiState.value = _uiState.value.copy(
-                                isAgentTyping = true,
-                                pendingTools = pendingToolsMap.values.toImmutableList(),
-                            )
-                        }
-                        is StreamState.Complete -> {
-                            pendingToolsMap.clear()
-                            // Reload from repository - it has the authoritative merged state
-                            // (server messages + pending + streaming, properly ordered).
-                            // This replaces the local pending UI message with the server-confirmed version.
-                            val authoritativeMessages = messageRepository
-                                .getCachedMessages(convId)
-                                .toUiMessages()
-                                .toImmutableList()
-                            _uiState.value = _uiState.value.copy(
-                                messages = authoritativeMessages,
-                                isStreaming = false,
-                                isAgentTyping = false,
-                                pendingTools = persistentListOf(),
-                            )
-                            if (projectContext != null) {
-                                loadProjectAgents()
-                                loadProjectBrief()
-                            }
-                        }
-                        is StreamState.Error -> {
-                            _uiState.value = _uiState.value.copy(error = state.message, isStreaming = false, isAgentTyping = false)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message, isStreaming = false, isAgentTyping = false)
-            }
-        }
+        Telemetry.event("AdminChatVM", "sendMessage.route", "via" to "timeline", "length" to text.length)
+        sendMessageViaTimeline(text)
     }
 
     /**
      * Timeline-sync send path. Handles optimistic append, streaming, and
-     * reconciliation via [timelineRepository]. The timeline observer ([startTimelineObserver])
-     * mirrors state changes into [_uiState.messages] automatically.
-     *
-     * Unlike the legacy path, this function returns immediately after
-     * enqueueing the send — all visible state transitions flow through the
-     * single sync loop.
+     * reconciliation via [timelineRepository]. The timeline observer
+     * ([startTimelineObserver]) mirrors state changes into [_uiState.messages]
+     * automatically. Returns immediately after enqueueing the send — all
+     * visible state transitions flow through the single sync loop.
      */
     private fun sendMessageViaTimeline(text: String) {
         viewModelScope.launch {
@@ -1127,28 +856,6 @@ class AdminChatViewModel @Inject constructor(
                     activeApprovalRequestId = null,
                 )
             }
-        }
-    }
-
-    private suspend fun reloadMessagesFromServer(conversationId: String) {
-        // Small delay to let server persist the messages we just streamed
-        kotlinx.coroutines.delay(500)
-        try {
-            messageRepository.fetchMessages(
-                agentId = agentId,
-                conversationId = conversationId,
-                targetMessageId = scrollToMessageId,
-            )
-            if (conversationId != activeConversationId) {
-                return
-            }
-            // Server state is truth — just display it
-            val serverMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
-            if (serverMessages.isNotEmpty()) {
-                _uiState.value = _uiState.value.copy(messages = serverMessages.toImmutableList())
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("AdminChatViewModel", "Silent reload failed", e)
         }
     }
 

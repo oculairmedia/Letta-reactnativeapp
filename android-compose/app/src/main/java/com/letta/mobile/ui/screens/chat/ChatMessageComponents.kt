@@ -325,7 +325,17 @@ private fun ApprovalRequestCard(
 @Composable
 private fun ApprovalResponseCard(message: UiMessage) {
     val approval = message.approvalResponse ?: return
-    val approved = approval.approved == true || approval.approvals.any { it.approved == true }
+
+    // Defensive: only render when an explicit decision was made. The mapper
+    // already drops auto-approval echoes (Letta server emits approve=null in
+    // bypassPermissions sessions), but if any other code path constructs a
+    // UiApprovalResponse with all-null decisions we still must not paint it
+    // as "Rejected" — that's how the long-standing mis-labeling bug surfaced.
+    val explicitDecisions = listOfNotNull(approval.approved) +
+        approval.approvals.mapNotNull { it.approved }
+    if (explicitDecisions.isEmpty()) return
+
+    val approved = explicitDecisions.any { it }
     val title = if (approved) {
         stringResource(R.string.screen_chat_approval_approved_title)
     } else {

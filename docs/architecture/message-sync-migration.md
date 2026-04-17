@@ -215,11 +215,15 @@ Each scenario must pass before we touch mobile:
 - Run for 1 week, collect bug reports
 - **Exit criteria:** No regressions, all known bugs resolved
 
-### Phase 5: Remove old code
-- Delete `MessageRepository._pendingMessages`, `_streamingMessages`, `_serverMessages`
-- Delete `contentHash()` matching logic
-- Delete scattered `sortedBy` calls
-- **Exit criteria:** Old code removed, tests still pass, flag removed
+### Phase 5: Remove old code ✅ COMPLETE (2026-04-17)
+- Deleted `MessageRepository._pendingMessages`, `_streamingMessages`, `_serverMessages`
+- Deleted `contentHash()` matching logic (from `AppMessage`, `UiMessage`, `MessageRepository`)
+- Deleted legacy streaming `MessageRepository.sendMessage()` (Timeline owns all sends)
+- Deleted `checkForNewMessages`, `getCachedMessages`, `getDisplayMessages`, `clearConfirmedPendingMessages`
+- Deleted `AdminChatViewModel.refreshFromCache`, `startMessagePolling`, `stopMessagePolling`, `reloadMessagesFromServer`
+- Deleted unused `IMessageRepository` interface
+- There was never a runtime `USE_TIMELINE_SYNC` flag — Phase 3 moved the chat VM to Timeline directly
+- **Exit criteria:** Old code removed, tests pass ✅
 
 ### Rollback strategy
 

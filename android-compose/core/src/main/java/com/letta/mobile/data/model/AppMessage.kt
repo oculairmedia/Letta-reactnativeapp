@@ -19,9 +19,7 @@ data class AppMessage(
     val generatedUi: GeneratedUiPayload? = null,
     val approvalRequest: ApprovalRequestPayload? = null,
     val approvalResponse: ApprovalResponsePayload? = null,
-) {
-    fun contentHash(): String = "${messageType.name}:${content.hashCode()}"
-}
+)
 
 enum class MessageType {
     USER,

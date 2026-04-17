@@ -18,9 +18,10 @@ import kotlinx.coroutines.sync.withLock
  * timelines are cached so that navigating away and back preserves state,
  * pending sends, and live cursors.
  *
- * This is the Timeline-sync replacement for [com.letta.mobile.data.repository.MessageRepository].
- * It runs alongside the legacy repository behind the `use_timeline_sync`
- * feature flag (see [com.letta.mobile.data.repository.SettingsRepository]).
+ * This is the single source of truth for conversation message state.
+ * [com.letta.mobile.data.repository.MessageRepository] is retained only as a
+ * stateless HTTP helper for older-message pagination, approvals, search,
+ * batches, reset, and the conversation inspector.
  */
 @Singleton
 open class TimelineRepository @Inject constructor(

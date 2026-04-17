@@ -226,7 +226,7 @@ class ConversationsViewModelTest {
         override suspend fun deleteAgent(id: String) {}
     }
 
-    private class FakeMessageRepository : MessageRepository(FakeMessageApi(), mockk(relaxed = true)) {
+    private class FakeMessageRepository : MessageRepository(FakeMessageApi()) {
         var shouldFail: Boolean = false
 
         override suspend fun fetchConversationInspectorMessages(conversationId: String): List<ConversationInspectorMessage> {

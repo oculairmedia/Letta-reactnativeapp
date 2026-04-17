@@ -59,7 +59,7 @@ class MessageBatchMonitorViewModelTest {
                 createdAt = "2026-04-10T12:00:01Z",
             )
         )
-        repository = MessageRepository(fakeApi, mockk(relaxed = true))
+        repository = MessageRepository(fakeApi)
         viewModel = MessageBatchMonitorViewModel(repository)
     }
 

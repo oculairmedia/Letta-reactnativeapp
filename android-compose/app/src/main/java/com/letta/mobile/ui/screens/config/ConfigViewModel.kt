@@ -29,7 +29,6 @@ data class ConfigUiState(
     val themePreset: ThemePreset = ThemePreset.DEFAULT,
     val dynamicColor: Boolean = false,
     val enableProjects: Boolean = false,
-    val useTimelineSync: Boolean = false,
 )
 
 @HiltViewModel
@@ -57,7 +56,6 @@ class ConfigViewModel @Inject constructor(
                 val themePreset = settingsRepository.getThemePreset().first()
                 val dynamicColor = settingsRepository.getDynamicColor().first()
                 val enableProjects = settingsRepository.getEnableProjects().first()
-                val useTimelineSync = settingsRepository.getUseTimelineSync().first()
                 val configUiState = if (config != null) {
                     ConfigUiState(
                         mode = if (config.mode == LettaConfig.Mode.CLOUD) ServerMode.CLOUD else ServerMode.SELF_HOSTED,
@@ -67,7 +65,6 @@ class ConfigViewModel @Inject constructor(
                         themePreset = themePreset,
                         dynamicColor = dynamicColor,
                         enableProjects = enableProjects,
-                        useTimelineSync = useTimelineSync,
                     )
                 } else {
                     ConfigUiState(
@@ -75,7 +72,6 @@ class ConfigViewModel @Inject constructor(
                         themePreset = themePreset,
                         dynamicColor = dynamicColor,
                         enableProjects = enableProjects,
-                        useTimelineSync = useTimelineSync,
                     )
                 }
                 _uiState.value = UiState.Success(configUiState)
@@ -144,13 +140,6 @@ class ConfigViewModel @Inject constructor(
         }
     }
 
-    fun updateUseTimelineSync(enabled: Boolean) {
-        val currentState = (_uiState.value as? UiState.Success)?.data
-        if (currentState != null) {
-            _uiState.value = UiState.Success(currentState.copy(useTimelineSync = enabled))
-        }
-    }
-
     fun saveConfig(onSuccess: () -> Unit, onError: ((String) -> Unit)? = null) {
         viewModelScope.launch {
             try {
@@ -178,7 +167,6 @@ class ConfigViewModel @Inject constructor(
                 settingsRepository.setThemePreset(state.themePreset)
                 settingsRepository.setDynamicColor(state.dynamicColor)
                 settingsRepository.setEnableProjects(state.enableProjects)
-                settingsRepository.setUseTimelineSync(state.useTimelineSync)
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to save config")
