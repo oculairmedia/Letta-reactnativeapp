@@ -495,7 +495,8 @@ class AdminChatViewModel @Inject constructor(
             return
         }
         val cachedAgent = agentRepository.getCachedAgent(agentId)
-        val cachedMessages = messageRepository.getCachedMessages(requestedConversationId)
+        val cachedMessages = if (useTimelineSync.value) emptyList()
+                             else messageRepository.getCachedMessages(requestedConversationId)
         if (cachedAgent != null || cachedMessages.isNotEmpty()) {
             if (requestedConversationId == activeConversationId) {
                 _uiState.value = _uiState.value.copy(
@@ -512,14 +513,23 @@ class AdminChatViewModel @Inject constructor(
         }
         try {
             val targetMessageId = scrollToMessageId
+            val timelineMode = useTimelineSync.value
+
+            // In timeline mode, skip the redundant legacy message fetch.
+            // The TimelineRepository.hydrate() (called by startTimelineObserver)
+            // does the same job and feeds _uiState.messages via the observer.
             val (agent, fetchedMessages) = supervisorScope {
                 val agentDeferred = async { agentRepository.getAgent(agentId).first() }
                 val messagesDeferred = async {
-                    messageRepository.fetchMessages(
-                        agentId = agentId,
-                        conversationId = requestedConversationId,
-                        targetMessageId = targetMessageId,
-                    )
+                    if (timelineMode) {
+                        emptyList()
+                    } else {
+                        messageRepository.fetchMessages(
+                            agentId = agentId,
+                            conversationId = requestedConversationId,
+                            targetMessageId = targetMessageId,
+                        )
+                    }
                 }
                 agentDeferred.await() to messagesDeferred.await()
             }
@@ -530,19 +540,25 @@ class AdminChatViewModel @Inject constructor(
                 agentName = agent.name,
                 conversationState = ConversationState.Ready(requestedConversationId),
             )
-            val messages = messageRepository.getCachedMessages(requestedConversationId).toUiMessages()
-            if (messages.isNotEmpty()) hasSummary = true
-            _uiState.value = _uiState.value.copy(
-                messages = messages.toImmutableList(),
-                isLoadingMessages = false,
-                isLoadingOlderMessages = false,
-                hasMoreOlderMessages = targetMessageId != null || fetchedMessages.size >= MessageRepository.INITIAL_FETCH_LIMIT,
-            )
 
-            // Phase 3: if the Timeline-sync flag is on, attach observer so the
-            // unified Timeline takes over _uiState.messages on next send.
-            if (useTimelineSync.value) {
+            if (timelineMode) {
+                // Hand control of _uiState.messages to the timeline observer.
+                // It calls TimelineRepository.hydrate() and emits as messages arrive.
+                _uiState.value = _uiState.value.copy(
+                    isLoadingMessages = false,
+                    isLoadingOlderMessages = false,
+                    hasMoreOlderMessages = false,
+                )
                 startTimelineObserver(requestedConversationId)
+            } else {
+                val messages = messageRepository.getCachedMessages(requestedConversationId).toUiMessages()
+                if (messages.isNotEmpty()) hasSummary = true
+                _uiState.value = _uiState.value.copy(
+                    messages = messages.toImmutableList(),
+                    isLoadingMessages = false,
+                    isLoadingOlderMessages = false,
+                    hasMoreOlderMessages = targetMessageId != null || fetchedMessages.size >= MessageRepository.INITIAL_FETCH_LIMIT,
+                )
             }
 
             // Background sync disabled - was causing UI flashes
@@ -577,7 +593,14 @@ class AdminChatViewModel @Inject constructor(
             // Conversation not resolved yet - init will handle it
             return
         }
-        
+
+        // Phase 3 migration: Timeline observer is the source of truth — don't
+        // overwrite _uiState.messages with the legacy cache (would clobber any
+        // pending Local events in flight).
+        if (useTimelineSync.value) {
+            return
+        }
+
         // Show cached messages immediately (no loading indicator)
         val cachedMessages = messageRepository.getCachedMessages(conversationId).toUiMessages()
         if (cachedMessages.isNotEmpty()) {
@@ -615,6 +638,15 @@ class AdminChatViewModel @Inject constructor(
     private var pollingJob: kotlinx.coroutines.Job? = null
     
     fun startMessagePolling() {
+        // Phase 3 migration: when Timeline-sync is on, the unified sync loop
+        // owns all message updates. Legacy 3-second polling is wasteful (every
+        // poll returns []) and races with the timeline observer for control of
+        // _uiState.messages. Skip it entirely.
+        if (useTimelineSync.value) {
+            Log.d("AdminChatVM", "startMessagePolling: skipping (timeline sync active)")
+            return
+        }
+
         val conversationId = activeConversationId ?: run {
             Log.d("AdminChatVM", "startMessagePolling: no activeConversationId, skipping")
             return

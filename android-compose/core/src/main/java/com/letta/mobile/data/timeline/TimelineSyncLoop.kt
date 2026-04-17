@@ -236,7 +236,9 @@ class TimelineSyncLoop(
     }
 
     companion object {
-        private const val RECONCILE_LIMIT = 50
+        // Most sends produce 1-3 server messages (user echo + assistant + maybe
+        // reasoning). Fetching only what we need keeps reconcile snappy.
+        private const val RECONCILE_LIMIT = 10
 
         internal val DEFAULT_INCLUDE_TYPES = listOf(
             "assistant_message",
