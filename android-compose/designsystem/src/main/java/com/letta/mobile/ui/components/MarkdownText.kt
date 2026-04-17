@@ -1,13 +1,11 @@
 package com.letta.mobile.ui.components
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -190,9 +188,16 @@ private fun CodeFenceWithHeader(
                 }
             }
 
+            // NOTE: do NOT wrap MarkdownHighlightedCodeFence in a horizontalScroll
+            // here — the library already applies its own horizontalScroll internally.
+            // Nesting two horizontal scrollers produces infinite-width constraints
+            // during Compose's lookahead measure pass, which crashes the app with
+            // "Horizontally scrollable component was measured with an infinity
+            // maximum width constraints" (seen when scrolling back to messages
+            // that contain fenced code blocks). See letta-mobile-o2v7 followup.
             Box(
                 modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
+                    .fillMaxWidth()
                     .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             ) {
                 MarkdownHighlightedCodeFence(
