@@ -1,9 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.lifecycle.SavedStateHandle
-import com.letta.mobile.bot.config.BotConfigStore
 import com.letta.mobile.bot.core.BotSession
-import com.letta.mobile.bot.core.BotGateway
 import com.letta.mobile.bot.protocol.BotAgentInfo
 import com.letta.mobile.bot.protocol.BotChatResponse
 import com.letta.mobile.bot.protocol.InternalBotClient
@@ -62,8 +60,7 @@ class AdminChatViewModelTest {
     private lateinit var conversationRepository: ConversationRepository
     private lateinit var conversationManager: ConversationManager
     private lateinit var settingsRepository: SettingsRepository
-    private lateinit var botGateway: BotGateway
-    private lateinit var botConfigStore: BotConfigStore
+
     private lateinit var internalBotClient: InternalBotClient
     private val testDispatcher = UnconfinedTestDispatcher()
     private var messages: List<AppMessage> = emptyList()
@@ -93,8 +90,6 @@ class AdminChatViewModelTest {
         conversationRepository = mockk(relaxed = true)
         conversationManager = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
-        botGateway = mockk(relaxed = true)
-        botConfigStore = mockk(relaxed = true)
         internalBotClient = mockk(relaxed = true)
         activeConversationIds.clear()
 
@@ -161,8 +156,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
     }
@@ -361,8 +354,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
 
@@ -463,8 +454,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
         advanceUntilIdle()
@@ -503,8 +492,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
         advanceUntilIdle()
@@ -553,8 +540,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
         advanceUntilIdle()
@@ -587,8 +572,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
 
@@ -616,8 +599,6 @@ class AdminChatViewModelTest {
             conversationManager,
             conversationRepository,
             settingsRepository,
-            botGateway,
-            botConfigStore,
             internalBotClient,
         )
         advanceUntilIdle()
