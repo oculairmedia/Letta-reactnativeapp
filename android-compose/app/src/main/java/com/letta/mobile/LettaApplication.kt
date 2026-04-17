@@ -12,6 +12,7 @@ import com.letta.mobile.channel.ChannelHeartbeatScheduler
 import com.letta.mobile.channel.ChannelNotificationPublisher
 import com.letta.mobile.bot.heartbeat.BotHeartbeatScheduler
 import com.letta.mobile.bot.service.BotServiceAutoStarter
+import com.letta.mobile.crash.CrashReporter
 import dagger.hilt.android.HiltAndroidApp
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -36,6 +37,9 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
 
     @Inject
     lateinit var botHeartbeatScheduler: BotHeartbeatScheduler
+
+    @Inject
+    lateinit var crashReporter: CrashReporter
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -62,6 +66,10 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        // CrashReporter chains itself on top of Sentry's handler so
+        // unhandled exceptions are both uploaded to Sentry and persisted
+        // to app-private storage for surfacing on the next launch.
+        crashReporter.install()
         setupGlobalExceptionHandler()
         channelNotificationPublisher.ensureChannel()
         if (isRobolectricRuntime()) {

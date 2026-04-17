@@ -18,6 +18,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import com.letta.mobile.crash.CrashReporter
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.ThemePreset
 import com.letta.mobile.data.repository.SettingsRepository
@@ -41,6 +46,9 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
+
+    @Inject
+    lateinit var crashReporter: CrashReporter
 
     private var notificationTarget by mutableStateOf<NotificationNavigationTarget?>(null)
 
@@ -72,6 +80,28 @@ class MainActivity : ComponentActivity() {
                         message.onAction?.invoke()
                     }
                 }
+            }
+
+            // Surface any uncaught crash from the previous session exactly once.
+            // Snackbar with a "Copy id" action lets the user file a ticket tied
+            // to the Sentry event. Dismissing clears the on-disk record.
+            val lastCrash by crashReporter.lastCrash.collectAsState()
+            LaunchedEffect(lastCrash) {
+                val crash = lastCrash ?: return@LaunchedEffect
+                val label = if (crash.sentryEventId != null) "Copy id" else "Details"
+                val summary = "App crashed last run (${crash.type.substringAfterLast('.')}). Tap to copy."
+                val result = snackbarHostState.showSnackbar(
+                    message = summary,
+                    actionLabel = label,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    val payload = crash.sentryEventId
+                        ?: "${crash.type}: ${crash.message}\n${crash.stackHead}"
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    clipboard?.setPrimaryClip(ClipData.newPlainText("letta-mobile crash", payload))
+                    Toast.makeText(this@MainActivity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                }
+                crashReporter.dismiss()
             }
 
             LaunchedEffect(Unit) {
