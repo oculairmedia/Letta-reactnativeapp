@@ -9,6 +9,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("io.gitlab.arturbosch.detekt")
+    id("io.sentry.android.gradle")
 }
 
 allOpen {
@@ -21,7 +22,22 @@ detekt {
     parallel = true
 }
 
+sentry {
+    autoInstallation.enabled.set(true)
+    includeProguardMapping.set(true)
+    includeSourceContext.set(true)
+    tracingInstrumentation {
+        enabled.set(true)
+    }
+}
+
 val keystorePropsFile = rootProject.file("keystore.properties")
+val localPropsFile = rootProject.file("local.properties")
+val localProps = Properties().apply {
+    if (localPropsFile.exists()) {
+        load(localPropsFile.inputStream())
+    }
+}
 
 android {
     namespace = "com.letta.mobile"
@@ -34,6 +50,9 @@ android {
         versionCode = 3
         versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["SENTRY_DSN"] = localProps.getProperty("sentry.dsn", "")
+        manifestPlaceholders["SENTRY_ENV"] = localProps.getProperty("sentry.environment", "development")
     }
 
     signingConfigs {
@@ -188,6 +207,9 @@ dependencies {
 
     // Background sync
     implementation("androidx.work:work-runtime-ktx:2.10.5")
+
+    // Sentry error tracking
+    implementation("io.sentry:sentry-android:7.19.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

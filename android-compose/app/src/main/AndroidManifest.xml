@@ -15,6 +15,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.LettaMobile">
 
+        <!-- Sentry configuration -->
+        <meta-data
+            android:name="io.sentry.dsn"
+            android:value="${SENTRY_DSN}" />
+        <meta-data
+            android:name="io.sentry.environment"
+            android:value="${SENTRY_ENV}" />
+        <meta-data
+            android:name="io.sentry.traces.sample-rate"
+            android:value="0.2" />
+        <meta-data
+            android:name="io.sentry.auto-session-tracking.enable"
+            android:value="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

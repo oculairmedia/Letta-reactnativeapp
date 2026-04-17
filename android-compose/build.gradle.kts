@@ -9,6 +9,7 @@ plugins {
     id("com.google.devtools.ksp") version "2.3.6" apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.8" apply false
     id("org.jetbrains.kotlin.plugin.allopen") version "2.3.20" apply false
+    id("io.sentry.android.gradle") version "4.14.1" apply false
 }
 
 // ---------------------------------------------------------------------------
