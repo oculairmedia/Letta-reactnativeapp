@@ -358,13 +358,15 @@ class DashboardViewModel @Inject constructor(
                             false
                         }
                     }
+                // Throttle to N-wide parallelism so we don't saturate the HTTP
+                // client with 100 GET /runs/*/steps requests — that blocks other
+                // screens (chat hydrate, conversation list) from getting through.
                 val steps = recentRuns
-                    .map { run ->
-                        async {
-                            runRepository.getRunSteps(run.id)
-                        }
+                    .chunked(DASHBOARD_STEPS_CONCURRENCY)
+                    .flatMap { batch ->
+                        batch.map { run -> async { runRepository.getRunSteps(run.id) } }
+                            .awaitAll()
                     }
-                    .awaitAll()
                     .flatten()
                 _uiState.value = _uiState.value.copy(
                     usageSummary = DashboardUsageCalculator.calculate(steps),
@@ -375,5 +377,16 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isUsageLoading = false)
             }
         }
+    }
+
+    companion object {
+        /**
+         * Max concurrent /runs/{id}/steps requests when building the 24h usage
+         * summary. Higher = faster summary, but blocks other screens' HTTP
+         * requests (chat hydrate, conversations refresh) behind ktor's
+         * connection pool. 5 keeps the summary reasonably fast without
+         * starving everything else.
+         */
+        private const val DASHBOARD_STEPS_CONCURRENCY = 5
     }
 }
