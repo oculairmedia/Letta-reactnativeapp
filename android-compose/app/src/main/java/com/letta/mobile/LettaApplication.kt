@@ -13,6 +13,7 @@ import com.letta.mobile.channel.ChannelNotificationPublisher
 import com.letta.mobile.bot.heartbeat.BotHeartbeatScheduler
 import com.letta.mobile.bot.service.BotServiceAutoStarter
 import com.letta.mobile.crash.CrashReporter
+import com.letta.mobile.performance.DebugPerformanceMonitor
 import dagger.hilt.android.HiltAndroidApp
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -74,6 +75,13 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
         channelNotificationPublisher.ensureChannel()
         if (isRobolectricRuntime()) {
             return
+        }
+        applicationScope.launch {
+            runCatching {
+                DebugPerformanceMonitor.install(this@LettaApplication)
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping debug performance monitor", error)
+            }
         }
         runCatching {
             channelHeartbeatScheduler.schedule()
