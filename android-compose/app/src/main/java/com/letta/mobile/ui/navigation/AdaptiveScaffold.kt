@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -79,7 +80,17 @@ fun AdaptiveScaffold(
             },
             containerColor = MaterialTheme.colorScheme.surface,
         ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
+            // consumeWindowInsets(innerPadding) tells downstream imePadding()
+            // (used by Chat/Home screens) that the Scaffold has already
+            // accounted for the system navigationBars+bottomBar. Without this,
+            // imePadding() would also add navigationBars-worth of space on top
+            // of the Scaffold's own padding, producing a visible gap between
+            // the composer and the top of the keyboard.
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding),
+            ) {
                 content()
             }
         }
