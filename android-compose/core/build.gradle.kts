@@ -69,6 +69,12 @@ dependencies {
     // Compose runtime for @Stable and @Immutable annotations
     implementation("androidx.compose.runtime:runtime:1.8.3")
 
+    // androidx.tracing — emits systrace/Perfetto sections so Telemetry
+    // timers are visible in ui.perfetto.dev alongside framework traces.
+    // Used as an integration layer inside Telemetry; beginAsyncSection /
+    // endAsyncSection power the cross-coroutine Timer class.
+    implementation("androidx.tracing:tracing:1.2.0")
+
     implementation("io.ktor:ktor-client-core:3.4.2")
     implementation("io.ktor:ktor-client-okhttp:3.4.2")
     implementation("io.ktor:ktor-client-content-negotiation:3.4.2")

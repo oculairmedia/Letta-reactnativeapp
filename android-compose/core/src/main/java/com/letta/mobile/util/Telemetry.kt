@@ -1,8 +1,10 @@
 package com.letta.mobile.util
 
 import android.util.Log
+import androidx.tracing.Trace
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -101,13 +103,21 @@ object Telemetry {
         emit(ev)
     }
 
-    /** Run [block] and record a timed event. */
+    /**
+     * Run [block] and record a timed event.
+     *
+     * Also wraps the block in an androidx.tracing synchronous section named
+     * `"<tag>/<name>"` so Perfetto traces show this phase on the current
+     * thread's timeline.
+     */
     inline fun <T> measure(
         tag: String,
         name: String,
         vararg attrs: Pair<String, Any?>,
         block: () -> T,
     ): T {
+        val sectionName = traceSectionName(tag, name)
+        val traced = beginTraceSection(sectionName)
         val start = System.currentTimeMillis()
         return try {
             val result = block()
@@ -116,11 +126,95 @@ object Telemetry {
         } catch (t: Throwable) {
             error(tag, "$name:failed", t, "durationMs" to (System.currentTimeMillis() - start), *attrs)
             throw t
+        } finally {
+            if (traced) endTraceSection()
         }
     }
 
-    /** Start a manual timer. Call [Timer.stop] when the phase completes. */
-    fun startTimer(tag: String, name: String): Timer = Timer(tag, name, System.currentTimeMillis())
+    /**
+     * Start a manual timer. Call [Timer.stop] when the phase completes.
+     *
+     * Opens an async tracing section so the phase shows up in Perfetto even
+     * when start/stop happen on different threads or coroutines. Each call
+     * allocates a unique cookie so concurrent timers with the same name are
+     * disambiguated in the trace UI.
+     */
+    fun startTimer(tag: String, name: String): Timer {
+        val sectionName = traceSectionName(tag, name)
+        val cookie = traceCookie.incrementAndGet()
+        val traced = beginAsyncTraceSection(sectionName, cookie)
+        return Timer(
+            tag = tag,
+            name = name,
+            startMs = System.currentTimeMillis(),
+            traceSectionName = if (traced) sectionName else null,
+            traceCookie = cookie,
+        )
+    }
+
+    // --- androidx.tracing integration ---------------------------------------
+
+    /** Monotonic cookie source for async tracing sections. */
+    @PublishedApi
+    internal val traceCookie = AtomicInteger(1)
+
+    /** Perfetto enforces 127 chars max per section name. */
+    private const val TRACE_MAX_LEN = 127
+
+    @PublishedApi
+    internal fun traceSectionName(tag: String, name: String): String {
+        val raw = "$tag/$name"
+        return if (raw.length <= TRACE_MAX_LEN) raw else raw.substring(0, TRACE_MAX_LEN)
+    }
+
+    /**
+     * Begin a synchronous trace section. Returns true if tracing actually
+     * started (so callers know whether to pair it with [endTraceSection]).
+     *
+     * Guarded so unit tests on the JVM (without the Android framework)
+     * don't crash; in that environment the tracing calls are no-ops.
+     */
+    @PublishedApi
+    internal fun beginTraceSection(name: String): Boolean = try {
+        if (Trace.isEnabled()) {
+            Trace.beginSection(name)
+            true
+        } else {
+            false
+        }
+    } catch (_: Throwable) {
+        false
+    }
+
+    @PublishedApi
+    internal fun endTraceSection() {
+        try {
+            Trace.endSection()
+        } catch (_: Throwable) {
+            // Swallow — tracing must never throw into production code paths.
+        }
+    }
+
+    @PublishedApi
+    internal fun beginAsyncTraceSection(name: String, cookie: Int): Boolean = try {
+        if (Trace.isEnabled()) {
+            Trace.beginAsyncSection(name, cookie)
+            true
+        } else {
+            false
+        }
+    } catch (_: Throwable) {
+        false
+    }
+
+    @PublishedApi
+    internal fun endAsyncTraceSection(name: String, cookie: Int) {
+        try {
+            Trace.endAsyncSection(name, cookie)
+        } catch (_: Throwable) {
+            // Swallow.
+        }
+    }
 
     /** Clear the in-memory ring buffer (does not affect Logcat history). */
     fun clear() {
@@ -199,12 +293,16 @@ object Telemetry {
         private val tag: String,
         private val name: String,
         private val startMs: Long,
+        private val traceSectionName: String?,
+        private val traceCookie: Int,
     ) {
         fun stop(vararg attrs: Pair<String, Any?>) {
+            closeTraceSection()
             event(tag, name, *attrs, durationMs = System.currentTimeMillis() - startMs)
         }
 
         fun stopError(throwable: Throwable, vararg attrs: Pair<String, Any?>) {
+            closeTraceSection()
             error(
                 tag,
                 "$name:failed",
@@ -212,6 +310,10 @@ object Telemetry {
                 "durationMs" to (System.currentTimeMillis() - startMs),
                 *attrs,
             )
+        }
+
+        private fun closeTraceSection() {
+            traceSectionName?.let { endAsyncTraceSection(it, traceCookie) }
         }
     }
 }
