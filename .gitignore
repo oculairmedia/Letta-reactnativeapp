@@ -31,3 +31,7 @@ android-compose/.kotlin/
 
 # Generated reports
 LETTA_ADMIN_API_REPORT.md
+
+# Local performance traces
+scripts/perf/traces/*
+!scripts/perf/traces/.gitignore
