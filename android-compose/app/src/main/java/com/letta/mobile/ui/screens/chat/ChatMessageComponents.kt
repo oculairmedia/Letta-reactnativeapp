@@ -14,6 +14,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
@@ -164,6 +167,22 @@ internal fun ChatMessageItem(
     }
 }
 
+/**
+ * A message renders bubble-less (just markdown on the page background) when
+ * it's plain assistant prose — no tool calls, no generated UI, no approval
+ * card, no attachments. Anything structured keeps its card chrome so the
+ * boundaries stay legible.
+ */
+private fun UiMessage.shouldRenderBubbleLess(): Boolean {
+    if (role != "assistant") return false
+    if (!toolCalls.isNullOrEmpty()) return false
+    if (generatedUi != null) return false
+    if (approvalRequest != null) return false
+    if (approvalResponse != null) return false
+    if (attachments.isNotEmpty()) return false
+    return true
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubbleSurface(
@@ -182,29 +201,28 @@ private fun MessageBubbleSurface(
     val dimens = MaterialTheme.chatDimens
     val typo = MaterialTheme.chatTypography
     val renderer = remember(message.role, message.toolCalls, message.generatedUi) { resolveRenderer(message) }
-    val bubbleShape = MessageBubbleShape(radius = 12.dp, isFromUser = isUser, groupPosition = groupPosition)
+    val bubbleLess = message.shouldRenderBubbleLess()
 
-    Surface(
-        shape = bubbleShape,
-        color = style.containerColor,
-        tonalElevation = 0.dp,
-        modifier = if (onLongClick != null) {
-            Modifier
-                .clip(bubbleShape)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = onLongClick,
-                )
-        } else Modifier,
-    ) {
+    val contentColumn: @Composable () -> Unit = {
         Column(
-            modifier = Modifier.padding(
-                horizontal = dimens.bubblePaddingHorizontal,
-                vertical = dimens.bubblePaddingVertical,
-            ),
+            modifier = if (bubbleLess) {
+                // No surface chrome → no horizontal padding; the message
+                // list's own contentPadding is the only side gutter.
+                Modifier.padding(vertical = dimens.bubblePaddingVertical)
+            } else {
+                Modifier.padding(
+                    horizontal = dimens.bubblePaddingHorizontal,
+                    vertical = dimens.bubblePaddingVertical,
+                )
+            },
             verticalArrangement = Arrangement.spacedBy(dimens.messageSpacing),
         ) {
-            if (groupPosition == GroupPosition.First || groupPosition == GroupPosition.None) {
+            // Suppress the role label header for bubble-less assistant prose
+            // — the avatar above the message already identifies the speaker
+            // and the label adds visual noise. Bubbled messages (tools,
+            // approvals, generated UI) keep the label so the kind of content
+            // is obvious.
+            if ((groupPosition == GroupPosition.First || groupPosition == GroupPosition.None) && !bubbleLess) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -225,6 +243,18 @@ private fun MessageBubbleSurface(
                         )
                     }
                 }
+            } else if (bubbleLess && message.isPending) {
+                // Still surface the pending indicator for bubble-less
+                // messages — render as a standalone small icon row above the
+                // prose so it doesn't disappear silently.
+                Icon(
+                    imageVector = LettaIcons.AccessTime,
+                    contentDescription = stringResource(R.string.screen_chat_pending_content_description),
+                    modifier = Modifier
+                        .size(LettaIconSizing.Inline)
+                        .alpha(0.6f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             val approvalRequest = message.approvalRequest
@@ -246,7 +276,13 @@ private fun MessageBubbleSurface(
                 MessageAttachmentsGrid(attachments = message.attachments)
             }
 
-            val textColor = if (isUser) colors.userText else colors.agentText
+            val textColor = if (bubbleLess) {
+                MaterialTheme.colorScheme.onSurface
+            } else if (isUser) {
+                colors.userText
+            } else {
+                colors.agentText
+            }
             if (message.content.isNotBlank() || message.attachments.isEmpty()) {
                 renderer.Render(
                     message = message,
@@ -255,6 +291,39 @@ private fun MessageBubbleSurface(
                     onGeneratedUiMessage = onGeneratedUiMessage,
                 )
             }
+        }
+    }
+
+    if (bubbleLess) {
+        // Plain assistant prose: no Surface, no rounded shape — markdown
+        // floats directly on the page background and gets the full available
+        // content width. Keep the long-press affordance for copy.
+        Box(
+            modifier = if (onLongClick != null) {
+                Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongClick,
+                )
+            } else Modifier,
+        ) {
+            contentColumn()
+        }
+    } else {
+        val bubbleShape = MessageBubbleShape(radius = 12.dp, isFromUser = isUser, groupPosition = groupPosition)
+        Surface(
+            shape = bubbleShape,
+            color = style.containerColor,
+            tonalElevation = 0.dp,
+            modifier = if (onLongClick != null) {
+                Modifier
+                    .clip(bubbleShape)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = onLongClick,
+                    )
+            } else Modifier,
+        ) {
+            contentColumn()
         }
     }
 }
@@ -369,37 +438,62 @@ internal fun MessageAvatar(
         "assistant" -> LettaIcons.Agent
         else -> null
     }
-    val containerColor = if (isUser) {
-        MaterialTheme.chatColors.userBubble
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (isUser) {
-        MaterialTheme.chatColors.userText
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
 
-    Surface(
-        modifier = modifier.size(32.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(LettaIconSizing.Inline),
-                )
-            } else {
-                Text(
-                    text = "Y",
-                    style = MaterialTheme.typography.chatBubbleSender,
-                    color = contentColor,
-                )
+    // Smaller, lighter-weight avatar — 24dp instead of 32dp, with a thin
+    // outline for the assistant (matches the leading AI-app convention of a
+    // ringed sparkle/icon floating above the response) and a filled pill for
+    // the user / tool roles (preserves the current visual weight for those).
+    val avatarSize = 24.dp
+
+    if (isUser || icon == null) {
+        // Filled pill for user (and any unknown roles): preserves the current
+        // "Y" badge / role-letter look.
+        val containerColor = MaterialTheme.chatColors.userBubble
+        val contentColor = MaterialTheme.chatColors.userText
+        Surface(
+            modifier = modifier.size(avatarSize),
+            shape = MaterialTheme.shapes.small,
+            color = containerColor,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(LettaIconSizing.Inline),
+                    )
+                } else {
+                    Text(
+                        text = "Y",
+                        style = MaterialTheme.typography.chatBubbleSender,
+                        color = contentColor,
+                    )
+                }
             }
+        }
+    } else {
+        // Ringed icon for assistant / tool — no fill, subtle outline.
+        val ringColor = MaterialTheme.colorScheme.outlineVariant
+        val tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Box(
+            modifier = modifier
+                .size(avatarSize)
+                .clip(MaterialTheme.shapes.small)
+                .background(Color.Transparent)
+                .border(
+                    width = 1.dp,
+                    color = ringColor,
+                    shape = MaterialTheme.shapes.small,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }
