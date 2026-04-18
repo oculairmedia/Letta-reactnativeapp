@@ -347,10 +347,16 @@ private fun ChatContent(
                 modifier = Modifier
                     .weight(1f)
                     .pointerInput(Unit) {
+                        // Quantize font scale to 2% steps so we only recompose
+                        // the chat tree on visible changes (~45 steps across 0.7..1.6),
+                        // not every pointer frame. This is the main smoothness win.
+                        val step = 0.02f
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
                             var isPinching = false
-                            var currentScale = activeFontScale
+                            var rawScale = activeFontScale
+                            var committedScale = activeFontScale
+                            var pinchStarted = false
                             do {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
                                 val activePointers = event.changes.filter { it.pressed }
@@ -359,14 +365,27 @@ private fun ChatContent(
                                     val zoom = event.calculateZoom()
                                     if (zoom != 1f) {
                                         event.changes.forEach { it.consume() }
-                                        currentScale = (currentScale * zoom).coerceIn(0.7f, 1.6f)
-                                        onActiveFontScaleChange(currentScale)
-                                        pinchTick = System.nanoTime()
+                                        rawScale = (rawScale * zoom).coerceIn(0.7f, 1.6f)
+                                        // Snap to nearest step; only push state + indicator
+                                        // when the quantized value actually changes.
+                                        val snapped = (kotlin.math.round(rawScale / step) * step)
+                                            .coerceIn(0.7f, 1.6f)
+                                        if (snapped != committedScale) {
+                                            committedScale = snapped
+                                            onActiveFontScaleChange(snapped)
+                                            if (!pinchStarted) {
+                                                pinchTick = System.nanoTime()
+                                                pinchStarted = true
+                                            }
+                                        }
                                     }
                                 }
                             } while (event.changes.any { it.pressed })
                             if (isPinching) {
-                                onFontScaleChange(currentScale)
+                                // Refresh indicator timer at gesture end so it hides
+                                // 1s after the user lifts, not mid-pinch.
+                                pinchTick = System.nanoTime()
+                                onFontScaleChange(committedScale)
                             }
                         }
                     },
