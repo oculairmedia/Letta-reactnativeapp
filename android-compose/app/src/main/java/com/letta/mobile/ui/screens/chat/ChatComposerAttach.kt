@@ -47,6 +47,15 @@ fun rememberImageAttachmentPicker(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
+        // Proof-of-callback trace. If this line does not appear in logcat
+        // after the picker activity closes, the ActivityResult contract
+        // never delivered the result to this Composable's launcher — the
+        // most likely cause is composition destruction across process
+        // death while DocumentsUI was foreground (see letta-mobile-jng2).
+        Log.i(
+            "ChatComposerAttach",
+            "launcher.onResult uri=${if (uri == null) "<null>" else uri}",
+        )
         if (uri == null) {
             Telemetry.event(
                 "ChatComposer",
@@ -89,6 +98,15 @@ fun rememberImageAttachmentPicker(
 
     return remember(launcher) {
         {
+            // Trace immediately before we hand off to the system picker,
+            // so logcat gives us a "launch → result" bracket to reason
+            // about even when the result callback never fires.
+            Log.i("ChatComposerAttach", "launcher.launch() picker=PickVisualMedia.ImageOnly")
+            Telemetry.event(
+                "ChatComposer",
+                "attach.launch",
+                "picker" to "PickVisualMedia.ImageOnly",
+            )
             launcher.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
             )
