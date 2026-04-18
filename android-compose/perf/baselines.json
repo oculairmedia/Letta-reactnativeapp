@@ -25,6 +25,13 @@
       "source": "ScrollJankBenchmark.scrollChatListCompilationPartial",
       "metric": "frameDurationCpuMs",
       "aggregation": "jankCountPercent"
+    },
+    "composer.typing.jank.pct": {
+      "baseline": null,
+      "tolerance_pct": 20,
+      "source": "ComposerTypingBenchmark.typeComposerCompilationPartial",
+      "metric": "frameDurationCpuMs",
+      "aggregation": "jankCountPercent"
     }
   }
 }
