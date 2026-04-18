@@ -97,7 +97,6 @@ internal fun ChatMessageItem(
 ) {
     val isUser = message.role == "user"
     val showAvatar = groupPosition == GroupPosition.First || groupPosition == GroupPosition.None
-    val avatarSpacer = Modifier.width(32.dp)
     val context = LocalContext.current
     val copyLabel = stringResource(R.string.action_copy)
     val copyText = remember(message) { buildMessageCopyText(message) }
@@ -105,63 +104,62 @@ internal fun ChatMessageItem(
         { copyToClipboard(context, copyLabel, copyText) }
     } else null
 
+    // New layout: avatar floats ABOVE the bubble rather than occupying a
+    // 40dp-wide gutter next to it. Assistant/tool/reasoning bubbles can then
+    // stretch to the full content-area width — a noticeable win on phones
+    // where the old gutter consumed ~10% of horizontal space per message.
+    // User bubbles stay right-aligned and sized-to-content; their avatar
+    // aligns to the right over the bubble.
+    val avatarAlignment = if (isUser) Alignment.End else Alignment.Start
+
     if (message.isReasoning) {
-        Row(
+        Column(
             modifier = modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
+            horizontalAlignment = Alignment.Start,
         ) {
             if (showAvatar) {
                 MessageAvatar(role = "assistant")
-            } else {
-                Spacer(modifier = avatarSpacer)
+                Spacer(modifier = Modifier.height(4.dp))
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.fillMaxWidth()) {
-                MessageReasoning(
-                    message = message,
-                    isStreaming = isStreaming,
-                )
-            }
+            MessageReasoning(
+                message = message,
+                isStreaming = isStreaming,
+            )
         }
         return
     }
 
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-        verticalAlignment = Alignment.Bottom,
+        horizontalAlignment = avatarAlignment,
     ) {
-        if (!isUser) {
-            if (showAvatar) {
-                MessageAvatar(role = message.role)
-            } else {
-                Spacer(modifier = avatarSpacer)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
+        if (showAvatar) {
+            MessageAvatar(role = message.role)
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
+        // Assistant / tool bubbles take the full content-area width so code
+        // blocks, markdown tables, and long messages can breathe. User
+        // bubbles are capped by bubbleMaxWidthFraction and sized-to-content,
+        // keeping them visually distinct as right-aligned cards.
+        val bubbleModifier = if (isUser) {
+            Modifier.fillMaxWidth(MaterialTheme.chatDimens.bubbleMaxWidthFraction)
+        } else {
+            Modifier.fillMaxWidth()
+        }
         Column(
-            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-            modifier = Modifier.fillMaxWidth(MaterialTheme.chatDimens.bubbleMaxWidthFraction),
+            horizontalAlignment = avatarAlignment,
+            modifier = bubbleModifier,
         ) {
-                MessageBubbleSurface(
-                    message = message,
-                    groupPosition = groupPosition,
-                    isStreaming = isStreaming,
-                    onGeneratedUiMessage = onGeneratedUiMessage,
-                    onApprovalDecision = onApprovalDecision,
-                    approvalInFlight = approvalInFlight,
-                    onLongClick = onLongClick,
-                )
-            }
-
-        if (isUser) {
-            Spacer(modifier = Modifier.width(8.dp))
-            if (showAvatar) {
-                MessageAvatar(role = message.role)
-            } else {
-                Spacer(modifier = avatarSpacer)
-            }
+            MessageBubbleSurface(
+                message = message,
+                groupPosition = groupPosition,
+                isStreaming = isStreaming,
+                onGeneratedUiMessage = onGeneratedUiMessage,
+                onApprovalDecision = onApprovalDecision,
+                approvalInFlight = approvalInFlight,
+                onLongClick = onLongClick,
+            )
         }
     }
 }
@@ -244,13 +242,19 @@ private fun MessageBubbleSurface(
                 return@Column
             }
 
+            if (message.attachments.isNotEmpty()) {
+                MessageAttachmentsGrid(attachments = message.attachments)
+            }
+
             val textColor = if (isUser) colors.userText else colors.agentText
-            renderer.Render(
-                message = message,
-                textColor = textColor,
-                modifier = Modifier,
-                onGeneratedUiMessage = onGeneratedUiMessage,
-            )
+            if (message.content.isNotBlank() || message.attachments.isEmpty()) {
+                renderer.Render(
+                    message = message,
+                    textColor = textColor,
+                    modifier = Modifier,
+                    onGeneratedUiMessage = onGeneratedUiMessage,
+                )
+            }
         }
     }
 }
