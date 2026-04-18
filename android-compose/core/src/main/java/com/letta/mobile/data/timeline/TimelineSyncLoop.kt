@@ -1,16 +1,28 @@
 package com.letta.mobile.data.timeline
 
 import android.util.Log
+import com.letta.mobile.core.BuildConfig
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.util.Telemetry
 import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.LettaMessage
+import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.model.MessageCreate
 import com.letta.mobile.data.model.MessageCreateRequest
+import com.letta.mobile.data.model.buildContentParts
+import com.letta.mobile.data.model.toJsonArray
+import com.letta.mobile.data.model.ApprovalRequestMessage
+import com.letta.mobile.data.model.ApprovalResponseMessage
+import com.letta.mobile.data.model.EventMessage
+import com.letta.mobile.data.model.HiddenReasoningMessage
+import com.letta.mobile.data.model.PingMessage
 import com.letta.mobile.data.model.ReasoningMessage
+import com.letta.mobile.data.model.StopReason
 import com.letta.mobile.data.model.SystemMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
+import com.letta.mobile.data.model.UnknownMessage
+import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.data.stream.SseParser
 import java.time.Instant
@@ -26,7 +38,15 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Single sync loop per conversation.
@@ -53,6 +73,11 @@ class TimelineSyncLoop(
     private val scope: CoroutineScope,
     private val logTag: String = "TimelineSync",
 ) {
+    private val previewJson = Json {
+        encodeDefaults = true
+        explicitNulls = false
+    }
+
     private val _state = MutableStateFlow(Timeline(conversationId))
     val state: StateFlow<Timeline> = _state.asStateFlow()
 
@@ -78,7 +103,11 @@ class TimelineSyncLoop(
         scope.launch { processSendQueue() }
     }
 
-    private data class PendingSend(val otid: String, val content: String)
+    private data class PendingSend(
+        val otid: String,
+        val content: String,
+        val attachments: List<MessageContentPart.Image> = emptyList(),
+    )
 
     /**
      * Load initial history from the server.
@@ -122,7 +151,10 @@ class TimelineSyncLoop(
      * position AND enqueue the send. This guarantees that timeline ordering
      * matches send ordering, even under concurrent calls.
      */
-    suspend fun send(content: String): String {
+    suspend fun send(
+        content: String,
+        attachments: List<MessageContentPart.Image> = emptyList(),
+    ): String {
         val otid = newOtid()
         writeMutex.withLock {
             val local = TimelineEvent.Local(
@@ -132,9 +164,10 @@ class TimelineSyncLoop(
                 role = Role.USER,
                 sentAt = Instant.now(),
                 deliveryState = DeliveryState.SENDING,
+                attachments = attachments,
             )
             _state.value = _state.value.append(local)
-            sendQueue.send(PendingSend(otid, content))  // unlimited capacity → never suspends
+            sendQueue.send(PendingSend(otid, content, attachments))  // unlimited capacity → never suspends
         }
         _events.emit(TimelineSyncEvent.LocalAppended(otid))
         Telemetry.event(
@@ -147,17 +180,16 @@ class TimelineSyncLoop(
     }
 
     /** Retry a failed send by re-enqueueing it. */
-    suspend fun retry(otid: String) {
+    suspend fun retry(otid: String) = writeMutex.withLock {
         val existing = _state.value.findByOtid(otid)
-        if (existing !is TimelineEvent.Local || existing.deliveryState != DeliveryState.FAILED) return
-        writeMutex.withLock {
-            _state.value = _state.value.copy(events = _state.value.events.map {
-                if (it.otid == otid && it is TimelineEvent.Local) {
-                    it.copy(deliveryState = DeliveryState.SENDING)
-                } else it
-            })
-            sendQueue.send(PendingSend(otid, existing.content))
-        }
+        if (existing !is TimelineEvent.Local || existing.deliveryState != DeliveryState.FAILED) return@withLock
+        
+        _state.value = _state.value.copy(events = _state.value.events.map {
+            if (it.otid == otid && it is TimelineEvent.Local) {
+                it.copy(deliveryState = DeliveryState.SENDING)
+            } else it
+        })
+        sendQueue.send(PendingSend(otid, existing.content, existing.attachments))
     }
 
     /** Background worker: processes one send at a time from the queue. */
@@ -170,7 +202,7 @@ class TimelineSyncLoop(
                 "conversationId" to conversationId,
             )
             try {
-                streamAndReconcile(pending.content, pending.otid)
+                streamAndReconcile(pending.content, pending.otid, pending.attachments)
                 roundtrip.stop("otid" to pending.otid)
             } catch (t: Throwable) {
                 Telemetry.error(
@@ -191,14 +223,25 @@ class TimelineSyncLoop(
      * 2. On stream complete, mark the Local as SENT.
      * 3. Fetch GET /messages to locate our user message (by otid) and swap Local→Confirmed.
      */
-    private suspend fun streamAndReconcile(content: String, otid: String) {
+    private suspend fun streamAndReconcile(
+        content: String,
+        otid: String,
+        attachments: List<MessageContentPart.Image> = emptyList(),
+    ) {
+        // Text-only path keeps the legacy JSON-string content; multimodal uses
+        // the content-parts JsonArray accepted by Letta/OpenAI-compatible APIs.
+        val contentElement: kotlinx.serialization.json.JsonElement = if (attachments.isEmpty()) {
+            JsonPrimitive(content)
+        } else {
+            buildContentParts(content, attachments).toJsonArray()
+        }
         val request = MessageCreateRequest(
             messages = listOf(
                 kotlinx.serialization.json.Json.encodeToJsonElement(
                     MessageCreate.serializer(),
                     MessageCreate(
                         role = "user",
-                        content = JsonPrimitive(content),
+                        content = contentElement,
                         otid = otid,
                     )
                 )
@@ -206,6 +249,9 @@ class TimelineSyncLoop(
             streaming = true,
             includeReturnMessageTypes = DEFAULT_INCLUDE_TYPES,
         )
+        if (BuildConfig.DEBUG) {
+            Log.d(logTag, "send.requestBody otid=$otid preview=${previewRequest(request)}")
+        }
         val postTimer = Telemetry.startTimer("TimelineSync", "send.post")
         val channel = messageApi.sendConversationMessage(conversationId, request)
         postTimer.stop("otid" to otid)
@@ -239,6 +285,61 @@ class TimelineSyncLoop(
 
         // Now fetch & reconcile to pull in the authoritative user message record
         reconcileAfterSend(otid)
+    }
+
+    private fun previewRequest(req: MessageCreateRequest): String {
+        val root = previewJson.encodeToJsonElement(MessageCreateRequest.serializer(), req)
+        val sanitizedRoot = root.jsonObject.let { rootObject ->
+            val messages = rootObject["messages"]?.jsonArray?.map { redactMessage(it) }
+            if (messages == null) {
+                rootObject
+            } else {
+                JsonObject(rootObject + ("messages" to JsonArray(messages)))
+            }
+        }
+        val preview = previewJson.encodeToString(JsonElement.serializer(), sanitizedRoot)
+        return if (preview.length <= REQUEST_PREVIEW_MAX_CHARS) {
+            preview
+        } else {
+            preview.take(REQUEST_PREVIEW_MAX_CHARS - 1) + "…"
+        }
+    }
+
+    private fun redactMessage(element: JsonElement): JsonElement {
+        val message = element.jsonObject
+        val content = message["content"]
+        if (content !is JsonArray) return element
+        return JsonObject(message + ("content" to redactContentParts(content)))
+    }
+
+    private fun redactContentParts(content: JsonArray): JsonArray = JsonArray(
+        content.map { part ->
+            val partObject = part.jsonObject
+            val type = partObject["type"]?.jsonPrimitive?.contentOrNull
+            if (type != "image_url") return@map part
+            val imageUrl = partObject["image_url"]?.jsonObject ?: return@map part
+            val url = imageUrl["url"]?.jsonPrimitive?.contentOrNull ?: return@map part
+            if (!url.startsWith("data:")) return@map part
+            JsonObject(
+                partObject + (
+                    "image_url" to JsonObject(
+                        imageUrl + ("url" to JsonPrimitive(previewDataUrl(url)))
+                    )
+                )
+            )
+        }
+    )
+
+    private fun previewDataUrl(url: String): String {
+        val prefix = "data:"
+        val separator = ";base64,"
+        val separatorIndex = url.indexOf(separator)
+        if (!url.startsWith(prefix) || separatorIndex < 0) {
+            return "[unsupported data url, totalLen=${url.length}]"
+        }
+        val mediaType = url.substring(prefix.length, separatorIndex)
+        val base64 = url.substring(separatorIndex + separator.length)
+        return "data:$mediaType;base64,${base64.take(DATA_URL_PREVIEW_CHARS)}…[truncated, totalLen=${url.length}]"
     }
 
     /**
@@ -298,6 +399,9 @@ class TimelineSyncLoop(
     }
 
     companion object {
+        private const val DATA_URL_PREVIEW_CHARS = 32
+        private const val REQUEST_PREVIEW_MAX_CHARS = 2_048
+
         // Most sends produce 1-3 server messages (user echo + assistant + maybe
         // reasoning). Fetching only what we need keeps reconcile snappy.
         private const val RECONCILE_LIMIT = 10
@@ -337,6 +441,14 @@ internal fun LettaMessage.toTimelineEvent(position: Double): TimelineEvent.Confi
         is SystemMessage -> TimelineMessageType.SYSTEM to content
         else -> return null
     }
+    val attachments = when (this) {
+        is UserMessage -> this.attachments
+        is AssistantMessage -> this.attachments
+        is SystemMessage -> this.attachments
+        is ReasoningMessage, is ToolCallMessage, is ToolReturnMessage, is ApprovalRequestMessage,
+        is ApprovalResponseMessage, is HiddenReasoningMessage, is EventMessage,
+        is PingMessage, is UnknownMessage, is StopReason, is UsageStatistics -> emptyList()
+    }
     val effectiveOtid = otid ?: "server-$id"
     val date = runCatching { date?.let(Instant::parse) ?: Instant.now() }.getOrElse { Instant.now() }
     return TimelineEvent.Confirmed(
@@ -348,5 +460,6 @@ internal fun LettaMessage.toTimelineEvent(position: Double): TimelineEvent.Confi
         date = date,
         runId = runId,
         stepId = stepId,
+        attachments = attachments,
     )
 }

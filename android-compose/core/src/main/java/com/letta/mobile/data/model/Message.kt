@@ -4,10 +4,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -44,6 +46,9 @@ data class SystemMessage(
 ) : LettaMessage {
     val content: String
         get() = extractContent(contentRaw)
+
+    val attachments: List<MessageContentPart.Image>
+        get() = extractAttachments(contentRaw)
 }
 
 @Serializable
@@ -62,6 +67,9 @@ data class UserMessage(
 ) : LettaMessage {
     val content: String
         get() = extractContent(contentRaw)
+
+    val attachments: List<MessageContentPart.Image>
+        get() = extractAttachments(contentRaw)
 }
 
 @Serializable
@@ -80,16 +88,19 @@ data class AssistantMessage(
 ) : LettaMessage {
     val content: String
         get() = extractContent(contentRaw)
+
+    val attachments: List<MessageContentPart.Image>
+        get() = extractAttachments(contentRaw)
 }
 
 private fun extractContent(raw: JsonElement?): String {
     return when {
         raw == null -> ""
         raw is JsonPrimitive && raw.isString -> raw.content
-        raw is kotlinx.serialization.json.JsonArray -> {
+        raw is JsonArray -> {
             raw.mapNotNull { element ->
                 if (element is JsonObject) {
-                    element["text"]?.jsonPrimitive?.content
+                    element["text"]?.jsonPrimitive?.contentOrNull
                 } else if (element is JsonPrimitive) {
                     element.content
                 } else null
@@ -97,6 +108,34 @@ private fun extractContent(raw: JsonElement?): String {
         }
         else -> raw.toString()
     }
+}
+
+private fun extractAttachments(raw: JsonElement?): List<MessageContentPart.Image> {
+    if (raw !is JsonArray) return emptyList()
+    return raw.mapNotNull { element ->
+        val obj = element as? JsonObject ?: return@mapNotNull null
+        val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        if (type != "image_url") return@mapNotNull null
+        val url = obj["image_url"]
+            ?.jsonObject
+            ?.get("url")
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?: return@mapNotNull null
+        parseImageDataUrl(url)
+    }
+}
+
+private fun parseImageDataUrl(url: String): MessageContentPart.Image? {
+    val prefix = "data:"
+    val separator = ";base64,"
+    if (!url.startsWith(prefix)) return null
+    val separatorIndex = url.indexOf(separator)
+    if (separatorIndex < 0) return null
+    val mediaType = url.substring(prefix.length, separatorIndex)
+    val base64 = url.substring(separatorIndex + separator.length)
+    if (mediaType.isBlank() || base64.isBlank()) return null
+    return MessageContentPart.Image(base64 = base64, mediaType = mediaType)
 }
 
 @Serializable
@@ -266,7 +305,7 @@ data class ApprovalResult(
 
 @Serializable
 data class UnknownMessage(
-    override val id: String,
+    override val id: String = "unknown-${java.util.UUID.randomUUID()}",
     override val date: String? = null,
     override val runId: String? = null,
     override val stepId: String? = null,
@@ -357,12 +396,21 @@ data class LettaResponse(
 
 @Serializable
 data class StopReason(
+    override val id: String = "stop-${java.util.UUID.randomUUID()}",
     @SerialName("stop_reason") val reason: String,
-    @SerialName("message_type") val messageType: String = "stop_reason",
-)
+    override val date: String? = null,
+    override val runId: String? = null,
+    override val stepId: String? = null,
+    override val otid: String? = null,
+    override val senderId: String? = null,
+    override val isErr: Boolean? = null,
+    override val seqId: Int? = null,
+    @SerialName("message_type") override val messageType: String = "stop_reason",
+) : LettaMessage
 
 @Serializable
 data class UsageStatistics(
+    override val id: String = "usage-${java.util.UUID.randomUUID()}",
     @SerialName("prompt_tokens") val promptTokens: Int? = null,
     @SerialName("completion_tokens") val completionTokens: Int? = null,
     @SerialName("total_tokens") val totalTokens: Int? = null,
@@ -374,8 +422,15 @@ data class UsageStatistics(
     @SerialName("reasoning_tokens") val reasoningTokens: Int? = null,
     @SerialName("context_tokens") val contextTokens: Int? = null,
     @SerialName("run_ids") val runIds: List<String> = emptyList(),
-    @SerialName("message_type") val messageType: String = "usage_statistics",
-)
+    override val date: String? = null,
+    override val runId: String? = null,
+    override val stepId: String? = null,
+    override val otid: String? = null,
+    override val senderId: String? = null,
+    override val isErr: Boolean? = null,
+    override val seqId: Int? = null,
+    @SerialName("message_type") override val messageType: String = "usage_statistics",
+) : LettaMessage
 
 @Serializable
 data class UsagePromptTokenDetails(
@@ -403,6 +458,8 @@ object LettaMessageSerializer : JsonContentPolymorphicSerializer<LettaMessage>(L
         "hidden_reasoning_message" -> HiddenReasoningMessage.serializer()
         "event_message" -> EventMessage.serializer()
         "ping" -> PingMessage.serializer()
+        "stop_reason" -> StopReason.serializer()
+        "usage_statistics" -> UsageStatistics.serializer()
         else -> UnknownMessage.serializer() // fallback for unknown types
     }
 }
