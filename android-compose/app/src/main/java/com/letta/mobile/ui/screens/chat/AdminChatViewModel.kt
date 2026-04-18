@@ -802,6 +802,27 @@ class AdminChatViewModel @Inject constructor(
                         is com.letta.mobile.data.timeline.TimelineSyncEvent.HydrateFailed -> {
                             _uiState.value = _uiState.value.copy(isLoadingMessages = false)
                         }
+                        is com.letta.mobile.data.timeline.TimelineSyncEvent.ReconcileError -> {
+                            // letta-mobile-j44j: reconcile's GET /messages can
+                            // fail after a successful stream (e.g. network blip
+                            // after the last SSE frame). TimelineSyncLoop already
+                            // retries transient errors internally; by the time
+                            // this event reaches us the retry was exhausted.
+                            //
+                            // The assistant reply has already appeared in the
+                            // timeline (Confirmed events arrived during SSE),
+                            // so we don't clear messages — we just tell the
+                            // user the post-stream sync didn't finish so they
+                            // know to pull-to-refresh if the bubble looks off.
+                            // Also clear the streaming/typing indicators so the
+                            // UI doesn't stay stuck pretending we're still
+                            // waiting on the server.
+                            _uiState.value = _uiState.value.copy(
+                                error = "Couldn't sync agent reply — pull to refresh",
+                                isStreaming = false,
+                                isAgentTyping = false,
+                            )
+                        }
                         else -> Unit
                     }
                 }

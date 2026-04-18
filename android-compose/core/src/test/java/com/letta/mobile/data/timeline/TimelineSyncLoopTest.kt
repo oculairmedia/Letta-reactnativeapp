@@ -1,5 +1,6 @@
 package com.letta.mobile.data.timeline
 
+import com.letta.mobile.data.api.ApiException
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.LettaMessage
@@ -200,6 +201,143 @@ class TimelineSyncLoopTest {
     }
 
     @Test
+    fun `reconcile recovers when transient listMessages failure is followed by success`() = runBlocking {
+        // letta-mobile-j44j: reconcileAfterSend retries transient failures
+        // (IOException, 5xx) with exponential backoff before giving up.
+        // With 2 injected failures and 3 total attempts configured, the
+        // third call succeeds and the user bubble still gets swapped to
+        // Confirmed — no user-visible error.
+        val api = FakeSyncApi()
+        api.nextStreamMessages = listOf(
+            AssistantMessage(id = "reply-1", contentRaw = JsonPrimitive("OK"), otid = "reply-otid")
+        )
+        api.listMessagesFailuresBeforeSuccess = 2  // two 503s, then succeed
+        api.listMessagesFailure = ApiException(503, "Service Unavailable")
+
+        val scope = CoroutineScope(Dispatchers.IO)
+        val sync = TimelineSyncLoop(api, "conv1", scope)
+
+        val collectedErrors = mutableListOf<TimelineSyncEvent.ReconcileError>()
+        val errorCollector = scope.launch {
+            sync.events.collect { ev ->
+                if (ev is TimelineSyncEvent.ReconcileError) collectedErrors += ev
+            }
+        }
+
+        val userOtid = sync.send("hello")
+
+        // Confirmed swap only happens after retry-then-success — if retry
+        // were missing, the first 503 would fall straight through to the
+        // error branch and the Local would never become Confirmed.
+        withTimeout(10_000) {
+            while (sync.state.value.findByOtid(userOtid) !is TimelineEvent.Confirmed) delay(20)
+        }
+
+        assertEquals(
+            "listConversationMessages should have been called 3x (2 failures + 1 success)",
+            3,
+            api.listMessagesCalls,
+        )
+        assertTrue(
+            "No ReconcileError should be emitted when retry succeeds (got: $collectedErrors)",
+            collectedErrors.isEmpty(),
+        )
+
+        errorCollector.cancel()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `reconcile emits ReconcileError when retries are exhausted`() = runBlocking {
+        // letta-mobile-j44j: if listMessages keeps failing past the retry
+        // budget, the loop surfaces a ReconcileError event so the UI can
+        // show an error + clear the typing indicator. The streamed assistant
+        // reply is already on the timeline (the stream itself succeeded);
+        // only the post-stream swap of Local→Confirmed is lost.
+        val api = FakeSyncApi()
+        api.nextStreamMessages = listOf(
+            AssistantMessage(id = "reply-1", contentRaw = JsonPrimitive("OK"), otid = "reply-otid")
+        )
+        // Fail every listMessages call — the retry budget (3 attempts) will be exhausted
+        api.listMessagesFailuresBeforeSuccess = Int.MAX_VALUE
+        api.listMessagesFailure = java.io.IOException("simulated network blip")
+
+        val scope = CoroutineScope(Dispatchers.IO)
+        val sync = TimelineSyncLoop(api, "conv1", scope)
+
+        val collectedErrors = mutableListOf<TimelineSyncEvent.ReconcileError>()
+        val errorCollector = scope.launch {
+            sync.events.collect { ev ->
+                if (ev is TimelineSyncEvent.ReconcileError) collectedErrors += ev
+            }
+        }
+
+        sync.send("hello")
+
+        withTimeout(10_000) {
+            while (collectedErrors.isEmpty()) delay(20)
+        }
+
+        assertEquals(
+            "Should attempt exactly 3 times before giving up",
+            3,
+            api.listMessagesCalls,
+        )
+        assertEquals(1, collectedErrors.size)
+        assertTrue(
+            "Error message should include the underlying cause (got: ${collectedErrors.first().message})",
+            collectedErrors.first().message.contains("simulated network blip"),
+        )
+        // Stream-phase assistant reply still landed — reconcile failure
+        // shouldn't nuke the confirmed assistant event that the SSE already
+        // appended.
+        assertNotNull(
+            "Streamed assistant event should still be present after reconcile failure",
+            sync.state.value.findByOtid("reply-otid"),
+        )
+
+        errorCollector.cancel()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `reconcile does not retry on 4xx permanent errors`() = runBlocking {
+        // letta-mobile-j44j: 4xx responses (auth, validation) won't become
+        // true on retry, so we fail fast to avoid wasting up to 1.4s of
+        // backoff sleeping on a permanent error.
+        val api = FakeSyncApi()
+        api.nextStreamMessages = emptyList()
+        api.listMessagesFailuresBeforeSuccess = Int.MAX_VALUE
+        api.listMessagesFailure = ApiException(401, "Unauthorized")
+
+        val scope = CoroutineScope(Dispatchers.IO)
+        val sync = TimelineSyncLoop(api, "conv1", scope)
+
+        val collectedErrors = mutableListOf<TimelineSyncEvent.ReconcileError>()
+        val errorCollector = scope.launch {
+            sync.events.collect { ev ->
+                if (ev is TimelineSyncEvent.ReconcileError) collectedErrors += ev
+            }
+        }
+
+        sync.send("hello")
+
+        withTimeout(10_000) {
+            while (collectedErrors.isEmpty()) delay(20)
+        }
+
+        assertEquals(
+            "Permanent 4xx should fail on the first attempt, no retry",
+            1,
+            api.listMessagesCalls,
+        )
+        assertEquals(1, collectedErrors.size)
+
+        errorCollector.cancel()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
     fun `retry on non-FAILED event is a no-op`() = runBlocking {
         // letta-mobile-lbmy: the fix moves the read of findByOtid inside
         // writeMutex.withLock. The test here is a behavioural check that
@@ -233,6 +371,14 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
     private val stored = mutableListOf<LettaMessage>()
     var nextStreamMessages: List<LettaMessage> = emptyList()
 
+    // letta-mobile-j44j: failure-injection for reconcile retry tests.
+    // When [listMessagesFailuresBeforeSuccess] > 0, the first N calls to
+    // [listConversationMessages] throw [listMessagesFailure] (or a default
+    // IOException if none is set). Subsequent calls return normally.
+    var listMessagesFailuresBeforeSuccess: Int = 0
+    var listMessagesFailure: Throwable? = null
+    var listMessagesCalls: Int = 0
+
     fun addStoredMessage(msg: LettaMessage) {
         stored.add(msg)
     }
@@ -243,6 +389,12 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
         after: String?,
         order: String?,
     ): List<LettaMessage> {
+        listMessagesCalls++
+        if (listMessagesFailuresBeforeSuccess > 0) {
+            listMessagesFailuresBeforeSuccess--
+            throw listMessagesFailure
+                ?: java.io.IOException("injected listConversationMessages failure")
+        }
         return if (order == "desc") stored.reversed() else stored.toList()
     }
 

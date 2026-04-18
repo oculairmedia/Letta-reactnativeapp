@@ -2,6 +2,7 @@ package com.letta.mobile.data.timeline
 
 import android.util.Log
 import com.letta.mobile.core.BuildConfig
+import com.letta.mobile.data.api.ApiException
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.util.Telemetry
 import com.letta.mobile.data.model.AssistantMessage
@@ -26,8 +27,10 @@ import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.data.stream.SseParser
 import java.time.Instant
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -351,11 +354,14 @@ class TimelineSyncLoop(
         var confirmedLocal = false
         var appendedMissing = 0
         try {
-            val serverMessages = messageApi.listConversationMessages(
-                conversationId = conversationId,
-                limit = RECONCILE_LIMIT,
-                order = "desc",
-            ).reversed()
+            // letta-mobile-j44j: retry the GET on transient failures before
+            // surfacing a user-visible error. The stream already landed the
+            // assistant reply as Confirmed events (see streamAndReconcile),
+            // so reconcile's job here is the lower-stakes work of swapping
+            // the Local user bubble to Confirmed and picking up anything
+            // the SSE missed. A network blip on that GET shouldn't leave
+            // the bubble stuck in SENT forever.
+            val serverMessages = listMessagesWithRetry(otid).reversed()
 
             // 1. Swap Local→Confirmed for our outbound message
             val myMatch = serverMessages.firstOrNull { it.otid == otid }
@@ -398,6 +404,53 @@ class TimelineSyncLoop(
         }
     }
 
+    /**
+     * GET the conversation messages with bounded retry on transient failures.
+     *
+     * Retries: `IOException` (network blip) and `ApiException` with 5xx status
+     * (server-side hiccup). A 4xx is treated as permanent and fails fast —
+     * no amount of retry will rescue a bad request. Parse failures (non-IO,
+     * non-ApiException throwables from deserialization) are also permanent.
+     *
+     * Backoff: 200ms, 400ms, 800ms (exponential). Total worst-case wait
+     * before surfacing an error is ~1.4s, which is short enough that the
+     * user hasn't given up yet but long enough to ride out a typical blip.
+     */
+    private suspend fun listMessagesWithRetry(otid: String): List<LettaMessage> {
+        var lastError: Throwable? = null
+        for (attempt in 0 until RECONCILE_RETRY_ATTEMPTS) {
+            try {
+                return messageApi.listConversationMessages(
+                    conversationId = conversationId,
+                    limit = RECONCILE_LIMIT,
+                    order = "desc",
+                )
+            } catch (t: Throwable) {
+                if (!isRetryableReconcileError(t) || attempt == RECONCILE_RETRY_ATTEMPTS - 1) {
+                    throw t
+                }
+                lastError = t
+                Telemetry.event(
+                    "TimelineSync", "reconcile.retry",
+                    "otid" to otid,
+                    "attempt" to attempt + 1,
+                    "errorClass" to (t::class.simpleName ?: "Unknown"),
+                    "errorMessage" to (t.message ?: ""),
+                )
+                delay(RECONCILE_RETRY_BACKOFF_MS shl attempt)
+            }
+        }
+        // Unreachable — the loop either returns or rethrows — but the compiler
+        // doesn't know that.
+        throw lastError ?: IllegalStateException("listMessagesWithRetry exhausted without error")
+    }
+
+    private fun isRetryableReconcileError(t: Throwable): Boolean = when (t) {
+        is IOException -> true
+        is ApiException -> t.code in 500..599
+        else -> false
+    }
+
     companion object {
         private const val DATA_URL_PREVIEW_CHARS = 32
         private const val REQUEST_PREVIEW_MAX_CHARS = 2_048
@@ -405,6 +458,14 @@ class TimelineSyncLoop(
         // Most sends produce 1-3 server messages (user echo + assistant + maybe
         // reasoning). Fetching only what we need keeps reconcile snappy.
         private const val RECONCILE_LIMIT = 10
+
+        // letta-mobile-j44j: bounded retry on transient reconcile failures.
+        // 3 attempts → ~200+400+800ms ≈ 1.4s worst-case before surfacing
+        // an error to the UI. Chosen to ride out typical network blips
+        // without making the user wait noticeably longer than the stream
+        // itself took to complete.
+        private const val RECONCILE_RETRY_ATTEMPTS = 3
+        private const val RECONCILE_RETRY_BACKOFF_MS = 200L
 
         internal val DEFAULT_INCLUDE_TYPES = listOf(
             "assistant_message",
