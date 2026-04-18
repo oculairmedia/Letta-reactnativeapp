@@ -2,7 +2,9 @@ package com.letta.mobile.performance
 
 import android.app.Activity
 import android.app.Application
+import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
 import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
 import com.letta.mobile.util.Telemetry
@@ -11,6 +13,7 @@ import io.sentry.Sentry
 import io.sentry.SentryLevel
 import java.util.Collections
 import java.util.WeakHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -31,22 +34,87 @@ import java.util.concurrent.atomic.AtomicLong
  */
 object DebugPerformanceMonitor {
     private const val FRAME_BUDGET_MS = 16L
+    private const val TAG_STRICT_MODE = "StrictMode"
 
     private val installed = AtomicBoolean(false)
     private val frameIndex = AtomicLong(0)
     private val jankStatsByActivity = Collections.synchronizedMap(WeakHashMap<Activity, JankStats>())
+
+    /**
+     * Single-threaded bounded executor for StrictMode violation handling.
+     * We deliberately don't use Dispatchers.Default to avoid unbounded
+     * coroutine creation during a jank storm — a single worker coalesces
+     * bursts while still keeping violation recording off the main thread.
+     */
+    private val strictModeExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "debug-strictmode").apply {
+            isDaemon = true
+        }
+    }
 
     fun install(application: Application) {
         if (!installed.compareAndSet(false, true)) {
             return
         }
 
+        installStrictMode()
         application.registerActivityLifecycleCallbacks(JankStatsLifecycleCallbacks())
         Telemetry.event(
             tag = "Perf",
             name = "debugInstrumentationEnabled",
+            "strictMode" to true,
             "jankStats" to true,
             "leakCanary" to true,
+        )
+    }
+
+    private fun installStrictMode() {
+        val threadPolicyBuilder = StrictMode.ThreadPolicy.Builder()
+            .detectAll()
+            .penaltyLog()
+        val vmPolicyBuilder = StrictMode.VmPolicy.Builder()
+            .detectAll()
+            .penaltyLog()
+
+        // penaltyListener is API 28+. On API 26-27 (our minSdk range
+        // supports 26), fall through with penaltyLog() only — violations
+        // still land in logcat, they just won't get mirrored to Sentry.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            threadPolicyBuilder.penaltyListener(strictModeExecutor) { violation ->
+                recordStrictModeViolation(policyType = "thread", violation = violation)
+            }
+            vmPolicyBuilder.penaltyListener(strictModeExecutor) { violation ->
+                recordStrictModeViolation(policyType = "vm", violation = violation)
+            }
+        }
+
+        StrictMode.setThreadPolicy(threadPolicyBuilder.build())
+        StrictMode.setVmPolicy(vmPolicyBuilder.build())
+    }
+
+    private fun recordStrictModeViolation(policyType: String, violation: Throwable) {
+        val violationType = violation.javaClass.simpleName
+        val topFrame = violation.stackTrace.firstOrNull()
+        val breadcrumb = Breadcrumb().apply {
+            category = TAG_STRICT_MODE.lowercase()
+            type = "system"
+            level = SentryLevel.WARNING
+            message = "$policyType violation: $violationType"
+            setData("policyType", policyType)
+            setData("violationType", violationType)
+            topFrame?.className?.let { setData("sourceClass", it) }
+            topFrame?.methodName?.let { setData("sourceMethod", it) }
+            setData("stacktrace", violation.stackTraceToString())
+        }
+        Sentry.addBreadcrumb(breadcrumb)
+        Telemetry.error(
+            tag = TAG_STRICT_MODE,
+            name = "violation",
+            throwable = violation,
+            "policyType" to policyType,
+            "violationType" to violationType,
+            "sourceClass" to topFrame?.className,
+            "sourceMethod" to topFrame?.methodName,
         )
     }
 
