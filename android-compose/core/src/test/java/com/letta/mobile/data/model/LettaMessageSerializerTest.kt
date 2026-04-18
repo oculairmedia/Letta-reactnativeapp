@@ -119,4 +119,34 @@ class LettaMessageSerializerTest {
         assertTrue(msg is EventMessage)
         assertEquals("heartbeat", (msg as EventMessage).eventType)
     }
+
+    @Test
+    fun `deserialize unknown message_type without id field uses synthetic UUID`() {
+        val raw = """{"message_type":"completely_unknown","date":"2024-01-01T00:00:00Z"}"""
+        val msg = json.decodeFromString<LettaMessage>(raw)
+        assertTrue(msg is UnknownMessage)
+        assertNotNull(msg.id)
+        assertTrue(msg.id.startsWith("unknown-"))
+    }
+
+    @Test
+    fun `deserialize stop_reason`() {
+        val raw = """{"stop_reason":"max_tokens","message_type":"stop_reason"}"""
+        val msg = json.decodeFromString<LettaMessage>(raw)
+        assertTrue(msg is StopReason)
+        assertEquals("max_tokens", (msg as StopReason).reason)
+        assertNotNull(msg.id)
+    }
+
+    @Test
+    fun `deserialize usage_statistics`() {
+        val raw = """{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150,"message_type":"usage_statistics"}"""
+        val msg = json.decodeFromString<LettaMessage>(raw)
+        assertTrue(msg is UsageStatistics)
+        val usage = msg as UsageStatistics
+        assertEquals(100, usage.promptTokens)
+        assertEquals(50, usage.completionTokens)
+        assertEquals(150, usage.totalTokens)
+        assertNotNull(msg.id)
+    }
 }

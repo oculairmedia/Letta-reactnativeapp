@@ -150,6 +150,14 @@ class MessageProcessor @Inject constructor(
                         is UnknownMessage -> {
                             // Skip unknown message types
                         }
+
+                        is StopReason -> {
+                            // Terminal metadata frame; don't display as bubble
+                        }
+
+                        is UsageStatistics -> {
+                            // Terminal metadata frame; don't display as bubble
+                        }
                     }
                 }
             }

@@ -22,10 +22,12 @@ import com.letta.mobile.data.model.MessageSearchRequest
 import com.letta.mobile.data.model.MessageSearchResult
 import com.letta.mobile.data.model.PingMessage
 import com.letta.mobile.data.model.ReasoningMessage
+import com.letta.mobile.data.model.StopReason
 import com.letta.mobile.data.model.SystemMessage
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UnknownMessage
+import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.data.paging.MessagePagingSource
 import kotlinx.serialization.json.Json
@@ -372,6 +374,37 @@ open class MessageRepository @Inject constructor(
                 summary = "Unknown message type",
                 detailLines = baseDetails,
             )
+            is StopReason -> {
+                val stopReason = this as StopReason
+                ConversationInspectorMessage(
+                    id = id,
+                    messageType = messageType,
+                    date = date,
+                    runId = runId,
+                    stepId = stepId,
+                    otid = otid,
+                    summary = "Stop: ${stopReason.reason}",
+                    detailLines = baseDetails + listOf("Reason" to stopReason.reason),
+                )
+            }
+            is UsageStatistics -> {
+                val usage = this as UsageStatistics
+                ConversationInspectorMessage(
+                    id = id,
+                    messageType = messageType,
+                    date = date,
+                    runId = runId,
+                    stepId = stepId,
+                    otid = otid,
+                    summary = "Usage: ${usage.totalTokens ?: 0} tokens",
+                    detailLines = baseDetails + buildList {
+                        usage.promptTokens?.let { add("Prompt Tokens" to it.toString()) }
+                        usage.completionTokens?.let { add("Completion Tokens" to it.toString()) }
+                        usage.totalTokens?.let { add("Total Tokens" to it.toString()) }
+                        usage.stepCount?.let { add("Step Count" to it.toString()) }
+                    },
+                )
+            }
         }
     }
 
