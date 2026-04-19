@@ -22,8 +22,10 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class ScheduleApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())

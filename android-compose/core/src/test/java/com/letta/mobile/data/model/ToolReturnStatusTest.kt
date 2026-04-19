@@ -3,6 +3,7 @@ package com.letta.mobile.data.model
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Regression coverage for the tool-return status classifier (bead
@@ -11,6 +12,7 @@ import org.junit.Test
  * so the rule is **explicit-error-whitelist** — anything not "error" must
  * NOT paint the row red.
  */
+@Tag("integration")
 class ToolReturnStatusTest {
 
     @Test

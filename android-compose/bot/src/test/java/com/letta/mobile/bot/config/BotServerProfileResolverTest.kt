@@ -3,7 +3,9 @@ package com.letta.mobile.bot.config
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotServerProfileResolverTest : WordSpec({
     "BotServerProfileResolver" should {
         "prefer explicitly selected profile over active profile" {

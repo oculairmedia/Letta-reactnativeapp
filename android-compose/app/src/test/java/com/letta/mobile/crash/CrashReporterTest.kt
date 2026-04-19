@@ -14,8 +14,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import org.junit.jupiter.api.Tag
 
 @RunWith(RobolectricTestRunner::class)
+@Tag("integration")
 class CrashReporterTest {
     private lateinit var context: Context
     private lateinit var reporter: CrashReporter

@@ -15,7 +15,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class MessageMapperTest : WordSpec({
     "AppMessage.toUiMessage" should {
         "map user messages to role user" {

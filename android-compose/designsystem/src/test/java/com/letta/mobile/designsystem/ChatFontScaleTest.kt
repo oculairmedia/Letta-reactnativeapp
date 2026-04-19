@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Regression tests for chat font scaling via [scaledBy].
@@ -18,6 +19,7 @@ import org.junit.Test
  * font size and line height multipliers to TextStyle objects, and that edge
  * cases (identity factor, unspecified sizes, boundary values) are handled.
  */
+@Tag("unit")
 class ChatFontScaleTest {
 
     @Test

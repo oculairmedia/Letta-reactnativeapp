@@ -6,7 +6,9 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class MessageEnvelopeFormatterTest : WordSpec({
     "MessageEnvelopeFormatter" should {
         "include skill reminders in the default envelope output" {

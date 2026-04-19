@@ -24,9 +24,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.junit.jupiter.api.Tag
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
+@Tag("integration")
 class ConnectivityMonitorTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

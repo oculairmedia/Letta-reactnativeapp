@@ -3,7 +3,9 @@ package com.letta.mobile
 import android.content.Intent
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotRestoreReceiverTest : WordSpec({
     "shouldRestoreBotFromBroadcast" should {
         "accept boot completed and package replaced broadcasts" {

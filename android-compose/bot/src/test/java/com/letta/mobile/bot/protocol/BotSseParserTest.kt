@@ -6,7 +6,9 @@ import io.kotest.matchers.shouldBe
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotSseParserTest : WordSpec({
     "BotSseParser" should {
         "parse data events followed by done marker" {

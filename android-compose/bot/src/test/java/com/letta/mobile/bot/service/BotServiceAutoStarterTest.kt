@@ -3,7 +3,9 @@ package com.letta.mobile.bot.service
 import com.letta.mobile.bot.config.BotConfig
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotServiceAutoStarterTest : WordSpec({
     "shouldAutoStartBotService" should {
         "return true when an enabled bot is marked auto start" {

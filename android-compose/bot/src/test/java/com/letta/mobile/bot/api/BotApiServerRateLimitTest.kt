@@ -2,7 +2,9 @@ package com.letta.mobile.bot.api
 
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotApiServerRateLimitTest : WordSpec({
     "SlidingWindowRateLimiter" should {
         "allow requests until the client hits the window limit" {

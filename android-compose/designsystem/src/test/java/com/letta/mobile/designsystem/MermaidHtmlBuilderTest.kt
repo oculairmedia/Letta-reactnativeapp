@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Pure-JVM tests for the Mermaid HTML wrapper.
@@ -26,6 +27,7 @@ import org.junit.Test
  * - The mermaid config `theme` token flips to `dark` in dark mode.
  * - The surface background color is passed through as CSS.
  */
+@Tag("unit")
 class MermaidHtmlBuilderTest {
 
     @Before

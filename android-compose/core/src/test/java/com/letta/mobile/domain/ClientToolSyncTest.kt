@@ -5,8 +5,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class ClientToolSyncTest {
 
     @Test

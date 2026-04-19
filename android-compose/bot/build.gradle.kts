@@ -104,3 +104,34 @@ dependencies {
     testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
     testImplementation("io.kotest:kotest-assertions-core:5.9.1")
 }
+
+// Test tier tasks
+tasks.register<Test>("testUnit") {
+    description = "Runs unit-tier tests (pure logic, <50ms per test)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("unit")
+    }
+
+    systemProperty("kotest.tags.include", "unit")
+}
+
+tasks.register<Test>("testIntegration") {
+    description = "Runs integration-tier tests (Robolectric, Compose, ViewModels)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+
+    systemProperty("kotest.tags.include", "integration")
+}

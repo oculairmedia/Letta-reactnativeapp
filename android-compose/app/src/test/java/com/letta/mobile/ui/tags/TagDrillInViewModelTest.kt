@@ -25,8 +25,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class TagDrillInViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var agentRepository: AgentRepository

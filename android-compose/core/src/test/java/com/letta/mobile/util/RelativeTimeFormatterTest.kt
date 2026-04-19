@@ -5,7 +5,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotBeBlank
 import java.time.Instant
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class RelativeTimeFormatterTest : WordSpec({
     "formatRelativeTime" should {
         "return empty for null" {

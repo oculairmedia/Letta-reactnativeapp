@@ -18,7 +18,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
+@Tag("integration")
 class ChannelHeartbeatSyncTest {
     @Test
     fun `first sync seeds baseline without notifying`() = runTest {

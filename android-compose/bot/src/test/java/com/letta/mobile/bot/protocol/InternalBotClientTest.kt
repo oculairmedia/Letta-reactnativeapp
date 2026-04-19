@@ -13,7 +13,9 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class InternalBotClientTest : WordSpec({
     "getStatus" should {
         "include gateway sessions and active config metadata" {

@@ -4,7 +4,9 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class EmojiDetectorTest : WordSpec({
     "isEmojiOnly" should {
         "return true for a single emoji" {

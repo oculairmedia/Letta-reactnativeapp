@@ -3,11 +3,13 @@ package com.letta.mobile.ui.components
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Tests for the display-math ($$…$$) segmenter that [MarkdownText] uses to
  * splice KaTeX-rendered blocks into the middle of otherwise-Markdown prose.
  */
+@Tag("unit")
 class MathSplitterTest {
 
     @Test

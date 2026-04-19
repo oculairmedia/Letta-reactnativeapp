@@ -12,7 +12,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotToolRegistryTest : WordSpec({
     "BotToolRegistry" should {
         "expose expected built-in tool definitions" {

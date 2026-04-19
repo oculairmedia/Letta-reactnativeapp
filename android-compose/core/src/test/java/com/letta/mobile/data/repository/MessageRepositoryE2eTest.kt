@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Integration tests for [MessageRepository] — the stateless HTTP helper that
@@ -31,6 +32,7 @@ import org.junit.Test
  * `TimelineSyncLoopTest`.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class MessageRepositoryE2eTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     @Test

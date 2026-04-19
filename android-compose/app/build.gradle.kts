@@ -300,3 +300,49 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }
+
+// Test tier tasks
+tasks.register<Test>("testUnit") {
+    description = "Runs unit-tier tests (pure logic, <50ms per test)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("unit")
+    }
+
+    systemProperty("kotest.tags.include", "unit")
+}
+
+tasks.register<Test>("testIntegration") {
+    description = "Runs integration-tier tests (Robolectric, Compose, ViewModels)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+
+    systemProperty("kotest.tags.include", "integration")
+}
+
+tasks.register<Test>("testScreenshot") {
+    description = "Runs screenshot-tier tests (Roborazzi visual regression)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("screenshot")
+    }
+
+    systemProperty("kotest.tags.include", "screenshot")
+}

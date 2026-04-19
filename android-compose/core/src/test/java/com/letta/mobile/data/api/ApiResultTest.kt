@@ -3,7 +3,9 @@ package com.letta.mobile.data.api
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class ApiResultTest : WordSpec({
     "ApiException" should {
         "store code and message" {

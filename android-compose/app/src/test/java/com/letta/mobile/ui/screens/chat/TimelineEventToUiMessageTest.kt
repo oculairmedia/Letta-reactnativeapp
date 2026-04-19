@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import org.junit.jupiter.api.Tag
 
 /**
  * Programmatic test harness for the TimelineEvent → UiMessage contract that
@@ -20,6 +21,7 @@ import java.time.Instant
  *
  * letta-mobile-mge5.23. Prefer adding a case here over iterating on a phone.
  */
+@Tag("integration")
 class TimelineEventToUiMessageTest {
 
     private fun confirmed(

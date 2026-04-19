@@ -27,8 +27,10 @@ import io.mockk.mockk
 import com.letta.mobile.data.model.ToolCreateParams
 import com.letta.mobile.data.model.ToolSchemaGenerateParams
 import com.letta.mobile.data.model.ToolUpdateParams
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class ToolApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())

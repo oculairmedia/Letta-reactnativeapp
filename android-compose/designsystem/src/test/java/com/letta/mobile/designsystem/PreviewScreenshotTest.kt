@@ -13,7 +13,9 @@ import com.letta.mobile.ui.components.PreviewRotationalLoaderContent
 import com.letta.mobile.ui.components.PreviewThinkingSectionContent
 import org.junit.Rule
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
+@Tag("screenshot")
 class PreviewScreenshotTest {
     @get:Rule
     val paparazzi = Paparazzi(

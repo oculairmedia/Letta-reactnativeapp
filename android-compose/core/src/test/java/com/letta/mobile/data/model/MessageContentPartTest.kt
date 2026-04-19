@@ -13,6 +13,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Wire-format invariants for the multimodal content-parts JSON array sent to
@@ -25,6 +26,7 @@ import org.junit.Test
  * `omitted_reasoning`. There is intentionally NO `image_url` variant — the
  * client must use `{type:"image", source:{type:"base64", media_type, data}}`.
  */
+@Tag("integration")
 class MessageContentPartTest {
 
     @Test

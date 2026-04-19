@@ -17,7 +17,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class DefaultLettaRuntimeClientTest : WordSpec({
     "DefaultLettaRuntimeClient" should {
         "submit approval result with non-streaming continuation payload" {

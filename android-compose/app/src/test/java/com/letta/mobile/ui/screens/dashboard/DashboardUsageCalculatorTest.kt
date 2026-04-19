@@ -4,7 +4,9 @@ import com.letta.mobile.data.model.Step
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
+@Tag("integration")
 class DashboardUsageCalculatorTest {
 
     @Test

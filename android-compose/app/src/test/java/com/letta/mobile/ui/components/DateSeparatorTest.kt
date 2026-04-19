@@ -5,7 +5,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import java.time.LocalDate
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class DateSeparatorTest : WordSpec({
     "formatRelativeDate" should {
         "return Today for the current date" {

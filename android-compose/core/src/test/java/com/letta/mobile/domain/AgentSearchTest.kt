@@ -6,7 +6,9 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldBeEmpty
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class AgentSearchTest : WordSpec({
     val search = AgentSearch()
     val agents = listOf(

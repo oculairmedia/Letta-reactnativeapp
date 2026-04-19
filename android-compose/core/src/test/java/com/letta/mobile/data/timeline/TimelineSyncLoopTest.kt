@@ -31,6 +31,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Integration-level tests for [TimelineSyncLoop] using a programmable fake API.
@@ -40,6 +41,7 @@ import org.junit.Test
  * reconciliation via listMessages.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class TimelineSyncLoopTest {
 
     @Test

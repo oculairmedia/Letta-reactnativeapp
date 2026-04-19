@@ -36,6 +36,15 @@ android {
         disable += "NullSafeMutableLiveData"
     }
 
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            all {
+                it.useJUnitPlatform()
+            }
+        }
+    }
+
     sourceSets {
         getByName("main") {
             manifest.srcFile("src/main/AndroidManifest.xml")
@@ -78,4 +87,52 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.17")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.5")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.5")
+}
+
+// Test tier tasks
+tasks.register<Test>("testUnit") {
+    description = "Runs unit-tier tests (pure logic, <50ms per test)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("unit")
+    }
+
+    systemProperty("kotest.tags.include", "unit")
+}
+
+tasks.register<Test>("testIntegration") {
+    description = "Runs integration-tier tests (Robolectric, Compose, ViewModels)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+
+    systemProperty("kotest.tags.include", "integration")
+}
+
+tasks.register<Test>("testScreenshot") {
+    description = "Runs screenshot-tier tests (Paparazzi/Roborazzi visual regression)"
+    group = "verification"
+    
+    val testTask = tasks.named("testDebugUnitTest", Test::class).get()
+    testClassesDirs = testTask.testClassesDirs
+    classpath = testTask.classpath
+    
+    useJUnitPlatform {
+        includeTags("screenshot")
+    }
+
+    systemProperty("kotest.tags.include", "screenshot")
 }

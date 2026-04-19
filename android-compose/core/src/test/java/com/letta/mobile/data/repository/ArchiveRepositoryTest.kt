@@ -12,8 +12,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class ArchiveRepositoryTest {
     private lateinit var fakeApi: FakeArchiveApi
     private lateinit var repository: ArchiveRepository

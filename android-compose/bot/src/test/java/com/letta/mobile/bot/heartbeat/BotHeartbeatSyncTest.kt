@@ -8,7 +8,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotHeartbeatSyncTest : WordSpec({
     "shouldRunHeartbeat" should {
         "run when enabled and no previous execution exists" {

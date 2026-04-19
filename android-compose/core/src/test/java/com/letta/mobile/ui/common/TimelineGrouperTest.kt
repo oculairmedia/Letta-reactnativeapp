@@ -3,7 +3,9 @@ package com.letta.mobile.ui.common
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class TimelineGrouperTest : WordSpec({
     data class FakeMessage(val id: String, val role: String, val ts: String = "")
 

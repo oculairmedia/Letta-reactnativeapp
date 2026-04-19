@@ -19,7 +19,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class MessageProcessorTest : WordSpec({
     "processStream" should {
         "carry tool names forward to tool return messages" {

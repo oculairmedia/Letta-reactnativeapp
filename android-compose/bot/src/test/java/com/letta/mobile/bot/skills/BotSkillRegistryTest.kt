@@ -6,7 +6,9 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.time.DayOfWeek
 import java.time.LocalDate
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class BotSkillRegistryTest : WordSpec({
     "BotSkillRegistry" should {
         "resolve only enabled skills that are active for the current date" {

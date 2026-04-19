@@ -8,6 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 /**
  * Unit tests for the [Timeline] data model.
@@ -15,6 +16,7 @@ import org.junit.Test
  * Mirrors the POC CLI tests in `poc/chat-cli/src/test/kotlin/com/letta/poc/TimelineTest.kt`
  * to ensure the mobile port preserves the validated invariants.
  */
+@Tag("integration")
 class TimelineTest {
 
     @After

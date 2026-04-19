@@ -5,7 +5,9 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Tag
 
+@Tag("unit")
 class SnackbarDispatcherTest : WordSpec({
     "SnackbarDispatcher" should {
         "dispatch a plain string message" {

@@ -26,8 +26,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Tag("integration")
 class TemplatesViewModelTest {
 
     private lateinit var fakeRepo: FakeAgentRepo
