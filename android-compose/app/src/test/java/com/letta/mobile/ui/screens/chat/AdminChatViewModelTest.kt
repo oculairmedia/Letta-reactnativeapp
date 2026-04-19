@@ -407,7 +407,7 @@ class AdminChatViewModelTest {
     // duplicate message ids` relied on the legacy fetchMessages pre-hydrate
     // setting hasMoreOlderMessages=true. That signal now needs to flow from
     // TimelineRepository pagination, which is a follow-up work item
-    // (letta-mobile-page-hasMore). Removed here in Phase 5 to unblock the
+    // (letta-mobile-lhki). Removed here in Phase 5 to unblock the
     // legacy-state cleanup; re-add once Timeline exposes a pagination cursor.
 
     // `loadOlderMessages skips fetch when initial page proves there is no
@@ -424,7 +424,7 @@ class AdminChatViewModelTest {
     // optimistic-flip path is implicitly exercised by every other VM test
     // that loads messages. Re-add a positive-coverage test here once
     // TimelineRepository exposes an explicit pagination cursor (the same
-    // follow-up referenced above as letta-mobile-page-hasMore).
+    // follow-up referenced above as letta-mobile-lhki).
 
     @Test
     fun `project brief loads mapped sections from core memory blocks`() = runTest {
