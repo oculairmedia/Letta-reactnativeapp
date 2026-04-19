@@ -5,10 +5,15 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [AgentEntity::class, BugReportEntity::class], version = 2, exportSchema = false)
+@Database(
+    entities = [AgentEntity::class, BugReportEntity::class, PendingLocalEntity::class],
+    version = 3,
+    exportSchema = false,
+)
 abstract class LettaDatabase : RoomDatabase() {
     abstract fun agentDao(): AgentDao
     abstract fun bugReportDao(): BugReportDao
+    abstract fun pendingLocalDao(): PendingLocalDao
 
     companion object {
         @Volatile

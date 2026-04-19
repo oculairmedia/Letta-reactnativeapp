@@ -22,6 +22,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import com.letta.mobile.channel.ChatPushService
 import com.letta.mobile.crash.CrashReporter
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.ThemePreset
@@ -110,6 +111,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
+                // letta-mobile-mge5: start the foreground service that keeps
+                // resume-stream subscribers alive even when the app is
+                // backgrounded or the screen is off.
+                ChatPushService.start(this@MainActivity)
             }
 
             LettaTheme(

@@ -4,12 +4,24 @@ import android.content.Context
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.local.BugReportDao
 import com.letta.mobile.data.local.LettaDatabase
+import com.letta.mobile.data.local.PendingLocalDao
+import com.letta.mobile.data.local.RoomPendingLocalStore
+import com.letta.mobile.data.timeline.PendingLocalStore
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class PendingLocalStoreModule {
+    @Binds
+    @Singleton
+    abstract fun bindPendingLocalStore(impl: RoomPendingLocalStore): PendingLocalStore
+}
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -28,5 +40,10 @@ object DatabaseModule {
     @Provides
     fun provideBugReportDao(database: LettaDatabase): BugReportDao {
         return database.bugReportDao()
+    }
+
+    @Provides
+    fun providePendingLocalDao(database: LettaDatabase): PendingLocalDao {
+        return database.pendingLocalDao()
     }
 }
