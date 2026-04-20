@@ -132,6 +132,8 @@ fun ChatScreen(
                                     viewModel.submitApproval(requestId, toolCallIds, approve, reason)
                                 },
                                 onInputTextChange = { viewModel.updateInputText(it) },
+                                onToggleRunCollapsed = viewModel::toggleRunCollapsed,
+                                onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -195,6 +197,8 @@ private fun ChatContent(
     onLoadOlderMessages: () -> Unit,
     onSubmitApproval: (String, List<String>, Boolean, String?) -> Unit,
     onInputTextChange: (String) -> Unit,
+    onToggleRunCollapsed: (String) -> Unit,
+    onToggleReasoningExpanded: (String) -> Unit,
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -319,11 +323,14 @@ private fun ChatContent(
                 val seen = HashSet<String>(groupedMessages.size)
                 groupedMessages.filter { (msg, _) -> seen.add(msg.id) }.asReversed()
             }
+            val renderItems = remember(reversed) {
+                groupMessagesForRender(reversed)
+            }
 
             // Scroll to a specific message when navigating from search results
-            LaunchedEffect(scrollToMessageId, reversed.size) {
-                if (scrollToMessageId == null || hasScrolledToTarget || reversed.isEmpty()) return@LaunchedEffect
-                val targetIdx = reversed.indexOfFirst { (msg, _) -> msg.id == scrollToMessageId }
+            LaunchedEffect(scrollToMessageId, renderItems.size) {
+                if (scrollToMessageId == null || hasScrolledToTarget || renderItems.isEmpty()) return@LaunchedEffect
+                val targetIdx = renderItems.indexOfFirst { it.containsMessageId(scrollToMessageId) }
                 if (targetIdx >= 0) {
                     // Calculate the actual LazyColumn item index accounting for
                     // the typing indicator and date separators before the target
@@ -331,8 +338,8 @@ private fun ChatContent(
                     for (j in 0 until targetIdx) {
                         lazyIndex++ // message item
                         // check if a date separator was emitted after this item
-                        val prevDate = reversed.getOrNull(j + 1)?.first?.timestamp?.take(10)
-                        val curDate = reversed[j].first.timestamp.take(10)
+                        val prevDate = renderItems.getOrNull(j + 1)?.boundaryTimestamp?.take(10)
+                        val curDate = renderItems[j].boundaryTimestamp.take(10)
                         if (prevDate != null && prevDate != curDate) lazyIndex++
                     }
                     listState.scrollToItem(lazyIndex)
@@ -403,46 +410,55 @@ private fun ChatContent(
                         }
                     }
 
-                    reversed.forEachIndexed { index, (message, position) ->
-                        val prevDate = reversed.getOrNull(index + 1)?.first?.timestamp?.take(10)
-                        val currentDate = message.timestamp.take(10)
+                    renderItems.forEachIndexed { index, renderItem ->
+                        val prevDate = renderItems.getOrNull(index + 1)?.boundaryTimestamp?.take(10)
+                        val currentDate = renderItem.boundaryTimestamp.take(10)
                         val showDate = prevDate != null && prevDate != currentDate
 
-                        item(key = "msg-${message.id}") {
-                            // reverseLayout = true: top = space below (toward newer),
-                            // bottom = space above (toward older)
-                            val spacingBelow = when {
-                                position == GroupPosition.Middle || position == GroupPosition.Last -> 2.dp
-                                else -> 6.dp
-                            }
-                            val spacingAbove = if (message.isReasoning) 12.dp else 0.dp
-                            val isHighlighted = message.id == highlightedMessageId
-                            val highlightModifier = if (isHighlighted) {
-                                Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                                        RoundedCornerShape(12.dp),
+                        item(key = renderItem.key) {
+                            when (renderItem) {
+                                is ChatRenderItem.Single -> {
+                                    RenderChatMessage(
+                                        message = renderItem.message,
+                                        position = renderItem.groupPosition,
+                                        state = state,
+                                        chatMode = chatMode,
+                                        highlightedMessageId = highlightedMessageId,
+                                        onSendMessage = onSendMessage,
+                                        onSubmitApproval = onSubmitApproval,
                                     )
-                            } else {
-                                Modifier
-                            }
-                            if (chatMode == "debug") {
-                                DebugMessageCard(
-                                    message = message,
-                                    modifier = highlightModifier.padding(top = spacingBelow, bottom = spacingAbove),
-                                )
-                            } else {
-                                ChatMessageItem(
-                                    message = message,
-                                    groupPosition = position,
-                                    isStreaming = state.isStreaming,
-                                    onGeneratedUiMessage = onSendMessage,
-                                    onApprovalDecision = { requestId, toolCallIds, approve, reason ->
-                                        onSubmitApproval(requestId, toolCallIds, approve, reason)
-                                    },
-                                    approvalInFlight = state.activeApprovalRequestId == message.approvalRequest?.requestId,
-                                    modifier = highlightModifier.padding(top = spacingBelow, bottom = spacingAbove),
-                                )
+                                }
+
+                                is ChatRenderItem.RunBlock -> {
+                                    val isHighlighted = renderItem.containsMessageId(highlightedMessageId.orEmpty())
+                                    val highlightModifier = if (isHighlighted) {
+                                        Modifier.background(
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                            RoundedCornerShape(12.dp),
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                    RunBlock(
+                                        messages = renderItem.messages.map { it.first },
+                                        collapsed = renderItem.runId in state.collapsedRunIds,
+                                        onToggleCollapsed = { onToggleRunCollapsed(renderItem.runId) },
+                                        modifier = highlightModifier.padding(top = 6.dp, bottom = 0.dp),
+                                    ) { message, position, rowModifier ->
+                                        RenderChatMessage(
+                                            message = message,
+                                            position = position,
+                                            state = state,
+                                            chatMode = chatMode,
+                                            highlightedMessageId = highlightedMessageId,
+                                            onSendMessage = onSendMessage,
+                                            onSubmitApproval = onSubmitApproval,
+                                            reasoningCollapsed = message.id !in state.expandedReasoningMessageIds,
+                                            onToggleReasoning = { onToggleReasoningExpanded(message.id) },
+                                            modifier = rowModifier,
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -450,7 +466,7 @@ private fun ChatContent(
                             // Tie the separator key to the boundary message id so
                             // the same date can legitimately appear multiple times
                             // (e.g. after older-page merges) without colliding.
-                            item(key = "date-${message.id}") {
+                            item(key = "date-${renderItem.key}") {
                                 val date = try {
                                     LocalDate.parse(currentDate)
                                 } catch (_: Exception) {
@@ -503,6 +519,57 @@ private fun ChatContent(
             }
         }
 
+    }
+}
+
+@Composable
+private fun RenderChatMessage(
+    message: UiMessage,
+    position: GroupPosition,
+    state: ChatUiState,
+    chatMode: String,
+    highlightedMessageId: String?,
+    onSendMessage: (String) -> Unit,
+    onSubmitApproval: (String, List<String>, Boolean, String?) -> Unit,
+    reasoningCollapsed: Boolean = false,
+    onToggleReasoning: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    // reverseLayout = true: top = space below (toward newer),
+    // bottom = space above (toward older)
+    val spacingBelow = when {
+        position == GroupPosition.Middle || position == GroupPosition.Last -> 2.dp
+        else -> 6.dp
+    }
+    val spacingAbove = if (message.isReasoning) 12.dp else 0.dp
+    val isHighlighted = message.id == highlightedMessageId
+    val highlightModifier = if (isHighlighted) {
+        Modifier.background(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+            RoundedCornerShape(12.dp),
+        )
+    } else {
+        Modifier
+    }
+    if (chatMode == "debug") {
+        DebugMessageCard(
+            message = message,
+            modifier = modifier.then(highlightModifier).padding(top = spacingBelow, bottom = spacingAbove),
+        )
+    } else {
+        ChatMessageItem(
+            message = message,
+            groupPosition = position,
+            isStreaming = state.isStreaming,
+            reasoningCollapsed = reasoningCollapsed,
+            onToggleReasoning = onToggleReasoning,
+            onGeneratedUiMessage = onSendMessage,
+            onApprovalDecision = { requestId, toolCallIds, approve, reason ->
+                onSubmitApproval(requestId, toolCallIds, approve, reason)
+            },
+            approvalInFlight = state.activeApprovalRequestId == message.approvalRequest?.requestId,
+            modifier = modifier.then(highlightModifier).padding(top = spacingBelow, bottom = spacingAbove),
+        )
     }
 }
 

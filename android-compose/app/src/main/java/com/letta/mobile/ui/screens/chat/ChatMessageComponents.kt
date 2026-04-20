@@ -21,6 +21,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,8 +61,8 @@ import com.letta.mobile.data.model.UiToolApprovalDecision
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import com.letta.mobile.ui.components.MessageBubbleShape
+import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.components.TextInputDialog
-import com.letta.mobile.ui.components.ThinkingSection
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LocalChatFontScale
@@ -73,6 +76,8 @@ import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.ui.theme.scaledBy
 import com.letta.mobile.ui.theme.sectionTitle
 import kotlinx.collections.immutable.toImmutableList
+
+private const val REASONING_PREVIEW_MAX_LENGTH = 96
 
 private fun UiMessage.displayRoleLabel(defaultLabel: String): String {
     val toolCall = toolCalls?.singleOrNull()
@@ -96,6 +101,8 @@ internal fun ChatMessageItem(
     message: UiMessage,
     groupPosition: GroupPosition,
     isStreaming: Boolean,
+    reasoningCollapsed: Boolean = true,
+    onToggleReasoning: (() -> Unit)? = null,
     onGeneratedUiMessage: ((String) -> Unit)? = null,
     onApprovalDecision: ((String, List<String>, Boolean, String?) -> Unit)? = null,
     approvalInFlight: Boolean = false,
@@ -130,6 +137,8 @@ internal fun ChatMessageItem(
             MessageReasoning(
                 message = message,
                 isStreaming = isStreaming,
+                collapsed = reasoningCollapsed,
+                onToggleCollapsed = onToggleReasoning,
             )
         }
         return
@@ -512,13 +521,95 @@ internal fun MessageAvatar(
 internal fun MessageReasoning(
     message: UiMessage,
     isStreaming: Boolean,
+    collapsed: Boolean,
+    onToggleCollapsed: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    ThinkingSection(
-        thinkingText = message.content,
-        inProgress = isStreaming,
-        modifier = modifier,
-    )
+    val previewText = remember(message.content) { message.content.reasoningPreview() }
+    val isCollapsed = collapsed && !isStreaming
+    val clickLabel = if (isCollapsed) "Expand reasoning" else "Collapse reasoning"
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .padding(vertical = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    enabled = onToggleCollapsed != null,
+                    onClickLabel = clickLabel,
+                ) { onToggleCollapsed?.invoke() }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = if (isStreaming) "Thinking…" else "Reasoning",
+                style = MaterialTheme.typography.sectionTitle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = if (isCollapsed) previewText else "Shown",
+                style = MaterialTheme.typography.listItemSupporting,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = LettaIcons.ExpandMore,
+                contentDescription = clickLabel,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (onToggleCollapsed != null) 0.8f else 0.4f),
+                modifier = Modifier
+                    .size(LettaIconSizing.Inline)
+                    .rotate(if (isCollapsed) 0f else 180f),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = !isCollapsed,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 4 }) + expandVertically(),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 4 }) + shrinkVertically(),
+        ) {
+            val lineColor = MaterialTheme.colorScheme.outlineVariant
+            Column(
+                modifier = Modifier
+                    .padding(top = 6.dp, start = 8.dp, bottom = 4.dp)
+                    .drawBehind {
+                        drawLine(
+                            color = lineColor,
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(0f, size.height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                    }
+                    .padding(start = 12.dp),
+            ) {
+                MarkdownText(
+                    text = message.content,
+                    textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private fun String.reasoningPreview(): String {
+    val normalized = lineSequence()
+        .map { it.trim() }
+        .firstOrNull { it.isNotEmpty() }
+        .orEmpty()
+        .replace(Regex("\\s+"), " ")
+
+    if (normalized.isEmpty()) return "No reasoning recorded"
+    return if (normalized.length <= REASONING_PREVIEW_MAX_LENGTH) {
+        normalized
+    } else {
+        normalized.take(REASONING_PREVIEW_MAX_LENGTH).trimEnd() + "…"
+    }
 }
 
 @Composable

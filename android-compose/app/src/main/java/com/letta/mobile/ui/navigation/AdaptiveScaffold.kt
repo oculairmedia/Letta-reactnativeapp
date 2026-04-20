@@ -175,16 +175,22 @@ private fun LettaBottomBar(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
     ) {
+        // Each item claims an equal 1/3 of the bar width via Modifier.weight(1f)
+        // so the entire column under the Admin/Chat/Home label is a valid tap
+        // target — not just the ~190dp centered around the icon. Arrangement
+        // previously used SpaceEvenly which made items as narrow as their
+        // content, leaving ~225dp dead zones at each horizontal gap (and in
+        // particular past the Admin label, on the right edge of the screen).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .height(56.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TopLevelDestination.entries.forEach { destination ->
                 LettaBottomBarItem(
+                    modifier = Modifier.weight(1f),
                     icon = destination.icon,
                     label = destination.label,
                     selected = destination.isSelected(currentDestination),
@@ -216,6 +222,8 @@ private fun LettaBottomBarItem(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    // clickable() wraps the full-width column so the whole 1/3 strip is a hit
+    // target; the inner padding only controls where the icon+label *draw*.
     Column(
         modifier = modifier
             .fillMaxHeight()
