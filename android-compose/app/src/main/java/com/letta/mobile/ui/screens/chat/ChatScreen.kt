@@ -418,14 +418,24 @@ private fun ChatContent(
                         item(key = renderItem.key) {
                             when (renderItem) {
                                 is ChatRenderItem.Single -> {
+                                    // letta-mobile-m772.4 follow-up: reasoning bubbles that
+                                    // land as Single (because their run had only one message,
+                                    // or because the message predates runId tracking) still
+                                    // need the collapse affordance — otherwise the body is
+                                    // always shown with no toggle. Thread the same callbacks
+                                    // RunBlock uses so behaviour is consistent across modes
+                                    // and group sizes.
+                                    val msg = renderItem.message
                                     RenderChatMessage(
-                                        message = renderItem.message,
+                                        message = msg,
                                         position = renderItem.groupPosition,
                                         state = state,
                                         chatMode = chatMode,
                                         highlightedMessageId = highlightedMessageId,
                                         onSendMessage = onSendMessage,
                                         onSubmitApproval = onSubmitApproval,
+                                        reasoningCollapsed = msg.id !in state.expandedReasoningMessageIds,
+                                        onToggleReasoning = { onToggleReasoningExpanded(msg.id) },
                                     )
                                 }
 
