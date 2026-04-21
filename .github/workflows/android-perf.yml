@@ -73,8 +73,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           working-directory: android-compose
           script: |
-            ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class="$PERF_BENCHMARK_FILTER"
+            ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$PERF_BENCHMARK_FILTER"
 
       - name: Check perf baselines
         run: |
