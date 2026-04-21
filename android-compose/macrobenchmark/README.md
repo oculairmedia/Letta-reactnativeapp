@@ -23,8 +23,7 @@ with the dev build on the same device.
 
 ## Running benchmarks
 
-Connect a physical device (emulators are supported but numbers are
-noisy) and run:
+Connect a device and run:
 
 ```bash
 # All benchmarks
@@ -43,7 +42,7 @@ com.letta.mobile.macrobenchmark.ScrollJankBenchmark
 
 Results land under
 `macrobenchmark/build/outputs/connected_android_test_additional_output/`
-as CSV + JSON alongside perfetto traces.
+as JSON + traces alongside the Gradle HTML reports.
 
 ## Current benchmarks
 
@@ -61,7 +60,8 @@ Reports p50/p90/p95/p99 per-frame render times plus jank counts.
 ## CI gate
 
 Thresholds live in `perf/baselines.json` at the repo root. The CI job
-parses the CSV output and fails the build if any measured metric
-exceeds `baseline + tolerance`. Re-baselining is an explicit commit.
+parses the `*-benchmarkData.json` output and fails the build if any
+measured metric exceeds `baseline + tolerance`. The canonical CI device
+is the API 33 `pixel_6` emulator. Re-baselining is an explicit commit.
 
 See `letta-mobile-o7ob.4.1` for the CI pipeline wiring.
