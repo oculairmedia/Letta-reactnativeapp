@@ -14,7 +14,7 @@ where androidx.benchmark 1.3.x writes `*-benchmarkData.json` files.
 Exit codes:
     0 — all measured metrics within tolerance
     1 — at least one metric regressed
-    2 — malformed input (missing files, unparseable JSON)
+    2 — malformed input or unseeded baselines in verify mode
 
 See letta-mobile-o7ob.4.1.
 """
@@ -31,12 +31,19 @@ HERE = pathlib.Path(__file__).resolve().parent
 BASELINES_PATH = HERE / "baselines.json"
 
 
-def _load_baselines() -> dict:
-    return json.loads(BASELINES_PATH.read_text())
+def _load_baselines(baselines_path: pathlib.Path) -> dict:
+    return json.loads(baselines_path.read_text())
 
 
-def _save_baselines(data: dict) -> None:
-    BASELINES_PATH.write_text(json.dumps(data, indent=2) + "\n")
+def _save_baselines(data: dict, baselines_path: pathlib.Path) -> None:
+    baselines_path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def _ceiling(baseline: float, tolerance_pct: float, tolerance_abs: float | None) -> float:
+    ceiling = baseline * (1.0 + tolerance_pct / 100.0)
+    if tolerance_abs is not None:
+        ceiling = max(ceiling, baseline + tolerance_abs)
+    return ceiling
 
 
 def _iter_measurements(outputs_dir: pathlib.Path) -> Iterable[dict]:
@@ -84,10 +91,15 @@ def _match_bench(bench: dict, source: str) -> bool:
     return fqn == source
 
 
-def check(outputs_dir: pathlib.Path, rebaseline: bool) -> int:
-    baselines = _load_baselines()
+def check(
+    outputs_dir: pathlib.Path,
+    rebaseline: bool,
+    baselines_path: pathlib.Path = BASELINES_PATH,
+) -> int:
+    baselines = _load_baselines(baselines_path)
     measurements = list(_iter_measurements(outputs_dir))
     failures: list[str] = []
+    unseeded: list[str] = []
     updates = 0
 
     for key, spec in baselines["metrics"].items():
@@ -110,29 +122,41 @@ def check(outputs_dir: pathlib.Path, rebaseline: bool) -> int:
         observed = max(values)
         baseline = spec.get("baseline")
         tolerance_pct = float(spec.get("tolerance_pct", 10))
+        tolerance_abs = spec.get("tolerance_abs")
+        if tolerance_abs is not None:
+            tolerance_abs = float(tolerance_abs)
 
-        if rebaseline or baseline is None:
+        if rebaseline:
             spec["baseline"] = round(observed, 3)
             updates += 1
             print(f"[seed] {key}: baseline := {spec['baseline']}")
             continue
 
-        ceiling = baseline * (1.0 + tolerance_pct / 100.0)
+        if baseline is None:
+            print(f"[unseeded] {key}: baseline is null, run with --rebaseline on the canonical CI device")
+            unseeded.append(key)
+            continue
+
+        baseline = float(baseline)
+        ceiling = _ceiling(baseline, tolerance_pct, tolerance_abs)
         status = "ok" if observed <= ceiling else "REGRESSION"
+        tolerance_label = f"+{tolerance_pct:.0f}%"
+        if tolerance_abs is not None:
+            tolerance_label += f", +{tolerance_abs:.3f} abs"
         print(
             f"[{status}] {key}: observed={observed:.3f} "
             f"baseline={baseline:.3f} ceiling={ceiling:.3f} "
-            f"(+{tolerance_pct:.0f}%)"
+            f"({tolerance_label})"
         )
         if observed > ceiling:
             failures.append(
                 f"{key}: {observed:.3f} > {ceiling:.3f} "
-                f"(baseline {baseline:.3f} + {tolerance_pct:.0f}%)"
+                f"(baseline {baseline:.3f}; {tolerance_label})"
             )
 
     if rebaseline and updates:
-        _save_baselines(baselines)
-        print(f"[check_baselines] wrote {updates} updates to {BASELINES_PATH}")
+        _save_baselines(baselines, baselines_path)
+        print(f"[check_baselines] wrote {updates} updates to {baselines_path}")
         return 0
 
     if failures:
@@ -141,12 +165,25 @@ def check(outputs_dir: pathlib.Path, rebaseline: bool) -> int:
             print(f"  - {line}", file=sys.stderr)
         return 1
 
+    if unseeded:
+        print("\nUnseeded perf baselines detected:", file=sys.stderr)
+        for key in unseeded:
+            print(f"  - {key}", file=sys.stderr)
+        return 2
+
     return 0
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    description = __doc__.splitlines()[0] if __doc__ else "Check benchmark perf baselines."
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("outputs_dir", type=pathlib.Path)
+    parser.add_argument(
+        "--baselines",
+        type=pathlib.Path,
+        default=BASELINES_PATH,
+        help="Path to the baselines.json file to read/write.",
+    )
     parser.add_argument(
         "--rebaseline",
         action="store_true",
@@ -154,11 +191,17 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
+    baselines_path = args.baselines.resolve()
+
     if not args.outputs_dir.is_dir():
         print(f"Not a directory: {args.outputs_dir}", file=sys.stderr)
         return 2
 
-    return check(args.outputs_dir, args.rebaseline)
+    try:
+        return check(args.outputs_dir, args.rebaseline, baselines_path=baselines_path)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

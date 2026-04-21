@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://letta-mobile.local/perf/baselines.schema.json",
+  "title": "Letta Mobile perf baselines",
+  "type": "object",
+  "required": ["metrics"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "comment": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "benchmark_environment": {
+      "type": "object",
+      "required": ["canonical_device", "api_level", "target", "profile"],
+      "properties": {
+        "canonical_device": { "type": "string" },
+        "api_level": { "type": "integer", "minimum": 1 },
+        "target": { "type": "string" },
+        "profile": { "type": "string" },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["baseline", "tolerance_pct", "source", "metric"],
+        "properties": {
+          "baseline": {
+            "type": ["number", "null"]
+          },
+          "tolerance_pct": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tolerance_abs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aggregation": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
