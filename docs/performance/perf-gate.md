@@ -108,6 +108,21 @@ After landing:
 This repo-level setting needs admin access and is intentionally documented
 here rather than hard-coded in the repo.
 
+## Known quirks
+
+- **Shell line continuations in workflow `script:` blocks** can be passed
+  through literally and break Gradle invocation. Keep the benchmark command
+  simple and shell-safe.
+- **YAML folded scalars (`>-`) introduce spaces** when you later split or join
+  multi-line values. The benchmark class filter is stored as a literal block
+  (`|`) and collapsed in shell to avoid leading whitespace in class names.
+- **AndroidX Benchmark rejects emulator measurements by default.** CI passes
+  `androidx.benchmark.suppressErrors=EMULATOR` only in the workflow so local
+  physical-device runs keep the default safety behavior.
+- **Pushes during an in-flight perf run cancel it** because the workflow uses
+  `concurrency.cancel-in-progress: true`. Time docs-only pushes accordingly,
+  especially during the first seed run.
+
 ## Investigating flakes
 
 If the job fails unexpectedly:

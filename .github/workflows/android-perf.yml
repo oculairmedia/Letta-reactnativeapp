@@ -30,10 +30,10 @@ jobs:
       run:
         working-directory: android-compose
     env:
-      PERF_BENCHMARK_FILTER: >-
-        com.letta.mobile.macrobenchmark.StartupBenchmark#coldStartupCompilationPartial,
-        com.letta.mobile.macrobenchmark.StartupBenchmark#warmStartup,
-        com.letta.mobile.macrobenchmark.ScrollJankBenchmark#scrollChatListCompilationPartial,
+      PERF_BENCHMARK_FILTER: |
+        com.letta.mobile.macrobenchmark.StartupBenchmark#coldStartupCompilationPartial
+        com.letta.mobile.macrobenchmark.StartupBenchmark#warmStartup
+        com.letta.mobile.macrobenchmark.ScrollJankBenchmark#scrollChatListCompilationPartial
         com.letta.mobile.macrobenchmark.ComposerTypingBenchmark#typeComposerCompilationPartial
       PERF_OUTPUT_DIR: macrobenchmark/build/outputs/connected_android_test_additional_output
       PERF_REPORT_DIR: macrobenchmark/build/reports/androidTests
@@ -73,7 +73,10 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           working-directory: android-compose
           script: |
-            ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$PERF_BENCHMARK_FILTER"
+            FILTER=$(awk 'NF { printf "%s,", $0 } END { print "" }' <<< "$PERF_BENCHMARK_FILTER" | sed 's/,$//')
+            ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class="$FILTER" \
+              -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.suppressErrors=EMULATOR
 
       - name: Check perf baselines
         run: |
