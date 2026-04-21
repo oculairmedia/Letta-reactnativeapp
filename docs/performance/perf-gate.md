@@ -51,7 +51,12 @@ in the checker.
 Current policy:
 
 - `startup.cold.p95_ms`: `+10%`
-- `startup.warm.p95_ms`: `+10%`
+- `startup.warm.p95_ms`: `+20%`
+
+Warm startup keeps a wider envelope than cold startup because consecutive seed
+and verify runs on the canonical API 33 emulator drifted by `+17.4%`
+(`285.988 ms` -> `335.808 ms`) during gate bring-up. Cold startup stayed within
+its original `+10%` budget, so only warm startup was widened.
 
 ## Re-baselining
 
