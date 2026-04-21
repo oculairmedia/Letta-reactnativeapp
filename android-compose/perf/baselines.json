@@ -23,13 +23,13 @@
   },
   "metrics": {
     "startup.cold.p95_ms": {
-      "baseline": null,
+      "baseline": 1512.749,
       "tolerance_pct": 10,
       "source": "StartupBenchmark.coldStartupCompilationPartial",
       "metric": "timeToInitialDisplayMs"
     },
     "startup.warm.p95_ms": {
-      "baseline": null,
+      "baseline": 285.988,
       "tolerance_pct": 10,
       "source": "StartupBenchmark.warmStartup",
       "metric": "timeToInitialDisplayMs",
