@@ -287,6 +287,7 @@ Reference docs cited above:
 Related artifacts:
 
 - `android-compose/perf/baselines.json` — gate tolerances live here, not in the checker.
+- `docs/performance/score-history.md` — quarterly App Performance Score review log and delta tracker.
 - `docs/observability/sentry-anr-crash-budget-dashboard.json` — committed dashboard source.
 - `docs/observability/sentry-anr-crash-budget-alerts.json` — committed alert rules.
 
