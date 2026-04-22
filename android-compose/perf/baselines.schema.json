@@ -60,6 +60,9 @@
           "notes": {
             "type": "array",
             "items": { "type": "string" }
+          },
+          "gate": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

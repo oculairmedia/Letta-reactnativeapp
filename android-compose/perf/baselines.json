@@ -36,9 +36,11 @@
       "tolerance_pct": 20,
       "source": "StartupBenchmark.warmStartup",
       "metric": "timeToInitialDisplayMs",
+      "gate": false,
       "notes": [
         "Startup-only CI gate v1. FrameTimingMetric benchmarks stay non-gating until the app exposes a deterministic benchmark launch surface on the canonical emulator (letta-mobile-4ccv).",
-        "Warm startup uses a wider +20% envelope because consecutive canonical CI emulator runs measured +17.4% drift (285.988 ms -> 335.808 ms) during bring-up."
+        "Warm startup remains informational-only on the shared GitHub Actions API 33 emulator because repeated verify runs varied too widely to support truthful per-PR blocking.",
+        "Keep collecting warm metrics for visibility, but do not fail PRs on this runner unless the gate moves to a more stable environment."
       ]
     }
   }

@@ -132,23 +132,28 @@ def check(
             print(f"[seed] {key}: baseline := {spec['baseline']}")
             continue
 
+        gate_enabled = bool(spec.get("gate", True))
+
         if baseline is None:
             print(f"[unseeded] {key}: baseline is null, run with --rebaseline on the canonical CI device")
-            unseeded.append(key)
+            if gate_enabled:
+                unseeded.append(key)
             continue
 
         baseline = float(baseline)
         ceiling = _ceiling(baseline, tolerance_pct, tolerance_abs)
-        status = "ok" if observed <= ceiling else "REGRESSION"
+        status = "ok" if observed <= ceiling else ("info" if not gate_enabled else "REGRESSION")
         tolerance_label = f"+{tolerance_pct:.0f}%"
         if tolerance_abs is not None:
             tolerance_label += f", +{tolerance_abs:.3f} abs"
+        if not gate_enabled:
+            tolerance_label += ", non-gating"
         print(
             f"[{status}] {key}: observed={observed:.3f} "
             f"baseline={baseline:.3f} ceiling={ceiling:.3f} "
             f"({tolerance_label})"
         )
-        if observed > ceiling:
+        if gate_enabled and observed > ceiling:
             failures.append(
                 f"{key}: {observed:.3f} > {ceiling:.3f} "
                 f"(baseline {baseline:.3f}; {tolerance_label})"

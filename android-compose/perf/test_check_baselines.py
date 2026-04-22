@@ -168,6 +168,34 @@ class CheckBaselinesTest(unittest.TestCase):
 
         self.assertEqual(result, 2)
 
+    def test_non_gating_metric_does_not_fail_verify(self) -> None:
+        self.write_baselines(
+            {
+                "startup.warm.p95_ms": {
+                    "baseline": 200.0,
+                    "tolerance_pct": 10,
+                    "source": "StartupBenchmark.warmStartup",
+                    "metric": "timeToInitialDisplayMs",
+                    "gate": False,
+                }
+            }
+        )
+        self.write_measurement(
+            make_benchmark(
+                "com.letta.mobile.macrobenchmark.StartupBenchmark",
+                "warmStartup",
+                {"timeToInitialDisplayMs": {"P95": 400.0}},
+            )
+        )
+
+        result = check_baselines.check(
+            self.outputs_dir,
+            rebaseline=False,
+            baselines_path=self.baselines_path,
+        )
+
+        self.assertEqual(result, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

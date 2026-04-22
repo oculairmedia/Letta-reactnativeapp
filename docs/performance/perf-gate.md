@@ -31,6 +31,11 @@ The CI workflow runs the benchmark methods that back `perf/baselines.json`:
 - `StartupBenchmark#coldStartupCompilationPartial`
 - `StartupBenchmark#warmStartup`
 
+Only **cold startup is gating** on the shared GitHub Actions API 33 emulator.
+Warm startup is still collected and reported, but it is informational-only on
+this runner because repeated healthy benchmark runs showed wide warm variance
+that would make a blocking PR gate flaky rather than protective.
+
 The repo still contains `ScrollJankBenchmark` and `ComposerTypingBenchmark`,
 but they are **not gating in CI yet**. On a fresh API 33 emulator the app
 currently launches into a nondeterministic empty-state surface, which means the
@@ -51,7 +56,7 @@ in the checker.
 Current policy:
 
 - `startup.cold.p95_ms`: `+15%`
-- `startup.warm.p95_ms`: `+20%`
+- `startup.warm.p95_ms`: informational only (`gate: false`)
 
 Warm startup keeps a wider envelope than cold startup because consecutive seed
 and verify runs on the canonical API 33 emulator drifted by `+17.4%`
@@ -59,6 +64,11 @@ and verify runs on the canonical API 33 emulator drifted by `+17.4%`
 modest bump after the first PR-triggered verify run on the updated branch
 measured `1713.342 ms` against a `1512.749 ms` seed (`+13.3%`), so the cold
 envelope is now `+15%`.
+
+Warm startup is non-gating because later PR runs on the same healthy emulator
+showed one-sided warm spikes (for example `434.843 ms` against a `285.988 ms`
+seed) while cold startup simultaneously improved, which is a strong signal of
+shared-runner noise rather than a trustworthy per-PR regression detector.
 
 ## Re-baselining
 
