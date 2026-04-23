@@ -689,12 +689,10 @@ class TimelineSyncLoop(
                     throw t
                 }
                 lastError = t
-                Telemetry.event(
-                    "TimelineSync", "reconcile.retry",
+                Telemetry.error(
+                    "TimelineSync", "reconcile.retry", t,
                     "otid" to otid,
                     "attempt" to attempt + 1,
-                    "errorClass" to (t::class.simpleName ?: "Unknown"),
-                    "errorMessage" to (t.message ?: ""),
                 )
                 delay(RECONCILE_RETRY_BACKOFF_MS shl attempt)
             }
@@ -765,11 +763,28 @@ class TimelineSyncLoop(
         // proved too conservative — messages never arrived when the chat
         // screen was not foregrounded.
         var backoffMs = STREAM_BACKOFF_START_MS
+        var runOpenedAtMs = 0L
+        var runEventsCount = 0
         while (currentCoroutineContext().isActive) {
             try {
                 val channel = messageApi.streamConversation(conversationId)
+                runOpenedAtMs = System.currentTimeMillis()
+                runEventsCount = 0
                 _events.emit(TimelineSyncEvent.StreamSubscriberOpened)
+                // letta-mobile-mge5.6: per-phase telemetry for observability.
+                Telemetry.event(
+                    "TimelineSync", "streamSubscriber.opened",
+                    "conversationId" to conversationId,
+                )
                 SseParser.parse(channel).collect { message ->
+                    // letta-mobile-mge5.6: raw-event counter for rate metrics.
+                    runEventsCount++
+                    Telemetry.event(
+                        "TimelineSync", "streamSubscriber.eventReceived",
+                        "conversationId" to conversationId,
+                        "messageType" to (message.messageType ?: "?"),
+                        "runId" to (message.runId ?: "<null>"),
+                    )
                     // Detect a new run_id: this is a run we didn't start
                     // ourselves (the locally-initiated send path tracks its
                     // own otids). BLOCK on the reconcile for the first frame
@@ -812,34 +827,68 @@ class TimelineSyncLoop(
                 }
                 // Stream closed cleanly: run finished. Reset backoff.
                 _events.emit(TimelineSyncEvent.StreamSubscriberClosed)
+                // letta-mobile-mge5.6: closed-event tracking — run duration
+                // and event-count let Grafana compute delivery rates and
+                // detect runs that close with zero events (mechanism broken).
+                Telemetry.event(
+                    "TimelineSync", "streamSubscriber.closed",
+                    "conversationId" to conversationId,
+                    "durationMs" to (System.currentTimeMillis() - runOpenedAtMs),
+                    "eventsReceived" to runEventsCount,
+                )
                 backoffMs = STREAM_BACKOFF_START_MS
             } catch (e: CancellationException) {
                 throw e
             } catch (_: NoActiveRunException) {
                 // No active run: back off exponentially. This is the expected
-                // idle path, not an error — don't noise up telemetry.
+                // idle path. Counted at INFO so Grafana can compute the
+                // activity-density ratio (eventReceived / idle404).
+                Telemetry.event(
+                    "TimelineSync", "streamSubscriber.idle404",
+                    "conversationId" to conversationId,
+                    "backoffMs" to backoffMs,
+                )
                 delay(backoffMs)
                 backoffMs = (backoffMs * 2).coerceAtMost(STREAM_BACKOFF_MAX_MS)
             } catch (e: ApiException) {
                 // The Letta server returns 400 INVALID_ARGUMENT with body
                 // `{"detail":"... No active runs found ..."}` as an alternative
-                // form of "no active run". Classify these the same as
-                // NoActiveRunException and back off. Everything else is an
-                // actual error.
+                // form of "no active run". It may ALSO return
+                // `{"detail":"EXPIRED: Run was created more than 3 hours ago,
+                // and is now expired."}` once a previously-active run ages out
+                // without finishing. Both of these are the "idle" state from
+                // the subscriber's point of view — back off and retry; the
+                // next live run (or a subsequent probe) will open a fresh
+                // stream. Everything else is an actual error.
+                // letta-mobile-gqz3: before this fix, EXPIRED was mis-classified
+                // as a generic error and the subscriber wedged at the backoff
+                // cap, repeatedly re-attaching to the dead run forever.
                 val msg = e.message ?: ""
-                if (msg.contains("No active runs", ignoreCase = true)) {
+                val isIdlePattern = msg.contains("No active runs", ignoreCase = true) ||
+                    msg.contains("EXPIRED:", ignoreCase = true) ||
+                    msg.contains("is now expired", ignoreCase = true)
+                if (isIdlePattern) {
+                    Telemetry.event(
+                        "TimelineSync", "streamSubscriber.idle404",
+                        "conversationId" to conversationId,
+                        "backoffMs" to backoffMs,
+                        "via" to "apiException",
+                    )
                     delay(backoffMs)
                     backoffMs = (backoffMs * 2).coerceAtMost(STREAM_BACKOFF_MAX_MS)
                 } else {
+                    // letta-mobile-mge5.6: distinguish transient network /
+                    // server errors from the idle path. Grafana alerts on
+                    // sustained networkError rate, not on idle404.
                     Telemetry.error(
-                        "TimelineSync", "streamSubscriber.error", e,
+                        "TimelineSync", "streamSubscriber.networkError", e,
                         "conversationId" to conversationId,
                     )
                     delay(STREAM_BACKOFF_MAX_MS)
                 }
             } catch (t: Throwable) {
                 Telemetry.error(
-                    "TimelineSync", "streamSubscriber.error", t,
+                    "TimelineSync", "streamSubscriber.networkError", t,
                     "conversationId" to conversationId,
                 )
                 delay(STREAM_BACKOFF_MAX_MS)
@@ -864,7 +913,17 @@ class TimelineSyncLoop(
             val match = _state.value.events.firstOrNull {
                 it is TimelineEvent.Confirmed && it.approvalRequestId == reqId
             } as? TimelineEvent.Confirmed ?: return@withLock
-            if (match.approvalDecided) return@withLock
+            if (match.approvalDecided) {
+                // letta-mobile-mge5.6: observed a redundant approval
+                // response — already decided. Counted as a dedupe drop.
+                Telemetry.event(
+                    "TimelineSync", "streamSubscriber.eventDeduped",
+                    "reason" to "approvalAlreadyDecided",
+                    "approvalRequestId" to reqId,
+                    "conversationId" to conversationId,
+                )
+                return@withLock
+            }
             val updated = match.copy(approvalDecided = true)
             _state.value = _state.value.replaceByServerId(updated)
             _events.emit(TimelineSyncEvent.StreamEventIngested(match.serverId, message.messageType))
@@ -982,7 +1041,17 @@ class TimelineSyncLoop(
             return@withLock
         }
         // otid-based dedupe: catches our own echoes before reconcile runs.
-        if (_state.value.findByOtid(confirmed.otid) != null) return@withLock
+        if (_state.value.findByOtid(confirmed.otid) != null) {
+            // letta-mobile-mge5.6: track the dedupe drop so Grafana can show
+            // how many redundant frames the subscriber is absorbing.
+            Telemetry.event(
+                "TimelineSync", "streamSubscriber.eventDeduped",
+                "reason" to "otidSeen",
+                "otid" to (confirmed.otid ?: "<null>"),
+                "conversationId" to conversationId,
+            )
+            return@withLock
+        }
         _state.value = _state.value.append(confirmed)
         _state.value = _state.value.copy(liveCursor = confirmed.serverId)
         _events.emit(TimelineSyncEvent.StreamEventIngested(confirmed.serverId, message.messageType))

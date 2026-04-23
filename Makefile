@@ -23,7 +23,7 @@ STREAM_TIMEOUT  ?= 60
 CLI             := cli/letta-cli
 
 # --- Meta ---
-.PHONY: help verify-sync verify-stream verify-all check-cli check-device
+.PHONY: help verify-sync verify-stream verify-all check-cli check-device lint-telemetry
 
 help:
 	@echo "letta-mobile make targets"
@@ -33,13 +33,19 @@ help:
 	@echo "                 Optional:  ITERATIONS=$(ITERATIONS) INTERVAL=$(INTERVAL) LETTA_URL=$(LETTA_URL)"
 	@echo ""
 	@echo "  verify-stream  Smoke-test the resume-stream endpoint. Asserts at least one event arrives"
-	@echo "                 within STREAM_TIMEOUT=$(STREAM_TIMEOUT) seconds for CONV. Does not require"
+	@echo "                 within STREAM_TIMEOUT=$(STREAM_TIMEOUT)s seconds for CONV. Does not require"
 	@echo "                 a device; independently validates server-side realtime delivery."
 	@echo "                 Required:  CONV=<id>"
+	@echo ""
+	@echo "  lint-telemetry  Fail on known Telemetry convention drift (ERROR-shape events,"
+	@echo "                  hand-rolled errorClass/errorMessage, undocumented literal tags)."
 	@echo ""
 	@echo "  verify-all     Run verify-sync + verify-stream in sequence. Release-gate entry point."
 	@echo ""
 	@echo "  help           Show this message."
+
+lint-telemetry:
+	@python3 scripts/lint_telemetry.py
 
 # --- Preconditions ---
 
@@ -115,6 +121,6 @@ verify-stream: check-cli
 
 # --- verify-all ---
 
-verify-all: verify-sync verify-stream
+verify-all: lint-telemetry verify-sync verify-stream
 	@echo ""
 	@echo "=== verify-all PASS ==="
