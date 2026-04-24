@@ -9,6 +9,7 @@ import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.common.UiState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -38,6 +39,8 @@ class AgentSettingsViewModelTest {
     private lateinit var agentRepository: AgentRepository
     private lateinit var blockRepository: BlockRepository
     private lateinit var messageRepository: MessageRepository
+    private lateinit var settingsRepository: SettingsRepository
+    private lateinit var clientModeConnectionTester: ClientModeConnectionTester
     private lateinit var viewModel: AgentSettingsViewModel
 
     @Before
@@ -46,6 +49,12 @@ class AgentSettingsViewModelTest {
         agentRepository = mockk(relaxed = true)
         blockRepository = mockk(relaxed = true)
         messageRepository = mockk(relaxed = true)
+        settingsRepository = mockk(relaxed = true)
+        clientModeConnectionTester = mockk(relaxed = true)
+
+        every { settingsRepository.observeClientModeEnabled() } returns flowOf(false)
+        every { settingsRepository.observeClientModeBaseUrl() } returns flowOf("")
+        every { settingsRepository.getClientModeApiKey() } returns null
 
         every { agentRepository.getAgent("a1") } returns flowOf(
             Agent(
@@ -77,6 +86,8 @@ class AgentSettingsViewModelTest {
             agentRepository = agentRepository,
             blockRepository = blockRepository,
             messageRepository = messageRepository,
+            settingsRepository = settingsRepository,
+            clientModeConnectionTester = clientModeConnectionTester,
         )
     }
 
@@ -178,6 +189,59 @@ class AgentSettingsViewModelTest {
                 stripMessages = true,
             )
         }
+    }
+
+    @Test
+    fun `saveSettings persists client mode values through settings repository`() = runTest {
+        val paramsSlot = slot<AgentUpdateParams>()
+        coEvery { agentRepository.updateAgent(eq("a1"), capture(paramsSlot)) } answers {
+            Agent(
+                id = "a1",
+                name = "Test Agent",
+                modelSettings = paramsSlot.captured.modelSettings,
+                system = paramsSlot.captured.system,
+                enableSleeptime = paramsSlot.captured.enableSleeptime,
+            )
+        }
+
+        viewModel.updateClientModeEnabled(true)
+        viewModel.updateClientModeBaseUrl("http://192.168.50.90:8407")
+        viewModel.updateClientModeApiKey("secret-key")
+        viewModel.saveSettings()
+
+        coVerify(exactly = 1) { settingsRepository.setClientModeEnabled(true) }
+        coVerify(exactly = 1) { settingsRepository.setClientModeBaseUrl("http://192.168.50.90:8407") }
+        coVerify(exactly = 1) { settingsRepository.setClientModeApiKey("secret-key") }
+    }
+
+    @Test
+    fun `testClientModeConnection emits success state`() = runTest {
+        coEvery {
+            clientModeConnectionTester.test(
+                baseUrl = "http://192.168.50.90:8407",
+                apiKey = "secret-key",
+            )
+        } returns Result.success(Unit)
+
+        viewModel.updateClientModeEnabled(true)
+        viewModel.updateClientModeBaseUrl("http://192.168.50.90:8407")
+        viewModel.updateClientModeApiKey("secret-key")
+
+        viewModel.testClientModeConnection()
+
+        val state = awaitSuccessState()
+        assertTrue(state.clientModeConnectionState is ClientModeConnectionState.Success)
+    }
+
+    @Test
+    fun `testClientModeConnection surfaces missing url immediately`() = runTest {
+        viewModel.updateClientModeEnabled(true)
+        viewModel.updateClientModeBaseUrl("")
+
+        viewModel.testClientModeConnection()
+
+        val state = awaitSuccessState()
+        assertTrue(state.clientModeConnectionState is ClientModeConnectionState.Failure)
     }
 
     private suspend fun awaitSuccessState(): AgentSettingsUiState {
