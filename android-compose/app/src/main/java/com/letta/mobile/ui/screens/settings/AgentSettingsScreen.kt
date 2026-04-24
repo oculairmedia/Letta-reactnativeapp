@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -21,6 +22,7 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.TagDrillInDialog
 import com.letta.mobile.ui.icons.LettaIcons
@@ -29,6 +31,11 @@ import com.letta.mobile.ui.tags.TagDrillInSource
 import com.letta.mobile.ui.tags.TagDrillInViewModel
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemSupporting
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +65,10 @@ fun AgentSettingsScreen(
             onHumanChange = { viewModel.updateHumanBlock(it) },
             onSleeptimeChange = { viewModel.updateSleeptime(it) },
             onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
+            onClientModeEnabledChange = { viewModel.updateClientModeEnabled(it) },
+            onClientModeBaseUrlChange = { viewModel.updateClientModeBaseUrl(it) },
+            onClientModeApiKeyChange = { viewModel.updateClientModeApiKey(it) },
+            onTestClientModeConnection = { viewModel.testClientModeConnection() },
             onSave = { viewModel.saveSettings { snackbar.dispatch(context.getString(R.string.screen_settings_saved)) } },
             onExport = {
                 viewModel.exportAgent { exportData ->
@@ -110,6 +121,10 @@ private fun SettingsContent(
     onHumanChange: (String) -> Unit,
     onSleeptimeChange: (Boolean) -> Unit,
     onSystemPromptChange: (String) -> Unit,
+    onClientModeEnabledChange: (Boolean) -> Unit,
+    onClientModeBaseUrlChange: (String) -> Unit,
+    onClientModeApiKeyChange: (String) -> Unit,
+    onTestClientModeConnection: () -> Unit,
     onSave: () -> Unit,
     onExport: () -> Unit,
     onClone: (cloneName: String?, overrideExistingTools: Boolean, stripMessages: Boolean) -> Unit,
@@ -162,6 +177,14 @@ private fun SettingsContent(
                 },
             )
         }
+
+        ClientModeSettingsSection(
+            state = state,
+            onClientModeEnabledChange = onClientModeEnabledChange,
+            onClientModeBaseUrlChange = onClientModeBaseUrlChange,
+            onClientModeApiKeyChange = onClientModeApiKeyChange,
+            onTestClientModeConnection = onTestClientModeConnection,
+        )
 
         CardGroup(title = { Text(stringResource(R.string.screen_settings_temperature_value, state.temperature)) }) {
             item(
@@ -395,6 +418,137 @@ private fun SettingsContent(
             },
         )
     }
+}
+
+@Composable
+internal fun ClientModeSettingsSection(
+    state: AgentSettingsUiState,
+    onClientModeEnabledChange: (Boolean) -> Unit,
+    onClientModeBaseUrlChange: (String) -> Unit,
+    onClientModeApiKeyChange: (String) -> Unit,
+    onTestClientModeConnection: () -> Unit,
+) {
+    CardGroup(title = { Text(stringResource(R.string.screen_settings_client_mode_section)) }) {
+        item(
+            headlineContent = {
+                FormItem(
+                    label = { Text(stringResource(R.string.screen_settings_client_mode_enable)) },
+                    description = {
+                        Text(stringResource(R.string.screen_settings_client_mode_enable_description))
+                    },
+                    tail = {
+                        Switch(
+                            checked = state.clientModeEnabled,
+                            onCheckedChange = onClientModeEnabledChange,
+                        )
+                    },
+                )
+            },
+        )
+
+        if (state.clientModeEnabled) {
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.clientModeBaseUrl,
+                        onValueChange = onClientModeBaseUrlChange,
+                        label = { Text(stringResource(R.string.screen_settings_client_mode_server_url)) },
+                        placeholder = {
+                            Text(stringResource(R.string.screen_settings_client_mode_server_url_placeholder))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                },
+            )
+            item(
+                headlineContent = {
+                    OutlinedTextField(
+                        value = state.clientModeApiKey,
+                        onValueChange = onClientModeApiKeyChange,
+                        label = { Text(stringResource(R.string.screen_settings_client_mode_api_key)) },
+                        placeholder = {
+                            Text(stringResource(R.string.screen_settings_client_mode_api_key_placeholder))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = stringResource(R.string.screen_settings_client_mode_api_key_helper),
+                        style = MaterialTheme.typography.listItemSupporting,
+                    )
+                },
+            )
+            item(
+                headlineContent = {
+                    FormItem(
+                        label = { Text(stringResource(R.string.screen_settings_client_mode_test_connection)) },
+                        description = {
+                            val statusText = clientModeConnectionStatusText(state.clientModeConnectionState)
+                            if (statusText != null) {
+                                Text(
+                                    text = statusText,
+                                    color = clientModeConnectionStatusColor(state.clientModeConnectionState),
+                                )
+                            } else {
+                                Text(stringResource(R.string.screen_settings_client_mode_test_connection_helper))
+                            }
+                        },
+                        tail = {
+                            OutlinedButton(
+                                onClick = onTestClientModeConnection,
+                                enabled = state.clientModeConnectionState !is ClientModeConnectionState.Testing &&
+                                    state.clientModeBaseUrl.isNotBlank(),
+                            ) {
+                                if (state.clientModeConnectionState is ClientModeConnectionState.Testing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Text(stringResource(R.string.screen_settings_client_mode_test_connection_action))
+                                }
+                            }
+                        },
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun clientModeConnectionStatusText(state: ClientModeConnectionState): String? {
+    val formatter = remember {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+            .withLocale(Locale.getDefault())
+    }
+
+    return when (state) {
+        ClientModeConnectionState.Idle -> null
+        ClientModeConnectionState.Testing -> stringResource(R.string.screen_settings_client_mode_testing)
+        is ClientModeConnectionState.Success -> stringResource(
+            R.string.screen_settings_client_mode_success,
+            formatter.format(Instant.ofEpochMilli(state.testedAtMillis).atZone(ZoneId.systemDefault())),
+        )
+        is ClientModeConnectionState.Failure -> stringResource(
+            R.string.screen_settings_client_mode_failure,
+            state.message,
+            formatter.format(Instant.ofEpochMilli(state.testedAtMillis).atZone(ZoneId.systemDefault())),
+        )
+    }
+}
+
+@Composable
+private fun clientModeConnectionStatusColor(state: ClientModeConnectionState) = when (state) {
+    ClientModeConnectionState.Idle,
+    ClientModeConnectionState.Testing,
+    -> MaterialTheme.colorScheme.onSurfaceVariant
+    is ClientModeConnectionState.Success -> MaterialTheme.colorScheme.tertiary
+    is ClientModeConnectionState.Failure -> MaterialTheme.colorScheme.error
 }
 
 @Composable
