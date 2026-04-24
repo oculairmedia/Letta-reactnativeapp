@@ -34,10 +34,10 @@ class RemoteBotSessionTest : WordSpec({
 
     "RemoteBotSession" should {
         "default to HTTP transport when BotConfig transport is omitted" {
-            val recorder = RecordingClientFactory()
+            val recorder = RecordingOverride()
             val session = remoteSession(
                 config = remoteConfig(),
-                clientFactory = recorder,
+                clientFactoryOverride = recorder::create,
             )
 
             runBlocking { session.start() }
@@ -46,10 +46,10 @@ class RemoteBotSessionTest : WordSpec({
         }
 
         "use WS transport when explicitly configured" {
-            val recorder = RecordingClientFactory()
+            val recorder = RecordingOverride()
             val session = remoteSession(
                 config = remoteConfig(transport = BotConfig.Transport.WS),
-                clientFactory = recorder,
+                clientFactoryOverride = recorder::create,
             )
 
             runBlocking { session.start() }
@@ -60,7 +60,7 @@ class RemoteBotSessionTest : WordSpec({
         "stream progressive chunks when WS transport is selected" {
             val session = remoteSession(
                 config = remoteConfig(transport = BotConfig.Transport.WS),
-                clientFactory = StaticClientFactory(
+                clientFactoryOverride = {
                     FakeBotClient(
                         streamChunks = listOf(
                             BotStreamChunk(text = "Hel", conversationId = "conv-1"),
@@ -68,7 +68,7 @@ class RemoteBotSessionTest : WordSpec({
                             BotStreamChunk(conversationId = "conv-1", done = true),
                         )
                     )
-                ),
+                },
             )
 
             runBlocking { session.start() }
@@ -86,7 +86,7 @@ class RemoteBotSessionTest : WordSpec({
         "parse directives only on the final chunk" {
             val session = remoteSession(
                 config = remoteConfig(transport = BotConfig.Transport.WS, directivesEnabled = true),
-                clientFactory = StaticClientFactory(
+                clientFactoryOverride = {
                     FakeBotClient(
                         streamChunks = listOf(
                             BotStreamChunk(text = "Before "),
@@ -94,7 +94,7 @@ class RemoteBotSessionTest : WordSpec({
                             BotStreamChunk(done = true),
                         )
                     )
-                ),
+                },
             )
 
             runBlocking { session.start() }
@@ -108,21 +108,22 @@ class RemoteBotSessionTest : WordSpec({
         }
 
         "pick up a different transport after stop and restart" {
-            val recorder = RecordingClientFactory()
+            val recorder = RecordingOverride()
             val session = remoteSession(
                 config = remoteConfig(),
-                clientFactory = recorder,
+                clientFactoryOverride = recorder::create,
             )
 
             runBlocking {
                 session.start()
                 session.stop()
             }
+            session.currentClient shouldBe null
             recorder.transports.single() shouldBe BotConfig.Transport.HTTP
 
             val wsSession = remoteSession(
                 config = remoteConfig(transport = BotConfig.Transport.WS),
-                clientFactory = recorder,
+                clientFactoryOverride = recorder::create,
             )
 
             runBlocking { wsSession.start() }
@@ -133,12 +134,22 @@ class RemoteBotSessionTest : WordSpec({
 
 private fun remoteSession(
     config: BotConfig,
-    clientFactory: RemoteBotSession.ClientFactory,
-): RemoteBotSession = RemoteBotSession(
-    config = config,
-    profileResolver = BotServerProfileResolver(FakeBotServerProfileStore()),
-    clientFactory = clientFactory,
-)
+    clientFactoryOverride: ((com.letta.mobile.bot.config.ResolvedRemoteProfile) -> BotClient)? = null,
+): RemoteBotSession {
+    val profileResolver = BotServerProfileResolver(FakeBotServerProfileStore())
+    return if (clientFactoryOverride == null) {
+        RemoteBotSession(
+            config = config,
+            profileResolver = profileResolver,
+        )
+    } else {
+        RemoteBotSession(
+            config = config,
+            profileResolver = profileResolver,
+            clientFactoryOverride = clientFactoryOverride,
+        )
+    }
+}
 
 private fun remoteConfig(
     transport: BotConfig.Transport = BotConfig.Transport.HTTP,
@@ -165,19 +176,13 @@ private class FakeBotServerProfileStore : IBotServerProfileStore {
     override suspend fun getActiveProfile(): BotServerProfile? = null
 }
 
-private class RecordingClientFactory : RemoteBotSession.ClientFactory {
+private class RecordingOverride {
     val transports = mutableListOf<BotConfig.Transport>()
 
-    override fun create(resolvedProfile: com.letta.mobile.bot.config.ResolvedRemoteProfile): BotClient {
+    fun create(resolvedProfile: com.letta.mobile.bot.config.ResolvedRemoteProfile): BotClient {
         transports += resolvedProfile.transport
         return FakeBotClient()
     }
-}
-
-private class StaticClientFactory(
-    private val client: BotClient,
-) : RemoteBotSession.ClientFactory {
-    override fun create(resolvedProfile: com.letta.mobile.bot.config.ResolvedRemoteProfile): BotClient = client
 }
 
 private class FakeBotClient(

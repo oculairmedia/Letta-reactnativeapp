@@ -36,7 +36,6 @@ import kotlinx.coroutines.flow.flow
 class RemoteBotSession @AssistedInject constructor(
     @Assisted private val config: BotConfig,
     private val profileResolver: BotServerProfileResolver,
-    private val clientFactory: ClientFactory = DefaultClientFactory,
 ) : BotSession {
 
     override val agentId: String = config.agentId
@@ -46,6 +45,18 @@ class RemoteBotSession @AssistedInject constructor(
     override val status = _status.asStateFlow()
 
     private var client: BotClient? = null
+    private var clientFactoryOverride: ((ResolvedRemoteProfile) -> BotClient)? = null
+
+    internal val currentClient: BotClient?
+        get() = client
+
+    internal constructor(
+        config: BotConfig,
+        profileResolver: BotServerProfileResolver,
+        clientFactoryOverride: (ResolvedRemoteProfile) -> BotClient,
+    ) : this(config, profileResolver) {
+        this.clientFactoryOverride = clientFactoryOverride
+    }
 
     override suspend fun start() {
         _status.value = BotStatus.STARTING
@@ -53,7 +64,17 @@ class RemoteBotSession @AssistedInject constructor(
             ?: throw IllegalStateException("Remote profile is not configured")
         val baseUrl = resolvedProfile.baseUrl
 
-        client = clientFactory.create(resolvedProfile)
+        client = clientFactoryOverride?.invoke(resolvedProfile) ?: when (resolvedProfile.transport) {
+            BotConfig.Transport.HTTP -> ExternalBotClient(
+                baseUrl = resolvedProfile.baseUrl,
+                token = resolvedProfile.authToken,
+            )
+
+            BotConfig.Transport.WS -> WsBotClient(
+                baseUrl = resolvedProfile.baseUrl,
+                apiKey = resolvedProfile.authToken,
+            )
+        }
 
         try {
             client!!.getStatus()
@@ -187,25 +208,7 @@ class RemoteBotSession @AssistedInject constructor(
         fun create(config: BotConfig): RemoteBotSession
     }
 
-    fun interface ClientFactory {
-        fun create(resolvedProfile: ResolvedRemoteProfile): BotClient
-    }
-
     companion object {
         private const val TAG = "RemoteBotSession"
-
-        private val DefaultClientFactory = ClientFactory { resolvedProfile ->
-            when (resolvedProfile.transport) {
-                BotConfig.Transport.HTTP -> ExternalBotClient(
-                    baseUrl = resolvedProfile.baseUrl,
-                    token = resolvedProfile.authToken,
-                )
-
-                BotConfig.Transport.WS -> WsBotClient(
-                    baseUrl = resolvedProfile.baseUrl,
-                    apiKey = resolvedProfile.authToken,
-                )
-            }
-        }
     }
 }
