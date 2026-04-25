@@ -1098,7 +1098,19 @@ class TimelineSyncLoop(
             return@withLock
         }
         val confirmed = message.toTimelineEvent(position = _state.value.nextLocalPosition())
-            ?: return@withLock
+        if (confirmed == null) {
+            // letta-mobile-5s1n probe: message types we don't render
+            // (PingMessage, StopReason, etc.) should be the only callers
+            // here. If assistant_message ever shows up, it means
+            // toTimelineEvent has a bug.
+            Telemetry.event(
+                "TimelineSync", "streamSubscriber.toTimelineEventNull",
+                "messageType" to message.messageType,
+                "messageId" to message.id,
+                "conversationId" to conversationId,
+            )
+            return@withLock
+        }
         // Letta streams one assistant_message per step with an incrementing
         // `seq_id`, and each frame's `content` carries only the NEWLY-EMITTED
         // tokens since the last frame (not the cumulative text). The correct
@@ -1153,6 +1165,25 @@ class TimelineSyncLoop(
             _state.value = _state.value.replaceByServerId(merged)
             _state.value = _state.value.copy(liveCursor = confirmed.serverId)
             _events.emit(TimelineSyncEvent.StreamEventIngested(confirmed.serverId, message.messageType))
+            // letta-mobile-5s1n probe: assistant deltas after the first frame
+            // hit this branch silently. Track them so we can prove (or
+            // disprove) that the merged content is actually accumulating —
+            // and that the existing event we're merging into came from
+            // SSE/REST (i.e. is a Confirmed) rather than a Local that the
+            // observer's `toUiMessageOrNull` projection might be dropping.
+            Telemetry.event(
+                "TimelineSync", "streamSubscriber.merged",
+                "serverId" to confirmed.serverId,
+                "messageType" to (message.messageType ?: "?"),
+                "existingType" to existing.messageType.name,
+                "oldLen" to oldText.length,
+                "newLen" to newText.length,
+                "mergedLen" to mergedText.length,
+                "oldToolCalls" to oldCalls.size,
+                "newToolCalls" to newCalls.size,
+                "mergedToolCalls" to mergedCalls.size,
+                "conversationId" to conversationId,
+            )
             // No notification-publish for in-place updates — we already
             // published when the event first appeared.
             return@withLock
