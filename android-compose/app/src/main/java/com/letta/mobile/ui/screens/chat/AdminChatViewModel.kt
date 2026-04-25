@@ -353,6 +353,22 @@ class AdminChatViewModel @Inject constructor(
     private var timelineObserverJob: kotlinx.coroutines.Job? = null
     private var timelineHydrateSignalJob: kotlinx.coroutines.Job? = null
     private var clientModeStreamJob: Job? = null
+
+    /**
+     * letta-mobile-5s1n (regression fix): explicit "Client Mode stream in
+     * flight" flag, set BEFORE any timeline mutations and cleared after the
+     * stream coroutine's `finally`. Used by the timeline observer to know
+     * whether to preserve `isStreaming` / `isAgentTyping` across emissions.
+     *
+     * We can't rely on `clientModeStreamJob?.isActive`: with
+     * `UnconfinedTestDispatcher` (and equivalently fast main-thread
+     * dispatch in production), the launched coroutine begins running
+     * synchronously inside `viewModelScope.launch { ... }` and triggers
+     * observer emissions BEFORE the `clientModeStreamJob` assignment
+     * completes — leaving the field at its old (often null) value when
+     * the observer reads it.
+     */
+    @Volatile private var clientModeStreamInFlight: Boolean = false
     /**
      * letta-mobile-5s1n design note (Option A — retained narrow fallback):
      *
@@ -405,6 +421,7 @@ class AdminChatViewModel @Inject constructor(
                     .collect { enabled ->
                         if (!enabled) {
                             clientModeStreamJob?.cancel()
+                            clientModeStreamInFlight = false
                             _uiState.update {
                                 it.copy(
                                     isStreaming = false,
@@ -886,6 +903,11 @@ class AdminChatViewModel @Inject constructor(
 
     private fun sendMessageViaClientMode(text: String) {
         clientModeStreamJob?.cancel()
+        // letta-mobile-5s1n (regression fix): mark stream in flight BEFORE
+        // launching, so observer emissions inside the launch (which run
+        // synchronously on UnconfinedTestDispatcher / immediate main) see
+        // the flag even before `clientModeStreamJob` is assigned.
+        clientModeStreamInFlight = true
         clientModeStreamJob = viewModelScope.launch {
             val startedAt = java.time.Instant.now().toString()
             val userMessageId = "client-user-${System.currentTimeMillis()}"
@@ -921,6 +943,24 @@ class AdminChatViewModel @Inject constructor(
                 if (timelineObserverConversationId != convId) {
                     stopTimelineObserver()
                 }
+                // letta-mobile-5s1n (regression fix): set the streaming flags
+                // BEFORE appending to the timeline. The observer flow re-emits
+                // synchronously on every timeline state change and reads
+                // `prev.isStreaming` to decide whether to preserve the in-flight
+                // signal (see startTimelineObserver). If we wrote `true` after
+                // the append, the observer would race ahead with the old
+                // `false`, clobber it, and the spinner would never show.
+                _uiState.value = _uiState.value.copy(
+                    isLoadingMessages = false,
+                    isLoadingOlderMessages = false,
+                    hasMoreOlderMessages = false,
+                    isStreaming = true,
+                    isAgentTyping = true,
+                    composerError = null,
+                    error = null,
+                    pendingAttachments = persistentListOf(),
+                    conversationState = ConversationState.Ready(convId),
+                )
                 runCatching {
                     timelineRepository.appendClientModeLocal(
                         conversationId = convId,
@@ -947,17 +987,6 @@ class AdminChatViewModel @Inject constructor(
                 // emissions (and the SSE-driven Confirmed echoes) reach the
                 // UI. Idempotent for the same conversationId.
                 startTimelineObserver(convId)
-                _uiState.value = _uiState.value.copy(
-                    isLoadingMessages = false,
-                    isLoadingOlderMessages = false,
-                    hasMoreOlderMessages = false,
-                    isStreaming = true,
-                    isAgentTyping = true,
-                    composerError = null,
-                    error = null,
-                    pendingAttachments = persistentListOf(),
-                    conversationState = ConversationState.Ready(convId),
-                )
             } else {
                 // Fresh-route: no conversationId yet; keep the in-memory path
                 // until the gateway echoes one, then migrate.
@@ -1095,6 +1124,7 @@ class AdminChatViewModel @Inject constructor(
                     isAgentTyping = false,
                 )
             } finally {
+                clientModeStreamInFlight = false
                 if (clientModeStreamJob?.isCancelled != false) {
                     clientModeStreamJob = null
                 }
@@ -1675,10 +1705,32 @@ class AdminChatViewModel @Inject constructor(
                         it is com.letta.mobile.data.timeline.TimelineEvent.Confirmed &&
                             it.messageType == com.letta.mobile.data.timeline.TimelineMessageType.ASSISTANT
                     }
-                    val anyLocalPending = timeline.events.any {
+                    // letta-mobile-5s1n (regression fix): derive streaming
+                    // flags from LETTA_SERVER Locals only. CLIENT_MODE_HARNESS
+                    // Locals are stamped SENT at append (the WS gateway is
+                    // the delivery authority — see TimelineSyncLoop.appendClientModeLocal),
+                    // so a `SENDING` predicate would always be false for
+                    // Client Mode flows and would erroneously clear the
+                    // spinner that `sendMessageViaClientMode` set.
+                    //
+                    // sendMessageViaClientMode owns isStreaming/isAgentTyping
+                    // for the Client Mode path end-to-end (sets true on
+                    // send, clears in the stream-complete `finally`). We
+                    // must NOT overwrite those flags from this observer —
+                    // we only contribute the LETTA_SERVER pending signal.
+                    val anyLettaServerLocalPending = timeline.events.any {
                         it is com.letta.mobile.data.timeline.TimelineEvent.Local &&
-                            it.deliveryState == com.letta.mobile.data.timeline.DeliveryState.SENDING
+                            it.deliveryState == com.letta.mobile.data.timeline.DeliveryState.SENDING &&
+                            it.source != com.letta.mobile.data.timeline.MessageSource.CLIENT_MODE_HARNESS
                     }
+                    // If a Client Mode stream is in flight, keep the flags
+                    // the send coroutine set; otherwise derive from server
+                    // pending (legacy optimistic-send semantics).
+                    // Prefer the explicit flag (set BEFORE the launch starts)
+                    // over `clientModeStreamJob?.isActive` because the launched
+                    // coroutine runs eagerly on Unconfined/main and triggers
+                    // observer emissions before the job assignment lands.
+                    val streamInFlight = clientModeStreamInFlight
                     // Any non-empty emission also implies hydrate succeeded.
                     val clearLoading = ui.isNotEmpty()
                     // letta-mobile-23h5 (regression fix 2026-04-19): the
@@ -1697,12 +1749,17 @@ class AdminChatViewModel @Inject constructor(
                     // when fewer than PAGE_SIZE rows come back).
                     val newHasMoreOlder = if (anyConfirmed) true
                                           else _uiState.value.hasMoreOlderMessages
-                    _uiState.value = _uiState.value.copy(
+                    val prev = _uiState.value
+                    val nextIsStreaming = if (streamInFlight) prev.isStreaming
+                                          else anyLettaServerLocalPending
+                    val nextIsAgentTyping = if (streamInFlight) prev.isAgentTyping
+                                            else (anyLettaServerLocalPending && !tailIsAssistant)
+                    _uiState.value = prev.copy(
                         messages = ui,
                         isLoadingMessages = if (clearLoading) false
-                                           else _uiState.value.isLoadingMessages,
-                        isStreaming = anyLocalPending,
-                        isAgentTyping = anyLocalPending && !tailIsAssistant,
+                                           else prev.isLoadingMessages,
+                        isStreaming = nextIsStreaming,
+                        isAgentTyping = nextIsAgentTyping,
                         hasMoreOlderMessages = newHasMoreOlder,
                     )
                 }
