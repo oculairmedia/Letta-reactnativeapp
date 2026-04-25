@@ -353,6 +353,30 @@ class AdminChatViewModel @Inject constructor(
     private var timelineObserverJob: kotlinx.coroutines.Job? = null
     private var timelineHydrateSignalJob: kotlinx.coroutines.Job? = null
     private var clientModeStreamJob: Job? = null
+    /**
+     * letta-mobile-5s1n design note (Option A — retained narrow fallback):
+     *
+     * After 5s1n landed, Client Mode assistant streaming flows through
+     * [TimelineRepository.upsertClientModeLocalAssistantChunk] whenever a
+     * conversationId is known — i.e., always for existing-route entries, and
+     * for every chunk after the gateway's first conversationId echo on
+     * fresh-route entries. The bulk of the dual-write is gone.
+     *
+     * This field is retained as a narrow belt-and-suspenders fallback for
+     * fresh-route sends in the window between "user pressed send" and "gateway
+     * echoed a conversationId". In normal operation this window contains 0
+     * chunks (the gateway echoes on chunk #1) — but if it ever doesn't, the
+     * legacy in-memory path keeps the UI rendering instead of dropping
+     * content. As soon as a conversationId arrives, the optimistic user
+     * bubble is migrated into the timeline (see `migratedToTimeline` below)
+     * and subsequent chunks go through the timeline.
+     *
+     * Tracked as a follow-up under letta-mobile-5s1n-2: if dev-build
+     * telemetry on `Client Mode timeline upsert failed` and the legacy chunk
+     * handler shows zero hits across a meaningful window of real Client Mode
+     * sessions, this field and [handleClientModeStreamChunkLegacy] can be
+     * deleted in favour of a chunk-buffer-then-replay strategy.
+     */
     private var clientModeMessages: List<UiMessage> = emptyList()
     // Conversation id the current observer job is bound to. Needed so we can
     // detect "same conversation, already observing" vs "user switched convs
@@ -1100,9 +1124,21 @@ class AdminChatViewModel @Inject constructor(
             )
             return
         }
-        // Fresh-route, conversationId not yet known: keep the in-memory path
-        // for this single chunk. The next chunk will carry conversationId
-        // (gateway always echoes by chunk #1 in practice) and we'll migrate.
+        // letta-mobile-5s1n (Option A): Fresh-route, conversationId not yet
+        // known. Keep the in-memory path for this single chunk; the next
+        // chunk will carry conversationId (gateway always echoes by chunk #1
+        // in practice) and the migration block in sendMessageViaClientMode
+        // will move the optimistic state into the timeline. This branch is a
+        // belt-and-suspenders fallback — if it ever fires in production we
+        // want to know about it because it indicates the gateway delayed its
+        // conversationId echo, which would suggest the buffer-and-replay
+        // alternative (Option B) is needed.
+        com.letta.mobile.util.Telemetry.event(
+            "AdminChatVM", "clientMode.legacyChunkPath",
+            "event" to (chunk.event?.name ?: "null"),
+            "hasText" to (chunk.text != null),
+            level = com.letta.mobile.util.Telemetry.Level.WARN,
+        )
         handleClientModeStreamChunkLegacy(
             chunk = chunk,
             assistantMessageId = assistantMessageId,
