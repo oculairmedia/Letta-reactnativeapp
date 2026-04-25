@@ -150,15 +150,18 @@ class RemoteBotSession @AssistedInject constructor(
 
             remoteClient.streamMessage(request).collect { chunk ->
                 if (!chunk.done) {
-                    chunk.text?.let { text ->
-                        accumulated.append(text)
-                        emit(
-                            BotResponseChunk(
-                                text = text,
-                                conversationId = chunk.conversationId ?: latestConversationId,
-                            )
+                    chunk.text?.let { text -> accumulated.append(text) }
+                    emit(
+                        BotResponseChunk(
+                            text = chunk.text,
+                            conversationId = chunk.conversationId ?: latestConversationId,
+                            event = chunk.event,
+                            toolName = chunk.toolName,
+                            toolCallId = chunk.toolCallId,
+                            toolInput = chunk.toolInput,
+                            isError = chunk.isError,
                         )
-                    }
+                    )
                     latestConversationId = chunk.conversationId ?: latestConversationId
                     return@collect
                 }
