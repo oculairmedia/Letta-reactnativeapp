@@ -1151,11 +1151,40 @@ class TimelineSyncLoop(
         if (existing != null) {
             val oldText = existing.content
             val newText = confirmed.content
+            // letta-mobile-wucn (round 2): defensive snapshot-recovery
+            // for the timeline-path SSE merge. Same root cause as the
+            // in-memory upsert reducer in AdminChatViewModel: when the
+            // gateway emits a closing/final assistant chunk whose content
+            // is a near-snapshot of the streamed accumulator but fails
+            // strict startsWith() (server-side normalization, smart-quote
+            // conversion, markdown re-serialization), the fall-through
+            // `else -> oldText + newText` concatenates the full final
+            // message onto its own accumulator → doubled bubble. This is
+            // the dominant render path once a conversation has an ID
+            // (the in-memory clientModeMessages path is only used pre-
+            // migration); the wucn fix in AdminChatViewModel did not
+            // protect this code, so the original bug persisted post-fix.
+            //
+            // Guard: if newText is >= 32 chars AND >= 50% of oldText
+            // length, it's overwhelmingly more likely to be a snapshot
+            // than a true delta. Pick the longer string. Logs at WARN
+            // for next-repro forensics.
             val mergedText = when {
                 newText.isEmpty() -> oldText
                 newText == oldText -> oldText
                 newText.startsWith(oldText) -> newText
                 oldText.startsWith(newText) -> oldText
+                newText.length >= 32 && newText.length >= oldText.length / 2 -> {
+                    android.util.Log.w(
+                        "TimelineSyncLoop",
+                        "wucn-snapshot-recovery: chunk shaped like snapshot but " +
+                            "failed strict prefix check. oldText.len=${oldText.length} " +
+                            "newText.len=${newText.length} serverId=${confirmed.serverId} " +
+                            "conversationId=$conversationId. Falling back to longer-" +
+                            "string replacement to avoid doubled-bubble.",
+                    )
+                    if (newText.length >= oldText.length) newText else oldText
+                }
                 else -> oldText + newText
             }
             // Merge toolCalls: a later delta frame may have null/blank
