@@ -161,14 +161,27 @@ object TextMessageRenderer : MessageContentRenderer {
                 color = textColor,
                 modifier = modifier,
             )
+        } else if (isStreaming) {
+            // letta-mobile-d2z6 (root cause): the third-party Markdown
+            // composable re-parses its content AST on every change and
+            // re-emits a fresh subtree. During streaming this happens on
+            // every chunk and the bubble visibly disappears for a frame as
+            // the old subtree unmounts and the new one mounts. Render
+            // plain Text while the stream is in flight (with the cursor
+            // glyph appended by streamingDisplayText) and snap to the
+            // formatted markdown the instant streaming stops. The user
+            // sees streaming prose render smoothly; markdown formatting
+            // (bold, headings, lists, code blocks) appears in one clean
+            // transition at the end instead of fighting every chunk.
+            Text(
+                text = streamingDisplayText(message.content),
+                style = MaterialTheme.chatTypography.messageBody,
+                color = textColor,
+                modifier = modifier,
+            )
         } else {
-            val displayText = if (isStreaming) {
-                streamingDisplayText(message.content)
-            } else {
-                message.content
-            }
             MarkdownText(
-                text = displayText,
+                text = message.content,
                 textColor = textColor,
                 modifier = modifier,
             )

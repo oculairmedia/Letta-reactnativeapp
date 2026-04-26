@@ -602,10 +602,23 @@ internal fun MessageReasoning(
                     }
                     .padding(start = 12.dp),
             ) {
-                MarkdownText(
-                    text = message.content,
-                    textColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // letta-mobile-d2z6 (root cause): MarkdownText re-parses on
+                // every content change and re-emits a fresh subtree, which
+                // causes the bubble to visibly flicker on each streaming
+                // chunk. Use plain Text during streaming and snap to
+                // formatted markdown when the stream ends.
+                if (isStreaming) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    MarkdownText(
+                        text = message.content,
+                        textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
