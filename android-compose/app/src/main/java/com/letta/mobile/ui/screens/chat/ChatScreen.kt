@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -222,6 +224,18 @@ private fun ChatContent(
     var showFontIndicator by remember { mutableStateOf(false) }
     var pinchTick by remember { mutableStateOf(0L) }
 
+    // letta-mobile-5e0f: GPU-only visual scale applied during the
+    // pinch gesture via Modifier.graphicsLayer. Decoupled from the
+    // actual fontScale (theme) so the gesture never recomposes the
+    // chat tree. Reset to 1f the moment fontScale commits on lift.
+    var gestureVisualScale by remember { mutableFloatStateOf(1f) }
+    // The font scale value to display in the indicator. During a pinch
+    // we show the live snapped target without yet pushing it to the
+    // theme — keeps the numeric feedback honest while the visual
+    // transform handles the smoothness.
+    var indicatorFontScale by remember { mutableFloatStateOf(activeFontScale) }
+    LaunchedEffect(activeFontScale) { indicatorFontScale = activeFontScale }
+
     LaunchedEffect(pinchTick) {
         if (pinchTick > 0) {
             showFontIndicator = true
@@ -375,15 +389,25 @@ private fun ChatContent(
                 modifier = Modifier
                     .weight(1f)
                     .pointerInput(Unit) {
-                        // Quantize font scale to 2% steps so we only recompose
-                        // the chat tree on visible changes (~45 steps across 0.7..1.6),
-                        // not every pointer frame. This is the main smoothness win.
+                        // letta-mobile-5e0f: pinch-to-zoom now applies a
+                        // GPU-only graphicsLayer scale during the gesture
+                        // and only commits the actual fontScale (which
+                        // recomposes the chat tree) once on lift. This
+                        // eliminates the per-step theme-recompose +
+                        // animateContentSize-cascade flicker that the
+                        // old design caused.
+                        //
+                        // Quantization: snap the COMMITTED font scale to
+                        // 2% steps so the lift-time recompose lands on
+                        // a stable grid and we don't accumulate float
+                        // drift across multiple gestures. The visual
+                        // transform itself is continuous (no quantization)
+                        // for smoothness.
                         val step = 0.02f
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
                             var isPinching = false
                             var rawScale = activeFontScale
-                            var committedScale = activeFontScale
                             var pinchStarted = false
                             do {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -394,26 +418,47 @@ private fun ChatContent(
                                     if (zoom != 1f) {
                                         event.changes.forEach { it.consume() }
                                         rawScale = (rawScale * zoom).coerceIn(0.7f, 1.6f)
-                                        // Snap to nearest step; only push state + indicator
-                                        // when the quantized value actually changes.
-                                        val snapped = (kotlin.math.round(rawScale / step) * step)
-                                            .coerceIn(0.7f, 1.6f)
-                                        if (snapped != committedScale) {
-                                            committedScale = snapped
-                                            onActiveFontScaleChange(snapped)
-                                            if (!pinchStarted) {
-                                                pinchTick = System.nanoTime()
-                                                pinchStarted = true
-                                            }
+                                        // GPU-only update: scale the
+                                        // already-laid-out chat tree.
+                                        // Zero recomposition, zero
+                                        // re-measure, zero animation
+                                        // cascade.
+                                        gestureVisualScale = rawScale / activeFontScale
+                                        // Live numeric indicator shows
+                                        // the snapped target the lift
+                                        // would commit to.
+                                        indicatorFontScale =
+                                            (kotlin.math.round(rawScale / step) * step)
+                                                .coerceIn(0.7f, 1.6f)
+                                        if (!pinchStarted) {
+                                            pinchTick = System.nanoTime()
+                                            pinchStarted = true
                                         }
                                     }
                                 }
                             } while (event.changes.any { it.pressed })
                             if (isPinching) {
-                                // Refresh indicator timer at gesture end so it hides
-                                // 1s after the user lifts, not mid-pinch.
+                                // Snap the rawScale to the quantization
+                                // grid for the committed value.
+                                val snapped = (kotlin.math.round(rawScale / step) * step)
+                                    .coerceIn(0.7f, 1.6f)
+                                // Commit fontScale to the theme. This
+                                // is the ONE recompose for the whole
+                                // gesture. Reset the GPU transform to
+                                // 1f atomically so the bubbles snap
+                                // from "scaled pixels" to "re-laid-out
+                                // text" in a single frame — the visual
+                                // delta is small because the snapped
+                                // font scale matches what the user was
+                                // already seeing.
+                                onActiveFontScaleChange(snapped)
+                                onFontScaleChange(snapped)
+                                gestureVisualScale = 1f
+                                indicatorFontScale = snapped
+                                // Refresh indicator timer at gesture
+                                // end so it hides 1s after the user
+                                // lifts, not mid-pinch.
                                 pinchTick = System.nanoTime()
-                                onFontScaleChange(committedScale)
                             }
                         }
                     },
@@ -423,7 +468,18 @@ private fun ChatContent(
                     // letta-mobile-23h5 (polish 2026-04-19): wider side
                     // gutters so bubbles don't kiss the screen edge.
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                    reverseLayout = true
+                    reverseLayout = true,
+                    // letta-mobile-5e0f: GPU-only pinch-to-zoom transform.
+                    // gestureVisualScale is 1f outside of an active pinch
+                    // (zero-cost identity transform); during a pinch it
+                    // reflects the live finger spread without recomposing
+                    // anything below it. transformOrigin centered so the
+                    // zoom feels natural relative to the visible content.
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = gestureVisualScale
+                        scaleY = gestureVisualScale
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    },
                 ) {
                     if (state.isStreaming) {
                         item(key = "typing") {
@@ -570,8 +626,12 @@ private fun ChatContent(
                 )
 
                 if (showFontIndicator) {
+                    // letta-mobile-5e0f: read indicatorFontScale (live
+                    // snapped target) instead of activeFontScale so the
+                    // displayed % updates during the gesture even though
+                    // the theme hasn't recomposed yet.
                     Text(
-                        text = "${(activeFontScale * 100).toInt()}%",
+                        text = "${(indicatorFontScale * 100).toInt()}%",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
