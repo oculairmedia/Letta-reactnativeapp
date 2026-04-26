@@ -258,12 +258,23 @@ private fun ChatContent(
         }
     }
 
+    // letta-mobile-d2z6: while a stream is in-flight, snap to the bottom
+    // *instantly* instead of starting a 300 ms animateScrollToItem on every
+    // new message. The animated scroll fights with the bubble's own layout
+    // changes (each new token reflows the run, and the smooth-scroll target
+    // shifts mid-animation), producing the rapid bubble-movement Emmanuel
+    // reported. Once the stream ends we fall back to the smooth scroll for
+    // the polished settle on the final frame.
     LaunchedEffect(Unit) {
-        snapshotFlow { messageCount }
+        snapshotFlow { messageCount to state.isStreaming }
             .distinctUntilChanged()
-            .collect {
-                if (it > 0 && isAtBottom && scrollToMessageId == null) {
-                    listState.animateScrollToItem(0)
+            .collect { (count, streaming) ->
+                if (count > 0 && isAtBottom && scrollToMessageId == null) {
+                    if (streaming) {
+                        listState.scrollToItem(0)
+                    } else {
+                        listState.animateScrollToItem(0)
+                    }
                 }
             }
     }

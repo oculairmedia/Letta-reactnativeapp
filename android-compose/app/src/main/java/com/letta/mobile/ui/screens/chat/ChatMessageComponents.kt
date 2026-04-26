@@ -536,10 +536,17 @@ internal fun MessageReasoning(
     val isCollapsed = collapsed && !isStreaming
     val clickLabel = if (isCollapsed) "Expand reasoning" else "Collapse reasoning"
 
+    // letta-mobile-d2z6: gate animateContentSize on !isStreaming. While
+    // assistant tokens are arriving the reasoning bubble grows on every
+    // frame; animating that growth produces visible wobble that compounds
+    // with the RunBlock layout. The animation is still useful for the
+    // user-initiated collapse/expand toggle (which only fires when the
+    // run is no longer streaming), so we keep it gated rather than
+    // removing it outright.
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize()
+            .then(if (isStreaming) Modifier else Modifier.animateContentSize())
             .padding(vertical = 4.dp),
     ) {
         Row(
