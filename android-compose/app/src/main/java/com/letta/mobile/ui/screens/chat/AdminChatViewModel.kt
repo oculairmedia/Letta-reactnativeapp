@@ -1515,12 +1515,52 @@ class AdminChatViewModel @Inject constructor(
                 // gateway ever switching back to cumulative-snapshot shape
                 // — same heuristic TimelineSyncLoop:1132-1138 uses for the
                 // SSE merge.
+                //
+                // letta-mobile-wucn: harden the heuristic. Observed bug:
+                // bubble rendered final message twice (byte-for-byte
+                // identical content concatenated to itself in a single
+                // UiMessage). Root cause inferred: gateway emitted a
+                // closing/final assistant chunk whose content was a
+                // near-snapshot of the streamed accumulator but failed
+                // strict prefix check (e.g. server-side whitespace or
+                // quote normalization). The strict startsWith branches
+                // missed it and we fell through to existing.content +
+                // content = doubled bubble.
+                //
+                // New defensive rule: if the incoming `content`'s length
+                // is >= 50% of `existing.content` length AND >= 32 chars,
+                // treat it as a snapshot replacement candidate, not a
+                // delta. True streaming deltas are always small (single
+                // token, typically < 50 chars). A "delta" that's half
+                // the size of everything we've accumulated so far is
+                // overwhelmingly more likely a snapshot than a real
+                // append. Picking max(existing.content, content) is the
+                // safe replacement — never loses content, never doubles.
                 val merged = if (append) {
                     when {
                         content.isEmpty() -> existing.content
                         content == existing.content -> existing.content
                         content.startsWith(existing.content) -> content
                         existing.content.startsWith(content) -> existing.content
+                        // wucn defensive: snapshot-shaped chunk with
+                        // mid-string divergence (e.g. server-normalized
+                        // punctuation). Prefer the longer string; never
+                        // concatenate a near-snapshot onto its own
+                        // accumulator.
+                        content.length >= 32 &&
+                            content.length >= existing.content.length / 2 -> {
+                            android.util.Log.w(
+                                "AdminChatViewModel",
+                                "wucn-snapshot-recovery: chunk shaped " +
+                                    "like snapshot but failed strict prefix " +
+                                    "check. existing.len=${existing.content.length} " +
+                                    "chunk.len=${content.length} " +
+                                    "messageId=$messageId. Falling back to " +
+                                    "longer-string replacement to avoid " +
+                                    "doubled-bubble.",
+                            )
+                            if (content.length >= existing.content.length) content else existing.content
+                        }
                         else -> existing.content + content
                     }
                 } else content
