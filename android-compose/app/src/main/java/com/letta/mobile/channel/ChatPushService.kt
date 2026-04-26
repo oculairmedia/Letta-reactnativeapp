@@ -68,10 +68,21 @@ class ChatPushService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        ensureForegroundNotification()
+        // letta-mobile-50p2: foreground promotion can fail (e.g. FGS quota
+        // exhausted on Android 14+ for older service types, or transient
+        // BG-restriction states). Swallow the failure — the service still
+        // runs in the background until Android kills it, which is far
+        // better than crashing the entire app process at launch.
+        val foregrounded = ensureForegroundNotification()
+        if (!foregrounded) {
+            Log.w(TAG, "Foreground promotion failed; running as background service")
+        }
         installListener()
         warmupSubscribers()
-        Telemetry.event("ChatPushService", "created")
+        Telemetry.event(
+            "ChatPushService", "created",
+            "foregrounded" to foregrounded.toString(),
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -85,7 +96,23 @@ class ChatPushService : Service() {
         super.onDestroy()
     }
 
-    private fun ensureForegroundNotification() {
+    /**
+     * Promote the service to the foreground.
+     *
+     * Returns `true` on success, `false` if Android refused (e.g.
+     * ForegroundServiceStartNotAllowedException — quota exhausted, BG
+     * restricted, missing permission). Caller decides how to degrade.
+     *
+     * letta-mobile-50p2: previously used FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+     * which has a 6-hour rolling daily quota on Android 14+. Once the
+     * quota was hit, every subsequent startForeground() threw and crashed
+     * the process at launch in an unrecoverable loop. Switched to
+     * REMOTE_MESSAGING (the correct semantic for a chat push channel)
+     * which is quota-exempt, and wrapped the call in try/catch as a
+     * defense-in-depth so future quota / restriction surprises degrade
+     * gracefully instead of taking the app down.
+     */
+    private fun ensureForegroundNotification(): Boolean {
         createServiceChannelIfNeeded()
 
         val tapIntent = Intent(this, MainActivity::class.java).apply {
@@ -109,14 +136,24 @@ class ChatPushService : Service() {
             .setShowWhen(false)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                FOREGROUND_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
-        } else {
-            startForeground(FOREGROUND_NOTIFICATION_ID, notification)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    FOREGROUND_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING,
+                )
+            } else {
+                startForeground(FOREGROUND_NOTIFICATION_ID, notification)
+            }
+            true
+        } catch (t: Throwable) {
+            // ForegroundServiceStartNotAllowedException (Android 12+) is the
+            // common case, but we catch broadly because IllegalStateException
+            // and SecurityException can also surface here on niche OEM ROMs.
+            Log.e(TAG, "startForeground failed", t)
+            Telemetry.error("ChatPushService", "startForeground.failed", t)
+            false
         }
     }
 
