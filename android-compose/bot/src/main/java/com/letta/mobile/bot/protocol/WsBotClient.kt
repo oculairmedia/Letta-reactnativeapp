@@ -52,6 +52,13 @@ import okhttp3.WebSocketListener
 class WsBotClient(
     baseUrl: String,
     apiKey: String?,
+    // letta-mobile-flk.2: opt into the gateway's progressive tool-call
+    // streaming mode (one frame per tool-call id with running snapshots
+    // + a terminal completed frame). The default `false` matches the
+    // gateway default (one frame per tool-call id), which is what
+    // Matrix-style clients want. Mobile sets this true so the existing
+    // dedup-by-id renderer can show running indicators incrementally.
+    progressiveToolCalls: Boolean = false,
 ) : BotClient, GatewayReadyClient, AutoCloseable {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -61,7 +68,7 @@ class WsBotClient(
     }
 
     private val httpBaseUrl = normalizeHttpBaseUrl(baseUrl)
-    private val webSocketUrl = normalizeWebSocketUrl(baseUrl)
+    private val webSocketUrl = normalizeWebSocketUrl(baseUrl, progressiveToolCalls)
     private val authToken = apiKey?.takeIf { it.isNotBlank() }
 
     private val httpClient = HttpClient(OkHttp) {
@@ -578,7 +585,10 @@ class WsBotClient(
         }
     }
 
-    private fun normalizeWebSocketUrl(baseUrl: String): String {
+    private fun normalizeWebSocketUrl(
+        baseUrl: String,
+        progressiveToolCalls: Boolean = false,
+    ): String {
         val uri = URI(baseUrl.trim())
         val scheme = when (uri.scheme?.lowercase()) {
             "http" -> "ws"
@@ -589,7 +599,24 @@ class WsBotClient(
         val path = uri.path.orEmpty().trimEnd('/').let { currentPath ->
             if (currentPath.endsWith(WS_PATH)) currentPath else "$currentPath$WS_PATH"
         }
-        return URI(scheme, uri.userInfo, uri.host, uri.port, path, uri.query, uri.fragment).toString()
+        // letta-mobile-flk.2: append `progressive_tool_calls=1` if the
+        // caller opted in. Merge with any existing query rather than
+        // clobbering, so a baseUrl carrying its own query params (e.g.
+        // a debug tracer flag) is preserved. Skip if the flag is
+        // already present so this is idempotent.
+        val mergedQuery = mergeQuery(uri.query, progressiveToolCalls)
+        return URI(scheme, uri.userInfo, uri.host, uri.port, path, mergedQuery, uri.fragment).toString()
+    }
+
+    private fun mergeQuery(existing: String?, progressiveToolCalls: Boolean): String? {
+        if (!progressiveToolCalls) return existing
+        val flag = "progressive_tool_calls=1"
+        if (existing.isNullOrBlank()) return flag
+        // Idempotent: don't append twice.
+        val parts = existing.split('&')
+        val alreadyPresent = parts.any { it.equals(flag, ignoreCase = true) ||
+            it.startsWith("progressive_tool_calls=", ignoreCase = true) }
+        return if (alreadyPresent) existing else "$existing&$flag"
     }
 
     private fun normalizeHttpBaseUrl(baseUrl: String): String {

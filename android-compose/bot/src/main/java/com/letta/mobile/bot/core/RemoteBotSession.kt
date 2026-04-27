@@ -74,6 +74,10 @@ class RemoteBotSession @AssistedInject constructor(
             BotConfig.Transport.WS -> WsBotClient(
                 baseUrl = resolvedProfile.baseUrl,
                 apiKey = resolvedProfile.authToken,
+                // letta-mobile-flk.2: opt into the gateway's progressive
+                // tool-call mode so the dedup-by-id renderer can show
+                // running snapshots before the terminal completed frame.
+                progressiveToolCalls = true,
             )
         }
 
@@ -167,15 +171,46 @@ class RemoteBotSession @AssistedInject constructor(
                 }
 
                 latestConversationId = chunk.conversationId ?: latestConversationId
+                // letta-mobile-uww.12: terminal-frame contract under PURE-DELTA
+                // gateway streaming (lettabot ws-gateway after PARTIAL_JSON +
+                // delta migration). The previous code unconditionally
+                // re-emitted the full accumulated text on the `done` frame —
+                // this was correct when the gateway sent cumulative
+                // SNAPSHOTS (the consumer would replace each chunk), but is
+                // now a duplication bug: delta-appending consumers (Client
+                // Mode timeline-path ASSISTANT branch in AdminChatViewModel)
+                // append the accumulated string AGAIN, producing the
+                // doubled-bubble field repro (assistant reply rendered
+                // twice contiguously, no separator).
+                //
+                // New contract:
+                //   - Default: terminal frame carries ONLY `isComplete`,
+                //     `conversationId`, and `directive`. The caller has
+                //     already received every byte via per-chunk `text`
+                //     deltas; the text MUST NOT be re-emitted.
+                //   - Directive carve-out: when DirectiveParser strips
+                //     directive markers from the accumulated text (e.g.
+                //     `<no-reply/>`), the cleaned text DIFFERS from what
+                //     the consumer accumulated, so we emit it as a final
+                //     replacement payload. Consumers treating this as a
+                //     final-snapshot replacement (the existing semantics
+                //     under `replaceAssistant`/`isComplete`) handle this
+                //     correctly without duplication.
                 val parseResult = if (config.directivesEnabled) {
                     DirectiveParser.parse(accumulated.toString())
                 } else {
                     DirectiveParser.ParseResult(accumulated.toString(), emptyList())
                 }
+                val accumulatedText = accumulated.toString()
+                val terminalText = if (parseResult.cleanText != accumulatedText) {
+                    parseResult.cleanText.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
 
                 emit(
                     BotResponseChunk(
-                        text = parseResult.cleanText.takeIf { it.isNotBlank() },
+                        text = terminalText,
                         conversationId = latestConversationId,
                         isComplete = true,
                         directive = parseResult.directives.firstOrNull(),

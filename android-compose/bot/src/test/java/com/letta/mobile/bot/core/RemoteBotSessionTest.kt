@@ -86,6 +86,44 @@ class RemoteBotSessionTest : WordSpec({
             chunks[2].conversationId shouldBe "conv-1"
         }
 
+        // letta-mobile-uww.12: terminal frame must NOT re-emit accumulated
+        // assistant text under the gateway's pure-delta contract. Field
+        // repro 2026-04-26: assistant bubble rendered twice in a single
+        // contiguous block because the consumer (Client Mode timeline
+        // ASSISTANT branch) appends every emit with `text != null` and
+        // the previous terminal frame re-emitted the full accumulated
+        // string. This regression test pins the contract.
+        "not re-emit assistant text on the terminal frame for delta streams" {
+            val session = remoteSession(
+                config = remoteConfig(
+                    transport = BotConfig.Transport.WS,
+                    directivesEnabled = true,
+                ),
+                clientFactoryOverride = {
+                    FakeBotClient(
+                        streamChunks = listOf(
+                            BotStreamChunk(text = "Hey ", conversationId = "conv-1"),
+                            BotStreamChunk(text = "— I see you. ", conversationId = "conv-1"),
+                            BotStreamChunk(text = "Connection's live", conversationId = "conv-1"),
+                            BotStreamChunk(conversationId = "conv-1", done = true),
+                        )
+                    )
+                },
+            )
+
+            runBlocking { session.start() }
+            val chunks = runBlocking { session.streamToAgent(message).toList() }
+
+            chunks shouldHaveSize 4
+            chunks[0].text shouldBe "Hey "
+            chunks[1].text shouldBe "— I see you. "
+            chunks[2].text shouldBe "Connection's live"
+            chunks[3].isComplete shouldBe true
+            chunks[3].text shouldBe null
+            chunks[3].directive shouldBe null
+            chunks[3].conversationId shouldBe "conv-1"
+        }
+
         "parse directives only on the final chunk" {
             val session = remoteSession(
                 config = remoteConfig(transport = BotConfig.Transport.WS, directivesEnabled = true),
