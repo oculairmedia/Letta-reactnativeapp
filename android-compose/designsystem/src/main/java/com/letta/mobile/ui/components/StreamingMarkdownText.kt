@@ -1,58 +1,51 @@
 package com.letta.mobile.ui.components
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 /**
- * Streaming-aware markdown renderer (letta-mobile-c8of, ALT-2 design).
+ * Streaming-aware markdown renderer (letta-mobile-flk.3.1, simplest-correct
+ * design).
  *
- * Splits incoming streaming content at the last "safe" CommonMark block
- * boundary into:
- *  - **prefix**: everything that has reached a stable paragraph / closed-fence
- *    boundary. Rendered via the full [MarkdownText] (markdown formatting,
- *    syntax-highlighted code, math, mermaid, etc.).
- *  - **tail**: the in-progress paragraph (anything after the last safe
- *    boundary). Rendered as plain [Text] for the brief moment it lives.
- *    Pass-through by default; callers can supply [tailTransform] to plug in
- *    e.g. the streaming cursor / word-boundary holdback decorator from
- *    letta-mobile-6p4o.1.
+ * Renders the full live stream through [MarkdownText] on every chunk, so
+ * inline emphasis, headings, lists, code, tables, and math format LIVE as
+ * the stream arrives. Callers can supply [tailTransform] to inject the
+ * streaming cursor / word-boundary holdback decorator from
+ * letta-mobile-6p4o.1; [tailTransform] receives the full accumulated text
+ * (the historical "tail" naming is retained for source compatibility with
+ * existing call sites and is no longer split-relative).
  *
- * Why split: rendering the entire stream through [MarkdownText] on every
- * chunk causes a measurable re-parse + subtree rebuild per chunk (the very
- * cost that letta-mobile-d2z6 originally sidestepped by using plain Text
- * during streaming). The d2z6 approach worked but produced a visible
- * "snap" on stream-end as the bubble switched from plain Text → formatted
- * MarkdownText. The boundary split keeps the prefix as MarkdownText
- * throughout, so on stream-end there is no swap — only the final paragraph's
- * tail collapses into the prefix as the boundary advances one last time.
+ * Earlier designs ([letta-mobile-c8of] ALT-2 + [letta-mobile-flk.1]) split
+ * the text at the last "safe" paragraph boundary into a markdown-rendered
+ * prefix and a plain-text tail. That achieved per-block render skipping
+ * but produced two visible regressions:
+ *  - Short single-paragraph replies never had a `\n\n` boundary, so the
+ *    boundary stayed at 0 and the entire bubble rendered as plain Text
+ *    with literal asterisks until the stream completed.
+ *  - When the boundary advanced mid-stream, content briefly appeared to
+ *    duplicate as the tail moved into a new prefix block while a new
+ *    tail was being computed for the next paragraph (the chunk-
+ *    accumulation regression).
  *
- * Performance contract:
- *  - Boundary detection is a single O(N) pass over the text tracking
- *    triple-backtick and `$$` parity (cheap — no full markdown parse).
- *  - The MarkdownText prefix only recomposes when the boundary advances,
- *    which happens at PARAGRAPH cadence (~once per second) rather than
- *    chunk cadence (~10/sec).
- *  - Mid-paragraph chunks only mutate the tail Text, which is a flat
- *    plain-text layout — cheap.
+ * The boundary detector ([findLastSafeBoundary]) and per-block splitter
+ * ([splitMarkdownBlocks]) remain in this file for future use (e.g. if we
+ * reintroduce incremental rendering with a Compose-stable per-block API),
+ * but are no longer wired into the rendering path. Their unit-test
+ * coverage is preserved.
  *
  * @param text the live, possibly-incomplete markdown text. Safe to pass on
  *   every chunk.
- * @param modifier applied to the wrapping Column.
- * @param textColor base text color used for both the markdown prefix and
- *   the plain tail.
- * @param tailStyle text style applied to the plain-text tail. Defaults to
- *   `bodyMedium`; supply your chat body style for visual parity with the
- *   formatted prefix.
- * @param tailTransform optional decorator for the in-progress tail —
- *   e.g. word-boundary holdback + streaming cursor (`streamingDisplayText`
- *   from MessageContentFactory). Receives the raw tail string, returns the
- *   string to render. NOT applied to the prefix.
+ * @param modifier forwarded to the underlying [MarkdownText].
+ * @param textColor base text color.
+ * @param tailStyle retained for source compatibility; unused (MarkdownText
+ *   owns its typography).
+ * @param tailTransform optional decorator applied to the full accumulated
+ *   text — e.g. word-boundary holdback + streaming cursor
+ *   (`streamingDisplayText` from MessageContentFactory). Receives the raw
+ *   text, returns the string to render.
  */
 @Composable
 fun StreamingMarkdownText(
@@ -64,50 +57,54 @@ fun StreamingMarkdownText(
 ) {
     if (text.isEmpty()) return
 
-    val boundary = remember(text) { findLastSafeBoundary(text) }
-    val prefix = if (boundary > 0) text.substring(0, boundary) else ""
-    val rawTail = if (boundary < text.length) text.substring(boundary) else ""
-    val tail = remember(rawTail) { if (rawTail.isEmpty()) "" else tailTransform(rawTail) }
+    // letta-mobile-flk.3.1: simplest-correct rendering for streaming.
+    //
+    // The original c8of design split the text at the last safe paragraph
+    // boundary into a markdown-rendered prefix and a plain-text tail.
+    // That worked when responses had paragraph breaks but completely
+    // failed for short single-paragraph replies (boundary stayed at 0,
+    // entire bubble rendered as plain Text with literal asterisks).
+    //
+    // flk.3 then rendered the tail through MarkdownText too. That fixed
+    // visual formatting but introduced a chunk-accumulation regression
+    // where the prefix/tail split caused Compose to see two separate
+    // MarkdownText composables whose content was sliced from the same
+    // string — when the boundary advanced mid-stream, content briefly
+    // appeared to duplicate as the tail moved into a new prefix block
+    // while a new tail was being computed for the next paragraph.
+    //
+    // flk.3.1 collapses to a single MarkdownText pass over the full
+    // text + streaming cursor. This is what every modern markdown chat
+    // app does (ChatGPT, Claude.ai, Gemini): on each chunk, parse the
+    // current accumulated text through the markdown renderer. Mikepenz
+    // is fast enough that paragraph-cadence frame rate is well within
+    // budget on a real device.
+    //
+    // The boundary detector + per-block splitter remain in this file
+    // for future use (e.g. if we re-introduce incremental rendering
+    // with a Compose-stable per-block API), but are no longer wired
+    // into the rendering path.
+    val rendered = remember(text) { tailTransform(text) }
 
-    // letta-mobile-flk.1: split the committed prefix into independently-
-    // keyed blocks so already-rendered paragraphs Compose-skip when the
-    // prefix advances. Without this, every prefix-advance forces mikepenz
-    // to reparse the ENTIRE prefix AST — the dominant cost when the
-    // gateway streams snapshot-shaped frames at high frequency (e.g.
-    // LETTABOT_PARTIAL_JSON_ENABLED=true emits paragraph-cadence
-    // snapshots much more often than the boundary detector originally
-    // assumed). Per-block keying caps reparse cost at the size of the
-    // block that actually changed (typically the just-committed
-    // paragraph), independent of how long the conversation grows.
-    val blocks = remember(prefix) { splitMarkdownBlocks(prefix) }
+    if (rendered.isEmpty()) return
 
-    Column(modifier = modifier) {
-        blocks.forEach { block ->
-            // The block's text is stable once committed; its index +
-            // hash is the key so Compose treats unchanged blocks as
-            // structurally identical across recompositions and skips
-            // their MarkdownText recompose entirely.
-            key(block.key) {
-                MarkdownText(
-                    text = block.text,
-                    textColor = textColor,
-                )
-            }
-        }
-        if (tail.isNotEmpty()) {
-            // Plain Text for the in-progress paragraph. We intentionally
-            // do NOT format the tail mid-stream — formatting partial
-            // markdown produces visible flicker (e.g. "**hel" renders as
-            // "**hel", then next chunk "lo**" causes "hello" to abruptly
-            // become bold). The tail typically lives less than a second
-            // before the next \n\n boundary commits it into the prefix.
-            Text(
-                text = tail,
-                color = textColor,
-                style = tailStyle,
-            )
-        }
-    }
+    // Single MarkdownText pass over the full accumulated stream. No
+    // prefix/tail split — the split was the source of the chunk-
+    // accumulation regression in flk.3 (when the boundary advanced
+    // mid-stream the tail moved into a new prefix block while a new
+    // tail string was being computed for the next paragraph; Compose
+    // briefly saw both renderers laying out content before the swap
+    // settled, which Emmanuel reported as "chunk accumulation no
+    // longer working").
+    //
+    // `tailStyle` is intentionally unused here (the parameter is kept
+    // for source compatibility with existing call sites). MarkdownText
+    // owns its typography for both prose and the streaming cursor.
+    MarkdownText(
+        text = rendered,
+        modifier = modifier,
+        textColor = textColor,
+    )
 }
 
 /**
@@ -428,6 +425,48 @@ private fun lineLooksLikeTableSeparator(text: String, start: Int, end: Int): Boo
 private fun containsPipe(text: String, start: Int, end: Int): Boolean {
     for (j in start until end) if (text[j] == '|') return true
     return false
+}
+
+/**
+ * letta-mobile-flk.3: returns true if [tail] contains an UNCLOSED
+ * triple-backtick or `$$` block fence.
+ *
+ * The streaming tail (everything past the last safe paragraph boundary)
+ * is normally rendered through [MarkdownText] so emphasis, lists, and
+ * inline code format live during the stream. But if the tail begins or
+ * contains a `\`\`\`` or `$$` with no matching close yet, mikepenz will
+ * interpret the open fence as starting a giant code/math block that
+ * absorbs the rest of the bubble — producing a visual artifact much
+ * worse than the inline-emphasis flicker we accept elsewhere.
+ *
+ * Counts unescaped triple-backticks and `$$` markers; returns true iff
+ * either count is odd (i.e. an unclosed fence is open). O(N) over the
+ * tail, no allocations.
+ *
+ * Single backtick (inline code) and single `$` (inline math) are NOT
+ * tracked here — those are inline constructs that mikepenz tolerates
+ * being unclosed, and they don't catastrophically absorb subsequent
+ * content.
+ */
+internal fun tailHasOpenBlockFence(tail: String): Boolean {
+    var fenceParity = 0
+    var displayMathParity = 0
+    var i = 0
+    val n = tail.length
+    while (i < n) {
+        if (i + 2 < n && tail[i] == '`' && tail[i + 1] == '`' && tail[i + 2] == '`') {
+            fenceParity = fenceParity xor 1
+            i += 3
+            continue
+        }
+        if (i + 1 < n && tail[i] == '$' && tail[i + 1] == '$') {
+            displayMathParity = displayMathParity xor 1
+            i += 2
+            continue
+        }
+        i++
+    }
+    return fenceParity != 0 || displayMathParity != 0
 }
 
 // ─── letta-mobile-flk.1: per-block prefix splitter ─────────────────────
