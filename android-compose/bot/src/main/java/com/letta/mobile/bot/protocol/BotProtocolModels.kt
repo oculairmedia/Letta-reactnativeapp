@@ -199,6 +199,16 @@ data class BotStreamChunk(
     val uuid: String? = null,
     val aborted: Boolean = false,
     val done: Boolean = false,
+
+    /**
+     * letta-mobile-flk.5: present only on `event == CONVERSATION_SWAP`.
+     * The conversation id the client originally requested (the one that
+     * the gateway abandoned). Receivers can use this to assert the
+     * swap is for the conv they care about, and to pull stranded
+     * optimistic locals from the old timeline before the observer is
+     * re-pointed at the new conversation.
+     */
+    @SerialName("old_conversation_id") val oldConversationId: String? = null,
 )
 
 @Serializable
@@ -212,6 +222,25 @@ enum class BotStreamEvent {
     @SerialName("tool_call") TOOL_CALL,
     @SerialName("tool_result") TOOL_RESULT,
     @SerialName("reasoning") REASONING,
+
+    /**
+     * letta-mobile-flk.5: gateway-emitted notification that the in-flight
+     * request was retried on a fresh Letta conversation because the
+     * original conversation was unrecoverable (typically a stuck
+     * `requires_approval` or stale conversation state).
+     *
+     * Wire shape: `{ type: "stream", event: "conversation_swap",
+     *   old_conversation_id, conversation_id, request_id }`. The new
+     * conv id arrives in the standard `conversation_id` field on
+     * `BotStreamChunk` so existing swap-detection logic in
+     * `AdminChatViewModel` (which keys off `chunk.conversationId`) sees
+     * the change at the same moment as this explicit signal.
+     *
+     * Receivers should switch their timeline observer to the new
+     * conversation, migrate any optimistic local message that was
+     * appended to the old conversation, and update navigation state.
+     */
+    @SerialName("conversation_swap") CONVERSATION_SWAP,
 }
 
 enum class ConnectionState {

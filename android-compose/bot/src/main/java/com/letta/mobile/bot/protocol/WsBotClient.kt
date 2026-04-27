@@ -194,7 +194,22 @@ class WsBotClient(
                     when (val signal = requestChannel.receive()) {
                         is RequestSignal.Message -> {
                             when (val message = signal.message) {
-                                is WsStreamEventMessage -> emit(message.toChunk(activeConversationId, activeAgentId))
+                                is WsStreamEventMessage -> {
+                                    // letta-mobile-flk.5: when the gateway
+                                    // emits a per-chunk conversation_id (or
+                                    // an explicit conversation_swap event)
+                                    // the active conversation has changed
+                                    // mid-stream because of gateway-side
+                                    // auto-recovery. Update our cached
+                                    // active conv id immediately so any
+                                    // subsequent reconnect path uses the
+                                    // new id, and so the chunk we forward
+                                    // carries the up-to-date value.
+                                    message.conversationId
+                                        ?.takeIf { it.isNotBlank() && it != activeConversationId }
+                                        ?.let { activeConversationId = it }
+                                    emit(message.toChunk(activeConversationId, activeAgentId))
+                                }
                                 is WsResultMessage -> {
                                     activeConversationId = message.conversationId ?: activeConversationId
                                     emit(
@@ -660,7 +675,14 @@ class WsBotClient(
         agentId: String?,
     ): BotStreamChunk = BotStreamChunk(
         text = content,
-        conversationId = conversationId,
+        // letta-mobile-flk.5: prefer the per-frame conversation_id when
+        // the gateway provides it. Newer lettabot builds echo the active
+        // Letta conv id on every chunk so mid-stream conversation swaps
+        // (after auto-recovery from a stuck conv) are observable BEFORE
+        // the terminal `result` frame; older builds populate only the
+        // result frame, so we fall back to the cached
+        // `activeConversationId` to preserve the previous behavior.
+        conversationId = this.conversationId ?: conversationId,
         agentId = agentId,
         event = event,
         toolName = toolName,
@@ -669,6 +691,7 @@ class WsBotClient(
         isError = isError,
         requestId = requestId,
         uuid = uuid,
+        oldConversationId = oldConversationId,
         done = false,
     )
 
@@ -803,6 +826,22 @@ class WsBotClient(
         @SerialName("is_error") val isError: Boolean = false,
         val uuid: String? = null,
         @SerialName("request_id") val requestId: String? = null,
+        /**
+         * letta-mobile-flk.5: present when the gateway echoes the active
+         * Letta conversation id on each per-chunk frame, OR when the
+         * gateway emits an explicit `conversation_swap` event (in which
+         * case this carries the *new* conversation id). Falling back to
+         * the connection-level `activeConversationId` when absent
+         * preserves bug-for-bug behavior with older gateway builds.
+         */
+        @SerialName("conversation_id") val conversationId: String? = null,
+        /**
+         * letta-mobile-flk.5: present only on
+         * `event == CONVERSATION_SWAP` — the conversation id the gateway
+         * abandoned. Allows the receiver to migrate stranded optimistic
+         * locals from the old timeline before re-pointing the observer.
+         */
+        @SerialName("old_conversation_id") val oldConversationId: String? = null,
     ) : WsInboundMessage
 
     @Serializable

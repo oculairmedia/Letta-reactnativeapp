@@ -1075,6 +1075,54 @@ class AdminChatViewModel @Inject constructor(
                                     )
                                 }
                                 savedStateHandle["conversationId"] = conversationId
+
+                                // letta-mobile-flk.5: when the gateway swaps
+                                // conversations mid-stream (recovery from a
+                                // stuck/unrecoverable conv — typically
+                                // pending requires_approval), the user's
+                                // optimistic Local was appended to the OLD
+                                // conv's timeline (or sits in the legacy
+                                // clientModeMessages list if this was a
+                                // fresh-route turn). The assistant chunks
+                                // about to flow on this same stream belong
+                                // to the NEW conv on the Letta server. If
+                                // we leave the observer pointed at the OLD
+                                // conv we'll keep writing assistant Locals
+                                // there and the user sees nothing in the
+                                // conv they're now navigated to.
+                                //
+                                // Migrate the user bubble to the new conv,
+                                // discard any in-memory bubbles (the new
+                                // conv's timeline is now the authority),
+                                // and re-point the observer. Subsequent
+                                // chunks already use latestConversationId
+                                // for their write target via
+                                // handleClientModeStreamChunk.
+                                runCatching {
+                                    timelineRepository.appendClientModeLocal(
+                                        conversationId = conversationId,
+                                        content = text,
+                                    )
+                                    clientModeMessages = clientModeMessages
+                                        .filterNot {
+                                            it.id == userMessageId ||
+                                                it.id == assistantMessageId
+                                        }
+                                    setClientModeConversationId(conversationId)
+                                    currentConversationTracker.setCurrent(conversationId)
+                                    startTimelineObserver(conversationId)
+                                    // Mark the legacy fresh-route migration
+                                    // as already done so the block below
+                                    // (which assumes priorConversationId ==
+                                    // null) doesn't double-migrate.
+                                    migratedToTimeline = true
+                                }.onFailure { e ->
+                                    android.util.Log.w(
+                                        "AdminChatViewModel",
+                                        "Conversation swap migration to new conv timeline failed; staying on old conv",
+                                        e,
+                                    )
+                                }
                             }
                         }
                     }
@@ -1530,6 +1578,10 @@ class AdminChatViewModel @Inject constructor(
             BotStreamEvent.TOOL_CALL,
             BotStreamEvent.TOOL_RESULT,
             BotStreamEvent.REASONING -> true
+            // letta-mobile-flk.5: CONVERSATION_SWAP is a control-plane
+            // signal, not user-visible content — must not gate the
+            // hf93 "no-payload" terminal-error path.
+            BotStreamEvent.CONVERSATION_SWAP,
             BotStreamEvent.ASSISTANT, null -> false
         }
     }
