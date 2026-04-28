@@ -1916,6 +1916,90 @@ class AdminChatViewModelTest {
             )
         }
     }
+
+    /**
+     * letta-mobile-w2hx.5: two chats opened on different agents must each
+     * resolve their own agent header from conversation/agent metadata, and
+     * a send in chat A must NOT route through chat B's conversation.
+     *
+     * This is the bound-agent no-bleedover acceptance test. The chat row
+     * (today: a (agentId, conversationId) nav route) is the routing key —
+     * conversation_id is the primary identity that flows into the
+     * timeline send path. There is no shared per-agent state that can
+     * leak chat A's text into chat B's conversation.
+     *
+     * Note: removing the residual ConversationManager in-memory map keyed
+     * on agentId is captured by w2hx.6.
+     */
+    @Test
+    fun `w2hx_5 two chats different agents do not bleed over conversation routing`() = runTest {
+        // Per-agent metadata so each VM's agent header is distinguishable.
+        every { agentRepository.getAgent("agent-A") } returns
+            flowOf(TestData.agent(id = "agent-A", name = "Agent Alpha"))
+        every { agentRepository.getAgent("agent-B") } returns
+            flowOf(TestData.agent(id = "agent-B", name = "Agent Beta"))
+
+        // Each agent's "active conversation" is its own server-side conv.
+        // Even though ConversationManager is keyed on agentId today, the
+        // VM ultimately routes sends through the conversation's id — so
+        // long as that's wired correctly, no bleedover is possible.
+        coEvery { conversationManager.resolveAndSetActiveConversation("agent-A", any()) } answers {
+            activeConversationIds["agent-A"] = "conv-A"
+            "conv-A"
+        }
+        coEvery { conversationManager.resolveAndSetActiveConversation("agent-B", any()) } answers {
+            activeConversationIds["agent-B"] = "conv-B"
+            "conv-B"
+        }
+
+        val vmA = createViewModel(agentId = "agent-A", conversationId = "conv-A")
+        val vmB = createViewModel(agentId = "agent-B", conversationId = "conv-B")
+        advanceUntilIdle()
+
+        // Each chat resolves its own agent header from metadata, not a
+        // shared bound-agent slot.
+        assertEquals("Agent Alpha", vmA.uiState.value.agentName)
+        assertEquals("Agent Beta", vmB.uiState.value.agentName)
+        assertEquals(
+            ConversationState.Ready("conv-A"),
+            vmA.uiState.value.conversationState,
+        )
+        assertEquals(
+            ConversationState.Ready("conv-B"),
+            vmB.uiState.value.conversationState,
+        )
+
+        // Send in chat A. The send must target conv-A, never conv-B.
+        vmA.sendMessage("hello from A")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            timelineRepository.sendMessage("conv-A", "hello from A")
+        }
+        coVerify(exactly = 0) {
+            timelineRepository.sendMessage("conv-B", any())
+        }
+
+        // Chat B's conversation state is untouched by chat A's send.
+        assertEquals(
+            ConversationState.Ready("conv-B"),
+            vmB.uiState.value.conversationState,
+        )
+        assertFalse(vmB.uiState.value.isStreaming)
+
+        // Now send in chat B. Routing is to conv-B, never conv-A.
+        vmB.sendMessage("hello from B")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            timelineRepository.sendMessage("conv-B", "hello from B")
+        }
+        coVerify(exactly = 1) {
+            // Still exactly one A send across the whole test — no
+            // duplication, no cross-talk.
+            timelineRepository.sendMessage("conv-A", "hello from A")
+        }
+    }
 }
 
 /**
