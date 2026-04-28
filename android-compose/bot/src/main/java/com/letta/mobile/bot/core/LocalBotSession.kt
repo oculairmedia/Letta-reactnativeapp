@@ -176,12 +176,10 @@ class LocalBotSession @AssistedInject constructor(
     override fun streamToAgent(
         message: ChannelMessage,
         conversationId: String?,
-        @Suppress("UNUSED_PARAMETER") forceNew: Boolean,
     ): Flow<BotResponseChunk> = flow {
-        // letta-mobile-flk.6: LocalBotSession resolves conversations
-        // entirely client-side (resolveConversation), so forceNew has no
-        // server-side mapping to clear. Accepted on the interface to
-        // satisfy BotSession; intentionally unused here.
+        // letta-mobile-w2hx.7: LocalBotSession resolves conversations
+        // entirely client-side via resolveConversation(); freshness is
+        // expressed by passing `conversationId = null`.
         val agentId = requireAgent(message)
         ensureToolsSynced(agentId)
         _status.value = BotStatus.PROCESSING

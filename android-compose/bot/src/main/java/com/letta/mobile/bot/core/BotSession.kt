@@ -47,16 +47,16 @@ interface BotSession {
      * Send a message and stream the response tokens.
      * Maps to lettabot's `streamToAgent()`.
      *
-     * letta-mobile-flk.6: `forceNew` lets the caller request that the
-     * gateway clear its persisted conversation pointer for this agent and
-     * start a brand-new Letta conversation. Threaded through from
-     * `ClientModeChatSender` so the mobile UI's "New chat" tap doesn't
-     * resume the previous conversation server-side.
+     * letta-mobile-w2hx.7: the prior `forceNew` parameter is gone. A
+     * fresh conversation is requested by passing `conversationId = null`
+     * — the gateway no longer maintains a per-agent "active conv"
+     * fallback that the caller needs to override. The chat row owns its
+     * own `conversation_id`; if it has none, it has none, and the
+     * gateway creates one.
      */
     fun streamToAgent(
         message: ChannelMessage,
         conversationId: String? = null,
-        forceNew: Boolean = false,
     ): Flow<BotResponseChunk>
 
     /**

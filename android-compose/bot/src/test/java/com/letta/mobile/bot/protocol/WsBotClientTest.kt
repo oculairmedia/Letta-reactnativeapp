@@ -427,9 +427,22 @@ class WsBotClientTest : WordSpec({
                     }
                 }
 
+                // letta-mobile-w2hx.7: the chat row is the source of truth
+                // for `conversation_id`. After a reconnect, the caller —
+                // here, the test stand-in for AdminChatViewModel — passes
+                // the conv id it learned from the first turn. WsBotClient
+                // no longer carries an "active conv" fallback that
+                // backfills a null arg.
                 val second = runBlocking {
                     withTimeout(5_000) {
-                        client.streamMessage(BotChatRequest(message = "second", agentId = "agent-6", chatId = "chat-6")).toList()
+                        client.streamMessage(
+                            BotChatRequest(
+                                message = "second",
+                                agentId = "agent-6",
+                                chatId = "chat-6",
+                                conversationId = "conv-reconnect",
+                            )
+                        ).toList()
                     }
                 }
 

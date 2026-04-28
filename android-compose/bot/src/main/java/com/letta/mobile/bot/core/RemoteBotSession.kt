@@ -142,13 +142,16 @@ class RemoteBotSession @AssistedInject constructor(
     override fun streamToAgent(
         message: ChannelMessage,
         conversationId: String?,
-        forceNew: Boolean,
     ): Flow<BotResponseChunk> = flow {
         val remoteClient = client ?: throw IllegalStateException("Session not started")
         val agentId = requireAgent(message)
 
         _status.value = BotStatus.PROCESSING
         try {
+            // letta-mobile-w2hx.7: a null `conversationId` here means
+            // "the chat row has no conv yet" → the gateway creates a
+            // fresh Letta conversation and echoes the new id back on
+            // the first chunk. There is no longer a force_new flag.
             val request = BotChatRequest(
                 message = message.text,
                 channelId = message.channelId,
@@ -157,12 +160,6 @@ class RemoteBotSession @AssistedInject constructor(
                 senderName = message.senderName,
                 conversationId = conversationId,
                 agentId = agentId,
-                // letta-mobile-flk.6: propagate the fresh-route signal to
-                // the WS gateway so it clears its persisted conversation
-                // map and starts a new Letta conversation. Without this
-                // the Client-Mode "New chat" tap silently resumes the
-                // previous conversation server-side.
-                forceNew = forceNew,
             )
 
             val accumulated = StringBuilder()

@@ -1023,10 +1023,11 @@ class AdminChatViewModel @Inject constructor(
             // the saved-state-handle pointer for cases where Client Mode set up the
             // conversation itself (fresh-route entry continued in-place).
             val priorConversationId = explicitConversationId ?: currentClientModeConversationId()
-            // Force-fresh only when the user genuinely entered a fresh-route nav
-            // (no conversation arg AND no in-flight saved-state pointer). For
-            // existing-route entries we want resume, not new.
-            val forceFreshConversation = isFreshRoute && priorConversationId == null
+            // letta-mobile-w2hx.7: freshness is no longer signalled with a
+            // dedicated flag. A fresh-route entry surfaces as
+            // `priorConversationId == null` and the gateway opens a new
+            // Letta conversation in response. The chat row picks up the
+            // returned conversationId on the first chunk.
             // letta-mobile-c87t (PR 2): when we already know the
             // conversationId, append the user bubble through the timeline so
             // the SSE-side reconcile + fuzzy matcher (PR 1) can collapse it
@@ -1143,7 +1144,6 @@ class AdminChatViewModel @Inject constructor(
                     screenAgentId = agentId,
                     text = text,
                     conversationId = priorConversationId,
-                    forceFreshConversation = forceFreshConversation,
                 ).collect { chunk ->
                     chunk.conversationId?.takeIf { it.isNotBlank() }?.let { conversationId ->
                         latestConversationId = conversationId

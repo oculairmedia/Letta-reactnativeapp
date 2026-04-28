@@ -16,21 +16,24 @@ class ClientModeChatSender @Inject constructor(
     private val internalBotClient: InternalBotClient,
     private val clientModeController: ClientModeController,
 ) {
+    /**
+     * letta-mobile-w2hx.7: the prior `forceFreshConversation` parameter
+     * is gone. A "New chat" tap surfaces here as `conversationId == null`,
+     * which the gateway reads as "open a fresh Letta conversation". There
+     * is no longer a transport-level flag, and we no longer need to
+     * restart the WS session to invalidate a per-agent server-side conv
+     * map (it was deleted in w2hx.6).
+     */
     fun streamMessage(
         screenAgentId: String,
         text: String,
         conversationId: String?,
-        forceFreshConversation: Boolean,
     ): Flow<BotStreamChunk> = flow {
         // letta-mobile-w2hx.4: the controller no longer hands us a bound
         // agent ID — it just guarantees the transport is up. The agent
         // identity comes straight from the active chat (`screenAgentId`)
         // and rides along on `BotChatRequest.agentId`.
-        if (forceFreshConversation) {
-            clientModeController.restartSession()
-        } else {
-            clientModeController.ensureReady()
-        }
+        clientModeController.ensureReady()
 
         internalBotClient.streamMessage(
             BotChatRequest(
@@ -40,13 +43,6 @@ class ClientModeChatSender @Inject constructor(
                 senderId = "letta-mobile-user",
                 agentId = screenAgentId,
                 conversationId = conversationId,
-                // letta-mobile-flk.6: forward the fresh-route signal to the
-                // gateway so it clears its persisted conversation mapping
-                // and starts a new Letta conversation. Without this flag,
-                // a "New chat" tap on the same agent silently resumes the
-                // previous conversation server-side because the gateway
-                // falls back to its conversationStore.get(agentId).
-                forceNew = forceFreshConversation,
             )
         ).collect { emit(it) }
     }

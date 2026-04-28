@@ -184,7 +184,7 @@ class AdminChatViewModelTest {
         every { settingsRepository.getChatFontScale() } returns flowOf(1f)
         every { settingsRepository.observeClientModeEnabled() } returns clientModeEnabledFlow
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow { }
         // letta-mobile-w2hx.6: seed conversationRepository.getCachedConversations
         // from the activeConversationIds fixture map. resolveMostRecentConversation
@@ -424,7 +424,7 @@ class AdminChatViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 0) {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         }
         coVerify(exactly = 1) {
             timelineRepository.sendMessage("conv-1", "Hello from timeline")
@@ -440,7 +440,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // letta-mobile (lettabot-uww.11): WS gateway emits PURE DELTAS.
@@ -469,7 +468,6 @@ class AdminChatViewModelTest {
                 screenAgentId = "agent-1",
                 text = "Hello from client mode",
                 conversationId = null,
-                forceFreshConversation = true,
             )
         }
         assertEquals(2, vm.uiState.value.messages.size)
@@ -577,7 +575,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns chunks.consumeAsFlow()
 
@@ -633,7 +630,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "Hi", conversationId = "client-conv"))
@@ -679,7 +675,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // letta-mobile-flk.4 regression repro: realistic DELTA wire
@@ -742,7 +737,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // Chunk #1 — pre-conv, contains the OPENING `**`.
@@ -794,7 +788,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // Only a terminal frame — no text, no event.
@@ -854,7 +847,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // DELTA wire shape — each frame is a NEW fragment.
@@ -913,7 +905,7 @@ class AdminChatViewModelTest {
         clientModeEnabledFlow.value = true
         val (fragments, expected) = loadWsstreamGoldenFragments()
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             fragments.forEach { frag ->
                 emit(BotStreamChunk(text = frag, conversationId = "client-conv", event = BotStreamEvent.ASSISTANT))
@@ -945,7 +937,7 @@ class AdminChatViewModelTest {
     fun `client mode multi-chunk reasoning stream renders concatenated reasoning bubble`() = runTest {
         clientModeEnabledFlow.value = true
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             emit(BotStreamChunk(text = "Let", conversationId = "client-conv", event = BotStreamEvent.REASONING))
             emit(BotStreamChunk(text = " me ", conversationId = "client-conv", event = BotStreamEvent.REASONING))
@@ -999,7 +991,7 @@ class AdminChatViewModelTest {
             put("limit", kotlinx.serialization.json.JsonPrimitive(5))
         }
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             // Interleaved with delta-shaped assistant text — the two
             // wire shapes must not interfere with each other.
@@ -1097,7 +1089,7 @@ class AdminChatViewModelTest {
         val expected = fragments.joinToString("")
 
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             fragments.forEach { f ->
                 emit(BotStreamChunk(text = f, conversationId = "client-conv", event = BotStreamEvent.ASSISTANT))
@@ -1137,7 +1129,7 @@ class AdminChatViewModelTest {
         val chunks = mermaid.map { it.toString() }
 
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             chunks.forEach { c ->
                 emit(BotStreamChunk(text = c, conversationId = "client-conv", event = BotStreamEvent.ASSISTANT))
@@ -1174,7 +1166,7 @@ class AdminChatViewModelTest {
     fun `client mode renders tool call and tool result chunks as tool card`() = runTest {
         clientModeEnabledFlow.value = true
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             emit(
                 BotStreamChunk(
@@ -1227,7 +1219,7 @@ class AdminChatViewModelTest {
             TestData.appMessage(id = "timeline-assistant", messageType = MessageType.ASSISTANT, content = "Timeline reply"),
         )
         every {
-            clientModeChatSender.streamMessage(any(), any(), any(), any())
+            clientModeChatSender.streamMessage(any(), any(), any())
         } returns flow {
             emit(BotStreamChunk(text = "Client reply", conversationId = "client-conv", done = true))
         }
@@ -1260,7 +1252,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "Fresh route", conversationId = "client-conv", done = true))
@@ -1294,7 +1285,6 @@ class AdminChatViewModelTest {
                 screenAgentId = "agent-1",
                 text = "hello",
                 conversationId = null,
-                forceFreshConversation = true,
             )
         }
         coVerify(exactly = 0) { timelineRepository.sendMessage(any(), any()) }
@@ -1313,7 +1303,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "Fresh client reply", conversationId = "client-conv", done = true))
@@ -1333,7 +1322,6 @@ class AdminChatViewModelTest {
                 screenAgentId = "agent-1",
                 text = "hello",
                 conversationId = null,
-                forceFreshConversation = true,
             )
         }
         coVerify(exactly = 0) { timelineRepository.sendMessage(any(), any()) }
@@ -1768,7 +1756,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "hi back", conversationId = "conv-existing"))
@@ -1788,7 +1775,6 @@ class AdminChatViewModelTest {
                 screenAgentId = "agent-1",
                 text = "hi",
                 conversationId = "conv-existing",
-                forceFreshConversation = false,
             )
         }
         // And critically: timeline.sendMessage was NOT called.
@@ -1808,7 +1794,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             // Note: gateway returns a DIFFERENT conversationId than requested.
@@ -1836,7 +1821,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "ok", conversationId = "conv-existing"))
@@ -1863,7 +1847,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "ok", conversationId = "conv-NEW"))
@@ -1898,7 +1881,6 @@ class AdminChatViewModelTest {
                 screenAgentId = any(),
                 text = any(),
                 conversationId = any(),
-                forceFreshConversation = any(),
             )
         } returns flow {
             emit(BotStreamChunk(text = "ack", conversationId = "conv-existing", done = true))

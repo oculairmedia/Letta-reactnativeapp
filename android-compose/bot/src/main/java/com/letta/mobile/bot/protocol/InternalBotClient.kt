@@ -25,11 +25,11 @@ class InternalBotClient @Inject constructor(
 
     override fun streamMessage(request: BotChatRequest): Flow<BotStreamChunk> {
         val message = request.toChannelMessage()
-        // letta-mobile-flk.6: forward request.forceNew to the gateway so
-        // the WS layer can flip force_new in its session_start envelope.
-        // Without this the flag is silently dropped at the InternalBotClient
-        // boundary and the gateway auto-resumes the previous conversation.
-        return gateway.streamMessage(message, request.conversationId, request.forceNew).map { chunk ->
+        // letta-mobile-w2hx.7: routing is now entirely
+        // conversationId-driven. A null `request.conversationId` means
+        // "open a fresh Letta conversation"; the chat row picks up the
+        // gateway-emitted id from the first chunk.
+        return gateway.streamMessage(message, request.conversationId).map { chunk ->
             BotStreamChunk(
                 text = chunk.text,
                 conversationId = chunk.conversationId ?: request.conversationId,

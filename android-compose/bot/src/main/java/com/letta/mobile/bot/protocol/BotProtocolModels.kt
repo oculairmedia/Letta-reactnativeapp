@@ -30,16 +30,15 @@ data class BotChatRequest(
     @SerialName("sender_id") val senderId: String? = null,
     @SerialName("sender_name") val senderName: String? = null,
     @SerialName("agent_id") val agentId: String? = null,
-    @SerialName("conversation_id") val conversationId: String? = null,
     /**
-     * letta-mobile-flk.6: when true, the gateway is told to clear its persisted
-     * conversation mapping for this agent and start a fresh conversation on
-     * the Letta server. Mirrors the gateway's WS `session_start.force_new`
-     * field. Set this when the user explicitly opens a "New chat" route —
-     * otherwise lettabot will auto-resume the previous conversation for the
-     * agent and the new-chat UI will silently continue an old thread.
+     * letta-mobile-w2hx.7: routing key. When null, the gateway opens a
+     * fresh Letta conversation; when non-null, the gateway resolves it
+     * directly. The pre-w2hx `force_new` flag is gone — freshness is
+     * now expressed purely by passing a null `conversationId` (which in
+     * practice means a freshly-minted chatId on the client carries no
+     * conversation_id mapping yet). See bead letta-mobile-w2hx.7.
      */
-    @SerialName("force_new") val forceNew: Boolean = false,
+    @SerialName("conversation_id") val conversationId: String? = null,
     @Transient val contentItems: List<BotMessageContentItem>? = null,
 )
 

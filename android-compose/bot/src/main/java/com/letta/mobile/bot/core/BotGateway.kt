@@ -106,15 +106,14 @@ class BotGateway @Inject constructor(
     fun streamMessage(
         message: ChannelMessage,
         conversationId: String? = null,
-        forceNew: Boolean = false,
     ): Flow<BotResponseChunk> {
         val session = getDefaultSession()
             ?: throw IllegalStateException("No active bot sessions")
 
-        // letta-mobile-flk.6: forward forceNew to the session so the
-        // WS layer can include force_new=true in its session_start. See
-        // ClientModeChatSender + RemoteBotSession.streamToAgent.
-        return session.streamToAgent(message, conversationId, forceNew)
+        // letta-mobile-w2hx.7: freshness comes from a null conversationId,
+        // not from a force_new flag. The chat row's conv_id (or its
+        // absence) is the routing key end-to-end.
+        return session.streamToAgent(message, conversationId)
     }
 
     /**
