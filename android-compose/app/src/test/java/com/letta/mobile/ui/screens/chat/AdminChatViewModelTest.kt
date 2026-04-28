@@ -1989,6 +1989,68 @@ class AdminChatViewModelTest {
             timelineRepository.sendMessage("conv-A", "hello from A")
         }
     }
+
+    /**
+     * letta-mobile-9pfm regression repro:
+     *
+     * Fresh-route Client Mode send must show the user bubble optimistically
+     * BEFORE any gateway chunk arrives. The send coroutine writes to
+     * `clientModeMessages` + `_uiState.messages` synchronously at lines
+     * 1107–1109 in AdminChatViewModel, with `isStreaming=true` set right
+     * after. If anything between the optimistic write and the first
+     * stream chunk clobbers `_uiState.messages`, the user sees no
+     * echo of their input.
+     *
+     * This test pins the optimistic-bubble contract: send → assert the
+     * "user" message is present BEFORE we deliver any gateway chunk.
+     */
+    @Test
+    fun `fresh route client mode shows optimistic user bubble before any chunk arrives`() = runTest {
+        clientModeEnabledFlow.value = true
+        // Empty active-conv map → fresh route. No timeline pre-seed.
+        activeConversationIds.clear()
+        messages = emptyList()
+
+        // Channel-backed flow: nothing emitted until we explicitly send.
+        val chunks = Channel<BotStreamChunk>(capacity = Channel.UNLIMITED)
+        every {
+            clientModeChatSender.streamMessage(
+                screenAgentId = any(),
+                text = any(),
+                conversationId = any(),
+            )
+        } returns chunks.consumeAsFlow()
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 9999L)
+        advanceUntilIdle()
+
+        // Pre-condition: empty.
+        assertEquals(ConversationState.NoConversation, vm.uiState.value.conversationState)
+        assertTrue(vm.uiState.value.messages.isEmpty())
+
+        vm.sendMessage("hello fresh")
+        // Drive the send coroutine up to the first chunks.receive() suspend.
+        advanceUntilIdle()
+
+        // CRITICAL: user bubble must be visible before any chunk arrives.
+        val userBubbles = vm.uiState.value.messages.filter { it.role == "user" }
+        assertEquals(
+            "Expected exactly one optimistic user bubble before stream chunks; " +
+                "messages=${vm.uiState.value.messages.map { "${it.role}=${it.content}" }}",
+            1,
+            userBubbles.size,
+        )
+        assertEquals("hello fresh", userBubbles.first().content)
+
+        // And isStreaming/isAgentTyping must be true so the spinner shows.
+        assertTrue("isStreaming must be true mid-flight", vm.uiState.value.isStreaming)
+        assertTrue("isAgentTyping must be true before first chunk", vm.uiState.value.isAgentTyping)
+
+        // Cleanup
+        chunks.send(BotStreamChunk(text = "reply", conversationId = "client-conv", done = true))
+        chunks.close()
+        advanceUntilIdle()
+    }
 }
 
 /**
