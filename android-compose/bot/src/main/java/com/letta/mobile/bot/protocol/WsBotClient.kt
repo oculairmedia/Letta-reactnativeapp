@@ -134,11 +134,35 @@ class WsBotClient(
     @Volatile
     private var activeSessionId: String? = null
 
-    @Volatile
-    private var activeRequestId: String? = null
+    /**
+     * letta-mobile-w2hx.8: receive-side demux table. Keyed on
+     * `conversation_id` (the routing primary key in the v2 protocol),
+     * with `request_id` as a tiebreaker for the rare reconnection
+     * window where the gateway emits a frame for a conv whose channel
+     * has just been swapped. Lookup precedence is: (1) exact conv-id
+     * hit; (2) the unique entry whose `requestId` matches; (3) drop.
+     *
+     * The map is intentionally not a `Map<conv, MutableSharedFlow>` —
+     * the per-request `Channel` model gives us back-pressure and
+     * exact-once semantics, which is what `streamMessage` needs. A
+     * future bead can layer a hot SharedFlow on top for server-pushed
+     * events that no caller awaits.
+     */
+    private val activeRoutes = java.util.concurrent.ConcurrentHashMap<String, RequestRoute>()
 
-    @Volatile
-    private var activeRequestEvents: SendChannel<RequestSignal>? = null
+    /**
+     * Routes that don't yet know their conversation_id (a fresh-route
+     * stream where the gateway will return a brand-new conv on the
+     * first chunk). They live here keyed by request_id until the first
+     * inbound frame upgrades them into [activeRoutes].
+     */
+    private val pendingRoutes = java.util.concurrent.ConcurrentHashMap<String, RequestRoute>()
+
+    private data class RequestRoute(
+        val requestId: String,
+        val channel: SendChannel<RequestSignal>,
+        @Volatile var conversationId: String?,
+    )
 
     @Volatile
     private var openDeferred: CompletableDeferred<Unit>? = null
@@ -170,18 +194,28 @@ class WsBotClient(
         requestMutex.withLock {
             val requestId = UUID.randomUUID().toString()
             val requestChannel = Channel<RequestSignal>(capacity = Channel.UNLIMITED)
+            val initialConvId = request.conversationId
+            val route = RequestRoute(
+                requestId = requestId,
+                channel = requestChannel,
+                conversationId = initialConvId,
+            )
 
-            // letta-mobile-w2hx.7 debug: trace inbound conv routing — the
-            // forceNew field is gone; freshness is "conv == null".
+            // letta-mobile-w2hx.8 debug: trace inbound conv routing —
+            // log the conv id we'll route by until/unless the gateway
+            // upgrades it on the first chunk.
             Log.i(
                 TAG,
-                "w2hx7.streamMessage agent=${request.agentId} conv=${request.conversationId} " +
-                    "active=$activeConversationId",
+                "w2hx8.streamMessage agent=${request.agentId} conv=${request.conversationId} " +
+                    "active=$activeConversationId rid=${requestId.take(8)}",
             )
             try {
                 ensureSession(request)
-                activeRequestId = requestId
-                activeRequestEvents = requestChannel
+                if (initialConvId != null) {
+                    activeRoutes[initialConvId] = route
+                } else {
+                    pendingRoutes[requestId] = route
+                }
                 _connectionState.value = ConnectionState.PROCESSING
 
                 sendClientMessageWithRetry(
@@ -202,23 +236,34 @@ class WsBotClient(
                         is RequestSignal.Message -> {
                             when (val message = signal.message) {
                                 is WsStreamEventMessage -> {
-                                    // letta-mobile-flk.5: when the gateway
-                                    // emits a per-chunk conversation_id (or
-                                    // an explicit conversation_swap event)
-                                    // the active conversation has changed
-                                    // mid-stream because of gateway-side
-                                    // auto-recovery. Update our cached
-                                    // active conv id immediately so any
-                                    // subsequent reconnect path uses the
-                                    // new id, and so the chunk we forward
-                                    // carries the up-to-date value.
+                                    // letta-mobile-flk.5 / w2hx.8: when the
+                                    // gateway emits a per-chunk
+                                    // `conversation_id` we (a) update the
+                                    // socket-level active conv pointer so a
+                                    // subsequent reconnect resumes correctly
+                                    // and (b) re-key this request's route
+                                    // entry so further frames demux to the
+                                    // same channel. The "fresh-route" path
+                                    // arrives here as a pending route that
+                                    // gets promoted into activeRoutes on
+                                    // its first chunk.
                                     message.conversationId
-                                        ?.takeIf { it.isNotBlank() && it != activeConversationId }
-                                        ?.let { activeConversationId = it }
+                                        ?.takeIf { it.isNotBlank() }
+                                        ?.let { incomingConv ->
+                                            if (incomingConv != activeConversationId) {
+                                                activeConversationId = incomingConv
+                                            }
+                                            promoteRoute(route, incomingConv)
+                                        }
                                     emit(message.toChunk(activeConversationId, activeAgentId))
                                 }
                                 is WsResultMessage -> {
-                                    activeConversationId = message.conversationId ?: activeConversationId
+                                    message.conversationId
+                                        ?.takeIf { it.isNotBlank() }
+                                        ?.let { incomingConv ->
+                                            activeConversationId = incomingConv
+                                            promoteRoute(route, incomingConv)
+                                        }
                                     emit(
                                         BotStreamChunk(
                                             conversationId = activeConversationId,
@@ -248,8 +293,7 @@ class WsBotClient(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } finally {
-                activeRequestId = null
-                activeRequestEvents = null
+                releaseRoute(route)
                 requestChannel.close()
                 if (!isUserClosing && socketOpen) {
                     _connectionState.value = ConnectionState.READY
@@ -258,8 +302,45 @@ class WsBotClient(
         }
     }
 
+    /**
+     * Move [route] from `pendingRoutes` into `activeRoutes` keyed on
+     * [convId], or rekey it within `activeRoutes` if the conv id
+     * changed mid-stream (gateway-side recovery in flk.5). Idempotent
+     * when convId already matches.
+     */
+    private fun promoteRoute(route: RequestRoute, convId: String) {
+        val previous = route.conversationId
+        if (previous == convId) {
+            // Hot path: conv id matches what we registered under. Make
+            // sure activeRoutes still points at us in case a retired
+            // entry collided.
+            activeRoutes[convId] = route
+            return
+        }
+        if (previous != null) {
+            activeRoutes.remove(previous, route)
+        }
+        pendingRoutes.remove(route.requestId, route)
+        route.conversationId = convId
+        activeRoutes[convId] = route
+    }
+
+    /**
+     * Drop [route] from both routing tables. Safe to call multiple
+     * times; uses keyed-conditional removes so a stale entry doesn't
+     * evict a successor that has reused the same key.
+     */
+    private fun releaseRoute(route: RequestRoute) {
+        route.conversationId?.let { activeRoutes.remove(it, route) }
+        pendingRoutes.remove(route.requestId, route)
+    }
+
     suspend fun abort() {
-        val requestId = activeRequestId ?: return
+        // letta-mobile-w2hx.8: with the single requestMutex still in
+        // place there is at most one in-flight request at a time, so
+        // "abort the current one" is well-defined. Pick the sole
+        // active/pending route's requestId; if there is none, no-op.
+        val requestId = soleInFlightRouteOrNull()?.requestId ?: return
         sendWebSocketMessage(WsAbortMessage(requestId = requestId))
     }
 
@@ -293,7 +374,13 @@ class WsBotClient(
         socketOpen = false
         openDeferred?.cancel()
         sessionInitDeferred?.cancel()
-        activeRequestEvents?.close()
+        // letta-mobile-w2hx.8: close every routed request channel —
+        // the streamMessage finally block will see CancellationException
+        // on its next receive and clean up.
+        activeRoutes.values.forEach { it.channel.close() }
+        activeRoutes.clear()
+        pendingRoutes.values.forEach { it.channel.close() }
+        pendingRoutes.clear()
         httpClient.close()
         wsClient.dispatcher.executorService.shutdown()
         _connectionState.value = ConnectionState.CLOSED
@@ -491,7 +578,7 @@ class WsBotClient(
                 if (sessionInitDeferred?.isActive == true) {
                     sessionInitDeferred?.completeExceptionally(exception)
                 } else {
-                    routeToActiveRequest(message)
+                    routeInbound(message)
                 }
                 if (message.code == BotGatewayErrorCode.AUTH_FAILED.name) {
                     _connectionState.value = ConnectionState.CLOSED
@@ -499,14 +586,37 @@ class WsBotClient(
             }
 
             is WsStreamEventMessage,
-            is WsResultMessage -> routeToActiveRequest(message)
+            is WsResultMessage -> routeInbound(message)
         }
     }
 
-    private fun routeToActiveRequest(message: WsInboundMessage) {
-        val requestId = activeRequestId
-        val target = activeRequestEvents ?: return
-
+    /**
+     * letta-mobile-w2hx.8: demux an inbound frame to the right
+     * in-flight request. Lookup precedence:
+     *
+     *   1. `conversation_id` exact match in [activeRoutes].
+     *   2. `request_id` match against any active or pending route
+     *      (covers (a) fresh-route streams whose conv id hasn't been
+     *      announced yet, and (b) reconnection windows where the
+     *      route has been rekeyed but a stray frame still carries the
+     *      old conv id).
+     *   3. Drop on the floor with a debug log.
+     *
+     * Today this is mostly belt-and-suspenders — the `requestMutex`
+     * still serializes streams — but it makes the demux structural so
+     * a future change to support concurrent streams (server-side
+     * multiplex, second socket per agent) plugs in without touching
+     * this boundary.
+     */
+    private fun routeInbound(message: WsInboundMessage) {
+        val incomingConvId = when (message) {
+            is WsStreamEventMessage -> message.conversationId
+            is WsResultMessage -> message.conversationId
+            // letta-mobile-w2hx.8: gateway error frames don't carry a
+            // conversation_id today (see lettabot src/api/ws-gateway.ts);
+            // we fall back to request_id matching for those.
+            else -> null
+        }
         val incomingRequestId = when (message) {
             is WsStreamEventMessage -> message.requestId
             is WsResultMessage -> message.requestId
@@ -514,11 +624,38 @@ class WsBotClient(
             else -> null
         }
 
-        if (requestId != null && incomingRequestId != null && incomingRequestId != requestId) {
+        val byConv = incomingConvId?.let { activeRoutes[it] }
+        val byRequestId = if (byConv == null && incomingRequestId != null) {
+            activeRoutes.values.firstOrNull { it.requestId == incomingRequestId }
+                ?: pendingRoutes[incomingRequestId]
+        } else null
+
+        val target = byConv ?: byRequestId
+        if (target == null) {
+            // Best-effort fallback: if there is exactly one in-flight
+            // route across both maps, route to it. This mirrors the
+            // pre-w2hx.8 single-active-request behavior for frames the
+            // gateway emits without a conversation_id (older event
+            // shapes) and keeps regression risk bounded.
+            val sole = soleInFlightRouteOrNull()
+            if (sole != null) {
+                sole.channel.trySend(RequestSignal.Message(message))
+            } else {
+                Log.d(TAG, "w2hx8.routeInbound drop conv=$incomingConvId rid=$incomingRequestId")
+            }
             return
         }
+        target.channel.trySend(RequestSignal.Message(message))
+    }
 
-        target.trySend(RequestSignal.Message(message))
+    private fun soleInFlightRouteOrNull(): RequestRoute? {
+        val activeCount = activeRoutes.size
+        val pendingCount = pendingRoutes.size
+        return when {
+            activeCount + pendingCount != 1 -> null
+            activeCount == 1 -> activeRoutes.values.firstOrNull()
+            else -> pendingRoutes.values.firstOrNull()
+        }
     }
 
     /**
@@ -548,16 +685,18 @@ class WsBotClient(
             cause ?: BotGatewayException(BotGatewayErrorCode.STREAM_ERROR, "WebSocket closed unexpectedly")
         )
 
-        if (activeRequestId != null) {
-            activeRequestEvents?.trySend(
-                RequestSignal.Failure(
-                    cause ?: BotGatewayException(
-                        code = BotGatewayErrorCode.STREAM_ERROR,
-                        message = "WebSocket disconnected during request",
-                    )
-                )
+        // letta-mobile-w2hx.8: fan the disconnect out to every
+        // in-flight route so each waiting streamMessage caller fails
+        // its own collector. trySend is safe even when the channel is
+        // unbounded; failures here are best-effort.
+        val failure = RequestSignal.Failure(
+            cause ?: BotGatewayException(
+                code = BotGatewayErrorCode.STREAM_ERROR,
+                message = "WebSocket disconnected during request",
             )
-        }
+        )
+        activeRoutes.values.forEach { it.channel.trySend(failure) }
+        pendingRoutes.values.forEach { it.channel.trySend(failure) }
 
         if (isUserClosing) {
             _connectionState.value = ConnectionState.CLOSED

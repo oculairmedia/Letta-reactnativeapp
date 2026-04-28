@@ -503,6 +503,187 @@ class WsBotClientTest : WordSpec({
                 client.close()
             }
         }
+
+        // letta-mobile-w2hx.8: receive-side demux is keyed on
+        // conversation_id with request_id as a fallback. The next
+        // three tests exercise the new routing tables directly:
+        //   1. fresh-route promotion (null conv → conv-X on first chunk)
+        //   2. mid-stream conversation swap (gateway recovery rekeys
+        //      the route from conv-A to conv-B)
+        //   3. error frames carrying only a request_id still route to
+        //      the right in-flight stream
+        "promote pending route into activeRoutes on the first conv-id chunk" {
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        // session_init requires a conversation_id at the
+                        // socket level (it's the gateway's session-bound
+                        // default); the per-request route is still fresh
+                        // because BotChatRequest.conversationId == null.
+                        """
+                        {"type":"session_init","agent_id":"agent-fresh","conversation_id":"conv-default","session_id":"sess-fresh"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        val requestId = payload["request_id"]!!.jsonPrimitive.content
+                        // First chunk announces the brand-new conversation_id —
+                        // the route must be promoted from pendingRoutes into
+                        // activeRoutes for subsequent chunks to demux correctly.
+                        socket.send(
+                            """
+                            {"type":"stream","event":"assistant","content":"hi","conversation_id":"conv-new","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        // Subsequent chunk arrives without request_id — it must
+                        // still find the route via conversation_id lookup.
+                        socket.send(
+                            """
+                            {"type":"stream","event":"assistant","content":" there","conversation_id":"conv-new"}
+                            """.trimIndent()
+                        )
+                        socket.send(
+                            """
+                            {"type":"result","success":true,"conversation_id":"conv-new","request_id":"$requestId","duration_ms":4}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(gatewayUrl(server), "secret")
+                val chunks = runBlocking {
+                    withTimeout(5_000) {
+                        client.streamMessage(
+                            BotChatRequest(
+                                message = "hi",
+                                agentId = "agent-fresh",
+                                chatId = "chat-fresh",
+                                conversationId = null,
+                            )
+                        ).toList()
+                    }
+                }
+                chunks shouldHaveSize 3
+                chunks[0].text shouldBe "hi"
+                chunks[0].conversationId shouldBe "conv-new"
+                chunks[1].text shouldBe " there"
+                chunks[1].conversationId shouldBe "conv-new"
+                chunks[2].done shouldBe true
+                client.close()
+            }
+        }
+
+        "rekey route on mid-stream conversation swap" {
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        """
+                        {"type":"session_init","agent_id":"agent-swap","conversation_id":"conv-old","session_id":"sess-swap"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        val requestId = payload["request_id"]!!.jsonPrimitive.content
+                        // Start streaming under the old conv id...
+                        socket.send(
+                            """
+                            {"type":"stream","event":"assistant","content":"a","conversation_id":"conv-old","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        // ...gateway-side recovery swaps the conversation;
+                        // demux must rekey activeRoutes from conv-old to conv-new
+                        // so this and subsequent frames continue to land on the
+                        // same Channel.
+                        socket.send(
+                            """
+                            {"type":"stream","event":"assistant","content":"b","conversation_id":"conv-new","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        socket.send(
+                            """
+                            {"type":"stream","event":"assistant","content":"c","conversation_id":"conv-new"}
+                            """.trimIndent()
+                        )
+                        socket.send(
+                            """
+                            {"type":"result","success":true,"conversation_id":"conv-new","request_id":"$requestId","duration_ms":7}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(gatewayUrl(server), "secret")
+                val chunks = runBlocking {
+                    withTimeout(5_000) {
+                        client.streamMessage(
+                            BotChatRequest(
+                                message = "go",
+                                agentId = "agent-swap",
+                                chatId = "chat-swap",
+                                conversationId = "conv-old",
+                            )
+                        ).toList()
+                    }
+                }
+                chunks shouldHaveSize 4
+                chunks[0].conversationId shouldBe "conv-old"
+                chunks[1].conversationId shouldBe "conv-new"
+                chunks[2].conversationId shouldBe "conv-new"
+                chunks[3].done shouldBe true
+                chunks[3].conversationId shouldBe "conv-new"
+                client.close()
+            }
+        }
+
+        "route error frame to in-flight request via request_id when conv-id is absent" {
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        """
+                        {"type":"session_init","agent_id":"agent-err","conversation_id":"conv-err","session_id":"sess-err"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        val requestId = payload["request_id"]!!.jsonPrimitive.content
+                        // Error frame today carries no conversation_id — demux
+                        // must fall back to request_id lookup.
+                        socket.send(
+                            """
+                            {"type":"error","code":"STREAM_ERROR","message":"boom","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(gatewayUrl(server), "secret")
+                val exception = runCatching {
+                    runBlocking {
+                        withTimeout(5_000) {
+                            client.streamMessage(
+                                BotChatRequest(
+                                    message = "x",
+                                    agentId = "agent-err",
+                                    chatId = "chat-err",
+                                    conversationId = "conv-err",
+                                )
+                            ).toList()
+                        }
+                    }
+                }.exceptionOrNull() as BotGatewayException
+                exception.code shouldBe BotGatewayErrorCode.STREAM_ERROR
+                client.close()
+            }
+        }
     }
 })
 
