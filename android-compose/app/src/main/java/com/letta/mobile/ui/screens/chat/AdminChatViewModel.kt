@@ -19,7 +19,6 @@ import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
-import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -226,7 +225,6 @@ class AdminChatViewModel @Inject constructor(
     private val blockRepository: BlockRepository,
     private val bugReportRepository: BugReportRepository,
     private val folderRepository: FolderRepository,
-    private val conversationManager: ConversationManager,
     private val conversationRepository: ConversationRepository,
     private val settingsRepository: SettingsRepository,
     private val internalBotClient: InternalBotClient,
@@ -260,8 +258,17 @@ class AdminChatViewModel @Inject constructor(
     // which uses Letta Code SDK's resumeSession() to switch into them.
     private val shouldUseClientModeForCurrentRoute: Boolean
         get() = clientModeEnabled.value
-    private val activeConversationId: String?
-        get() = conversationManager.getActiveConversationId(agentId)
+    // letta-mobile-w2hx.6: per-VM (per-chat) active conversation id. Replaces
+    // the process-wide ConversationManager singleton that was keyed only on
+    // agentId — that map could pollute one chat's resolve with another
+    // chat's resolved conv (the bug w2hx.6 explicitly calls out).
+    //
+    // The chat row IS this view-model. Its conversation_id is its own state,
+    // never shared across chats, never inherited via agent_id. Initial value
+    // comes from the route's explicit nav arg if present; otherwise null
+    // until resolveConversationAndLoad assigns one.
+    @Volatile private var activeConversationId: String? =
+        requestedConversationArg?.takeIf { it.isNotBlank() }
     private val clientModeEnabled: StateFlow<Boolean> = settingsRepository.observeClientModeEnabled()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val conversationId: String?
@@ -408,9 +415,8 @@ class AdminChatViewModel @Inject constructor(
     private var timelineObserverConversationId: String? = null
 
     init {
-        requestedConversationArg
-            ?.takeIf { it.isNotBlank() }
-            ?.let { conversationManager.setActiveConversation(agentId, it) }
+        // letta-mobile-w2hx.6: route arg already pre-populated `activeConversationId`
+        // at field init; no shared singleton to seed.
         if (isFreshRoute) {
             setClientModeConversationId(null)
             currentConversationTracker.setCurrent(null)
@@ -613,19 +619,15 @@ class AdminChatViewModel @Inject constructor(
         // resolve normally so legacy behavior is preserved.
         val isFirstResolve = !hasResolvedConversationOnce
         hasResolvedConversationOnce = true
-        // letta-mobile-flk.6: ConversationManager is a process-wide
-        // @Singleton in-memory map keyed only on agentId. The agent list,
-        // recent-conversations drawer, and other surfaces populate it via
-        // `resolveAndSetActiveConversation` so by the time the user taps
-        // "New chat" on an agent the map ALREADY has an entry for that
-        // agent — pointing at whichever conversation was most-recent on
-        // last fetch. Just suppressing our own resolve call isn't enough;
-        // the cached entry leaks back in via `activeConversationId` reads
-        // elsewhere in the VM (see loadMessagesInternal line ~781). On a
-        // genuine fresh-route entry we actively clear the entry so the
-        // entire VM observes `null` and the UI starts truly empty.
+        // letta-mobile-flk.6 / w2hx.6: on a genuine fresh-route entry, ensure
+        // this VM's local activeConversationId is null so the UI starts truly
+        // empty. Pre-w2hx.6 this had to clear an agent-keyed singleton map
+        // because that map could be pre-populated by other surfaces (agent
+        // list, recents drawer); now activeConversationId lives on this VM
+        // alone and only reflects this chat's nav arg, so the clear is just
+        // a local null assignment.
         if (isFreshRoute && isFirstResolve && explicitConversationId == null) {
-            conversationManager.clearActiveConversation(agentId)
+            activeConversationId = null
             android.util.Log.i(
                 "AdminChatViewModel",
                 "flk6.clearActive agent=$agentId reason=freshRouteInitialResolve",
@@ -665,10 +667,7 @@ class AdminChatViewModel @Inject constructor(
                         ?: currentClientModeConversationId()
                         ?: if (!suppressFreshRouteFallbackClient) {
                             runCatching {
-                                conversationManager.resolveAndSetActiveConversation(
-                                    agentId = agentId,
-                                    maxAgeMs = CONVERSATION_CACHE_TTL_MS,
-                                )
+                                resolveMostRecentConversation(CONVERSATION_CACHE_TTL_MS)
                             }.getOrNull()?.also { resolved ->
                                 setClientModeConversationId(resolved)
                             }
@@ -733,25 +732,18 @@ class AdminChatViewModel @Inject constructor(
                     activeConversationId == null &&
                     explicitConversationId == null
                 ) {
-                    val resolvedConversationId = conversationManager.resolveAndSetActiveConversation(
-                        agentId = agentId,
-                        maxAgeMs = CONVERSATION_CACHE_TTL_MS,
-                    )
+                    resolveMostRecentConversation(CONVERSATION_CACHE_TTL_MS)
                 }
 
-                // letta-mobile-flk.6: a fresh-route entry must NOT inherit
-                // `activeConversationId` either — that map is keyed only on
-                // agent_id, so without this branch a "New chat" tap silently
-                // resumes the agent's previous conversation pointer. Once
-                // `hasResolvedConversationOnce` flips, behave normally.
+                // letta-mobile-flk.6 / w2hx.6: a fresh-route entry must NOT
+                // inherit a prior `activeConversationId` from before this
+                // resolve. Pre-w2hx.6 we also had to guard against a
+                // process-wide singleton leaking across chats; that's gone.
+                // Once `hasResolvedConversationOnce` flips, behave normally.
                 val conversationId = if (suppressFreshRouteFallback) {
-                    explicitConversationId?.also {
-                        conversationManager.setActiveConversation(agentId, it)
-                    }
+                    explicitConversationId?.also { activeConversationId = it }
                 } else {
-                    activeConversationId ?: explicitConversationId?.also {
-                        conversationManager.setActiveConversation(agentId, it)
-                    }
+                    activeConversationId ?: explicitConversationId?.also { activeConversationId = it }
                 }
 
                 if (conversationId == null) {
@@ -794,10 +786,31 @@ class AdminChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * letta-mobile-w2hx.6: resolve the most-recent server-side conversation
+     * for this VM's agent and assign it to this VM's [activeConversationId].
+     * Replaces ConversationManager.resolveAndSetActiveConversation, which
+     * wrote into a process-wide map keyed on agentId — that map could leak
+     * one chat's resolved conv into a sibling chat's resolve. The chat row
+     * (this VM) now owns its own active id.
+     *
+     * @return the resolved conversation id, or null if there are none cached
+     *   for this agent after the refresh.
+     */
+    private suspend fun resolveMostRecentConversation(maxAgeMs: Long): String? {
+        conversationRepository.refreshConversationsIfStale(agentId, maxAgeMs)
+        val mostRecent = conversationRepository.getCachedConversations(agentId)
+            .sortedByDescending { it.lastMessageAt ?: it.createdAt ?: "" }
+            .firstOrNull()
+            ?: return null
+        activeConversationId = mostRecent.id
+        return mostRecent.id
+    }
+
     private suspend fun loadMessagesInternal() {
         val loadTimer = Telemetry.startTimer("AdminChatVM", "loadMessages")
         val requestedConversationId = activeConversationId ?: explicitConversationId?.also {
-            conversationManager.setActiveConversation(agentId, it)
+            activeConversationId = it
         }
         val currentConversationId = activeConversationId ?: explicitConversationId
         if (requestedConversationId == null) {
@@ -1946,13 +1959,13 @@ class AdminChatViewModel @Inject constructor(
                 pendingAttachments = persistentListOf(),
             )
             try {
-                // letta-mobile-flk.6: a fresh-route entry (user tapped "New
-                // chat" with no conversationId arg and no in-flight pointer)
-                // must NOT inherit `conversationManager.getActiveConversationId`
-                // — that map is keyed only on agent_id and would silently
-                // route the new chat into the agent's most-recent conv. Use
-                // the route's explicit conversationId arg if present;
-                // otherwise force a fresh Letta conversation create.
+                // letta-mobile-flk.6 / w2hx.6: a fresh-route entry (user
+                // tapped "New chat" with no conversationId arg and no in-flight
+                // pointer) must NOT inherit a sibling chat's conv id. Pre-w2hx.6
+                // we read from a process-wide singleton keyed on agentId; now
+                // `activeConversationId` is local to this VM, so a fresh route
+                // simply means "no conv yet" and we create a new Letta
+                // conversation for this chat.
                 var convId: String? = if (isFreshRoute) {
                     explicitConversationId
                 } else {
@@ -1960,7 +1973,8 @@ class AdminChatViewModel @Inject constructor(
                 }
                 if (convId == null) {
                     val summary = text.take(80).let { if (text.length > 80) "$it\u2026" else it }
-                    convId = conversationManager.createAndSetActiveConversation(agentId, summary)
+                    convId = conversationRepository.createConversation(agentId, summary).id
+                    activeConversationId = convId
                     hasSummary = true
                     _uiState.value = _uiState.value.copy(
                         conversationState = ConversationState.Ready(convId),

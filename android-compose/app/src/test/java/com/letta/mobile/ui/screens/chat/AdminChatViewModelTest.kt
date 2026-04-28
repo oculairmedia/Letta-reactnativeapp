@@ -17,7 +17,6 @@ import com.letta.mobile.data.model.ProjectBugReport
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
-import com.letta.mobile.data.repository.ConversationManager
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
@@ -72,7 +71,6 @@ class AdminChatViewModelTest {
     private lateinit var bugReportRepository: BugReportRepository
     private lateinit var folderRepository: FolderRepository
     private lateinit var conversationRepository: ConversationRepository
-    private lateinit var conversationManager: ConversationManager
     private lateinit var settingsRepository: SettingsRepository
 
     private lateinit var internalBotClient: InternalBotClient
@@ -81,6 +79,12 @@ class AdminChatViewModelTest {
     private lateinit var clientModeEnabledFlow: MutableStateFlow<Boolean>
     private var messages: List<AppMessage> = emptyList()
     private var streamStates: List<StreamState> = emptyList()
+    // letta-mobile-w2hx.6: per-agent "what's the most-recent server-side
+    // conversation" fixture. Pre-w2hx.6 this seeded the singleton
+    // ConversationManager.activeConversationIds map; now it seeds
+    // conversationRepository.getCachedConversations(agentId) so the VM's
+    // resolveMostRecentConversation helper can pick it up. Same shape, same
+    // ergonomics for tests — the routing key just lives on the VM now.
     private val activeConversationIds = mutableMapOf<String, String?>()
 
     @Before
@@ -170,7 +174,6 @@ class AdminChatViewModelTest {
         bugReportRepository = mockk(relaxed = true)
         folderRepository = FolderRepository(FakeFolderApi())
         conversationRepository = mockk(relaxed = true)
-        conversationManager = mockk(relaxed = true)
         settingsRepository = mockk(relaxed = true)
         internalBotClient = mockk(relaxed = true)
         clientModeChatSender = mockk(relaxed = true)
@@ -183,13 +186,24 @@ class AdminChatViewModelTest {
         every {
             clientModeChatSender.streamMessage(any(), any(), any(), any())
         } returns flow { }
-        every { conversationManager.getActiveConversationId(any()) } answers {
-            activeConversationIds[firstArg()]
+        // letta-mobile-w2hx.6: seed conversationRepository.getCachedConversations
+        // from the activeConversationIds fixture map. resolveMostRecentConversation
+        // sorts by lastMessageAt/createdAt desc, so we set both to a fixed
+        // value for the seeded conv to make it the unambiguous "most recent".
+        every { conversationRepository.getCachedConversations(any()) } answers {
+            val agentId = firstArg<String>()
+            val convId = activeConversationIds[agentId]
+            if (convId == null) emptyList() else listOf(
+                com.letta.mobile.data.model.Conversation(
+                    id = convId,
+                    agentId = agentId,
+                    summary = "Seeded test conversation",
+                    createdAt = "2026-04-27T00:00:00Z",
+                    lastMessageAt = "2026-04-28T00:00:00Z",
+                ),
+            )
         }
-        every { conversationManager.setActiveConversation(any(), any()) } answers {
-            activeConversationIds[firstArg()] = secondArg()
-            Unit
-        }
+        coEvery { conversationRepository.refreshConversationsIfStale(any(), any()) } returns false
 
         coEvery { messageRepository.fetchMessages(any(), any(), any()) } answers { messages }
         coEvery { messageRepository.fetchOlderMessages(any(), any(), any()) } returns emptyList()
@@ -205,19 +219,12 @@ class AdminChatViewModelTest {
             TestData.conversation(id = "new-conv", agentId = firstArg(), summary = secondArg())
         }
         coEvery { conversationRepository.updateConversation(any(), any(), any()) } returns Unit
-        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } answers {
-            val agentId = firstArg<String>()
-            val resolved = "conv-1"
-            activeConversationIds[agentId] = resolved
-            resolved
-        }
-        coEvery { conversationManager.createAndSetActiveConversation(any(), any()) } answers {
-            val agentId = firstArg<String>()
-            val summary = secondArg<String?>()
-            val conversation = TestData.conversation(id = "new-conv", agentId = agentId, summary = summary)
-            activeConversationIds[agentId] = conversation.id
-            conversation.id
-        }
+        // letta-mobile-w2hx.6: default fixture — every agent has "conv-1" cached
+        // as its most-recent conversation. This matches the legacy default
+        // (the old conversationManager.resolveAndSetActiveConversation stub
+        // returned "conv-1" for any agent). Tests can override per-agent by
+        // mutating `activeConversationIds`.
+        activeConversationIds.getOrPut("agent-1") { "conv-1" }
     }
 
     @After
@@ -243,7 +250,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -349,7 +355,10 @@ class AdminChatViewModelTest {
 
     @Test
     fun `resolveConversationAndLoad exposes error state when conversation resolution fails`() = runTest {
-        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } throws IllegalStateException("Resolver offline")
+        // letta-mobile-w2hx.6: resolution now goes through ConversationRepository
+        // directly (refreshConversationsIfStale + getCachedConversations);
+        // make the refresh fail to simulate the same offline-resolver path.
+        coEvery { conversationRepository.refreshConversationsIfStale(any(), any()) } throws IllegalStateException("Resolver offline")
 
         val vm = createViewModel(conversationId = null)
         advanceUntilIdle()
@@ -364,7 +373,8 @@ class AdminChatViewModelTest {
 
     @Test
     fun `resolveConversationAndLoad exposes no conversation state when no conversation exists`() = runTest {
-        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } returns null
+        // letta-mobile-w2hx.6: empty cache → no most-recent conv to resolve.
+        activeConversationIds.remove("agent-1")
 
         val vm = createViewModel(conversationId = null)
         advanceUntilIdle()
@@ -376,7 +386,7 @@ class AdminChatViewModelTest {
 
     @Test
     fun `sendMessage is blocked while conversation resolution is in error state`() = runTest {
-        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } throws IllegalStateException("Resolver offline")
+        coEvery { conversationRepository.refreshConversationsIfStale(any(), any()) } throws IllegalStateException("Resolver offline")
 
         val vm = createViewModel(conversationId = null)
         advanceUntilIdle()
@@ -482,11 +492,14 @@ class AdminChatViewModelTest {
         val vm = createViewModel(conversationId = null, freshRouteKey = null)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            conversationManager.resolveAndSetActiveConversation(
-                agentId = "agent-1",
-                maxAgeMs = any(),
-            )
+        // letta-mobile-w2hx.6: resolution now goes through ConversationRepository.
+        // Verify the VM ran the cached-conversations refresh + lookup for this
+        // agent, and landed on the most-recent ("conv-1" per the fixture).
+        coVerify(atLeast = 1) {
+            conversationRepository.refreshConversationsIfStale("agent-1", any())
+        }
+        verify(atLeast = 1) {
+            conversationRepository.getCachedConversations("agent-1")
         }
         assertEquals(
             ConversationState.Ready("conv-1"),
@@ -506,8 +519,9 @@ class AdminChatViewModelTest {
         val vm = createViewModel(conversationId = null, freshRouteKey = 1L)
         advanceUntilIdle()
 
+        // letta-mobile-w2hx.6: fresh route → no resolve refresh fired.
         coVerify(exactly = 0) {
-            conversationManager.resolveAndSetActiveConversation(any(), any())
+            conversationRepository.refreshConversationsIfStale(any(), any())
         }
         assertEquals(
             ConversationState.NoConversation,
@@ -1264,7 +1278,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1334,8 +1347,10 @@ class AdminChatViewModelTest {
             TestData.appMessage(id = "existing-user", messageType = MessageType.USER, content = "Earlier message"),
             TestData.appMessage(id = "existing-assistant", messageType = MessageType.ASSISTANT, content = "Existing reply"),
         )
-        every { conversationManager.getActiveConversationId(any()) } returns null
-        coEvery { conversationManager.resolveAndSetActiveConversation(any(), any()) } returns null
+        // letta-mobile-w2hx.6: empty cache → resolve fallback would yield none.
+        // The VM must still hydrate the explicit `conv-1` nav arg rather than
+        // falling back to NoConversation.
+        activeConversationIds.remove("agent-1")
 
         val vm = createViewModel(conversationId = "conv-1")
         advanceUntilIdle()
@@ -1343,7 +1358,6 @@ class AdminChatViewModelTest {
         assertEquals(ConversationState.Ready("conv-1"), vm.uiState.value.conversationState)
         assertTrue(vm.uiState.value.messages.any { it.id == "existing-user" })
         assertTrue(vm.uiState.value.messages.any { it.id == "existing-assistant" })
-        verify { conversationManager.setActiveConversation("agent-1", "conv-1") }
     }
 
     @Test
@@ -1384,7 +1398,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1486,7 +1499,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1526,7 +1538,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1576,7 +1587,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1610,7 +1620,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1639,7 +1648,6 @@ class AdminChatViewModelTest {
             blockRepository,
             bugReportRepository,
             folderRepository,
-            conversationManager,
             conversationRepository,
             settingsRepository,
             internalBotClient,
@@ -1671,44 +1679,47 @@ class AdminChatViewModelTest {
     }
 
     /**
-     * Regression for letta-mobile-nw2e.
+     * Regression for letta-mobile-nw2e — preserved post-w2hx.6 via per-VM
+     * binding instead of cross-VM mutation of a shared singleton.
      *
-     * The prior `startTimelineObserver` used `if (timelineObserverJob?.isActive == true) return`,
-     * which silently ignored conversation switches: once the observer was
-     * bound to conv-A, selecting conv-B would NOT rebind. The user then sat
-     * on conv-B's screen watching it never update because no TimelineSync
-     * loop was ever started for conv-B.
+     * Original failure mode: `startTimelineObserver` used
+     * `if (timelineObserverJob?.isActive == true) return`, silently ignoring
+     * conversation switches once bound to conv-A.
      *
-     * Acceptance: when the viewmodel is asked to resolve a different
-     * conversation after the first one, `timelineRepository.observe(convB)`
-     * AND `getOrCreate(convB)` must both be invoked at least once. Using
-     * atLeast=1 so we're resilient to internal retries or repeated binds.
+     * Pre-w2hx.6 the test mutated the agent-keyed ConversationManager map
+     * and called `vm.retryConversationLoad()` to force a re-resolve to
+     * conv-B in the same VM. After w2hx.6 the VM owns its own
+     * `activeConversationId` (no shared singleton), and conversation
+     * switching is modeled by navigation creating a NEW VM with the new
+     * conversationId nav arg — which is what we exercise here. Each VM
+     * must bind its own observer to its own conv. The original
+     * `isActive == true` guard would have meant a single VM only ever
+     * observed once; the per-VM equivalent failure mode is "two VMs sharing
+     * an observer" or "neither VM ever binds". We assert both VMs bind
+     * their respective conversation ids.
      */
     @Test
     fun `switching conversations triggers fresh timeline observer bind`() = runTest {
-        // Seed the conversation manager to resolve to "conv-A" first.
         activeConversationIds["agent-1"] = "conv-A"
 
-        val vm = createViewModel(agentId = "agent-1", conversationId = "conv-A")
+        val vmA = createViewModel(agentId = "agent-1", conversationId = "conv-A")
         advanceUntilIdle()
 
-        // Capture arguments of every observe() + getOrCreate() call the VM
-        // has made so far. Baseline MUST include conv-A.
         coVerify(atLeast = 1) { timelineRepository.observe("conv-A") }
         coVerify(atLeast = 1) { timelineRepository.getOrCreate("conv-A") }
 
-        // Simulate user picking conv-B in the conversation picker. The
-        // production flow invokes conversationManager.setActiveConversation()
-        // and then retryConversationLoad() (== resolveConversationAndLoad()).
-        activeConversationIds["agent-1"] = "conv-B"
-        vm.retryConversationLoad()
+        // Simulate user picking conv-B in the conversation picker, which in
+        // production triggers a nav re-entry with a new conversationId arg
+        // → fresh VM under that nav route.
+        val vmB = createViewModel(agentId = "agent-1", conversationId = "conv-B")
         advanceUntilIdle()
 
-        // The fix: observer must rebind to conv-B. If nw2e regresses,
-        // these verifications fail because the old `isActive == true`
-        // guard short-circuits and conv-B is never observed.
         coVerify(atLeast = 1) { timelineRepository.observe("conv-B") }
         coVerify(atLeast = 1) { timelineRepository.getOrCreate("conv-B") }
+
+        // Sanity: each VM is on its own conv.
+        assertEquals(ConversationState.Ready("conv-A"), vmA.uiState.value.conversationState)
+        assertEquals(ConversationState.Ready("conv-B"), vmB.uiState.value.conversationState)
     }
 
     /**
@@ -1940,17 +1951,13 @@ class AdminChatViewModelTest {
             flowOf(TestData.agent(id = "agent-B", name = "Agent Beta"))
 
         // Each agent's "active conversation" is its own server-side conv.
-        // Even though ConversationManager is keyed on agentId today, the
-        // VM ultimately routes sends through the conversation's id — so
-        // long as that's wired correctly, no bleedover is possible.
-        coEvery { conversationManager.resolveAndSetActiveConversation("agent-A", any()) } answers {
-            activeConversationIds["agent-A"] = "conv-A"
-            "conv-A"
-        }
-        coEvery { conversationManager.resolveAndSetActiveConversation("agent-B", any()) } answers {
-            activeConversationIds["agent-B"] = "conv-B"
-            "conv-B"
-        }
+        // Post-w2hx.6 there's no shared agent-keyed map: each VM (chat row)
+        // owns its own conversation_id, and routing is by conversation_id,
+        // so there's no place for state to leak between sibling chats.
+        // Seed the cached-conversations fixture so the per-VM resolve
+        // helper maps each agent → its own most-recent conv.
+        activeConversationIds["agent-A"] = "conv-A"
+        activeConversationIds["agent-B"] = "conv-B"
 
         val vmA = createViewModel(agentId = "agent-A", conversationId = "conv-A")
         val vmB = createViewModel(agentId = "agent-B", conversationId = "conv-B")
