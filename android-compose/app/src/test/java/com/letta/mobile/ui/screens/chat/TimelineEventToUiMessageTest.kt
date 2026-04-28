@@ -212,6 +212,46 @@ class TimelineEventToUiMessageTest {
         assertNull(timelineEventToUiMessage(ev))
     }
 
+    /**
+     * letta-mobile-e75s: when a brand-new conversation is opened (Letta
+     * `POST /v1/conversations`), the server seeds the message log with a
+     * single `system_message` carrying the agent's base instructions. Pre-fix,
+     * that arrived through the timeline as a Confirmed/SYSTEM event and the
+     * mapper rendered it with role="system" — populating the UI with
+     * "miscellaneous message history" before the user had even sent anything
+     * (Emmanuel report 2026-04-28). The chat surface is for user-facing
+     * conversation; agent-state system messages must not leak into it.
+     */
+    @Test
+    fun `SYSTEM Confirmed events are dropped (e75s)`() {
+        val ev = confirmed(
+            TimelineMessageType.SYSTEM,
+            content = "You are a helpful assistant. Base instructions...",
+            serverId = "system-seed-1",
+        )
+        assertNull(
+            "system_message events must not project into the chat UI",
+            timelineEventToUiMessage(ev),
+        )
+    }
+
+    @Test
+    fun `SYSTEM Local events are dropped (e75s, defense-in-depth)`() {
+        // We don't currently synthesize SYSTEM Locals on the client, but if
+        // any future code path does (e.g. an offline-state bubble), the chat
+        // projection still drops them — the bug class is "agent-state system
+        // text shown as a chat bubble", regardless of source.
+        val ev = TimelineEvent.Local(
+            position = 1.0,
+            otid = "local-system-1",
+            content = "Base instructions...",
+            sentAt = Instant.parse("2026-04-19T06:00:00Z"),
+            deliveryState = com.letta.mobile.data.timeline.DeliveryState.SENT,
+            messageType = TimelineMessageType.SYSTEM,
+        )
+        assertNull(timelineEventToUiMessage(ev))
+    }
+
     @Test
     fun `multi-tool call batch attaches return to first call only`() {
         // Server batches two tools in one approval. tool_return is stored

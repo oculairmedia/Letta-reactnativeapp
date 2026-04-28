@@ -27,6 +27,16 @@ import com.letta.mobile.util.Telemetry
  *   with approve/reject buttons; once decided, it produces `approvalResponse`
  *   and clears `approvalRequest`.
  * - REASONING produces role="assistant" + isReasoning=true.
+ * - SYSTEM events → null. Letta seeds every freshly-created conversation with
+ *   a `system_message` carrying the agent's base instructions (visible via
+ *   `GET /v1/conversations/:id/messages` immediately after `POST
+ *   /v1/conversations`). Rendering those as bubbles produces the
+ *   "miscellaneous message history in a brand-new conversation" bug
+ *   `letta-mobile-e75s`. The chat surface is for user-facing conversation
+ *   only; agent-state system messages are not part of the conversational UX.
+ *   Other surfaces that legitimately want to see system messages (Debug tab,
+ *   tooling) should observe the timeline directly without going through this
+ *   projection.
  */
 internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
     return when (ev) {
@@ -38,6 +48,12 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
             // returns are folded into the invoking TOOL_CALL Local instead.
             if (ev.messageType == TimelineMessageType.TOOL_RETURN) return null
             if (ev.messageType == TimelineMessageType.OTHER) return null
+            // letta-mobile-e75s: drop SYSTEM Locals. We don't currently
+            // synthesize SYSTEM Locals anywhere on the client, but keep the
+            // suppression symmetric with the Confirmed branch in case future
+            // code does (defense in depth — failure mode is a leaked
+            // base-prompt bubble in chat).
+            if (ev.messageType == TimelineMessageType.SYSTEM) return null
             val role = when (ev.messageType) {
                 TimelineMessageType.USER -> "user"
                 TimelineMessageType.ASSISTANT -> "assistant"
@@ -118,11 +134,20 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
             )
         }
         is TimelineEvent.Confirmed -> {
+            // letta-mobile-e75s: drop SYSTEM Confirmed events from the chat
+            // projection. Letta seeds every freshly-created conversation with
+            // a system_message containing the agent's base instructions; if
+            // we render that as a bubble the user sees their brand-new chat
+            // populated with "miscellaneous message history" before they've
+            // even sent anything (Emmanuel report 2026-04-28).
+            if (ev.messageType == TimelineMessageType.SYSTEM) return null
             val role = when (ev.messageType) {
                 TimelineMessageType.USER -> "user"
                 TimelineMessageType.ASSISTANT -> "assistant"
                 TimelineMessageType.REASONING -> "assistant"
-                TimelineMessageType.SYSTEM -> "system"
+                // SYSTEM is filtered out above (e75s). Keep the branch
+                // exhaustive to preserve `when` warnings if the enum changes.
+                TimelineMessageType.SYSTEM -> return null
                 // letta-mobile-5s1n: ERROR frames render as a system bubble
                 // with the destructive accent applied via UiMessage.isError.
                 TimelineMessageType.ERROR -> "system"
