@@ -21,6 +21,37 @@ import org.junit.jupiter.api.Tag
 class SplitMarkdownBlocksTest {
 
     @Test
+    fun `partition keeps complete intro block stable while open fence stays in active tail`() {
+        val text = "Intro\n\n```kotlin\nfun foo"
+        val partition = partitionStreamingMarkdown(text)
+
+        assertEquals(1, partition.committedBlocks.size)
+        assertEquals("Intro\n\n", partition.committedBlocks.single().text)
+        assertEquals("```kotlin\nfun foo", partition.activeTail)
+    }
+
+    @Test
+    fun `partition leaves single paragraph entirely in active tail`() {
+        val text = "Hello **wor"
+        val partition = partitionStreamingMarkdown(text)
+
+        assertTrue(partition.committedBlocks.isEmpty())
+        assertEquals(text, partition.activeTail)
+    }
+
+    @Test
+    fun `partition preserves committed block keys as later blocks stream in`() {
+        val first = partitionStreamingMarkdown("First.\n\nSecond")
+        val second = partitionStreamingMarkdown("First.\n\nSecond\n\nThird")
+
+        assertEquals(1, first.committedBlocks.size)
+        assertEquals(2, second.committedBlocks.size)
+        assertEquals(first.committedBlocks[0], second.committedBlocks[0])
+        assertEquals("Second", first.activeTail)
+        assertEquals("Third", second.activeTail)
+    }
+
+    @Test
     fun `empty input returns empty list`() {
         assertEquals(emptyList<MarkdownBlock>(), splitMarkdownBlocks(""))
     }

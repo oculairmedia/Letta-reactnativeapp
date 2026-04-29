@@ -1,27 +1,33 @@
 package com.letta.mobile.ui.components
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.delay
 
 /**
- * Streaming-aware markdown renderer (letta-mobile-flk.3.1, simplest-correct
- * design).
+ * Streaming-aware markdown renderer with a stable committed-prefix path.
  *
- * Renders the full live stream through [MarkdownText] on every chunk, so
- * inline emphasis, headings, lists, code, tables, and math format LIVE as
- * the stream arrives. Callers can supply [tailTransform] to inject the
- * streaming cursor / word-boundary holdback decorator from
- * letta-mobile-6p4o.1; [tailTransform] receives the full accumulated text
- * (the historical "tail" naming is retained for source compatibility with
- * existing call sites and is no longer split-relative).
+ * The stream is rate-limited to a paint cadence, then split at the last
+ * safe block boundary. Completed markdown blocks render as independently
+ * keyed [MarkdownText] instances, while only the active tail keeps
+ * re-parsing as chunks arrive. This preserves live inline formatting in the
+ * active block while preventing already-complete code blocks / paragraphs /
+ * tables from being torn down on every tick.
  *
- * Earlier designs ([letta-mobile-c8of] ALT-2 + [letta-mobile-flk.1]) split
- * the text at the last "safe" paragraph boundary into a markdown-rendered
- * prefix and a plain-text tail. That achieved per-block render skipping
- * but produced two visible regressions:
+ * Earlier designs ([letta-mobile-c8of] ALT-2 + [letta-mobile-flk.1]) also
+ * split at a safe boundary, but rendered the tail as plain text. That
+ * achieved per-block render skipping but produced two visible regressions:
  *  - Short single-paragraph replies never had a `\n\n` boundary, so the
  *    boundary stayed at 0 and the entire bubble rendered as plain Text
  *    with literal asterisks until the stream completed.
@@ -30,22 +36,17 @@ import androidx.compose.ui.graphics.Color
  *    tail was being computed for the next paragraph (the chunk-
  *    accumulation regression).
  *
- * The boundary detector ([findLastSafeBoundary]) and per-block splitter
- * ([splitMarkdownBlocks]) remain in this file for future use (e.g. if we
- * reintroduce incremental rendering with a Compose-stable per-block API),
- * but are no longer wired into the rendering path. Their unit-test
- * coverage is preserved.
- *
  * @param text the live, possibly-incomplete markdown text. Safe to pass on
  *   every chunk.
- * @param modifier forwarded to the underlying [MarkdownText].
+ * @param modifier forwarded to the outer container.
  * @param textColor base text color.
- * @param tailStyle retained for source compatibility; unused (MarkdownText
- *   owns its typography).
- * @param tailTransform optional decorator applied to the full accumulated
- *   text — e.g. word-boundary holdback + streaming cursor
- *   (`streamingDisplayText` from MessageContentFactory). Receives the raw
- *   text, returns the string to render.
+ * @param tailStyle typography used only when the active tail is empty and we
+ *   still need to show a standalone cursor after a committed prefix.
+ * @param tailTransform optional decorator applied to the active tail only —
+ *   e.g. word-boundary holdback + streaming cursor (`streamingDisplayText`
+ *   from MessageContentFactory).
+ * @param cursorText optional standalone cursor glyph rendered when the text
+ *   currently ends exactly on a committed boundary.
  */
 @Composable
 fun StreamingMarkdownText(
@@ -54,10 +55,11 @@ fun StreamingMarkdownText(
     textColor: Color = MaterialTheme.colorScheme.onSurface,
     tailStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
     tailTransform: (String) -> String = { it },
+    cursorText: String? = null,
 ) {
     if (text.isEmpty()) return
 
-    // letta-mobile-flk.3.1: simplest-correct rendering for streaming.
+    // Stable block-prefix renderer.
     //
     // The original c8of design split the text at the last safe paragraph
     // boundary into a markdown-rendered prefix and a plain-text tail.
@@ -65,45 +67,170 @@ fun StreamingMarkdownText(
     // failed for short single-paragraph replies (boundary stayed at 0,
     // entire bubble rendered as plain Text with literal asterisks).
     //
-    // flk.3 then rendered the tail through MarkdownText too. That fixed
-    // visual formatting but introduced a chunk-accumulation regression
-    // where the prefix/tail split caused Compose to see two separate
-    // MarkdownText composables whose content was sliced from the same
-    // string — when the boundary advanced mid-stream, content briefly
-    // appeared to duplicate as the tail moved into a new prefix block
-    // while a new tail was being computed for the next paragraph.
+    // The later full-bubble MarkdownText pass fixed that inline-formatting
+    // regression but still re-emitted the entire markdown subtree on each
+    // tick, which is especially visible for streaming code blocks, lists,
+    // and tables. The current design keeps the committed prefix stable and
+    // limits re-parse churn to the active tail.
+    // letta-mobile-flk2 (revision 3): paint-rate coalescer using
+    // rememberUpdatedState + a single long-running polling effect.
     //
-    // flk.3.1 collapses to a single MarkdownText pass over the full
-    // text + streaming cursor. This is what every modern markdown chat
-    // app does (ChatGPT, Claude.ai, Gemini): on each chunk, parse the
-    // current accumulated text through the markdown renderer. Mikepenz
-    // is fast enough that paragraph-cadence frame rate is well within
-    // budget on a real device.
+    // The flk.3.1 design re-rendered the full MarkdownText subtree on
+    // every char. With the new ClientModeStreamSmoother delivering
+    // chars at 90–180 cps, the per-char re-parse caused visible
+    // flicker.
     //
-    // The boundary detector + per-block splitter remain in this file
-    // for future use (e.g. if we re-introduce incremental rendering
-    // with a Compose-stable per-block API), but are no longer wired
-    // into the rendering path.
-    val rendered = remember(text) { tailTransform(text) }
+    // Revision 1 used `LaunchedEffect(text) { delay(50) }` which
+    // cancelled+restarted on every char and never completed until
+    // the stream ended (chars arrive every ~10ms; 50ms delay never
+    // wins) — content popped in at end-of-stream.
+    //
+    // Revision 2 used `mutableStateOf` + write-during-composition,
+    // which is illegal in Compose and fails silently or freezes.
+    // Symptom: first three lines appear (initial composition), then
+    // stalled poll loop reads stale state, then content pops at end.
+    //
+    // Revision 3 uses `rememberUpdatedState(text)` — Compose's
+    // canonical pattern for "the long-running effect needs to read
+    // the latest value of an input without restarting". The state
+    // is updated via Compose's snapshot system at the END of
+    // composition, so the polling effect reads the freshest value
+    // safely on each tick.
+    val latestText by rememberUpdatedState(text)
 
-    if (rendered.isEmpty()) return
+    var displayed by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        // Tick at fixed cadence. Push displayed = latest whenever
+        // they differ. When text stops changing (stream end),
+        // `displayed` catches up within one PAINT_INTERVAL_MS window
+        // and the loop idles cheaply (no MarkdownText re-render
+        // when value is unchanged — Compose elides via structural
+        // equality).
+        //
+        // First push happens within one tick (≤50ms), which is
+        // imperceptible. We don't special-case first-paint anymore
+        // because the cancel/restart logic that needed special-casing
+        // is gone.
+        while (true) {
+            if (displayed != latestText) {
+                displayed = latestText
+            }
+            delay(PAINT_INTERVAL_MS)
+        }
+    }
 
-    // Single MarkdownText pass over the full accumulated stream. No
-    // prefix/tail split — the split was the source of the chunk-
-    // accumulation regression in flk.3 (when the boundary advanced
-    // mid-stream the tail moved into a new prefix block while a new
-    // tail string was being computed for the next paragraph; Compose
-    // briefly saw both renderers laying out content before the swap
-    // settled, which Emmanuel reported as "chunk accumulation no
-    // longer working").
+    // letta-mobile-flk2 (revision 15): split-render with plain-Text
+    // active tail.
     //
-    // `tailStyle` is intentionally unused here (the parameter is kept
-    // for source compatibility with existing call sites). MarkdownText
-    // owns its typography for both prose and the streaming cursor.
-    MarkdownText(
-        text = rendered,
-        modifier = modifier,
-        textColor = textColor,
+    // Architecture: committed blocks (append-only, partitioned at safe
+    // markdown boundaries by `partitionStreamingMarkdown`) render
+    // through MarkdownText with stable Compose keys. The active tail
+    // (in-progress paragraph past the last safe boundary) renders as
+    // PLAIN Text — mikepenz never sees the high-cadence string changes.
+    //
+    // Why this is necessary: revision 14 instrumentation measured
+    // ~17-18Hz (50ms coalesce) and ~10Hz (100ms coalesce) of
+    // MarkdownTextRaw recompositions during streaming. At BOTH rates
+    // Emmanuel observed flicker (18Hz "jarring", 10Hz "less jarring,
+    // still apparent"). Single-pass MarkdownText cannot achieve
+    // no-flicker because mikepenz tears down + re-emits the subtree on
+    // every paint tick regardless of cadence — flicker is content-
+    // independent ("every message"), confirming subtree rebuild rather
+    // than mid-construct parse churn.
+    //
+    // Trade-off: while typing a paragraph, raw inline markdown like
+    // `**bold**` is shown as literal text until the paragraph
+    // completes (paragraph break commits the block to mikepenz). For
+    // prose this is mostly invisible — most paragraphs don't contain
+    // emphasis — and matches what every modern markdown chat app does
+    // (ChatGPT, Claude.ai, Gemini all hold off live emphasis until the
+    // line/paragraph completes). Block constructs (lists, code fences,
+    // tables) still render live because partitionStreamingMarkdown
+    // commits them as soon as they close.
+    //
+    // No swap-flash: when a paragraph break commits, the rendered
+    // markdown prefix is unchanged (existing blocks keep their stable
+    // keys, no recomposition); only a new MarkdownText block appears
+    // and the plain-Text tail string shrinks. Compose treats this as
+    // a layout step, not a render swap.
+    val partition = remember(displayed) { partitionStreamingMarkdown(displayed) }
+    val transformedTail = remember(partition.activeTail) {
+        tailTransform(partition.activeTail)
+    }
+
+    Column(modifier = modifier) {
+        // Committed blocks: each rendered through MarkdownText, keyed
+        // by content hash. Compose elides recomposition for blocks
+        // whose key is unchanged across ticks. mikepenz sees each
+        // block exactly once.
+        partition.committedBlocks.forEach { block ->
+            key(block.key) {
+                MarkdownText(
+                    text = block.text,
+                    textColor = textColor,
+                )
+            }
+        }
+
+        // Active tail: plain Text. mikepenz NEVER sees this string.
+        // The tailTransform decorator handles cursor injection
+        // (▎) and the markdown-stability clamp
+        // (clampToStableMarkdown) so any unmatched span openers are
+        // clipped from the rendered text.
+        if (transformedTail.isNotEmpty()) {
+            Text(
+                text = transformedTail,
+                style = tailStyle,
+                color = textColor,
+            )
+        } else if (cursorText != null && partition.committedBlocks.isNotEmpty()) {
+            // Edge case: text ends exactly at a committed boundary
+            // (e.g. just after a paragraph break with no chars typed
+            // yet). Show a standalone cursor so streaming still feels
+            // live.
+            Text(
+                text = cursorText,
+                style = tailStyle,
+                color = textColor,
+            )
+        }
+    }
+}
+
+/**
+ * letta-mobile-flk2: maximum cadence for live markdown re-parse during
+ * streaming. 50ms ≈ 20Hz — slow enough that mikepenz + Compose can
+ * absorb the re-emit without visible flicker, fast enough that the
+ * tail cursor still feels live.
+ */
+// letta-mobile-flk2 (revision 15): paint coalescer at 50ms (20Hz).
+// With the split-render architecture this rate now drives only the
+// plain-Text active tail update — mikepenz update rate is governed by
+// paragraph/block-boundary commits (~1-3Hz natural). 20Hz on plain
+// Text is cheap (no parse, no subtree allocation), and the cursor
+// feels live without bursting.
+//
+// The 100ms experiment (revision 14) reduced flicker but did not
+// eliminate it because single-pass MarkdownText still re-emitted the
+// subtree on every recomp. Split-render breaks that link entirely.
+private const val PAINT_INTERVAL_MS = 50L
+
+internal data class StreamingMarkdownPartition(
+    val committedBlocks: List<MarkdownBlock>,
+    val activeTail: String,
+)
+
+internal fun partitionStreamingMarkdown(text: String): StreamingMarkdownPartition {
+    if (text.isEmpty()) {
+        return StreamingMarkdownPartition(committedBlocks = emptyList(), activeTail = "")
+    }
+
+    val boundary = findLastSafeBoundary(text)
+    val prefix = text.substring(0, boundary)
+    val activeTail = text.substring(boundary)
+    return StreamingMarkdownPartition(
+        committedBlocks = splitMarkdownBlocks(prefix),
+        activeTail = activeTail,
     )
 }
 
