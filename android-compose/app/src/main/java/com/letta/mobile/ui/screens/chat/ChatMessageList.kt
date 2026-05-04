@@ -345,6 +345,7 @@ fun ChatMessageList(
                                         collapsed = runId in state.collapsedRunIds,
                                         onToggleCollapsed = { onToggleRunCollapsed(runId) },
                                         modifier = Modifier.padding(top = 6.dp, bottom = 0.dp),
+                                        isStreaming = state.isStreaming,
                                     ) { message, position, rowModifier ->
                                         RenderChatMessage(
                                             message = message,
@@ -391,6 +392,7 @@ fun ChatMessageList(
                                     collapsed = renderItem.runId in state.collapsedRunIds,
                                     onToggleCollapsed = { onToggleRunCollapsed(renderItem.runId) },
                                     modifier = highlightModifier.padding(top = 6.dp, bottom = 0.dp),
+                                    isStreaming = state.isStreaming,
                                 ) { message, position, rowModifier ->
                                     RenderChatMessage(
                                         message = message,

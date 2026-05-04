@@ -126,6 +126,13 @@ internal fun ChatMessageItem(
     approvalInFlight: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // letta-mobile-1fa2: render telemetry for duplication investigation
+    if (com.letta.mobile.core.BuildConfig.DEBUG) {
+        androidx.compose.runtime.SideEffect {
+            android.util.Log.w("ChatMsgItem-DEBUG", "RENDER id=${message.id.take(24)} role=${message.role} reason=${message.isReasoning} cLen=${message.content.length} cHash=${message.content.hashCode()}")
+        }
+    }
+
     val isUser = message.role == "user"
     val showAvatar = groupPosition == GroupPosition.First || groupPosition == GroupPosition.None
     val context = LocalContext.current
@@ -315,8 +322,13 @@ private fun MessageBubbleSurface(
     // the Surface itself — historically that fought with the per-bubble
     // collapse/reasoning animations downstream. The Surface stays
     // size-stable; only mid-stream growth is animated.
+    //
+    // letta-mobile-lbur: streaming growth animation also suppressed.
+    // The 60ms animateContentSize on the bubble surface collides with
+    // LazyColumn fling measurement when content is settling from
+    // streaming size changes, causing a double-measure crash.
     val isPinchingForBubble = LocalChatIsPinching.current
-    val bubbleSizeAnimation = if (isLastAssistant && !isPinchingForBubble) {
+    val bubbleSizeAnimation = if (!isStreaming && isLastAssistant && !isPinchingForBubble) {
         Modifier.animateContentSize(
             animationSpec = tween(durationMillis = 60, easing = LinearEasing),
         )

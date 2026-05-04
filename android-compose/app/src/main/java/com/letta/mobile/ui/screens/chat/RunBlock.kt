@@ -72,6 +72,7 @@ fun RunBlock(
     collapsed: Boolean,
     onToggleCollapsed: () -> Unit,
     modifier: Modifier = Modifier,
+    isStreaming: Boolean = false,
     renderRow: @Composable (
         message: UiMessage,
         position: GroupPosition,
@@ -79,6 +80,13 @@ fun RunBlock(
     ) -> Unit,
 ) {
     if (messages.isEmpty()) return
+
+    // letta-mobile-1fa2: render telemetry for duplication investigation
+    if (com.letta.mobile.core.BuildConfig.DEBUG) {
+        androidx.compose.runtime.SideEffect {
+            android.util.Log.w("RunBlock-DEBUG", "RENDER msgs=${messages.size} collapsed=$collapsed ids=${messages.map { it.id.take(16) }}")
+        }
+    }
 
     // Defensive: the grouping layer already guarantees ≥2 messages for a
     // RunBlock, but if we ever get a single-message run (e.g. via a future
@@ -105,11 +113,16 @@ fun RunBlock(
     // bubbles per pinch frame. The animation is still useful for its
     // intended trigger (stream-end / new-tail arrival), and that trigger
     // is impossible during a pinch.
+    //
+    // letta-mobile-lbur: also suppress during streaming. animateContentSize
+    // collides with LazyColumn fling measurement when content is still
+    // settling from streaming size changes, causing a double-measure crash.
+    // Stream-end smoothness is temporarily sacrificed for stability.
     val isPinching = com.letta.mobile.ui.theme.LocalChatIsPinching.current
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isPinching) Modifier else Modifier.animateContentSize()),
+            .then(if (isPinching || isStreaming) Modifier else Modifier.animateContentSize()),
     ) {
         RunHeader(
             messageCount = messages.size,
