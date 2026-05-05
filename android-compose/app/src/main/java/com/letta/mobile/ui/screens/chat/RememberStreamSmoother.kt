@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -38,35 +37,18 @@ fun rememberSmoothedStreamingText(
 ): String {
     val smoother = remember { StreamingDisplayTextSmoother() }
     var displayedText by remember { mutableStateOf("") }
-    // Track last update to avoid redundant updates that reset the clock
-    var lastKnownText by remember { mutableStateOf("") }
 
-    // letta-mobile-flk2 (fix): use rememberUpdatedState to read the latest
-    // rawText/isStreaming without restarting the frame loop on every chunk.
-    // The prior LaunchedEffect(rawText, isStreaming) key caused cancel+restart
-    // on every chunk arrival, which reset the smoother's lastStepMs clock and
-    // caused visible flicker (oscillation between stale and ahead text).
-    // This matches the pattern used in StreamingMarkdownText.kt (revision 3).
-    val latestRawText by rememberUpdatedState(rawText)
-    val latestIsStreaming by rememberUpdatedState(isStreaming)
-
+    // Push every rawText / isStreaming change into the smoother.
     val nowMs = { System.nanoTime() / 1_000_000L }
+    smoother.updateTarget(rawText, isStreaming, nowMs())
 
-    // Only update target when text actually changes — calling updateTarget
-    // on every frame resets the clock (lastStepMs = nowMs), causing advance=1
-    // even if many frames have passed. The smoother needs cumulative time
-    // to reveal characters at the configured rate.
-    if (latestRawText != lastKnownText) {
-        smoother.updateTarget(latestRawText, latestIsStreaming, nowMs())
-        lastKnownText = latestRawText
-    }
-
-    // Frame loop: runs continuously while text is being revealed.
-    // Uses Unit key so the effect never restarts — it reads the latest
-    // rawText/isStreaming via rememberUpdatedState on each tick.
-    // The loop naturally suspends once isFullyRevealed && !latestIsStreaming.
-    LaunchedEffect(Unit) {
-        while (isActive && !(smoother.isFullyRevealed && !latestIsStreaming)) {
+    // Frame loop: runs while the smoother hasn't fully caught up.
+    // Uses a ~16 ms tick (≈ 60 fps) to call step(). The loop
+    // naturally suspends once isFullyRevealed && !isStreaming,
+    // because the LaunchedEffect's key (rawText, isStreaming)
+    // won't change until the next user send.
+    LaunchedEffect(rawText, isStreaming) {
+        while (isActive && !(smoother.isFullyRevealed && !isStreaming)) {
             displayedText = smoother.step(nowMs())
             delay(FRAME_INTERVAL_MS)
         }

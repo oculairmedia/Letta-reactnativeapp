@@ -32,11 +32,9 @@ object GeneratedUiRenderer : MessageContentRenderer {
         Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (message.content.isNotBlank()) {
                 val displayText = if (isStreaming && message.role == "assistant") {
-                    val smoothed = rememberSmoothedStreamingText(
-                        rawText = message.content,
-                        isStreaming = true,
-                    )
-                    streamingDisplayText(smoothed)
+                    // letta-mobile-flk2: removed buggy rememberSmoothedStreamingText
+                    // StreamingMarkdownText's 20Hz paint coalescer provides sufficient pacing
+                    streamingDisplayText(message.content)
                 } else {
                     message.content
                 }
@@ -366,17 +364,10 @@ object TextMessageRenderer : MessageContentRenderer {
             // — if anything mid-paragraph regresses, the visible content
             // is still the same string the user saw before this change.
             //
-            // d2z6.s1 stream-smoothing: the smoother meters out bursty
-            // arrivals at a steady per-character cadence before they
-            // reach the boundary splitter. StreamingMarkdownText still
-            // gets the same tailTransform for word-boundary holdback +
-            // cursor.
-            val smoothedText = rememberSmoothedStreamingText(
-                rawText = message.content,
-                isStreaming = true,
-            )
+            // d2z6.s1 stream-smoothing removed - letta-mobile-flk2
+            // StreamingMarkdownText's 20Hz paint coalescer provides sufficient pacing
             StreamingMarkdownText(
-                text = smoothedText,
+                text = message.content,
                 textColor = textColor,
                 tailStyle = MaterialTheme.chatTypography.messageBody,
                 tailTransform = ::streamingDisplayText,
@@ -412,12 +403,9 @@ object ToolCallRenderer : MessageContentRenderer {
     ) {
         Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (message.content.isNotBlank()) {
+                // letta-mobile-flk2: removed buggy rememberSmoothedStreamingText
                 val displayText = if (isStreaming && message.role == "assistant") {
-                    val smoothed = rememberSmoothedStreamingText(
-                        rawText = message.content,
-                        isStreaming = true,
-                    )
-                    streamingDisplayText(smoothed)
+                    streamingDisplayText(message.content)
                 } else {
                     message.content
                 }

@@ -769,12 +769,9 @@ internal fun MessageReasoning(
                 // chunk. Use plain Text during streaming and snap to
                 // formatted markdown when the stream ends.
                 if (isStreaming) {
-                    val smoothedContent = rememberSmoothedStreamingText(
-                        rawText = message.content,
-                        isStreaming = true,
-                    )
+                    // letta-mobile-flk2: removed buggy rememberSmoothedStreamingText
                     Text(
-                        text = smoothedContent,
+                        text = message.content,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
