@@ -38,6 +38,8 @@ fun rememberSmoothedStreamingText(
 ): String {
     val smoother = remember { StreamingDisplayTextSmoother() }
     var displayedText by remember { mutableStateOf("") }
+    // Track last update to avoid redundant updates that reset the clock
+    var lastKnownText by remember { mutableStateOf("") }
 
     // letta-mobile-flk2 (fix): use rememberUpdatedState to read the latest
     // rawText/isStreaming without restarting the frame loop on every chunk.
@@ -50,13 +52,21 @@ fun rememberSmoothedStreamingText(
 
     val nowMs = { System.nanoTime() / 1_000_000L }
 
+    // Only update target when text actually changes — calling updateTarget
+    // on every frame resets the clock (lastStepMs = nowMs), causing advance=1
+    // even if many frames have passed. The smoother needs cumulative time
+    // to reveal characters at the configured rate.
+    if (latestRawText != lastKnownText) {
+        smoother.updateTarget(latestRawText, latestIsStreaming, nowMs())
+        lastKnownText = latestRawText
+    }
+
     // Frame loop: runs continuously while text is being revealed.
     // Uses Unit key so the effect never restarts — it reads the latest
     // rawText/isStreaming via rememberUpdatedState on each tick.
     // The loop naturally suspends once isFullyRevealed && !latestIsStreaming.
     LaunchedEffect(Unit) {
         while (isActive && !(smoother.isFullyRevealed && !latestIsStreaming)) {
-            smoother.updateTarget(latestRawText, latestIsStreaming, nowMs())
             displayedText = smoother.step(nowMs())
             delay(FRAME_INTERVAL_MS)
         }
