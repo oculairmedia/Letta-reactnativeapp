@@ -67,6 +67,16 @@ fun buildChatRenderModel(
     val renderItems = groupMessagesForRender(reversed)
     val renderItemCount = renderItems.size
 
+    // letta-mobile-lbur follow-up: detect duplicate render item keys
+    val seenKeys = HashSet<String>(renderItems.size)
+    val dupKeys = renderItems.filterNot { seenKeys.add(it.key) }.map { it.key }
+    if (dupKeys.isNotEmpty()) {
+        android.util.Log.w(
+            "ChatRenderModel-DEBUG",
+            "DUP_RENDER_KEYS: ${dupKeys.size} duplicates: ${dupKeys.take(5)} renderItems=$renderItemCount",
+        )
+    }
+
     // Capture assistant message count for comparison with timeline live count
     val assistantCount = messages.count { it.role == "assistant" }
 
@@ -163,5 +173,13 @@ fun dedupeGroupedMessagesForLazyKeys(
     // already dedupes by id, but a late streaming tick or reasoning-collapse
     // edge case could still leak duplicates — so guard in the pure pipeline too.
     val seen = HashSet<String>(groupedMessages.size)
-    return groupedMessages.filter { (msg, _) -> seen.add(msg.id) }
+    val result = groupedMessages.filter { (msg, _) -> seen.add(msg.id) }
+    val dropped = groupedMessages.size - result.size
+    if (dropped > 0) {
+        android.util.Log.w(
+            "ChatRenderModel-DEBUG",
+            "KEY_DEDUP_DROPPED: $dropped duplicate message IDs detected in grouped messages",
+        )
+    }
+    return result
 }

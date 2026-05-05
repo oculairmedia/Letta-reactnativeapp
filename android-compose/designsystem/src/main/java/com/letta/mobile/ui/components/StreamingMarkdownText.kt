@@ -502,6 +502,16 @@ internal fun findLastSafeBoundary(text: String): Int {
         }
     }
 
+    // When all block-level fences are closed at end-of-text, commit the
+    // entire remainder. Without this, a code fence at the very end of a
+    // message (e.g. a mermaid block with no trailing \n\n) stays in the
+    // active plain-text tail forever — the diagram never renders, and the
+    // dual plain-text/rendered state during stream→complete transition
+    // creates a visible duplicate bubble. letta-mobile-lbur / 3fnm.
+    if (fenceParity == 0 && displayMathParity == 0 && n > 0 && lastSafe < n) {
+        lastSafe = n
+    }
+
     return lastSafe
 }
 
