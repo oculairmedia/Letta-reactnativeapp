@@ -35,13 +35,16 @@ class StreamingDisplayTextSmoother(
     fun updateTarget(text: String, isStreaming: Boolean, nowMs: Long) {
         if (text != target) {
             if (!text.startsWith(target)) {
+                // Text was rewritten (not extended) — reset reveal
                 revealedWordCount = 0
+                lastStepMs = nowMs
+            } else {
+                // Text was extended — reset clock so new content reveals at normal cadence
                 lastStepMs = nowMs
             }
             // Continuation: keep revealedWordCount, rebuild tokens
             target = text
             tokens = tokenize(text)
-            // No clock reset for continuations — time accumulates
         }
         streaming = isStreaming
         if (lastStepMs < 0L) {

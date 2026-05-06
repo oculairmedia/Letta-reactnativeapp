@@ -12,10 +12,17 @@ class StreamingDisplayTextSmootherTest {
 
         smoother.updateTarget("Hello world", isStreaming = true, nowMs = 0L)
         val first = smoother.step(16L)
-        assertTrue(first.length in 1..3)
+        // Word-by-word reveal: first step reveals "Hello" (5 chars)
+        assertEquals("Hello", first)
 
         smoother.updateTarget("Hello world from Letta", isStreaming = true, nowMs = 400L)
         val second = smoother.step(416L)
+        // After text extension, clock resets at 400ms, so elapsed = 16ms
+        // steps = (16/30).toInt() = 0, coerceAtLeast(1) = 1
+        // revealedWordCount = 1 + 1 = 2
+        // tokens = ["Hello", " ", "world", " ", "from", " ", "Letta"]
+        // prefix = "Hello "
+        assertEquals("Hello ", second)
         assertTrue(
             "second step should grow progressively instead of jumping to full burst",
             second.length < "Hello world from Letta".length,
