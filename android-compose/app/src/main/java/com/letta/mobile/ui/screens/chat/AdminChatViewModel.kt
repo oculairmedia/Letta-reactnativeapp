@@ -942,6 +942,7 @@ class AdminChatViewModel @Inject constructor(
                     it.copy(error = mapErrorToUserMessage(e.asException(), "Failed to stop run"))
                 }
             }
+            runCatching { internalBotClient.abort() }
             clientModeStreamJob?.cancel(CancellationException("User interrupted active run"))
             clientModeStreamInFlight = false
             clientModeStreamStartedAtElapsedMs = 0L

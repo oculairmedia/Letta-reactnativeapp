@@ -103,6 +103,10 @@ class RemoteBotSession @AssistedInject constructor(
         _status.value = BotStatus.STOPPED
     }
 
+    override suspend fun abortStream() {
+        client?.abort()
+    }
+
     override suspend fun sendToAgent(message: ChannelMessage, conversationId: String?): BotResponse {
         val remoteClient = client ?: throw IllegalStateException("Session not started")
         val agentId = requireAgent(message)

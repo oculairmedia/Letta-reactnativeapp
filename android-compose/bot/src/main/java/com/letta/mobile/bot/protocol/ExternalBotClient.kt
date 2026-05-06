@@ -120,4 +120,8 @@ class ExternalBotClient(
     override fun close() {
         client.close()
     }
+
+    override suspend fun abort() {
+        // HTTP-based client has no active stream to abort.
+    }
 }

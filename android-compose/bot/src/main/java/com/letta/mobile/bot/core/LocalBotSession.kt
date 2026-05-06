@@ -141,6 +141,10 @@ class LocalBotSession @AssistedInject constructor(
         Log.i(TAG, "Local bot session stopped for config $configId")
     }
 
+    override suspend fun abortStream() {
+        scope.coroutineContext.cancel()
+    }
+
     /**
      * Resolve the per-message agent target. Throws if the message has no
      * `targetAgentId` — required since the transport no longer carries a

@@ -1,8 +1,10 @@
 package com.letta.mobile.ui.screens.chat
 
-import android.text.SpannableString
-import android.text.style.ForegroundColorSpan
-import android.widget.TextView
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.components.StreamingMarkdownText
@@ -342,77 +342,34 @@ object TextMessageRenderer : MessageContentRenderer {
                 color = textColor,
                 modifier = modifier,
             )
-        } else if (isStreaming) {
-            // letta-mobile-c8of (ALT-2): boundary-aware incremental
-            // markdown streaming. The committed prefix (everything up to
-            // the last safe paragraph/closed-fence boundary) renders
-            // through the full MarkdownText pipeline so lists, headings,
-            // bold, inline code etc. format LIVE during streaming. Only
-            // the in-progress paragraph (the tail after the last \n\n)
-            // renders as plain Text — and that tail still gets the
-            // letta-mobile-6p4o.1 word-boundary holdback + streaming
-            // cursor via tailTransform = ::streamingDisplayText.
-            //
-            // Why this kills the d2z6 stream-end "snap": the prior
-            // architecture rendered the ENTIRE bubble as plain Text
-            // during streaming, then swapped to MarkdownText on settle —
-            // a visible reflow as plain-text layout (literal \n\n,
-            // unindented lists) became formatted markdown layout. With
-            // boundary-aware streaming, the prefix is ALREADY rendered
-            // as MarkdownText throughout streaming, so on settle only
-            // the final paragraph's tail gets promoted into the prefix.
-            // No layout swap, no snap.
-            //
-            // Why a paragraph-cadence prefix re-render is cheap: chunks
-            // typically arrive every 80–150ms; new paragraph boundaries
-            // arrive every ~1s. The prefix only re-parses on boundary
-            // advances, which happens at PARAGRAPH cadence (~once per second) rather than
-            // chunk cadence (~10/sec).
-            //
-            // letta-mobile-flk2: AndroidView-isolated streaming.
-            // AndroidView(TextView) owns its layout internally — no
-            // LazyColumn recalc, no Compose churn. clampToStableMarkdown
-            // strips unclosed formatting tokens (same as article's
-            // MarkdownBuffer). Cursor appended after stable prefix.
-            // When streaming settles, snap to full MarkdownText.
-            val safeText = clampToStableMarkdown(message.content)
-            val displayText = if (safeText.isNotEmpty()) safeText + STREAMING_CURSOR else STREAMING_CURSOR
-            val textArgb = textColor.toArgb()
-            val fontSizeSp = MaterialTheme.chatTypography.messageBody.fontSize
-            AndroidView(
-                modifier = modifier,
-                factory = { ctx ->
-                    TextView(ctx).apply {
-                        setTextColor(textArgb)
-                        if (fontSizeSp != null) textSize = fontSizeSp.value
-                        setLineSpacing(0f, 1.2f)
-                    }
-                },
-                update = { tv ->
-                    val spannable = SpannableString("$displayText\u200B") // zero-width space for layout stability
-                    val cursorIdx = displayText.indexOf(STREAMING_CURSOR)
-                    if (cursorIdx >= 0) {
-                        spannable.setSpan(
-                            ForegroundColorSpan(textArgb),
-                            cursorIdx,
-                            cursorIdx + 1,
-                            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-                        )
-                    }
-                    tv.text = spannable
-                },
-            )
         } else {
-            val displayText = if (isStreaming) {
-                streamingDisplayText(message.content)
-            } else {
-                message.content
+            val transitionKey = isStreaming
+            AnimatedContent(
+                targetState = transitionKey,
+                transitionSpec = {
+                    fadeIn(tween(80)) togetherWith fadeOut(tween(80))
+                },
+                label = "stream-end-transition",
+            ) { streaming ->
+                if (streaming) {
+                    val smoothed = rememberSmoothedStreamingText(
+                        rawText = message.content,
+                        isStreaming = true,
+                    )
+                    Text(
+                        text = smoothed,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = textColor,
+                        modifier = modifier,
+                    )
+                } else {
+                    MarkdownText(
+                        text = message.content,
+                        textColor = textColor,
+                        modifier = modifier,
+                    )
+                }
             }
-            MarkdownText(
-                text = displayText,
-                textColor = textColor,
-                modifier = modifier,
-            )
         }
     }
 }

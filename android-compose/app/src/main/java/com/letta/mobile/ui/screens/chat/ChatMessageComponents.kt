@@ -5,8 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
@@ -121,6 +123,7 @@ internal fun ChatMessageItem(
     groupPosition: GroupPosition,
     isStreaming: Boolean,
     reasoningCollapsed: Boolean = true,
+    reasoningStable: Boolean = false,
     onToggleReasoning: (() -> Unit)? = null,
     onGeneratedUiMessage: ((String) -> Unit)? = null,
     onRerunMessage: ((UiMessage) -> Unit)? = null,
@@ -195,7 +198,7 @@ internal fun ChatMessageItem(
             }
             MessageReasoning(
                 message = message,
-                isStreaming = isStreaming,
+                isStreaming = isStreaming && !reasoningStable,
                 collapsed = reasoningCollapsed,
                 onToggleCollapsed = onToggleReasoning,
             )
@@ -741,8 +744,8 @@ internal fun MessageReasoning(
 
         AnimatedVisibility(
             visible = !isCollapsed,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 4 }) + expandVertically(),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 4 }) + shrinkVertically(),
+            enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { it / 4 },
+            exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it },
         ) {
             val lineColor = if (isStreaming) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
@@ -762,19 +765,21 @@ internal fun MessageReasoning(
                     }
                     .padding(start = 14.dp),
             ) {
-                // letta-mobile-d2z6 (root cause): MarkdownText re-parses on
-                // every content change and re-emits a fresh subtree, which
-                // causes the bubble to visibly flicker on each streaming
-                // chunk. Use plain Text during streaming and snap to
-                // formatted markdown when the stream ends.
+                // letta-mobile-mmnn: during streaming use smoother + Text.
+                // When streaming ends and we're about to collapse, skip
+                // content rendering — the outer AnimatedVisibility exit
+                // animation handles the visual transition.
                 if (isStreaming) {
-                    // letta-mobile-flk2: removed buggy rememberSmoothedStreamingText
+                    val smoothed = rememberSmoothedStreamingText(
+                        rawText = message.content,
+                        isStreaming = true,
+                    )
                     Text(
-                        text = message.content,
+                        text = smoothed,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else {
+                } else if (!isCollapsed) {
                     MarkdownText(
                         text = message.content,
                         textColor = MaterialTheme.colorScheme.onSurfaceVariant,

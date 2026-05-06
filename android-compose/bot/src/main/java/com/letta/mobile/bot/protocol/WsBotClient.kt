@@ -404,7 +404,7 @@ class WsBotClient(
         pendingRoutes.remove(route.requestId, route)
     }
 
-    suspend fun abort() {
+    override suspend fun abort() {
         // letta-mobile-w2hx.8: with the single requestMutex still in
         // place there is at most one in-flight request at a time, so
         // "abort the current one" is well-defined. Pick the sole
