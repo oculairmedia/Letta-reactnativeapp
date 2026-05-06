@@ -263,8 +263,8 @@ dependencies {
     implementation("androidx.metrics:metrics-performance:1.0.0-alpha04")
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
 
-    // Texty - typing animation library
-    implementation("com.github.ArjunJadeja:texty:1.0.2")
+    // Typist - typing animation library (on Maven Central)
+    implementation("tech.dev-scion:typist:1.3.0")
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.9.7")

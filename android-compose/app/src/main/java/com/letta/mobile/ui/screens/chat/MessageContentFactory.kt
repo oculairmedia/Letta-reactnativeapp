@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -16,6 +20,8 @@ import com.letta.mobile.ui.theme.LocalChatFontScale
 import com.letta.mobile.ui.theme.chatTypography
 import com.letta.mobile.ui.theme.scaledBy
 import kotlinx.collections.immutable.toImmutableList
+import tech.devscion.typist.Typist
+import tech.devscion.typist.TypistSpeed
 
 object GeneratedUiRenderer : MessageContentRenderer {
     override fun canRender(message: UiMessage): Boolean = message.generatedUi != null
@@ -364,14 +370,16 @@ object TextMessageRenderer : MessageContentRenderer {
             // — if anything mid-paragraph regresses, the visible content
             // is still the same string the user saw before this change.
             //
-            // d2z6.s1 stream-smoothing removed - letta-mobile-flk2
-            // StreamingMarkdownText's 20Hz paint coalescer provides sufficient pacing
-            StreamingMarkdownText(
-                text = message.content,
-                textColor = textColor,
-                tailStyle = MaterialTheme.chatTypography.messageBody,
-                tailTransform = ::streamingDisplayText,
-                cursorText = STREAMING_CURSOR,
+            // letta-mobile-flk2: use Typist for character-by-character typewriter effect
+            var isTyping by remember { mutableStateOf(true) }
+            LaunchedEffect(message.content) {
+                isTyping = true
+            }
+            // Show Typist typing animation with markdown-stable content
+            val markdownStableContent = clampToStableMarkdown(message.content)
+            Typist(
+                text = markdownStableContent,
+                typistSpeed = TypistSpeed.NORMAL,
                 modifier = modifier,
             )
         } else {
