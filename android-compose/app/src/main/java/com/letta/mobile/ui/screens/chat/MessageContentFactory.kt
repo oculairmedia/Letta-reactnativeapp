@@ -1,12 +1,14 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.data.model.UiMessage
@@ -360,20 +362,33 @@ object TextMessageRenderer : MessageContentRenderer {
             // advances, which happens at PARAGRAPH cadence (~once per second) rather than
             // chunk cadence (~10/sec).
             //
-            // d2z6.s1 stream-smoothing: meter chunk arrivals at steady cadence
-            // via the 60fps smoother before reaching the boundary splitter.
+            // letta-mobile-flk2: height-lock streaming. Render full
+            // message invisible to reserve layout height, then overlay
+            // the same content with word-by-word reveal. LazyColumn
+            // sees stable layout — no recalculation, no flicker.
             val smoothedText = rememberSmoothedStreamingText(
                 rawText = message.content,
                 isStreaming = true,
             )
-            StreamingMarkdownText(
-                text = smoothedText,
-                textColor = textColor,
-                tailStyle = MaterialTheme.chatTypography.messageBody,
-                tailTransform = ::streamingDisplayText,
-                cursorText = STREAMING_CURSOR,
-                modifier = modifier,
-            )
+            Box(modifier = modifier) {
+                // Invisible spacer: same renderer, same text, locks layout
+                StreamingMarkdownText(
+                    text = message.content,
+                    textColor = textColor,
+                    tailStyle = MaterialTheme.chatTypography.messageBody,
+                    tailTransform = ::streamingDisplayText,
+                    cursorText = STREAMING_CURSOR,
+                    modifier = Modifier.alpha(0f),
+                )
+                // Visible overlay: word-by-word revealed text
+                StreamingMarkdownText(
+                    text = smoothedText,
+                    textColor = textColor,
+                    tailStyle = MaterialTheme.chatTypography.messageBody,
+                    tailTransform = ::streamingDisplayText,
+                    cursorText = STREAMING_CURSOR,
+                )
+            }
         } else {
             val displayText = if (isStreaming) {
                 streamingDisplayText(message.content)
