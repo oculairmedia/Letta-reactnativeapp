@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -122,7 +124,16 @@ fun RunBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (isPinching || isStreaming) Modifier else Modifier.animateContentSize()),
+            // letta-mobile-flk2: enable animateContentSize during streaming
+            // with short linear tween (60ms) — faster than typical token
+            // arrival so animation finishes before next chunk. Matches
+            // ChatMessageComponents behavior for consistent height tween.
+            .then(
+                if (isPinching) Modifier
+                else Modifier.animateContentSize(
+                    animationSpec = tween(durationMillis = 60, easing = LinearEasing),
+                )
+            ),
     ) {
         RunHeader(
             messageCount = messages.size,

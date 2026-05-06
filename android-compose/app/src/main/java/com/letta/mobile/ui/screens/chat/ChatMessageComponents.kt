@@ -326,17 +326,11 @@ private fun MessageBubbleSurface(
     // collapse/reasoning animations downstream. The Surface stays
     // size-stable; only mid-stream growth is animated.
     //
-    // letta-mobile-flk2: additive sizing. Track max height in DP.
-    // onGloballyPositioned returns pixels, convert with density.
     val isPinchingForBubble = LocalChatIsPinching.current
-    val density = LocalDensity.current
-    var contentMaxHeightDp by remember { mutableStateOf(0f) }
     val bubbleSizeAnimation = if (!isStreaming && isLastAssistant && !isPinchingForBubble) {
         Modifier.animateContentSize(
             animationSpec = tween(durationMillis = 60, easing = LinearEasing),
         )
-    } else if (isStreaming && !isPinchingForBubble && contentMaxHeightDp > 0f) {
-        Modifier.heightIn(min = contentMaxHeightDp.dp)
     } else {
         Modifier
     }
@@ -352,12 +346,7 @@ private fun MessageBubbleSurface(
                     horizontal = dimens.bubblePaddingHorizontal,
                     vertical = dimens.bubblePaddingVertical,
                 )
-            }).then(bubbleSizeAnimation).then(
-                if (isStreaming && !isPinchingForBubble) Modifier.onGloballyPositioned { coords ->
-                    val hDp = with(density) { coords.size.height.toDp().value }
-                    if (hDp > contentMaxHeightDp) contentMaxHeightDp = hDp
-                } else Modifier
-            ),
+            }).then(bubbleSizeAnimation),
             verticalArrangement = Arrangement.spacedBy(dimens.messageSpacing),
         ) {
             // Suppress the role label header for bubble-less assistant prose
