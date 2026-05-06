@@ -64,6 +64,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -325,18 +326,17 @@ private fun MessageBubbleSurface(
     // collapse/reasoning animations downstream. The Surface stays
     // size-stable; only mid-stream growth is animated.
     //
-    // letta-mobile-flk2: additive sizing. Track the maximum height
-    // the content Column has ever reached, and set heightIn(min = max).
-    // Height only grows, never regresses — no jitter, no repaint
-    // thrashing. The same approach that makes reasoning smooth.
+    // letta-mobile-flk2: additive sizing. Track max height in DP.
+    // onGloballyPositioned returns pixels, convert with density.
     val isPinchingForBubble = LocalChatIsPinching.current
-    var contentMinHeight by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    var contentMaxHeightDp by remember { mutableStateOf(0f) }
     val bubbleSizeAnimation = if (!isStreaming && isLastAssistant && !isPinchingForBubble) {
         Modifier.animateContentSize(
             animationSpec = tween(durationMillis = 60, easing = LinearEasing),
         )
-    } else if (isStreaming && !isPinchingForBubble && contentMinHeight > 0) {
-        Modifier.heightIn(min = contentMinHeight.dp)
+    } else if (isStreaming && !isPinchingForBubble && contentMaxHeightDp > 0f) {
+        Modifier.heightIn(min = contentMaxHeightDp.dp)
     } else {
         Modifier
     }
@@ -354,8 +354,8 @@ private fun MessageBubbleSurface(
                 )
             }).then(bubbleSizeAnimation).then(
                 if (isStreaming && !isPinchingForBubble) Modifier.onGloballyPositioned { coords ->
-                    val h = coords.size.height
-                    if (h > contentMinHeight) contentMinHeight = h
+                    val hDp = with(density) { coords.size.height.toDp().value }
+                    if (hDp > contentMaxHeightDp) contentMaxHeightDp = hDp
                 } else Modifier
             ),
             verticalArrangement = Arrangement.spacedBy(dimens.messageSpacing),
