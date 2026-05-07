@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -260,6 +262,102 @@ class StreamingFlickerTest {
 
         val partitions = simulate(text)
         assertCommittedBlocksAppendOnly(text, partitions)
+    }
+
+    @Test
+    fun `streaming table keeps committed rows out of active tail renderer`() {
+        val text = "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4"
+        val partition = partitionStreamingMarkdown(text)
+        val plan = buildStreamingMarkdownRenderPlan(partition, isStreaming = true)
+
+        assertEquals(1, plan.committedBlocks.size)
+        assertEquals("| a | b |\n| --- | --- |\n| 1 | 2 |\n", plan.committedBlocks.single().text)
+        assertEquals("| 3 | 4", plan.activeTail)
+    }
+
+    @Test
+    fun `streaming table render plan never drops committed table block`() {
+        val prefixes = listOf(
+            "| a | b |\n| --- | --- |\n| 1 | 2 |\n|",
+            "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3",
+            "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4",
+        )
+
+        for (prefix in prefixes) {
+            val partition = partitionStreamingMarkdown(prefix)
+            val plan = buildStreamingMarkdownRenderPlan(partition, isStreaming = true)
+
+            assertEquals(
+                "committed table block must stay in the markdown-rendered prefix for ${prefix.toRepr()}",
+                partition.committedBlocks,
+                plan.committedBlocks,
+            )
+            assertEquals(partition.activeTail, plan.activeTail)
+        }
+    }
+
+    @Test
+    fun `defer trailing boundary keeps finished table styled while cursor is visible`() {
+        val text = "| a | b |\n| --- | --- |\n| 1 | 2 |\n\n"
+        val partition = partitionStreamingMarkdown(text)
+        val deferred = partition.deferTrailingBoundaryCommit(text)
+
+        assertEquals(partition, deferred)
+        assertEquals(1, deferred.committedBlocks.size)
+        assertEquals("", deferred.activeTail)
+    }
+
+    @Test
+    fun `settled streaming table promotes final unterminated row into table`() {
+        val text = "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4"
+        val partition = partitionStreamingMarkdown(text)
+        val plan = buildStreamingMarkdownRenderPlan(partition, isStreaming = false)
+
+        assertEquals(1, plan.committedBlocks.size)
+        assertEquals("| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4\n", plan.committedBlocks.single().text)
+        assertEquals("", plan.activeTail)
+    }
+
+    @Test
+    fun `table parser handles basic bordered table`() {
+        val table = parseMarkdownTable("| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n")
+
+        assertNotNull(table)
+        requireNotNull(table)
+        assertEquals(listOf("a", "b"), table.header)
+        assertEquals(2, table.rows.size)
+        assertEquals(listOf("1", "2"), table.rows[0].cells)
+        assertEquals(listOf("3", "4"), table.rows[1].cells)
+    }
+
+    @Test
+    fun `table parser handles alignment separator`() {
+        val table = parseMarkdownTable("| left | right | center |\n| :--- | ---: | :---: |\n| a | b | c |\n")
+
+        assertNotNull(table)
+        requireNotNull(table)
+        assertEquals(listOf("left", "right", "center"), table.header)
+        assertEquals(listOf("a", "b", "c"), table.rows.single().cells)
+    }
+
+    @Test
+    fun `parsed table row keys keep existing rows stable as rows append`() {
+        val first = parseMarkdownTable("| a | b |\n| --- | --- |\n| 1 | 2 |\n")
+        val second = parseMarkdownTable("| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n")
+
+        assertNotNull(first)
+        assertNotNull(second)
+        requireNotNull(first)
+        requireNotNull(second)
+        assertEquals(first.rows[0].key, second.rows[0].key)
+        assertEquals(first.rows[0].cells, second.rows[0].cells)
+        assertEquals(2, second.rows.size)
+    }
+
+    @Test
+    fun `table parser rejects non-table pipe prose`() {
+        assertNull(parseMarkdownTable("Choose: yes | no | maybe\n\nNext"))
+        assertNull(parseMarkdownTable("| not | enough |\n| still | prose |\n"))
     }
 
     @Test

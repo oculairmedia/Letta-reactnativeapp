@@ -3,13 +3,14 @@ package com.letta.mobile.ui.components
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -18,11 +19,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 /**
@@ -115,8 +120,15 @@ fun StreamingMarkdownText(
     // safely on each tick.
     val latestText by rememberUpdatedState(text)
 
-    var displayed by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
+    // LazyColumn can dispose off-screen message items and recompose them when the user scrolls
+    // back. Hydrated/non-streaming table messages must not replay the streaming reveal from an
+    // empty string on every recycle, so initialize them with the current text immediately.
+    val displayedInitialTextKey = if (isStreaming) null else text
+    var displayed by remember(isStreaming, displayedInitialTextKey) {
+        mutableStateOf(if (isStreaming) "" else text)
+    }
+    LaunchedEffect(isStreaming) {
+        if (!isStreaming) return@LaunchedEffect
         // Tick at fixed cadence. Push displayed = latest whenever
         // they differ. When text stops changing (stream end),
         // `displayed` catches up within one PAINT_INTERVAL_MS window
@@ -133,6 +145,12 @@ fun StreamingMarkdownText(
                 displayed = latestText
             }
             delay(PAINT_INTERVAL_MS)
+        }
+    }
+
+    LaunchedEffect(latestText, isStreaming) {
+        if (!isStreaming && displayed != latestText) {
+            displayed = latestText
         }
     }
 
@@ -178,22 +196,19 @@ fun StreamingMarkdownText(
             partition
         }
     }
-    val lastCommittedTable = renderPartition.committedBlocks.lastOrNull()
-        ?.takeIf { stabilizeTables && it.text.looksLikeMarkdownTable() }
-    val activeTailFirstLine = renderPartition.activeTail
-        .lineSequence()
-        .firstOrNull { it.isNotBlank() }
-        .orEmpty()
-    val activeTailBelongsToTable = lastCommittedTable != null && activeTailFirstLine.contains('|')
-    val activeTableText = lastCommittedTable
-        ?.takeIf { activeTailBelongsToTable }
-        ?.let { table -> table.text + renderPartition.activeTail + cursorText.orEmpty() }
-    val committedBlocksForRender = if (activeTailBelongsToTable) {
-        renderPartition.committedBlocks.dropLast(1)
-    } else {
-        renderPartition.committedBlocks
+    val renderPlan = remember(renderPartition, isStreaming) {
+        buildStreamingMarkdownRenderPlan(
+            partition = renderPartition,
+            isStreaming = isStreaming,
+        )
     }
-    val activeTailForText = if (activeTailBelongsToTable) "" else renderPartition.activeTail
+    val renderPlanCommittedToken = remember(renderPlan.committedBlocks) {
+        renderPlan.committedBlocks.joinToString(separator = "|") { it.key }
+    }
+    val committedBlocksForRender = remember(renderPlanCommittedToken) {
+        renderPlan.committedBlocks
+    }
+    val activeTailForText = renderPlan.activeTail
     val transformedTail = remember(activeTailForText) {
         tailTransform(activeTailForText)
     }
@@ -207,26 +222,14 @@ fun StreamingMarkdownText(
     // The fixed-height(height()) approach clipped the Column at the first-measured height
     // (e.g. 43px) and nothing rendered until scrolling forced a re-measure.
     //
-    // This approach: heightIn(min=stableFloor) where stableFloor only updates when the
-    // committed block list changes (paragraph boundary advance). Between boundary changes,
-    // the floor is constant so the heightIn modifier is stable — no re-measure cascade.
-    // The tail grows freely within the stable floor via natural layout.
-    // Track committed block count so we snapshot the measured height exactly once per
-    // paragraph-boundary advance. The floor only updates when committed blocks structurally
-    // gain a block — never on tail-tick churn. Between boundaries the heightIn modifier
-    // is referentially stable so Compose doesn't trigger a LazyColumn re-measure.
-    var settledFloorHeightPx by remember { mutableStateOf(0) }
-    var prevCommittedCount by remember { mutableStateOf(-1) }
-    val stableFloorHeightPx by derivedStateOf {
-        if (committedBlocksForRender.size != prevCommittedCount) {
-            // Committed blocks changed (new block at paragraph boundary) — snapshot the
-            // current measured height as the new stable floor.
-            prevCommittedCount = committedBlocksForRender.size
-            settledFloorHeightPx
-        } else {
-            // No structural change — return the last stable floor without mutation.
-            settledFloorHeightPx
-        }
+    // This approach: heightIn(min=stableFloor) where stableFloor only updates when committed
+    // block keys change (paragraph boundary or completed table-row advance). Between boundary
+    // changes, active-tail growth must NOT change the heightIn modifier; otherwise LazyColumn
+    // remeasures the whole message at the paint cadence and styled tables visibly flash.
+    var stableFloorHeightPx by remember { mutableStateOf(0) }
+    var stableFloorBoundaryToken by remember { mutableStateOf<String?>(null) }
+    val committedBoundaryToken = remember(committedBlocksForRender) {
+        committedBlocksForRender.joinToString(separator = "|") { it.key }
     }
     val heightFloorModifier = if (stableFloorHeightPx > 0) {
         with(density) { Modifier.heightIn(min = stableFloorHeightPx.toDp()) }
@@ -249,38 +252,20 @@ fun StreamingMarkdownText(
             .then(heightFloorModifier)
             .then(heightAnimation)
             .onSizeChanged { size ->
-                // Only grow the floor upward. Never shrink it.
-                if (size.height > settledFloorHeightPx) {
-                    settledFloorHeightPx = size.height
+                if (committedBoundaryToken != stableFloorBoundaryToken) {
+                    stableFloorBoundaryToken = committedBoundaryToken
+                    // Only grow the floor upward. Never shrink it.
+                    if (size.height > stableFloorHeightPx) {
+                        stableFloorHeightPx = size.height
+                    }
                 }
             },
     ) {
-        // Committed blocks: each rendered through MarkdownText, keyed
-        // by content hash. Compose elides recomposition for blocks
-        // whose key is unchanged across ticks. mikepenz sees each
-        // block exactly once.
-        committedBlocksForRender.forEach { block ->
-            key(block.key) {
-                if (stabilizeTables && block.text.looksLikeMarkdownTable()) {
-                    StableStyledMarkdownBlock(
-                        text = block.text,
-                        textColor = textColor,
-                    )
-                } else {
-                    MarkdownText(
-                        text = block.text,
-                        textColor = textColor,
-                    )
-                }
-            }
-        }
-
-        activeTableText?.let { tableText ->
-            StableStyledMarkdownBlock(
-                text = tableText,
-                textColor = textColor,
-            )
-        }
+        CommittedMarkdownBlocks(
+            blocks = committedBlocksForRender,
+            textColor = textColor,
+            stabilizeTables = stabilizeTables,
+        )
 
         // Active tail: plain Text. mikepenz NEVER sees this string.
         // The tailTransform decorator handles cursor injection
@@ -307,11 +292,111 @@ fun StreamingMarkdownText(
     }
 }
 
-private fun StreamingMarkdownPartition.deferTrailingBoundaryCommit(displayed: String): StreamingMarkdownPartition {
+@Composable
+private fun CommittedMarkdownBlocks(
+    blocks: List<MarkdownBlock>,
+    textColor: Color,
+    stabilizeTables: Boolean,
+) {
+    // Committed blocks: each rendered through MarkdownText, keyed by content hash. This composable
+    // is intentionally isolated from the active tail so plain-text tail ticks do not re-invoke the
+    // table MarkdownText subtree.
+    blocks.forEachIndexed { index, block ->
+        val parsedTable = if (stabilizeTables && block.text.looksLikeMarkdownTable()) {
+            parseMarkdownTable(block.text)
+        } else {
+            null
+        }
+
+        if (parsedTable != null) {
+            key("table-$index") {
+                StreamingMarkdownTable(
+                    table = parsedTable,
+                    textColor = textColor,
+                )
+            }
+        } else {
+            key(block.key) {
+                MarkdownText(
+                    text = block.text,
+                    textColor = textColor,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreamingMarkdownTable(
+    table: ParsedMarkdownTable,
+    textColor: Color,
+) {
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
+    val headerContainer = MaterialTheme.colorScheme.surfaceContainerHigh
+    val bodyContainer = MaterialTheme.colorScheme.surfaceContainerLow
+    val cellTextStyle = MaterialTheme.typography.bodySmall
+
+    Column(
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .border(1.dp, outlineColor),
+    ) {
+        key("header") {
+            StreamingMarkdownTableRow(
+                cells = table.header,
+                textColor = textColor,
+                containerColor = headerContainer,
+                outlineColor = outlineColor,
+                fontWeight = FontWeight.SemiBold,
+                cellTextStyle = cellTextStyle,
+            )
+        }
+        table.rows.forEach { row ->
+            key(row.key) {
+                StreamingMarkdownTableRow(
+                    cells = row.cells,
+                    textColor = textColor,
+                    containerColor = bodyContainer,
+                    outlineColor = outlineColor,
+                    fontWeight = null,
+                    cellTextStyle = cellTextStyle,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreamingMarkdownTableRow(
+    cells: List<String>,
+    textColor: Color,
+    containerColor: Color,
+    outlineColor: Color,
+    fontWeight: FontWeight?,
+    cellTextStyle: androidx.compose.ui.text.TextStyle,
+) {
+    Row(modifier = Modifier.background(containerColor)) {
+        cells.forEach { cell ->
+            Text(
+                text = cell,
+                color = textColor,
+                style = if (fontWeight != null) cellTextStyle.copy(fontWeight = fontWeight) else cellTextStyle,
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(min = 56.dp)
+                    .border(0.5.dp, outlineColor)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+internal fun StreamingMarkdownPartition.deferTrailingBoundaryCommit(displayed: String): StreamingMarkdownPartition {
     if (activeTail.isNotEmpty() || committedBlocks.isEmpty()) return this
     if (!displayed.endsWith("\n\n")) return this
 
     val last = committedBlocks.last()
+    if (last.text.looksLikeMarkdownTable()) return this
     return StreamingMarkdownPartition(
         committedBlocks = committedBlocks.dropLast(1),
         activeTail = last.text,
@@ -401,6 +486,127 @@ internal data class StreamingMarkdownPartition(
     val committedBlocks: List<MarkdownBlock>,
     val activeTail: String,
 )
+
+internal data class StreamingMarkdownRenderPlan(
+    val committedBlocks: List<MarkdownBlock>,
+    val activeTail: String,
+)
+
+internal data class ParsedMarkdownTable(
+    val header: List<String>,
+    val rows: List<ParsedTableRow>,
+)
+
+internal data class ParsedTableRow(
+    val key: String,
+    val cells: List<String>,
+)
+
+internal fun parseMarkdownTable(text: String): ParsedMarkdownTable? {
+    val lines = text
+        .lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toList()
+    if (lines.size < 3) return null
+    if (!lines[0].contains('|')) return null
+    if (!lineLooksLikeTableSeparator(lines[1], 0, lines[1].length)) return null
+
+    val header = splitMarkdownTableRow(lines[0])
+    val separator = splitMarkdownTableRow(lines[1])
+    if (header.isEmpty() || separator.isEmpty()) return null
+
+    val columnCount = maxOf(header.size, separator.size)
+    val normalizedHeader = header.normalizeTableCells(columnCount)
+    val rows = lines.drop(2).mapIndexed { index, line ->
+        if (!line.contains('|')) return null
+        val cells = splitMarkdownTableRow(line).normalizeTableCells(columnCount)
+        ParsedTableRow(
+            key = stableMarkdownTableRowKey(index, cells),
+            cells = cells,
+        )
+    }
+    if (rows.isEmpty()) return null
+
+    return ParsedMarkdownTable(
+        header = normalizedHeader,
+        rows = rows,
+    )
+}
+
+private fun stableMarkdownTableRowKey(index: Int, cells: List<String>): String {
+    return "row-$index-${cells.joinToString(separator = "\u001F").hashCode()}"
+}
+
+private fun List<String>.normalizeTableCells(columnCount: Int): List<String> {
+    if (size == columnCount) return this
+    if (size > columnCount) return take(columnCount)
+    return this + List(columnCount - size) { "" }
+}
+
+private fun splitMarkdownTableRow(line: String): List<String> {
+    val trimmed = line.trim()
+    val start = if (trimmed.startsWith('|')) 1 else 0
+    val end = if (trimmed.endsWith('|') && trimmed.length > start) trimmed.length - 1 else trimmed.length
+    if (start >= end) return emptyList()
+
+    val cells = mutableListOf<String>()
+    val current = StringBuilder()
+    var escaped = false
+    for (i in start until end) {
+        val c = trimmed[i]
+        when {
+            escaped -> {
+                current.append(c)
+                escaped = false
+            }
+            c == '\\' -> escaped = true
+            c == '|' -> {
+                cells.add(current.toString().trim())
+                current.clear()
+            }
+            else -> current.append(c)
+        }
+    }
+    if (escaped) current.append('\\')
+    cells.add(current.toString().trim())
+    return cells
+}
+
+internal fun buildStreamingMarkdownRenderPlan(
+    partition: StreamingMarkdownPartition,
+    isStreaming: Boolean,
+): StreamingMarkdownRenderPlan {
+    // Keep the renderer contract simple: completed markdown, including table rows that crossed
+    // findLastSafeBoundary(), remains in keyed committed blocks; the still-mutating tail always
+    // renders as plain Text. In particular, do not stitch a committed table block together with
+    // the in-flight row and send it back through MarkdownText at paint cadence — that recreates the
+    // table subtree on every partial-row tick and is the source of table flicker.
+    if (!isStreaming) {
+        val last = partition.committedBlocks.lastOrNull()
+        if (last != null && last.text.looksLikeMarkdownTable() && partition.activeTail.looksLikeTableRowTail()) {
+            return StreamingMarkdownRenderPlan(
+                committedBlocks = partition.committedBlocks.dropLast(1) +
+                    last.copy(text = last.text + partition.activeTail.ensureTrailingNewline()),
+                activeTail = "",
+            )
+        }
+    }
+
+    return StreamingMarkdownRenderPlan(
+        committedBlocks = partition.committedBlocks,
+        activeTail = partition.activeTail,
+    )
+}
+
+private fun String.looksLikeTableRowTail(): Boolean {
+    val line = lineSequence().firstOrNull { it.isNotBlank() } ?: return false
+    return line.contains('|')
+}
+
+private fun String.ensureTrailingNewline(): String {
+    return if (endsWith('\n')) this else "$this\n"
+}
 
 internal fun partitionStreamingMarkdown(text: String): StreamingMarkdownPartition {
     if (text.isEmpty()) {
