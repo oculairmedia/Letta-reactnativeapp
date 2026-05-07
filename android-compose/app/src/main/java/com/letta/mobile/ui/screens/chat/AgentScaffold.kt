@@ -1328,8 +1328,9 @@ private fun ContextMetricRow(label: String, value: String) {
 
 private fun formatDrawerNumber(value: Int): String = String.format(Locale.US, "%,d", value)
 
+@androidx.annotation.VisibleForTesting
 @Composable
-private fun DrawerContent(
+internal fun DrawerContent(
     agentName: String,
     agentId: String,
     messageCount: Int,
