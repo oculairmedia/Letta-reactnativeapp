@@ -2,6 +2,7 @@ package com.letta.mobile.util
 
 import android.util.Log
 import androidx.tracing.Trace
+import com.letta.mobile.core.BuildConfig
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -16,8 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * - **Zero setup for callers.** Call [Telemetry.event] from anywhere, no DI.
  * - **Structured data.** Events carry a tag (subsystem), name (verb),
  *   optional duration, and a bag of key/value attributes.
- * - **Multiple sinks.** Always logs to Logcat; also keeps the most recent
- *   1000 events in a ring buffer so a Dev screen can display them.
+ * - **Multiple sinks.** Keeps the most recent 1000 events in a ring buffer so
+ *   a Dev screen can display them. Logcat mirroring is independently gated and
+ *   defaults to debug builds only.
  * - **Cheap.** Producing an event is lock-free (ConcurrentLinkedDeque). A
  *   single AtomicBoolean gates emission entirely for release builds.
  *
@@ -45,6 +47,14 @@ object Telemetry {
      */
     @Suppress("MemberVisibilityCanBePrivate")
     val enabled = AtomicBoolean(true)
+
+    /**
+     * Logcat mirror switch. Metrics collection should not require logging, so
+     * release builds keep collecting into the in-memory ring while skipping
+     * string formatting and Logcat writes by default.
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    val logcatEnabled = AtomicBoolean(BuildConfig.DEBUG)
 
     private const val TAG_PREFIX = "Telemetry"
     private const val MAX_RING_SIZE = 1000
@@ -225,7 +235,17 @@ object Telemetry {
     fun snapshot(): List<Event> = _eventsFlow.value
 
     private fun emit(ev: Event) {
-        // Logcat side channel — always.
+        if (logcatEnabled.get()) {
+            logToLogcat(ev)
+        }
+
+        // Ring buffer.
+        ring.addFirst(ev)
+        while (ring.size > MAX_RING_SIZE) ring.pollLast()
+        _eventsFlow.value = ring.toList()
+    }
+
+    private fun logToLogcat(ev: Event) {
         val tagStr = "$TAG_PREFIX/${ev.tag}"
         val body = buildString {
             append(ev.name)
@@ -241,11 +261,6 @@ object Telemetry {
             Level.WARN -> Log.w(tagStr, body)
             Level.ERROR -> if (ev.throwable != null) Log.e(tagStr, body, ev.throwable) else Log.e(tagStr, body)
         }
-
-        // Ring buffer.
-        ring.addFirst(ev)
-        while (ring.size > MAX_RING_SIZE) ring.pollLast()
-        _eventsFlow.value = ring.toList()
     }
 
     /**
