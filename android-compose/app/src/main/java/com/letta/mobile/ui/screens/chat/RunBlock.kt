@@ -84,13 +84,6 @@ fun RunBlock(
 ) {
     if (messages.isEmpty()) return
 
-    // letta-mobile-1fa2: render telemetry for duplication investigation
-    if (com.letta.mobile.core.BuildConfig.DEBUG) {
-        androidx.compose.runtime.SideEffect {
-            android.util.Log.w("RunBlock-DEBUG", "RENDER msgs=${messages.size} collapsed=$collapsed ids=${messages.map { it.id.take(16) }}")
-        }
-    }
-
     // Defensive: the grouping layer already guarantees ≥2 messages for a
     // RunBlock, but if we ever get a single-message run (e.g. via a future
     // caller), short-circuit to a plain row so we don't paint a degenerate

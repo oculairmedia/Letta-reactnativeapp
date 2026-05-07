@@ -1615,7 +1615,6 @@ class AdminChatViewModel @Inject constructor(
             )
         }
         clientModeStreamJob = viewModelScope.launch {
-            android.util.Log.w("AdminChatVM-DEBUG", "sendMessageViaClientMode: launch started")
             var priorConversationId = initialPriorConversationId
             if (bootstrapFreshConversation) {
                 try {
@@ -1643,7 +1642,6 @@ class AdminChatViewModel @Inject constructor(
                     return@launch
                 }
             }
-            android.util.Log.w("AdminChatVM-DEBUG", "sendViaClientMode: priorConvId=$priorConversationId bootstrapFresh=$bootstrapFreshConversation isFreshRoute=$isFreshRoute explicitConvId=$explicitConversationId savedClientModeConvId=${currentClientModeConversationId()}")
             // letta-mobile-c87t (PR 2): when we already know the
             // conversationId, append the user bubble through the timeline so
             // the SSE-side reconcile + fuzzy matcher (PR 1) can collapse it
@@ -1767,13 +1765,11 @@ class AdminChatViewModel @Inject constructor(
             // migration because the bubble was appended up-front.
             var migratedToTimeline = priorConversationId != null
             try {
-                android.util.Log.w("AdminChatVM-DEBUG", "sendViaClientMode: calling streamMessage agentId=$agentId convId=$priorConversationId bootstrapFresh=$bootstrapFreshConversation")
                 clientModeChatSender.streamMessage(
                     screenAgentId = agentId,
                     text = outboundText,
                     conversationId = priorConversationId,
                 ).collect { chunk ->
-                    android.util.Log.w("AdminChatVM-DEBUG", "sendViaClientMode: chunk received done=${chunk.done} event=${chunk.event} textLen=${chunk.text?.length} convId=${chunk.conversationId} tracker=${currentConversationTracker.current}")
                     chunk.conversationId?.takeIf { it.isNotBlank() }?.let { conversationId ->
                         latestConversationId = conversationId
 
@@ -1887,7 +1883,6 @@ class AdminChatViewModel @Inject constructor(
                         // content uniformly. Idempotent — guarded by
                         // `migratedToTimeline`.
                         if (priorConversationId == null && !migratedToTimeline) {
-                            android.util.Log.w("AdminChatVM-DEBUG", "sendViaClientMode: fresh-route migration triggered, newConvId=$latestConversationId")
                             migratedToTimeline = true
                             val newConvId = latestConversationId
                             if (newConvId != null) {
@@ -2038,7 +2033,6 @@ class AdminChatViewModel @Inject constructor(
                     } else {
                         null
                     }
-                    android.util.Log.w("AdminChatVM-DEBUG", "sendViaClientMode: stream completed done=true sawPayload=$sawAssistantPayload aborted=${chunk.aborted} terminalError=$terminalError latestConvId=$latestConversationId")
 
                     val prevState = _uiState.value
                     _uiState.value = collapseCompletedRunsIfStreamingFinished(
@@ -2060,7 +2054,7 @@ class AdminChatViewModel @Inject constructor(
                     isAgentTyping = false,
                 )
             } catch (e: Exception) {
-                android.util.Log.e("AdminChatVM-DEBUG", "sendViaClientMode: EXCEPTION in stream", e)
+                android.util.Log.e("AdminChatViewModel", "sendViaClientMode: stream exception", e)
                 _uiState.value = _uiState.value.copy(
                     conversationState = latestConversationId?.let { ConversationState.Ready(it) }
                         ?: ConversationState.NoConversation,
@@ -2680,20 +2674,8 @@ class AdminChatViewModel @Inject constructor(
         val convIdSame = timelineObserverConversationId == conversationId
         val jobActive = timelineObserverJob?.isActive == true
         if (convIdSame && jobActive) {
-            // letta-mobile-nw2e: also log why we're returning early so
-            // rotation-trigger repro has telemetry to correlate against.
-            android.util.Log.w(
-                "AdminChatVM-DEBUG",
-                "startTimelineObserver: SKIP (already observing conv=$conversationId " +
-                    "jobActive=$jobActive) timelineObserverConversationId=$timelineObserverConversationId",
-            )
             return
         }
-        android.util.Log.w(
-            "AdminChatVM-DEBUG",
-            "startTimelineObserver: START (convIdSame=$convIdSame jobActive=$jobActive) " +
-                "starting fresh observer for conv=$conversationId",
-        )
         // Conversation switch (or first bind): tear down any in-flight
         // subscriptions from the previous conversation before starting new
         // ones. Without this the hydrate-signal job would leak on every
@@ -2763,12 +2745,6 @@ class AdminChatViewModel @Inject constructor(
             try {
                 flow.collect { timeline ->
                     val live = timeline.events.mapNotNull { it.toUiMessageOrNull() }
-                    val prevMsgCount = _uiState.value.messages.size
-                    android.util.Log.w(
-                        "AdminChatVM-DEBUG",
-                        "timeline observer emit: convId=$conversationId " +
-                            "liveCount=${live.size} prevCount=$prevMsgCount",
-                    )
                     // Prepend any backfilled older pages for THIS conversation.
                     val (prefixConv, prefixList) = olderMessagesPrefix
                     val prefix = if (prefixConv == conversationId) prefixList else emptyList()
@@ -2776,45 +2752,6 @@ class AdminChatViewModel @Inject constructor(
                     val combined = ArrayList<UiMessage>(live.size + prefix.size)
                     for (m in prefix) if (seenIds.add(m.id)) combined.add(m)
                     for (m in live) if (seenIds.add(m.id)) combined.add(m)
-
-                    // letta-mobile-2vza: timeline observer dedup telemetry
-                    // Detect prefix/live ID overlap and stale content (same ID, different content)
-                    val prefixIds = prefix.map { it.id }.toSet()
-                    val liveIds = live.map { it.id }.toSet()
-                    val overlapCount = prefixIds.intersect(liveIds).size
-
-                    if (overlapCount > 0) {
-                        android.util.Log.w(
-                            "AdminChatVM-DEBUG",
-                            "TIMELINE_OBS_DEDUP: prefixLiveOverlap=$overlapCount prefixCount=${prefix.size} liveCount=${live.size}",
-                        )
-                    }
-
-                    // Detect stale content: same ID appears with different content between emissions
-                    val prevMessages = _uiState.value.messages
-                    val prevById = prevMessages.associateBy { it.id }
-                    var staleCount = 0
-                    for (msg in combined) {
-                        val prev = prevById[msg.id]
-                        if (prev != null && prev.content != msg.content) {
-                            staleCount++
-                            android.util.Log.w(
-                                "AdminChatVM-DEBUG",
-                                "TIMELINE_OBS_STALE: id=${msg.id} prevLen=${prev.content.length} currLen=${msg.content.length}",
-                            )
-                        }
-                    }
-
-                    // Per-emission dedup rate
-                    val rawTotal = prefix.size + live.size
-                    val dedupRate = if (rawTotal > 0) {
-                        ((rawTotal - combined.size).toFloat() / rawTotal * 100).toInt()
-                    } else 0
-
-                    android.util.Log.w(
-                        "AdminChatVM-DEBUG",
-                        "TIMELINE_OBS_DEDUP_RATE: rawTotal=$rawTotal deduped=${combined.size} dedupRate=$dedupRate% staleContent=$staleCount",
-                    )
 
                     val ui = combined.toImmutableList()
                     val tailIsAssistant = timeline.events.lastOrNull().let {

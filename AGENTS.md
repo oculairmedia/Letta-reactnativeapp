@@ -38,12 +38,29 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
+## Issue Tracking
+
+This project uses **bd** (beads) for issue tracking — a CLI tool. **Do not use Huly** for this project.
+
+```bash
+# Find next bead to work on
+bd list
+
+# View bead details
+bd show <id>
+
+# Claim a bead
+bd update <id> --claim
+
+# Close a bead when done
+bd close <id>
+```
+
 ## Project Reporting
 
-- For this project, the PM agent is **Huly Letta Mobile**.
-- Report completed work to **Huly Letta Mobile** via Matrix.
-- Do **not** report letta-mobile work to Meridian.
-- If a project-specific Letta settings file is missing, still use **Huly Letta Mobile** as the fallback reporting target for this repo.
+- **bd** is the source of truth for all issue tracking
+- Do **not** report letta-mobile work to Meridian
+- Use the `bd` CLI for all issue management
 
 ## Material Design System Rules
 
