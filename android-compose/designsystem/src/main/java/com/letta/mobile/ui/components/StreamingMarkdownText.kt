@@ -193,43 +193,34 @@ fun StreamingMarkdownText(
     // ── Render ──
     //
     // The outer Column is stable (no animateContentSize, no height
-    // tracking). The committed-blocks subtree is wrapped in key()
-    // keyed by block content so Compose skips the entire subtree
-    // when only the tail changes. This is the inner/outer separation
-    // pattern that reasoning bubbles already use (RunBlock.kt).
+    // tracking). Per-block key() lets Compose elide unchanged blocks.
     //
     // Only the tail Column carries animateContentSize + monotonic
     // height so growth animation runs local to the in-progress
     // paragraph and never drags committed blocks through re-measure.
     Column(modifier = modifier) {
         // ── Stable committed area ──
-        // Compose reuses the entire subtree when this key is unchanged.
-        val committedStabilityKey = remember(committedBlocksForRender) {
-            committedBlocksForRender.joinToString("|") { "${it.key}:${it.text.length}" }
-        }
-        key(committedStabilityKey) {
-            committedBlocksForRender.forEach { block ->
-                key(block.key) {
-                    if (stabilizeTables && block.text.looksLikeMarkdownTable()) {
-                        StableStyledMarkdownBlock(
-                            text = block.text,
-                            textColor = textColor,
-                        )
-                    } else {
-                        MarkdownText(
-                            text = block.text,
-                            textColor = textColor,
-                        )
-                    }
+        committedBlocksForRender.forEach { block ->
+            key(block.key) {
+                if (stabilizeTables && block.text.looksLikeMarkdownTable()) {
+                    StableStyledMarkdownBlock(
+                        text = block.text,
+                        textColor = textColor,
+                    )
+                } else {
+                    MarkdownText(
+                        text = block.text,
+                        textColor = textColor,
+                    )
                 }
             }
+        }
 
-            activeTableText?.let { tableText ->
-                StableStyledMarkdownBlock(
-                    text = tableText,
-                    textColor = textColor,
-                )
-            }
+        activeTableText?.let { tableText ->
+            StableStyledMarkdownBlock(
+                text = tableText,
+                textColor = textColor,
+            )
         }
 
         // ── Animated tail area ──
