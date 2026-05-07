@@ -238,11 +238,10 @@ class MessageGroupingTest {
     }
 
     @Test
-    fun `Single shares key with RunBlock when both reference same runId is impossible by construction`() {
-        // Sanity: the grouper produces *either* a Single or a RunBlock for
-        // a given runId in a snapshot, never both. With one assistant in
-        // run r1 and a contiguous pair in run r2, we expect:
-        //   Single(run-r1), RunBlock(run-r2) — no key collision.
+    fun `contiguous assistants merge into one RunBlock regardless of runId`() {
+        // Three contiguous assistant messages — two sharing runId "r2" and
+        // one in runId "r1" — merge into a single RunBlock keyed by the
+        // first (newest) runId encountered: "r2".
         val items = groupMessagesForRender(
             listOf(
                 assistant("a3b", runId = "r2") to GroupPosition.First,
@@ -250,9 +249,25 @@ class MessageGroupingTest {
                 assistant("a1", runId = "r1") to GroupPosition.None,
             ),
         )
-        val keys = items.map { it.key }
-        assertEquals(listOf("run-r2", "run-r1"), keys)
-        assertEquals(keys.size, keys.toSet().size)
+        assertEquals(1, items.size)
+        val block = items.single() as ChatRenderItem.RunBlock
+        assertEquals("r2", block.runId)
+        assertEquals("run-r2", block.key)
+        assertEquals(listOf("a1", "a3a", "a3b"), block.messages.map { it.first.id })
+    }
+
+    @Test
+    fun `cross-runId assistants do not merge across user messages`() {
+        // User message breaks assistant contiguity.
+        val items = groupMessagesForRender(
+            listOf(
+                assistant("a2", runId = "r2") to GroupPosition.None,
+                user("u1") to GroupPosition.None,
+                assistant("a1", runId = "r1") to GroupPosition.None,
+            ),
+        )
+        assertEquals(3, items.size)
+        items.forEach { assertTrue(it is ChatRenderItem.Single) }
     }
 
     private fun user(id: String, ts: String = "2026-04-19T12:00:00Z") = UiMessage(

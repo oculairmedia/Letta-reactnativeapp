@@ -91,10 +91,11 @@ sealed interface ChatRenderItem {
 }
 
 /**
- * Collapse adjacent assistant messages that share a non-null `runId` into
- * [ChatRenderItem.RunBlock] entries. Messages without a runId — or messages
- * whose runId only appears once in the contiguous neighbourhood — render as
- * [ChatRenderItem.Single].
+ * Collapse contiguous assistant messages into [ChatRenderItem.RunBlock]
+ * entries regardless of server `runId`. Letta emits multiple sub-runs per
+ * user turn (one per think→tool→response cycle), but the user perceives
+ * them as a single assistant reply. Messages without a `role == "assistant"`
+ * break the grouping and render as [ChatRenderItem.Single].
  *
  * Input is the **already-reversed** grouped list (newest first), as produced
  * by `ChatScreen`'s `reversed` memo. Output preserves that order: the run
@@ -102,8 +103,8 @@ sealed interface ChatRenderItem {
  *
  * Algorithm:
  * 1. Walk the reversed input.
- * 2. For each entry with a non-null assistant runId, accumulate it together
- *    with any contiguous neighbours sharing that same runId.
+ * 2. For each assistant entry (non-null runId or not), accumulate it
+ *    together with any contiguous assistant neighbours.
  * 3. Emit either a `Single` (one-message group) or a `RunBlock`
  *    (multi-message group). For `RunBlock` we re-reverse the accumulator so
  *    the gutter renders oldest→newest top-down.
@@ -139,15 +140,19 @@ fun groupMessagesForRender(
             i++
             continue
         }
-        // Greedy walk: collect every contiguous entry whose assistant runId
-        // matches. Because the input is reversed (newest first), the
-        // accumulator is also newest-first; we re-reverse before storing so
-        // the RunBlock holds chat order.
+        // Greedy walk: collect every contiguous assistant message regardless
+        // of runId. Letta emits multiple sub-runs per user turn (one per
+        // think→tool→response cycle), but the user sees them as a single
+        // assistant reply. Merging across runId boundaries collapses the
+        // sub-runs into one virtual RunBlock.
+        // Because the input is reversed (newest first), the accumulator is
+        // also newest-first; we re-reverse before storing so the RunBlock
+        // holds chat order.
         val acc = ArrayList<Pair<UiMessage, GroupPosition>>()
         var j = i
         while (j < reversed.size) {
             val (m, p) = reversed[j]
-            if (m.role == "assistant" && m.runId == runId) {
+            if (m.role == "assistant") {
                 acc.add(m to p)
                 j++
             } else {

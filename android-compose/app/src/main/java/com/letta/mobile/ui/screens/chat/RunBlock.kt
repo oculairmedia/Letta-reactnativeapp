@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -163,35 +164,52 @@ fun RunBlock(
                 // simply render only `messages.last()`; when expanded we
                 // render the whole run.
                 val visibleMessages = if (collapsed) {
-                    listOf(messages.last())
+                    listOf(selectCollapsedPreview(messages))
                 } else {
                     messages
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
                     visibleMessages.forEachIndexed { idx, msg ->
-                        val pos = when {
-                            collapsed -> GroupPosition.None
-                            visibleMessages.size == 1 -> GroupPosition.None
-                            idx == 0 -> GroupPosition.First
-                            idx == visibleMessages.lastIndex -> GroupPosition.Last
-                            else -> GroupPosition.Middle
+                        key(msg.id) {
+                            val pos = when {
+                                collapsed -> GroupPosition.None
+                                visibleMessages.size == 1 -> GroupPosition.None
+                                idx == 0 -> GroupPosition.First
+                                idx == visibleMessages.lastIndex -> GroupPosition.Last
+                                else -> GroupPosition.Middle
+                            }
+                            val drawLineAbove = !collapsed && idx > 0
+                            val drawLineBelow = !collapsed && idx < visibleMessages.lastIndex
+                            RunStepRow(
+                                message = msg,
+                                position = pos,
+                                gutterColor = gutterColor,
+                                drawLineAbove = drawLineAbove,
+                                drawLineBelow = drawLineBelow,
+                                renderRow = renderRow,
+                                collapsedHiddenCount = if (collapsed && idx == visibleMessages.lastIndex) hiddenCount else 0,
+                            )
                         }
-                        val drawLineAbove = !collapsed && idx > 0
-                        val drawLineBelow = !collapsed && idx < visibleMessages.lastIndex
-                        RunStepRow(
-                            message = msg,
-                            position = pos,
-                            gutterColor = gutterColor,
-                            drawLineAbove = drawLineAbove,
-                            drawLineBelow = drawLineBelow,
-                            renderRow = renderRow,
-                            collapsedHiddenCount = if (collapsed && idx == visibleMessages.lastIndex) hiddenCount else 0,
-                        )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * When collapsed, picks the most representative message to show as preview.
+ * Skips reasoning bubbles so the user sees tool call output or assistant text
+ * rather than hidden chain-of-thought. Falls back to [messages.last] if every
+ * message is reasoning or the list only contains one entry.
+ */
+private fun selectCollapsedPreview(messages: List<UiMessage>): UiMessage {
+    // Walk backwards from newest — the first non-reasoning hit is the
+    // most relevant preview of what the run actually *did*.
+    for (i in messages.lastIndex downTo 0) {
+        if (!messages[i].isReasoning) return messages[i]
+    }
+    return messages.last()
 }
 
 /**
