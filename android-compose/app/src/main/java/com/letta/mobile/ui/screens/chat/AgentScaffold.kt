@@ -299,8 +299,9 @@ fun AgentScaffold(
     }
 }
 
+@androidx.annotation.VisibleForTesting
 @Composable
-private fun ProjectAgentsCard(
+internal fun ProjectAgentsCard(
     state: ProjectAgentsUiState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -443,8 +444,9 @@ private fun toneColor(tone: ProjectAgentStatusTone) = when (tone) {
     ProjectAgentStatusTone.Error -> MaterialTheme.colorScheme.error
 }
 
+@androidx.annotation.VisibleForTesting
 @Composable
-private fun ProjectBugReportSummaryCard(
+internal fun ProjectBugReportSummaryCard(
     state: ProjectBugReportUiState,
     onCreateReport: () -> Unit,
     modifier: Modifier = Modifier,
@@ -673,8 +675,9 @@ private fun ProjectBugReportSheet(
     }
 }
 
+@androidx.annotation.VisibleForTesting
 @Composable
-private fun ProjectBriefCard(
+internal fun ProjectBriefCard(
     brief: ProjectBriefUiState,
     onRetry: () -> Unit,
     onSaveSection: (ProjectBriefSectionKey, String) -> Unit,
@@ -843,8 +846,9 @@ private fun minLinesFor(key: ProjectBriefSectionKey): Int = when (key) {
     ProjectBriefSectionKey.RecentChanges -> 4
 }
 
+@androidx.annotation.VisibleForTesting
 @Composable
-private fun ProjectContextCard(
+internal fun ProjectContextCard(
     project: ProjectChatContext,
     modifier: Modifier = Modifier,
 ) {
