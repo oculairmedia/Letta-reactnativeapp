@@ -85,8 +85,9 @@ private fun AssistantResponseText(
     LaunchedEffect(isStreaming) {
         if (isStreaming) hasStreamed = true
     }
+    val hasTable = remember(text) { text.containsMarkdownTable() }
 
-    if (!isStreaming && !hasStreamed) {
+    if (!isStreaming && !hasStreamed && !hasTable) {
         MarkdownText(
             text = text,
             textColor = textColor,
@@ -95,10 +96,15 @@ private fun AssistantResponseText(
         return
     }
 
-    val smoothedText = rememberSmoothedStreamingText(
-        rawText = text,
-        isStreaming = isStreaming,
-    )
+    val shouldSmoothText = isStreaming || hasStreamed
+    val smoothedText = if (shouldSmoothText) {
+        rememberSmoothedStreamingText(
+            rawText = text,
+            isStreaming = isStreaming,
+        )
+    } else {
+        text
+    }
     val showCursor = isStreaming || smoothedText != text
     // Keep the same streaming renderer for messages that streamed in this composition even after
     // the smoother catches up. Swapping to settled MarkdownText at stream termination causes a
@@ -112,10 +118,35 @@ private fun AssistantResponseText(
         tailTransform = if (showCursor) ::streamingDisplayText else { value -> value },
         cursorText = if (showCursor) STREAMING_CURSOR else null,
         deferUnstableMarkdown = showCursor,
-        stabilizeTables = hasStreamed,
+        stabilizeTables = hasStreamed || hasTable,
         isStreaming = isStreaming,
         modifier = modifier,
     )
+}
+
+private fun String.containsMarkdownTable(): Boolean {
+    val lines = lineSequence().filter { it.isNotBlank() }.toList()
+    if (lines.size < 2) return false
+
+    for (i in 0 until lines.lastIndex) {
+        if (lines[i].contains('|') && lines[i + 1].looksLikeMarkdownTableSeparator()) {
+            return true
+        }
+    }
+    return false
+}
+
+private fun String.looksLikeMarkdownTableSeparator(): Boolean {
+    val cells = trim()
+        .trim('|')
+        .split('|')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+    if (cells.isEmpty()) return false
+    return cells.all { cell ->
+        val withoutAlignment = cell.trim(':')
+        withoutAlignment.isNotEmpty() && withoutAlignment.all { it == '-' }
+    }
 }
 
 /**
@@ -407,10 +438,13 @@ object ToolCallRenderer : MessageContentRenderer {
                 val stableToolCalls = remember(toolCalls) {
                     toolCalls.toImmutableList()
                 }
-                MessageToolCalls(toolCalls = stableToolCalls)
-            }
+            MessageToolCalls(
+                toolCalls = stableToolCalls,
+                animateEntrance = isStreaming,
+            )
         }
     }
+}
 }
 
 @Composable

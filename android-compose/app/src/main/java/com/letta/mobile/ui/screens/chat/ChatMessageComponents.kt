@@ -796,6 +796,7 @@ private fun String.reasoningPreview(): String {
 internal fun MessageToolCalls(
     toolCalls: kotlinx.collections.immutable.ImmutableList<UiToolCall>,
     modifier: Modifier = Modifier,
+    animateEntrance: Boolean = false,
 ) {
     Column(
         modifier = modifier,
@@ -803,7 +804,11 @@ internal fun MessageToolCalls(
     ) {
         toolCalls.forEach { toolCall ->
             key(toolCall.toolCallMotionKey()) {
-                ToolCallEntrance {
+                if (animateEntrance) {
+                    ToolCallEntrance {
+                        ToolCallCard(toolCall = toolCall)
+                    }
+                } else {
                     ToolCallCard(toolCall = toolCall)
                 }
             }
