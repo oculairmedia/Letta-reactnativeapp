@@ -270,6 +270,8 @@ private class RecordingOverride {
 
             override suspend fun listAgents(): List<BotAgentInfo> = delegate.listAgents()
 
+            override suspend fun abort() = delegate.abort()
+
             override suspend fun ensureGatewayReady(agentId: String, conversationId: String?) {
                 readyAgentIds += agentId
             }
@@ -293,4 +295,6 @@ private class FakeBotClient(
     override suspend fun getStatus(): BotStatusResponse = BotStatusResponse(status = "ok", agents = emptyList())
 
     override suspend fun listAgents(): List<BotAgentInfo> = emptyList()
+
+    override suspend fun abort() {}
 }
