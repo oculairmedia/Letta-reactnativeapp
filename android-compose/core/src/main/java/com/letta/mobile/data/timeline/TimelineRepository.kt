@@ -2,6 +2,7 @@ package com.letta.mobile.data.timeline
 
 import com.letta.mobile.data.api.MessageApi
 import com.letta.mobile.util.Telemetry
+import java.util.LinkedHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -28,10 +29,20 @@ open class TimelineRepository @Inject constructor(
     private val messageApi: MessageApi,
     private val pendingLocalStore: PendingLocalStore,
 ) {
+    internal constructor(
+        messageApi: MessageApi,
+        pendingLocalStore: PendingLocalStore,
+        maxCachedLoops: Int,
+    ) : this(messageApi, pendingLocalStore) {
+        require(maxCachedLoops > 0) { "maxCachedLoops must be positive" }
+        this.maxCachedLoops = maxCachedLoops
+    }
+
     // Dedicated supervisor scope — child jobs fail in isolation.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val loops = mutableMapOf<String, TimelineSyncLoop>()
+    private var maxCachedLoops = DEFAULT_MAX_CACHED_LOOPS
+    private val loops = LinkedHashMap<String, TimelineSyncLoop>(16, 0.75f, true)
     private val loopsMutex = Mutex()
 
     /**
@@ -50,8 +61,9 @@ open class TimelineRepository @Inject constructor(
      * Subsequent calls return the cached loop without re-hydrating.
      */
     suspend fun getOrCreate(conversationId: String): TimelineSyncLoop {
-        // Fast path for already-cached loops.
-        loops[conversationId]?.let {
+        // Fast path for already-cached loops. The access-order map mutates on
+        // reads, so even cache hits go through the mutex.
+        loopsMutex.withLock { loops[conversationId] }?.let {
             Telemetry.event(
                 "TimelineRepo", "getOrCreate.cacheHit",
                 "conversationId" to conversationId,
@@ -77,6 +89,7 @@ open class TimelineRepository @Inject constructor(
                 pendingLocalStore = pendingLocalStore,
             )
             loops[conversationId] = created
+            evictEldestLoopsIfNeededLocked()
             created
         }
         // Hydrate OUTSIDE the mutex so parallel callers don't block each other.
@@ -177,6 +190,31 @@ open class TimelineRepository @Inject constructor(
 
     /** Force a reload — clears the cached loop for the conversation. */
     suspend fun clear(conversationId: String) = loopsMutex.withLock {
-        loops.remove(conversationId)
+        loops.remove(conversationId)?.let { loop ->
+            loop.close()
+            Telemetry.event(
+                "TimelineRepo", "loop.cleared",
+                "conversationId" to conversationId,
+            )
+        }
+    }
+
+    private fun evictEldestLoopsIfNeededLocked() {
+        while (loops.size > maxCachedLoops) {
+            val eldestConversationId = loops.entries.firstOrNull()?.key ?: return
+            loops.remove(eldestConversationId)?.let { loop ->
+                loop.close()
+                Telemetry.event(
+                    "TimelineRepo", "loop.evicted",
+                    "conversationId" to eldestConversationId,
+                    "cachedLoopCount" to loops.size,
+                    "maxCachedLoops" to maxCachedLoops,
+                )
+            }
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_MAX_CACHED_LOOPS = 32
     }
 }

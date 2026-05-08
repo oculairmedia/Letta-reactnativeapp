@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -119,6 +121,9 @@ class TimelineSyncLoop(
     // shorter budget without changing the public repository API.
     private val streamSilenceTimeoutMs: Long = STREAM_SILENCE_TIMEOUT_MS,
 ) {
+    private val loopJob = SupervisorJob(scope.coroutineContext[Job])
+    private val loopScope = CoroutineScope(scope.coroutineContext + loopJob)
+
     private val previewJson = Json {
         encodeDefaults = true
         explicitNulls = false
@@ -155,8 +160,13 @@ class TimelineSyncLoop(
     private val seenRunIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     init {
-        scope.launch { processSendQueue() }
-        scope.launch { runStreamSubscriber() }
+        loopScope.launch { processSendQueue() }
+        loopScope.launch { runStreamSubscriber() }
+    }
+
+    fun close() {
+        sendQueue.close(CancellationException("TimelineSyncLoop closed"))
+        loopJob.cancel(CancellationException("TimelineSyncLoop closed"))
     }
 
     private data class PendingSend(
@@ -1091,7 +1101,7 @@ class TimelineSyncLoop(
                                     // even though these land in REST storage shortly after.
                                     // Schedule a delayed reconcile to pick them up.
                                     if (message is StopReason && message.reason == "requires_approval" && runId != null) {
-                                        scope.launch {
+                                        loopScope.launch {
                                             kotlinx.coroutines.delay(1500)
                                             runCatching { reconcileForExternalRun(runId) }.onFailure { t ->
                                                 Telemetry.error(
