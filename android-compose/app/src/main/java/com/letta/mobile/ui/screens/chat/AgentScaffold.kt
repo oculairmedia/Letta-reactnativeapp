@@ -131,6 +131,8 @@ object AgentScaffoldTestTags {
     const val PROJECT_AGENTS_CARD = "agent_scaffold_project_agents_card"
     const val PROJECT_BRIEF_CARD = "agent_scaffold_project_brief_card"
     const val PROJECT_BUG_SUMMARY_CARD = "agent_scaffold_project_bug_summary_card"
+    const val CHAT_SEARCH_FIELD = "agent_scaffold_chat_search_field"
+    const val AGENT_PICKER_SEARCH_FIELD = "agent_scaffold_agent_picker_search_field"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -274,7 +276,8 @@ fun AgentScaffold(
                                 searchIconContentDescription = null,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(chatSearchFocusRequester),
+                                    .focusRequester(chatSearchFocusRequester)
+                                    .testTag(AgentScaffoldTestTags.CHAT_SEARCH_FIELD),
                             )
                         } else {
                             Row(
@@ -1505,7 +1508,9 @@ private fun AgentPickerSheet(
                 placeholder = stringResource(R.string.screen_agents_search_hint),
                 compact = true,
                 searchIconContentDescription = null,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(AgentScaffoldTestTags.AGENT_PICKER_SEARCH_FIELD),
             )
 
             Spacer(modifier = Modifier.height(8.dp))

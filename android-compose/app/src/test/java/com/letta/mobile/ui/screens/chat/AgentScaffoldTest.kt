@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.ui.test.setLettaTestContent
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -26,6 +27,14 @@ class AgentScaffoldTest {
     val composeRule = createComposeRule()
 
     private fun emptyContextWindow() = ContextWindowUiState()
+
+    private fun conversation(id: String, summary: String): Conversation = Conversation(
+        id = id,
+        agentId = "agent-drawer-42",
+        summary = summary,
+        createdAt = "2026-05-01T12:00:00Z",
+        lastMessageAt = "2026-05-01T12:00:00Z",
+    )
 
     @Test
     fun drawerContentRendersAgentNameAndMessageCount() {
@@ -99,6 +108,38 @@ class AgentScaffoldTest {
             )
         }
 
+        composeRule.onAllNodesWithText("Archival Memory").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Tools").assertCountEquals(0)
+    }
+
+    @Test
+    fun drawerRendersConversationListWithoutRemovedNavigationEntries() {
+        var selectedConversationId: String? = null
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            DrawerContent(
+                agentName = "DrawerBot 42",
+                agentId = "agent-drawer-42",
+                messageCount = 4,
+                contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = listOf(
+                    conversation("conv-alpha", "Alpha planning"),
+                    conversation("conv-beta", "Beta follow-up"),
+                ),
+                currentConversationId = "conv-alpha",
+                onNewConversation = {},
+                onConversationSelected = { selectedConversationId = it },
+                onEditAgent = {},
+                onResetMessages = {},
+                onRefreshContextWindow = {},
+                onClose = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Alpha planning").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Beta follow-up").performScrollTo().performClick()
+        assertTrue("Conversation callback should receive selected id", selectedConversationId == "conv-beta")
         composeRule.onAllNodesWithText("Archival Memory").assertCountEquals(0)
         composeRule.onAllNodesWithText("Tools").assertCountEquals(0)
     }

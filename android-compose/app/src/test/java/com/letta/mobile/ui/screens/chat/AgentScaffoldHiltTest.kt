@@ -6,12 +6,18 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.data.model.Agent
+import com.letta.mobile.data.model.Conversation
+import com.letta.mobile.data.model.ParsedSearchMessage
 import com.letta.mobile.ui.test.setLettaTestContent
 import com.letta.mobile.data.repository.ConversationRepository
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -22,6 +28,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Rule
@@ -61,6 +68,14 @@ class AgentScaffoldHiltTest {
 
     private lateinit var viewModel: AdminChatViewModel
     private lateinit var conversationRepository: ConversationRepository
+
+    private fun conversation(id: String, summary: String): Conversation = Conversation(
+        id = id,
+        agentId = "agent-hilt-1",
+        summary = summary,
+        createdAt = "2026-05-01T12:00:00Z",
+        lastMessageAt = "2026-05-01T12:00:00Z",
+    )
 
     @Before
     fun setup() {
@@ -144,6 +159,97 @@ class AgentScaffoldHiltTest {
         composeRule.onNodeWithTag(AgentScaffoldTestTags.MENU_BUTTON).performClick()
         verify(exactly = 1) { viewModel.refreshContextWindow() }
         composeRule.onNodeWithTag(AgentScaffoldTestTags.DRAWER_CONTENT).assertIsDisplayed()
+    }
+
+    @Test
+    fun searchActionShowsGlobalSearchFieldAndForwardsQuery() {
+        composeRule.setLettaTestContent(windowSizeClass = windowSizeClass) {
+            AgentScaffold(
+                onNavigateBack = {},
+                onNavigateToSettings = {},
+                conversationRepository = conversationRepository,
+                viewModel = viewModel,
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Search").performClick()
+        composeRule.onNodeWithText("Search conversations…").assertIsDisplayed()
+        composeRule.onNodeWithTag(AgentScaffoldTestTags.CHAT_SEARCH_FIELD).performTextInput("needle")
+
+        verify { viewModel.updateChatSearchQuery("needle") }
+    }
+
+    @Test
+    fun searchResultsLabelPreviousConversationMatches() {
+        every { viewModel.conversationId } returns "conv-current"
+        every { conversationRepository.getConversations(any()) } returns flowOf(
+            listOf(
+                conversation("conv-current", "Current planning"),
+                conversation("conv-previous", "Previous planning"),
+            )
+        )
+        uiFlow.value = ChatUiState(
+            agentName = "IntegrationBot",
+            contextWindow = ContextWindowUiState(),
+            isSearchActive = true,
+            searchQuery = "needle",
+            searchResults = persistentListOf(
+                ParsedSearchMessage(
+                    messageId = "msg-previous",
+                    agentId = "agent-hilt-1",
+                    role = "assistant",
+                    content = "Needle appears in an older thread",
+                    date = "2026-05-01T12:00:00Z",
+                    conversationId = "conv-previous",
+                )
+            ),
+        )
+
+        composeRule.setLettaTestContent(windowSizeClass = windowSizeClass) {
+            AgentScaffold(
+                onNavigateBack = {},
+                onNavigateToSettings = {},
+                conversationRepository = conversationRepository,
+                viewModel = viewModel,
+            )
+        }
+
+        composeRule.onNodeWithText("Messages").assertIsDisplayed()
+        composeRule.onNodeWithText("Previous conversation").assertIsDisplayed()
+    }
+
+    @Test
+    fun agentPickerFiltersByVisibleAgentMetadata() {
+        availableAgentsFlow.value = listOf(
+            Agent(
+                id = "agent-alpha",
+                name = "Alpha Agent",
+                description = "Roadmap helper",
+                model = "openai/gpt-5-mini",
+            ),
+            Agent(
+                id = "agent-beta",
+                name = "Beta Specialist",
+                description = "Release triage",
+                model = "anthropic/claude-3-5-sonnet",
+            ),
+        )
+
+        composeRule.setLettaTestContent(windowSizeClass = windowSizeClass) {
+            AgentScaffold(
+                onNavigateBack = {},
+                onNavigateToSettings = {},
+                conversationRepository = conversationRepository,
+                viewModel = viewModel,
+            )
+        }
+
+        composeRule.onNodeWithTag(AgentScaffoldTestTags.CONVERSATION_PICKER_TRIGGER).performClick()
+        composeRule.onNodeWithText("Search agents…").assertIsDisplayed()
+        composeRule.onNodeWithTag(AgentScaffoldTestTags.AGENT_PICKER_SEARCH_FIELD).performTextInput("beta")
+
+        composeRule.onNodeWithText("Beta Specialist").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Alpha Agent").assertCountEquals(0)
     }
 
     @Test
