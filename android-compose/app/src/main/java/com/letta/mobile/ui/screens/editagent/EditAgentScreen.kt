@@ -31,7 +31,10 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -102,6 +106,18 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+
+private data class CompactionModeOption(
+    val value: String,
+    val labelRes: Int,
+)
+
+private val compactionModeOptions = listOf(
+    CompactionModeOption("sliding_window", R.string.screen_agent_edit_compaction_mode_sliding_window),
+    CompactionModeOption("all", R.string.screen_agent_edit_compaction_mode_all),
+    CompactionModeOption("self_compact_sliding_window", R.string.screen_agent_edit_compaction_mode_self_sliding_window),
+    CompactionModeOption("self_compact_all", R.string.screen_agent_edit_compaction_mode_self_all),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,6 +200,13 @@ fun EditAgentScreen(
                     onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
                     onContextWindowChange = { viewModel.updateContextWindow(it) },
                     onEnableSleeptimeChange = { viewModel.updateEnableSleeptime(it) },
+                    onSummarizationPromptChange = { viewModel.updateSummarizationPrompt(it) },
+                    onCompactionClipCharsChange = { viewModel.updateCompactionClipChars(it) },
+                    onSlidingWindowPercentageChange = { viewModel.updateSlidingWindowPercentage(it) },
+                    onPromptAcknowledgementChange = { viewModel.updatePromptAcknowledgement(it) },
+                    onCompactionModeChange = { viewModel.updateCompactionMode(it) },
+                    onCompactionModelChange = { viewModel.updateCompactionModel(it) },
+                    onCompactionModelSettingsJsonChange = { viewModel.updateCompactionModelSettingsJson(it) },
                     onClientModeEnabledChange = { viewModel.updateClientModeEnabled(it) },
                     onClientModeBaseUrlChange = { viewModel.updateClientModeBaseUrl(it) },
                     onClientModeApiKeyChange = { viewModel.updateClientModeApiKey(it) },
@@ -338,6 +361,13 @@ private fun EditAgentContent(
     onParallelToolCallsChange: (Boolean) -> Unit,
     onContextWindowChange: (Int) -> Unit,
     onEnableSleeptimeChange: (Boolean) -> Unit,
+    onSummarizationPromptChange: (String) -> Unit,
+    onCompactionClipCharsChange: (Int) -> Unit,
+    onSlidingWindowPercentageChange: (Float) -> Unit,
+    onPromptAcknowledgementChange: (Boolean) -> Unit,
+    onCompactionModeChange: (String) -> Unit,
+    onCompactionModelChange: (String) -> Unit,
+    onCompactionModelSettingsJsonChange: (String) -> Unit,
     onClientModeEnabledChange: (Boolean) -> Unit,
     onClientModeBaseUrlChange: (String) -> Unit,
     onClientModeApiKeyChange: (String) -> Unit,
@@ -353,6 +383,7 @@ private fun EditAgentContent(
     var selectedTool by remember { mutableStateOf<Tool?>(null) }
     var showLlmPicker by remember { mutableStateOf(false) }
     var showEmbeddingPicker by remember { mutableStateOf(false) }
+    var showCompactionModelPicker by remember { mutableStateOf(false) }
     val embeddingDropdownModels = remember(embeddingModels) {
         embeddingModels.map {
             LlmModel(
@@ -556,6 +587,20 @@ private fun EditAgentContent(
                     },
                 )
             }
+        }
+
+        item(key = "advanced_compaction") {
+            AdvancedCompactionSection(
+                state = state,
+                onSummarizationPromptChange = onSummarizationPromptChange,
+                onCompactionClipCharsChange = onCompactionClipCharsChange,
+                onSlidingWindowPercentageChange = onSlidingWindowPercentageChange,
+                onPromptAcknowledgementChange = onPromptAcknowledgementChange,
+                onCompactionModeChange = onCompactionModeChange,
+                onCompactionModelChange = onCompactionModelChange,
+                onCompactionModelSettingsJsonChange = onCompactionModelSettingsJsonChange,
+                onOpenCompactionModelPicker = { showCompactionModelPicker = true },
+            )
         }
 
         item(key = "client_mode") {
@@ -789,6 +834,191 @@ private fun EditAgentContent(
             },
         )
     }
+
+    if (showCompactionModelPicker) {
+        FullScreenModelPickerDialog(
+            title = stringResource(R.string.screen_agent_edit_compaction_model),
+            placeholder = stringResource(R.string.screen_models_search_hint),
+            models = llmModels,
+            selectedValue = state.compactionModel,
+            onDismiss = { showCompactionModelPicker = false },
+            onModelSelected = {
+                onCompactionModelChange(it)
+                showCompactionModelPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun AdvancedCompactionSection(
+    state: EditAgentUiState,
+    onSummarizationPromptChange: (String) -> Unit,
+    onCompactionClipCharsChange: (Int) -> Unit,
+    onSlidingWindowPercentageChange: (Float) -> Unit,
+    onPromptAcknowledgementChange: (Boolean) -> Unit,
+    onCompactionModeChange: (String) -> Unit,
+    onCompactionModelChange: (String) -> Unit,
+    onCompactionModelSettingsJsonChange: (String) -> Unit,
+    onOpenCompactionModelPicker: () -> Unit,
+) {
+    CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_advanced_configuration)) }) {
+        item(
+            headlineContent = {
+                CompactionModeDropdown(
+                    selectedMode = state.compactionMode,
+                    onModeChange = onCompactionModeChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.compactionModel,
+                    onValueChange = onCompactionModelChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_compaction_model)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_compaction_model_default)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = onOpenCompactionModelPicker) {
+                            Icon(
+                                LettaIcons.Search,
+                                contentDescription = stringResource(R.string.screen_agent_edit_select_compaction_model),
+                            )
+                        }
+                    },
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.compactionModelSettingsJson,
+                    onValueChange = onCompactionModelSettingsJsonChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_compaction_model_settings)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_compaction_model_settings_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.summarizationPrompt,
+                    onValueChange = onSummarizationPromptChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_summarization_prompt)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_summarization_prompt_default)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.compactionClipChars.toString(),
+                    onValueChange = { value ->
+                        value.toIntOrNull()?.let(onCompactionClipCharsChange)
+                    },
+                    label = { Text(stringResource(R.string.screen_agent_edit_clip_chars)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(
+                            R.string.screen_agent_edit_sliding_window_percentage,
+                            formatCompactionPercentage(state.slidingWindowPercentage),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Slider(
+                            value = state.slidingWindowPercentage.coerceIn(0f, 1f),
+                            onValueChange = onSlidingWindowPercentageChange,
+                            valueRange = 0f..1f,
+                            steps = 19,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = formatCompactionPercentage(state.slidingWindowPercentage),
+                            onValueChange = { value ->
+                                value.toFloatOrNull()?.let(onSlidingWindowPercentageChange)
+                            },
+                            modifier = Modifier.width(92.dp),
+                            singleLine = true,
+                        )
+                    }
+                }
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.screen_agent_edit_prompt_acknowledgement)) },
+            trailingContent = {
+                Switch(
+                    checked = state.promptAcknowledgement,
+                    onCheckedChange = onPromptAcknowledgementChange,
+                )
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactionModeDropdown(
+    selectedMode: String,
+    onModeChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedOption = compactionModeOptions.firstOrNull { it.value == selectedMode }
+        ?: compactionModeOptions.first()
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = stringResource(selectedOption.labelRes),
+            onValueChange = {},
+            label = { Text(stringResource(R.string.screen_agent_edit_compaction_mode)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            compactionModeOptions.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.labelRes)) },
+                    onClick = {
+                        onModeChange(option.value)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -839,6 +1069,12 @@ private fun ContextWindowLimitSlider(
             )
         }
     }
+}
+
+private fun formatCompactionPercentage(value: Float): String {
+    return String.format(Locale.US, "%.2f", value.coerceIn(0f, 1f))
+        .trimEnd('0')
+        .trimEnd('.')
 }
 
 private fun snapContextWindowValue(value: Float, maxValue: Int): Int {
