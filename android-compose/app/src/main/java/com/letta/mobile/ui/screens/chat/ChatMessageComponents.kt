@@ -127,7 +127,7 @@ internal fun ChatMessageItem(
     modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == "user"
-    val showAvatar = groupPosition == GroupPosition.First || groupPosition == GroupPosition.None
+    val showAvatar = false
     val context = LocalContext.current
     val copyLabel = stringResource(R.string.action_copy)
     val copyText = remember(message) { buildMessageCopyText(message) }
