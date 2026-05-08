@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -138,7 +137,6 @@ fun ChatScreen(
                             },
                             onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                             onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
-                            onOpenLocationPicker = viewModel::openClientModeLocationPicker,
                             activeFontScale = activeFontScale,
                             onActiveFontScaleChange = { activeFontScale = it },
                             onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -168,7 +166,6 @@ fun ChatScreen(
                                 },
                                 onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                                 onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
-                                onOpenLocationPicker = viewModel::openClientModeLocationPicker,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -237,7 +234,6 @@ internal fun NoConversationChatContent(
     onSubmitApproval: (String, List<String>, Boolean, String?) -> Unit,
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
-    onOpenLocationPicker: () -> Unit,
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -265,7 +261,6 @@ internal fun NoConversationChatContent(
             onSubmitApproval = onSubmitApproval,
             onToggleRunCollapsed = onToggleRunCollapsed,
             onToggleReasoningExpanded = onToggleReasoningExpanded,
-            onOpenLocationPicker = onOpenLocationPicker,
             activeFontScale = activeFontScale,
             onActiveFontScaleChange = onActiveFontScaleChange,
             onFontScaleChange = onFontScaleChange,
@@ -285,7 +280,6 @@ private fun ChatContent(
     onSubmitApproval: (String, List<String>, Boolean, String?) -> Unit,
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
-    onOpenLocationPicker: () -> Unit,
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -300,29 +294,6 @@ private fun ChatContent(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        if (state.isClientModeEnabled) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AssistChip(
-                    onClick = onOpenLocationPicker,
-                    leadingIcon = { Icon(LettaIcons.Storage, contentDescription = null) },
-                    label = {
-                        Text(
-                            text = state.clientModeLocation.displayLabel()
-                                ?: stringResource(R.string.screen_chat_client_location_title),
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                )
-            }
-        }
-
         if (state.messages.isEmpty() && !state.isStreaming) {
             StarterPrompts(
                 onPromptClick = onSendMessage,
@@ -445,11 +416,6 @@ private fun ClientModeFilesystemPickerSheet(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-}
-
-private fun ClientModeLocationUiState.displayLabel(): String? {
-    val path = currentPath ?: lastRequestedPath ?: defaultPath ?: return null
-    return path.trimEnd('/').substringAfterLast('/').ifBlank { path }
 }
 
 @Composable

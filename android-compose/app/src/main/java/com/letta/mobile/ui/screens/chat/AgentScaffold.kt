@@ -193,6 +193,12 @@ fun AgentScaffold(
                     contextWindow = uiState.contextWindow,
                     chatMode = chatMode,
                     onChatModeSelected = { chatMode = it },
+                    isClientModeEnabled = uiState.isClientModeEnabled,
+                    clientModeLocation = uiState.clientModeLocation,
+                    onOpenLocationPicker = {
+                        scope.launch { drawerState.close() }
+                        viewModel.openClientModeLocationPicker()
+                    },
                     conversations = drawerConversations,
                     currentConversationId = conversationId,
                     onNewConversation = {
@@ -1373,6 +1379,11 @@ private fun ContextMetricRow(label: String, value: String) {
 
 private fun formatDrawerNumber(value: Int): String = String.format(Locale.US, "%,d", value)
 
+private fun ClientModeLocationUiState.displayLabel(): String? {
+    val path = currentPath ?: lastRequestedPath ?: defaultPath ?: return null
+    return path.trimEnd('/').substringAfterLast('/').ifBlank { path }
+}
+
 @androidx.annotation.VisibleForTesting
 @Composable
 internal fun DrawerContent(
@@ -1382,6 +1393,9 @@ internal fun DrawerContent(
     contextWindow: ContextWindowUiState,
     chatMode: String,
     onChatModeSelected: (String) -> Unit,
+    isClientModeEnabled: Boolean = false,
+    clientModeLocation: ClientModeLocationUiState = ClientModeLocationUiState(),
+    onOpenLocationPicker: () -> Unit = {},
     conversations: List<Conversation>,
     currentConversationId: String?,
     onNewConversation: () -> Unit,
@@ -1422,6 +1436,22 @@ internal fun DrawerContent(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+        if (isClientModeEnabled) {
+            AssistChip(
+                onClick = onOpenLocationPicker,
+                leadingIcon = { Icon(LettaIcons.Storage, contentDescription = null) },
+                label = {
+                    Text(
+                        text = clientModeLocation.displayLabel()
+                            ?: stringResource(R.string.screen_chat_client_location_title),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
         ContextWindowCard(
             state = contextWindow,
             onRefresh = onRefreshContextWindow,

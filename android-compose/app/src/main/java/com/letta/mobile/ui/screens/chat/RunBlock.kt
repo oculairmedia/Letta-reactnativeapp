@@ -47,6 +47,9 @@ private val StepDotSize = 10.dp
 /** Stroke width of the vertical timeline rule. */
 private val GutterLineWidth = 2.dp
 
+/** Top offset for step dots; matches the row content padding applied by ChatMessageList. */
+private val StepDotTopPadding = 6.dp
+
 /**
  * Renders a contiguous run of assistant messages sharing a `runId` as a
  * single grouped block with a timeline gutter on the left. The gutter holds
@@ -301,7 +304,7 @@ private fun RunStepRow(
             contentAlignment = Alignment.TopCenter,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(StepDotTopPadding))
                 Box(
                     modifier = Modifier
                         .size(StepDotSize)
