@@ -408,6 +408,13 @@ private fun EditAgentContent(
                 model.displayName.equals(state.embedding, ignoreCase = true)
         }
     }
+    val selectedCompactionModel = remember(state.compactionModel, llmModels) {
+        llmModels.firstOrNull { model ->
+            model.handle.equals(state.compactionModel, ignoreCase = true) ||
+                model.name.equals(state.compactionModel, ignoreCase = true) ||
+                model.displayName.equals(state.compactionModel, ignoreCase = true)
+        }
+    }
     val maxContextWindow = selectedLlmModel?.contextWindow?.takeIf { it > 0 }
         ?: state.agent?.llmConfig?.contextWindow?.takeIf { it > 0 }
         ?: state.agent?.contextWindowLimit?.takeIf { it > 0 }
@@ -599,6 +606,9 @@ private fun EditAgentContent(
                 onCompactionModeChange = onCompactionModeChange,
                 onCompactionModelChange = onCompactionModelChange,
                 onCompactionModelSettingsJsonChange = onCompactionModelSettingsJsonChange,
+                compactionModelTitle = selectedCompactionModel?.displayName
+                    ?: state.compactionModel.ifBlank { stringResource(R.string.screen_agent_edit_compaction_model_default) },
+                compactionModelSupporting = selectedCompactionModel?.handle ?: state.compactionModel,
                 onOpenCompactionModelPicker = { showCompactionModelPicker = true },
             )
         }
@@ -860,6 +870,8 @@ private fun AdvancedCompactionSection(
     onCompactionModeChange: (String) -> Unit,
     onCompactionModelChange: (String) -> Unit,
     onCompactionModelSettingsJsonChange: (String) -> Unit,
+    compactionModelTitle: String,
+    compactionModelSupporting: String,
     onOpenCompactionModelPicker: () -> Unit,
 ) {
     CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_advanced_configuration)) }) {
@@ -874,24 +886,27 @@ private fun AdvancedCompactionSection(
         )
         item(
             headlineContent = {
-                OutlinedTextField(
-                    value = state.compactionModel,
-                    onValueChange = onCompactionModelChange,
-                    label = { Text(stringResource(R.string.screen_agent_edit_compaction_model)) },
-                    placeholder = { Text(stringResource(R.string.screen_agent_edit_compaction_model_default)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(onClick = onOpenCompactionModelPicker) {
-                            Icon(
-                                LettaIcons.Search,
-                                contentDescription = stringResource(R.string.screen_agent_edit_select_compaction_model),
-                            )
-                        }
-                    },
+                SearchPickerField(
+                    label = stringResource(R.string.screen_agent_edit_compaction_model),
+                    title = compactionModelTitle,
+                    supporting = compactionModelSupporting,
+                    onClick = onOpenCompactionModelPicker,
                 )
             },
         )
+        if (state.compactionModel.isNotBlank()) {
+            item(
+                onClick = { onCompactionModelChange("") },
+                headlineContent = { Text(stringResource(R.string.screen_agent_edit_compaction_model_use_default)) },
+                leadingContent = {
+                    Icon(
+                        LettaIcons.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(LettaIconSizing.Toolbar),
+                    )
+                },
+            )
+        }
         item(
             headlineContent = {
                 OutlinedTextField(

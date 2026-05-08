@@ -275,6 +275,7 @@
     <string name="screen_agent_edit_compaction_mode_self_all">Self All History</string>
     <string name="screen_agent_edit_compaction_model">Summarizer Model</string>
     <string name="screen_agent_edit_compaction_model_default">Using provider default</string>
+    <string name="screen_agent_edit_compaction_model_use_default">Use provider default</string>
     <string name="screen_agent_edit_select_compaction_model">Select summarizer model</string>
     <string name="screen_agent_edit_compaction_model_settings">Model Settings JSON</string>
     <string name="screen_agent_edit_compaction_model_settings_placeholder">{}</string>
