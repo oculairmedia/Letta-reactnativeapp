@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.CompactionSettings
 import com.letta.mobile.data.model.LlmModel
+import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.repository.AgentRepository
@@ -33,7 +34,10 @@ import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 
@@ -60,10 +64,26 @@ data class EditAgentUiState(
     val tags: ImmutableList<String> = persistentListOf(),
     val attachedTools: ImmutableList<Tool> = persistentListOf(),
     val availableTools: ImmutableList<Tool> = persistentListOf(),
+    val toolRulesJson: String = "",
     val providerType: String = "",
     val temperature: Float = 1.0f,
     val maxOutputTokens: Int = 4096,
     val parallelToolCalls: Boolean = true,
+    val modelProviderName: String = "",
+    val modelProviderCategory: String = "",
+    val modelEnableReasoner: Boolean = false,
+    val modelReasoningEffort: String = "",
+    val modelMaxReasoningTokens: String = "",
+    val modelReasoningJson: String = "",
+    val modelFrequencyPenalty: String = "",
+    val modelVerbosity: String = "",
+    val modelStrictToolCalling: Boolean = false,
+    val modelResponseFormatJson: String = "",
+    val modelResponseSchemaJson: String = "",
+    val modelThinkingConfigJson: String = "",
+    val modelPutInnerThoughtsInKwargs: Boolean = false,
+    val modelToolCallParser: String = "",
+    val modelAnthropicEffort: String = "",
     val contextWindow: Int = 0,
     val enableSleeptime: Boolean = false,
     val agentType: String = "",
@@ -119,7 +139,7 @@ class EditAgentViewModel @Inject constructor(
         private const val DEFAULT_COMPACTION_CLIP_CHARS = 50_000
         private const val DEFAULT_SLIDING_WINDOW_PERCENTAGE = 0.3f
         private const val DEFAULT_COMPACTION_MODE = "sliding_window"
-        private val compactionSettingsJson = Json { prettyPrint = true }
+        private val advancedSettingsJson = Json { prettyPrint = true }
 
         private fun normalizeModelSettingsProviderType(providerType: String?, modelHandle: String?): String? {
             val normalizedProviderType = providerType?.trim()?.lowercase().orEmpty()
@@ -203,6 +223,7 @@ class EditAgentViewModel @Inject constructor(
                 val clientModeBaseUrl = settingsRepository.observeClientModeBaseUrl().first()
                 val clientModeApiKey = settingsRepository.getClientModeApiKey().orEmpty()
                 val compactionSettings = agent.compactionSettings
+                val modelSettings = agent.modelSettings
                 originalProviderType = normalizedProviderType
                 _uiState.value = UiState.Success(
                     EditAgentUiState(
@@ -217,10 +238,37 @@ class EditAgentViewModel @Inject constructor(
                         tags = agent.tags.toImmutableList(),
                         attachedTools = agent.tools.toImmutableList(),
                         availableTools = availableTools.toImmutableList(),
+                        toolRulesJson = agent.toolRules
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { JsonArray(it).toSettingsJson() }
+                            .orEmpty(),
                         providerType = normalizedProviderType,
-                        temperature = agent.modelSettings?.temperature?.toFloat() ?: agent.llmConfig?.temperature?.toFloat() ?: 1.0f,
-                        maxOutputTokens = agent.modelSettings?.maxOutputTokens ?: agent.llmConfig?.maxTokens ?: 4096,
-                        parallelToolCalls = agent.modelSettings?.parallelToolCalls ?: agent.llmConfig?.parallelToolCalls ?: true,
+                        temperature = modelSettings?.temperature?.toFloat() ?: agent.llmConfig?.temperature?.toFloat() ?: 1.0f,
+                        maxOutputTokens = modelSettings?.maxOutputTokens ?: agent.llmConfig?.maxTokens ?: 4096,
+                        parallelToolCalls = modelSettings?.parallelToolCalls ?: agent.llmConfig?.parallelToolCalls ?: true,
+                        modelProviderName = modelSettings?.providerName ?: agent.llmConfig?.providerName.orEmpty(),
+                        modelProviderCategory = modelSettings?.providerCategory ?: agent.llmConfig?.providerCategory.orEmpty(),
+                        modelEnableReasoner = modelSettings?.enableReasoner ?: agent.llmConfig?.enableReasoner ?: false,
+                        modelReasoningEffort = modelSettings?.reasoningEffort ?: agent.llmConfig?.reasoningEffort.orEmpty(),
+                        modelMaxReasoningTokens = (modelSettings?.maxReasoningTokens ?: agent.llmConfig?.maxReasoningTokens)
+                            ?.toString()
+                            .orEmpty(),
+                        modelReasoningJson = modelSettings?.reasoning?.toSettingsJson().orEmpty(),
+                        modelFrequencyPenalty = (modelSettings?.frequencyPenalty ?: agent.llmConfig?.frequencyPenalty)
+                            ?.toString()
+                            .orEmpty(),
+                        modelVerbosity = modelSettings?.verbosity ?: agent.llmConfig?.verbosity.orEmpty(),
+                        modelStrictToolCalling = modelSettings?.strict ?: false,
+                        modelResponseFormatJson = (modelSettings?.responseFormat ?: agent.responseFormat)
+                            ?.toSettingsJson()
+                            .orEmpty(),
+                        modelResponseSchemaJson = modelSettings?.responseSchema?.toSettingsJson().orEmpty(),
+                        modelThinkingConfigJson = modelSettings?.thinkingConfig?.toSettingsJson().orEmpty(),
+                        modelPutInnerThoughtsInKwargs = modelSettings?.putInnerThoughtsInKwargs
+                            ?: agent.llmConfig?.putInnerThoughtsInKwargs
+                            ?: false,
+                        modelToolCallParser = modelSettings?.toolCallParser.orEmpty(),
+                        modelAnthropicEffort = modelSettings?.effort.orEmpty(),
                         contextWindow = agent.contextWindowLimit ?: agent.llmConfig?.contextWindow ?: 0,
                         enableSleeptime = agent.enableSleeptime ?: false,
                         agentType = agent.agentType ?: "",
@@ -241,7 +289,7 @@ class EditAgentViewModel @Inject constructor(
                         compactionModel = compactionSettings?.model.orEmpty(),
                         compactionModelSettingsJson = compactionSettings
                             ?.modelSettings
-                            ?.let { compactionSettingsJson.encodeToString(JsonElement.serializer(), it) }
+                            ?.toSettingsJson()
                             .orEmpty(),
                     )
                 )
@@ -427,6 +475,81 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun updateModelProviderName(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelProviderName = value))
+    }
+
+    fun updateModelProviderCategory(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelProviderCategory = value))
+    }
+
+    fun updateModelEnableReasoner(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelEnableReasoner = value))
+    }
+
+    fun updateModelReasoningEffort(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelReasoningEffort = value))
+    }
+
+    fun updateModelMaxReasoningTokens(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelMaxReasoningTokens = value))
+    }
+
+    fun updateModelReasoningJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelReasoningJson = value))
+    }
+
+    fun updateModelFrequencyPenalty(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelFrequencyPenalty = value))
+    }
+
+    fun updateModelVerbosity(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelVerbosity = value))
+    }
+
+    fun updateModelStrictToolCalling(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelStrictToolCalling = value))
+    }
+
+    fun updateModelResponseFormatJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelResponseFormatJson = value))
+    }
+
+    fun updateModelResponseSchemaJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelResponseSchemaJson = value))
+    }
+
+    fun updateModelThinkingConfigJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelThinkingConfigJson = value))
+    }
+
+    fun updateModelPutInnerThoughtsInKwargs(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelPutInnerThoughtsInKwargs = value))
+    }
+
+    fun updateModelToolCallParser(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelToolCallParser = value))
+    }
+
+    fun updateModelAnthropicEffort(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(modelAnthropicEffort = value))
+    }
+
     fun updateContextWindow(value: Int) {
         val currentState = (_uiState.value as? UiState.Success)?.data
         if (currentState != null) {
@@ -591,6 +714,11 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun updateToolRulesJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(toolRulesJson = value))
+    }
+
     fun saveAgent(onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
@@ -622,13 +750,9 @@ class EditAgentViewModel @Inject constructor(
                         tags = state.tags,
                         enableSleeptime = state.enableSleeptime,
                         contextWindowLimit = state.contextWindow.takeIf { it > 0 },
-                        modelSettings = com.letta.mobile.data.model.ModelSettings(
-                            providerType = resolvedProviderType,
-                            temperature = state.temperature.toDouble(),
-                            maxOutputTokens = state.maxOutputTokens,
-                            parallelToolCalls = state.parallelToolCalls,
-                        ),
+                        modelSettings = state.toModelSettings(resolvedProviderType),
                         compactionSettings = state.toCompactionSettings(),
+                        toolRules = state.toToolRules(),
                     )
                 )
                 state.blocks.forEach { block ->
@@ -660,10 +784,37 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    private fun EditAgentUiState.toModelSettings(resolvedProviderType: String): ModelSettings {
+        val existing = agent?.modelSettings
+        val llmConfig = agent?.llmConfig
+        return ModelSettings(
+            providerType = resolvedProviderType,
+            providerName = modelProviderName.trim().ifBlank { null },
+            providerCategory = modelProviderCategory.trim().ifBlank { null },
+            temperature = temperature.toDouble(),
+            maxOutputTokens = maxOutputTokens,
+            parallelToolCalls = parallelToolCalls,
+            maxReasoningTokens = parseOptionalInt(modelMaxReasoningTokens, "Max reasoning tokens"),
+            enableReasoner = modelEnableReasoner.toNullableOverride(existing?.enableReasoner ?: llmConfig?.enableReasoner),
+            reasoning = parseOptionalJsonObject(modelReasoningJson, "Reasoning"),
+            reasoningEffort = modelReasoningEffort.trim().ifBlank { null },
+            effort = modelAnthropicEffort.trim().ifBlank { null },
+            frequencyPenalty = parseOptionalDouble(modelFrequencyPenalty, "Frequency penalty"),
+            verbosity = modelVerbosity.trim().ifBlank { null },
+            responseFormat = parseOptionalJsonObject(modelResponseFormatJson, "Response format"),
+            responseSchema = parseOptionalJsonObject(modelResponseSchemaJson, "Response schema"),
+            thinkingConfig = parseOptionalJsonObject(modelThinkingConfigJson, "Thinking config"),
+            strict = modelStrictToolCalling.toNullableOverride(existing?.strict),
+            toolCallParser = modelToolCallParser.trim().ifBlank { null },
+            putInnerThoughtsInKwargs = modelPutInnerThoughtsInKwargs
+                .toNullableOverride(existing?.putInnerThoughtsInKwargs ?: llmConfig?.putInnerThoughtsInKwargs),
+        )
+    }
+
     private fun EditAgentUiState.toCompactionSettings(): CompactionSettings {
         return CompactionSettings(
             model = compactionModel.trim().ifBlank { null },
-            modelSettings = parseCompactionModelSettingsJson(compactionModelSettingsJson),
+            modelSettings = parseOptionalJsonObject(compactionModelSettingsJson, "Compaction model settings"),
             prompt = summarizationPrompt.trim().ifBlank { null },
             promptAcknowledgement = promptAcknowledgement,
             clipChars = compactionClipChars.takeIf { it > 0 },
@@ -672,14 +823,56 @@ class EditAgentViewModel @Inject constructor(
         )
     }
 
-    private fun parseCompactionModelSettingsJson(rawJson: String): JsonElement? {
+    private fun EditAgentUiState.toToolRules(): List<JsonObject>? {
+        return parseOptionalJsonObjectArray(toolRulesJson, "Tool rules")
+    }
+
+    private fun JsonElement.toSettingsJson(): String {
+        return advancedSettingsJson.encodeToString(JsonElement.serializer(), this)
+    }
+
+    private fun Boolean.toNullableOverride(original: Boolean?): Boolean? {
+        return if (this || original != null) this else null
+    }
+
+    private fun parseOptionalInt(rawValue: String, label: String): Int? {
+        val trimmed = rawValue.trim()
+        if (trimmed.isEmpty()) return null
+        return trimmed.toIntOrNull()?.takeIf { it >= 0 }
+            ?: throw IllegalArgumentException("$label must be a whole number.")
+    }
+
+    private fun parseOptionalDouble(rawValue: String, label: String): Double? {
+        val trimmed = rawValue.trim()
+        if (trimmed.isEmpty()) return null
+        return trimmed.toDoubleOrNull()
+            ?: throw IllegalArgumentException("$label must be a number.")
+    }
+
+    private fun parseOptionalJsonObject(rawJson: String, label: String): JsonElement? {
         val trimmed = rawJson.trim()
         if (trimmed.isEmpty()) return null
 
         return try {
-            compactionSettingsJson.parseToJsonElement(trimmed).jsonObject
+            advancedSettingsJson.parseToJsonElement(trimmed).jsonObject
         } catch (e: Exception) {
-            throw IllegalArgumentException("Compaction model settings must be a valid JSON object.", e)
+            throw IllegalArgumentException("$label must be a valid JSON object.", e)
+        }
+    }
+
+    private fun parseOptionalJsonObjectArray(rawJson: String, label: String): List<JsonObject>? {
+        val trimmed = rawJson.trim()
+        if (trimmed.isEmpty()) return null
+
+        return try {
+            advancedSettingsJson.parseToJsonElement(trimmed).jsonArray.mapIndexed { index, element ->
+                element as? JsonObject
+                    ?: throw IllegalArgumentException("$label item ${index + 1} must be a JSON object.")
+            }
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalArgumentException("$label must be a valid JSON array of objects.", e)
         }
     }
 

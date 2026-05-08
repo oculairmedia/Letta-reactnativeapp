@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -118,6 +119,40 @@ private val compactionModeOptions = listOf(
     CompactionModeOption("self_compact_sliding_window", R.string.screen_agent_edit_compaction_mode_self_sliding_window),
     CompactionModeOption("self_compact_all", R.string.screen_agent_edit_compaction_mode_self_all),
 )
+
+private data class AdvancedModelOption(
+    val value: String,
+    val labelRes: Int,
+)
+
+private val reasoningEffortOptions = listOf(
+    AdvancedModelOption("", R.string.screen_agent_edit_model_option_default),
+    AdvancedModelOption("none", R.string.screen_agent_edit_reasoning_effort_none),
+    AdvancedModelOption("minimal", R.string.screen_agent_edit_reasoning_effort_minimal),
+    AdvancedModelOption("low", R.string.screen_agent_edit_model_option_low),
+    AdvancedModelOption("medium", R.string.screen_agent_edit_model_option_medium),
+    AdvancedModelOption("high", R.string.screen_agent_edit_model_option_high),
+    AdvancedModelOption("xhigh", R.string.screen_agent_edit_reasoning_effort_xhigh),
+)
+
+private val verbosityOptions = listOf(
+    AdvancedModelOption("", R.string.screen_agent_edit_model_option_default),
+    AdvancedModelOption("low", R.string.screen_agent_edit_model_option_low),
+    AdvancedModelOption("medium", R.string.screen_agent_edit_model_option_medium),
+    AdvancedModelOption("high", R.string.screen_agent_edit_model_option_high),
+)
+
+private val anthropicEffortOptions = listOf(
+    AdvancedModelOption("", R.string.screen_agent_edit_model_option_default),
+    AdvancedModelOption("low", R.string.screen_agent_edit_model_option_low),
+    AdvancedModelOption("medium", R.string.screen_agent_edit_model_option_medium),
+    AdvancedModelOption("high", R.string.screen_agent_edit_model_option_high),
+    AdvancedModelOption("max", R.string.screen_agent_edit_anthropic_effort_max),
+)
+
+object EditAgentTestTags {
+    const val CONTENT_LIST = "edit_agent_content_list"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -193,11 +228,27 @@ fun EditAgentScreen(
                     onAttachTool = { viewModel.attachTool(it) },
                     onAttachTools = { viewModel.attachTools(it) },
                     onDetachTool = { viewModel.detachTool(it) },
+                    onToolRulesJsonChange = { viewModel.updateToolRulesJson(it) },
                     onSystemPromptChange = { viewModel.updateSystemPrompt(it) },
                     onProviderTypeChange = { viewModel.updateProviderType(it) },
                     onTemperatureChange = { viewModel.updateTemperature(it) },
                     onMaxOutputTokensChange = { viewModel.updateMaxOutputTokens(it) },
                     onParallelToolCallsChange = { viewModel.updateParallelToolCalls(it) },
+                    onModelProviderNameChange = { viewModel.updateModelProviderName(it) },
+                    onModelProviderCategoryChange = { viewModel.updateModelProviderCategory(it) },
+                    onModelEnableReasonerChange = { viewModel.updateModelEnableReasoner(it) },
+                    onModelReasoningEffortChange = { viewModel.updateModelReasoningEffort(it) },
+                    onModelMaxReasoningTokensChange = { viewModel.updateModelMaxReasoningTokens(it) },
+                    onModelReasoningJsonChange = { viewModel.updateModelReasoningJson(it) },
+                    onModelFrequencyPenaltyChange = { viewModel.updateModelFrequencyPenalty(it) },
+                    onModelVerbosityChange = { viewModel.updateModelVerbosity(it) },
+                    onModelStrictToolCallingChange = { viewModel.updateModelStrictToolCalling(it) },
+                    onModelResponseFormatJsonChange = { viewModel.updateModelResponseFormatJson(it) },
+                    onModelResponseSchemaJsonChange = { viewModel.updateModelResponseSchemaJson(it) },
+                    onModelThinkingConfigJsonChange = { viewModel.updateModelThinkingConfigJson(it) },
+                    onModelPutInnerThoughtsInKwargsChange = { viewModel.updateModelPutInnerThoughtsInKwargs(it) },
+                    onModelToolCallParserChange = { viewModel.updateModelToolCallParser(it) },
+                    onModelAnthropicEffortChange = { viewModel.updateModelAnthropicEffort(it) },
                     onContextWindowChange = { viewModel.updateContextWindow(it) },
                     onEnableSleeptimeChange = { viewModel.updateEnableSleeptime(it) },
                     onSummarizationPromptChange = { viewModel.updateSummarizationPrompt(it) },
@@ -354,11 +405,27 @@ private fun EditAgentContent(
     onAttachTool: (String) -> Unit,
     onAttachTools: (List<String>) -> Unit,
     onDetachTool: (String) -> Unit,
+    onToolRulesJsonChange: (String) -> Unit,
     onSystemPromptChange: (String) -> Unit,
     onProviderTypeChange: (String) -> Unit,
     onTemperatureChange: (Float) -> Unit,
     onMaxOutputTokensChange: (Int) -> Unit,
     onParallelToolCallsChange: (Boolean) -> Unit,
+    onModelProviderNameChange: (String) -> Unit,
+    onModelProviderCategoryChange: (String) -> Unit,
+    onModelEnableReasonerChange: (Boolean) -> Unit,
+    onModelReasoningEffortChange: (String) -> Unit,
+    onModelMaxReasoningTokensChange: (String) -> Unit,
+    onModelReasoningJsonChange: (String) -> Unit,
+    onModelFrequencyPenaltyChange: (String) -> Unit,
+    onModelVerbosityChange: (String) -> Unit,
+    onModelStrictToolCallingChange: (Boolean) -> Unit,
+    onModelResponseFormatJsonChange: (String) -> Unit,
+    onModelResponseSchemaJsonChange: (String) -> Unit,
+    onModelThinkingConfigJsonChange: (String) -> Unit,
+    onModelPutInnerThoughtsInKwargsChange: (Boolean) -> Unit,
+    onModelToolCallParserChange: (String) -> Unit,
+    onModelAnthropicEffortChange: (String) -> Unit,
     onContextWindowChange: (Int) -> Unit,
     onEnableSleeptimeChange: (Boolean) -> Unit,
     onSummarizationPromptChange: (String) -> Unit,
@@ -426,7 +493,9 @@ private fun EditAgentContent(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .testTag(EditAgentTestTags.CONTENT_LIST),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
@@ -596,6 +665,27 @@ private fun EditAgentContent(
             }
         }
 
+        item(key = "primary_model_advanced") {
+            PrimaryModelAdvancedSection(
+                state = state,
+                onModelProviderNameChange = onModelProviderNameChange,
+                onModelProviderCategoryChange = onModelProviderCategoryChange,
+                onModelEnableReasonerChange = onModelEnableReasonerChange,
+                onModelReasoningEffortChange = onModelReasoningEffortChange,
+                onModelMaxReasoningTokensChange = onModelMaxReasoningTokensChange,
+                onModelReasoningJsonChange = onModelReasoningJsonChange,
+                onModelFrequencyPenaltyChange = onModelFrequencyPenaltyChange,
+                onModelVerbosityChange = onModelVerbosityChange,
+                onModelStrictToolCallingChange = onModelStrictToolCallingChange,
+                onModelResponseFormatJsonChange = onModelResponseFormatJsonChange,
+                onModelResponseSchemaJsonChange = onModelResponseSchemaJsonChange,
+                onModelThinkingConfigJsonChange = onModelThinkingConfigJsonChange,
+                onModelPutInnerThoughtsInKwargsChange = onModelPutInnerThoughtsInKwargsChange,
+                onModelToolCallParserChange = onModelToolCallParserChange,
+                onModelAnthropicEffortChange = onModelAnthropicEffortChange,
+            )
+        }
+
         item(key = "advanced_compaction") {
             AdvancedCompactionSection(
                 state = state,
@@ -698,6 +788,13 @@ private fun EditAgentContent(
                     leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
                 )
             }
+        }
+
+        item(key = "tool_rules") {
+            ToolRulesSection(
+                state = state,
+                onToolRulesJsonChange = onToolRulesJsonChange,
+            )
         }
 
         // ── System Prompt ──
@@ -857,6 +954,280 @@ private fun EditAgentContent(
                 showCompactionModelPicker = false
             },
         )
+    }
+}
+
+@Composable
+private fun ToolRulesSection(
+    state: EditAgentUiState,
+    onToolRulesJsonChange: (String) -> Unit,
+) {
+    CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_tool_rules_section)) }) {
+        item(
+            headlineContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.screen_agent_edit_tool_rules_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (state.attachedTools.isNotEmpty()) {
+                        Text(
+                            text = stringResource(
+                                R.string.screen_agent_edit_tool_rules_attached_tools,
+                                state.attachedTools.joinToString { it.name },
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = state.toolRulesJson,
+                        onValueChange = onToolRulesJsonChange,
+                        label = { Text(stringResource(R.string.screen_agent_edit_tool_rules_json)) },
+                        placeholder = { Text(stringResource(R.string.screen_agent_edit_tool_rules_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    )
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun PrimaryModelAdvancedSection(
+    state: EditAgentUiState,
+    onModelProviderNameChange: (String) -> Unit,
+    onModelProviderCategoryChange: (String) -> Unit,
+    onModelEnableReasonerChange: (Boolean) -> Unit,
+    onModelReasoningEffortChange: (String) -> Unit,
+    onModelMaxReasoningTokensChange: (String) -> Unit,
+    onModelReasoningJsonChange: (String) -> Unit,
+    onModelFrequencyPenaltyChange: (String) -> Unit,
+    onModelVerbosityChange: (String) -> Unit,
+    onModelStrictToolCallingChange: (Boolean) -> Unit,
+    onModelResponseFormatJsonChange: (String) -> Unit,
+    onModelResponseSchemaJsonChange: (String) -> Unit,
+    onModelThinkingConfigJsonChange: (String) -> Unit,
+    onModelPutInnerThoughtsInKwargsChange: (Boolean) -> Unit,
+    onModelToolCallParserChange: (String) -> Unit,
+    onModelAnthropicEffortChange: (String) -> Unit,
+) {
+    CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_primary_model_advanced)) }) {
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelProviderName,
+                    onValueChange = onModelProviderNameChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_model_provider_name)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelProviderCategory,
+                    onValueChange = onModelProviderCategoryChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_model_provider_category)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.screen_agent_edit_enable_reasoner)) },
+            trailingContent = {
+                Switch(
+                    checked = state.modelEnableReasoner,
+                    onCheckedChange = onModelEnableReasonerChange,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                AdvancedModelDropdown(
+                    label = stringResource(R.string.screen_agent_edit_reasoning_effort),
+                    selectedValue = state.modelReasoningEffort,
+                    options = reasoningEffortOptions,
+                    onValueChange = onModelReasoningEffortChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelMaxReasoningTokens,
+                    onValueChange = onModelMaxReasoningTokensChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_max_reasoning_tokens)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelReasoningJson,
+                    onValueChange = onModelReasoningJsonChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_reasoning_json)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelFrequencyPenalty,
+                    onValueChange = onModelFrequencyPenaltyChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_frequency_penalty)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                AdvancedModelDropdown(
+                    label = stringResource(R.string.screen_agent_edit_verbosity),
+                    selectedValue = state.modelVerbosity,
+                    options = verbosityOptions,
+                    onValueChange = onModelVerbosityChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.screen_agent_edit_strict_tool_calling)) },
+            trailingContent = {
+                Switch(
+                    checked = state.modelStrictToolCalling,
+                    onCheckedChange = onModelStrictToolCallingChange,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelResponseFormatJson,
+                    onValueChange = onModelResponseFormatJsonChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_response_format_json)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelResponseSchemaJson,
+                    onValueChange = onModelResponseSchemaJsonChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_response_schema_json)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelThinkingConfigJson,
+                    onValueChange = onModelThinkingConfigJsonChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_thinking_config_json)) },
+                    placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                )
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.screen_agent_edit_put_inner_thoughts_in_kwargs)) },
+            trailingContent = {
+                Switch(
+                    checked = state.modelPutInnerThoughtsInKwargs,
+                    onCheckedChange = onModelPutInnerThoughtsInKwargsChange,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                OutlinedTextField(
+                    value = state.modelToolCallParser,
+                    onValueChange = onModelToolCallParserChange,
+                    label = { Text(stringResource(R.string.screen_agent_edit_tool_call_parser)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+        )
+        item(
+            headlineContent = {
+                AdvancedModelDropdown(
+                    label = stringResource(R.string.screen_agent_edit_anthropic_effort),
+                    selectedValue = state.modelAnthropicEffort,
+                    options = anthropicEffortOptions,
+                    onValueChange = onModelAnthropicEffortChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdvancedModelDropdown(
+    label: String,
+    selectedValue: String,
+    options: List<AdvancedModelOption>,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedOption = options.firstOrNull { it.value == selectedValue } ?: options.first()
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = stringResource(selectedOption.labelRes),
+            onValueChange = {},
+            label = { Text(label) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.labelRes)) },
+                    onClick = {
+                        onValueChange(option.value)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 

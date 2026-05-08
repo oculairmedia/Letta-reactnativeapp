@@ -9,6 +9,7 @@ import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.CompactionSettings
+import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
@@ -43,6 +44,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -270,6 +272,103 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `loadAgent includes primary model advanced settings`() = runTest {
+        fakeAgentRepo.loadedModelSettings = ModelSettings(
+            providerType = "openai",
+            providerName = "production-openai",
+            providerCategory = "byok",
+            temperature = 0.7,
+            maxOutputTokens = 8192,
+            parallelToolCalls = true,
+            enableReasoner = true,
+            reasoningEffort = "high",
+            maxReasoningTokens = 2048,
+            reasoning = buildJsonObject { put("reasoning_effort", JsonPrimitive("medium")) },
+            frequencyPenalty = 0.25,
+            verbosity = "medium",
+            strict = true,
+            responseFormat = buildJsonObject { put("type", JsonPrimitive("json_object")) },
+            responseSchema = buildJsonObject { put("type", JsonPrimitive("json_schema")) },
+            thinkingConfig = buildJsonObject { put("thinking_budget", JsonPrimitive(1024)) },
+            putInnerThoughtsInKwargs = true,
+            toolCallParser = "hermes",
+            effort = "max",
+        )
+
+        viewModel.loadAgent()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertEquals("production-openai", state.data.modelProviderName)
+            assertEquals("byok", state.data.modelProviderCategory)
+            assertTrue(state.data.modelEnableReasoner)
+            assertEquals("high", state.data.modelReasoningEffort)
+            assertEquals("2048", state.data.modelMaxReasoningTokens)
+            assertTrue(state.data.modelReasoningJson.contains("reasoning_effort"))
+            assertEquals("0.25", state.data.modelFrequencyPenalty)
+            assertEquals("medium", state.data.modelVerbosity)
+            assertTrue(state.data.modelStrictToolCalling)
+            assertTrue(state.data.modelResponseFormatJson.contains("json_object"))
+            assertTrue(state.data.modelResponseSchemaJson.contains("json_schema"))
+            assertTrue(state.data.modelThinkingConfigJson.contains("thinking_budget"))
+            assertTrue(state.data.modelPutInnerThoughtsInKwargs)
+            assertEquals("hermes", state.data.modelToolCallParser)
+            assertEquals("max", state.data.modelAnthropicEffort)
+        }
+    }
+
+    @Test
+    fun `saveAgent persists primary model advanced settings`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateModelProviderName("production-openai")
+        viewModel.updateModelProviderCategory("byok")
+        viewModel.updateModelEnableReasoner(true)
+        viewModel.updateModelReasoningEffort("xhigh")
+        viewModel.updateModelMaxReasoningTokens("4096")
+        viewModel.updateModelReasoningJson("""{"reasoning_effort":"high"}""")
+        viewModel.updateModelFrequencyPenalty("0.4")
+        viewModel.updateModelVerbosity("high")
+        viewModel.updateModelStrictToolCalling(true)
+        viewModel.updateModelResponseFormatJson("""{"type":"json_object"}""")
+        viewModel.updateModelResponseSchemaJson("""{"type":"json_schema"}""")
+        viewModel.updateModelThinkingConfigJson("""{"thinking_budget":2048}""")
+        viewModel.updateModelPutInnerThoughtsInKwargs(true)
+        viewModel.updateModelToolCallParser("hermes")
+        viewModel.updateModelAnthropicEffort("max")
+
+        viewModel.saveAgent {}
+
+        val settings = fakeAgentRepo.lastUpdateParams?.modelSettings
+        assertEquals("production-openai", settings?.providerName)
+        assertEquals("byok", settings?.providerCategory)
+        assertEquals(true, settings?.enableReasoner)
+        assertEquals("xhigh", settings?.reasoningEffort)
+        assertEquals(4096, settings?.maxReasoningTokens)
+        assertEquals("""{"reasoning_effort":"high"}""", settings?.reasoning.toString())
+        assertEquals(0.4, settings?.frequencyPenalty ?: -1.0, 0.001)
+        assertEquals("high", settings?.verbosity)
+        assertEquals(true, settings?.strict)
+        assertEquals("""{"type":"json_object"}""", settings?.responseFormat.toString())
+        assertEquals("""{"type":"json_schema"}""", settings?.responseSchema.toString())
+        assertEquals("""{"thinking_budget":2048}""", settings?.thinkingConfig.toString())
+        assertEquals(true, settings?.putInnerThoughtsInKwargs)
+        assertEquals("hermes", settings?.toolCallParser)
+        assertEquals("max", settings?.effort)
+    }
+
+    @Test
+    fun `saveAgent rejects invalid primary model json settings`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateModelResponseFormatJson("not json")
+
+        viewModel.saveAgent {}
+
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is UiState.Error)
+        }
+    }
+
+    @Test
     fun `loadAgent includes client mode settings`() = runTest {
         clientModeEnabled = true
         clientModeBaseUrl = "http://192.168.50.90:8407"
@@ -345,6 +444,62 @@ class EditAgentViewModelTest {
     fun `saveAgent rejects invalid compaction model settings json`() = runTest {
         viewModel.loadAgent()
         viewModel.updateCompactionModelSettingsJson("not json")
+
+        viewModel.saveAgent {}
+
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is UiState.Error)
+        }
+    }
+
+    @Test
+    fun `loadAgent includes tool rules json`() = runTest {
+        fakeAgentRepo.loadedToolRules = listOf(
+            buildJsonObject {
+                put("type", JsonPrimitive("requires_approval"))
+                put("tool_name", JsonPrimitive("shell"))
+            }
+        )
+
+        viewModel.loadAgent()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertTrue(state.data.toolRulesJson.contains("requires_approval"))
+            assertTrue(state.data.toolRulesJson.contains("shell"))
+        }
+    }
+
+    @Test
+    fun `saveAgent persists valid tool rules and preserves attached tools`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateToolRulesJson("""[{"type":"requires_approval","tool_name":"shell"}]""")
+
+        viewModel.saveAgent {}
+
+        val toolRules = fakeAgentRepo.lastUpdateParams?.toolRules
+        assertEquals(1, toolRules?.size)
+        assertEquals("requires_approval", toolRules?.first()?.get("type")?.jsonPrimitive?.content)
+        assertEquals("shell", toolRules?.first()?.get("tool_name")?.jsonPrimitive?.content)
+        assertEquals(null, fakeAgentRepo.lastUpdateParams?.toolIds)
+    }
+
+    @Test
+    fun `saveAgent rejects tool rules json object`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateToolRulesJson("""{"type":"requires_approval"}""")
+
+        viewModel.saveAgent {}
+
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is UiState.Error)
+        }
+    }
+
+    @Test
+    fun `saveAgent rejects tool rules array with non-object item`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateToolRulesJson("""["requires_approval"]""")
 
         viewModel.saveAgent {}
 
@@ -449,6 +604,8 @@ class EditAgentViewModelTest {
         var loadedModel: String = "letta/letta-free"
         var loadedProviderType: String? = "openai"
         var loadedCompactionSettings: CompactionSettings? = null
+        var loadedModelSettings: ModelSettings? = null
+        var loadedToolRules: List<kotlinx.serialization.json.JsonObject> = emptyList()
 
         override fun getAgent(id: String): Flow<Agent> = flow {
             if (shouldFail) throw Exception("Load failed")
@@ -463,8 +620,9 @@ class EditAgentViewModelTest {
                 agentType = "stateful",
                 enableSleeptime = true,
                 compactionSettings = loadedCompactionSettings,
+                toolRules = loadedToolRules,
                 tools = listOf(TestData.tool(id = "t1", name = "attached_tool")),
-                modelSettings = com.letta.mobile.data.model.ModelSettings(
+                modelSettings = loadedModelSettings ?: ModelSettings(
                     providerType = loadedProviderType,
                     temperature = 0.9,
                     maxOutputTokens = 4096,
