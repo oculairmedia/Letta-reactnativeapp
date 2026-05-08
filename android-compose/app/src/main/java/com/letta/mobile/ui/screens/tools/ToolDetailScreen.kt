@@ -1,5 +1,9 @@
 package com.letta.mobile.ui.screens.tools
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,8 +24,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +63,7 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.ShimmerCard
+import com.letta.mobile.ui.components.StatusChip
 import com.letta.mobile.ui.components.TagDrillInDialog
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
@@ -239,102 +248,83 @@ private fun ToolDetailContent(
     onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = LettaIcons.Tool,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(LettaIconSizing.Toolbar)
-                            .optionalSharedElement("tool_icon_${tool.id}"),
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = tool.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = tool.description ?: stringResource(R.string.screen_tool_detail_no_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (tool.description != null) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
+            ToolDetailHeader(
+                tool = tool,
+                onTagClick = onTagClick,
+            )
         }
 
-        item {
-            CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_overview_title)) }) {
-                item(
-                    headlineContent = { Text(stringResource(R.string.common_type)) },
-                    supportingContent = { Text(tool.toolType ?: stringResource(R.string.common_unknown)) },
-                )
-                tool.sourceType?.let { sourceType ->
-                    item(
-                        headlineContent = { Text(stringResource(R.string.screen_tool_detail_source_type)) },
-                        supportingContent = { Text(sourceType) },
-                    )
-                }
-                item(
-                    headlineContent = { Text(stringResource(R.string.common_status)) },
-                    supportingContent = {
-                        Text(
-                            if (isEditableTool(tool)) {
-                                stringResource(R.string.screen_tool_detail_editable)
-                            } else {
-                                stringResource(R.string.screen_tool_detail_read_only)
-                            }
+        tool.sourceCode?.let { code ->
+            item {
+                ToolCodeSection(
+                    title = stringResource(R.string.screen_tool_detail_source_code),
+                    icon = LettaIcons.Code,
+                    content = code,
+                    initiallyExpanded = true,
+                    onCopy = {
+                        copyToClipboard(
+                            context = context,
+                            label = context.getString(R.string.screen_tool_detail_source_code),
+                            text = code,
                         )
                     },
                 )
             }
         }
 
-        if (tool.tags.isNotEmpty()) {
+        tool.jsonSchema?.let { schema ->
             item {
-                CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
+                ToolCodeSection(
+                    title = stringResource(R.string.screen_tool_detail_json_schema),
+                    icon = LettaIcons.Schema,
+                    content = schema.toString(),
+                    initiallyExpanded = false,
+                    onCopy = {
+                        copyToClipboard(
+                            context = context,
+                            label = context.getString(R.string.screen_tool_detail_json_schema),
+                            text = schema.toString(),
+                        )
+                    },
+                )
+            }
+        }
+
+        if (tool.toolType != null || tool.sourceType != null) {
+            item {
+                CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_overview_title)) }) {
+                    tool.toolType?.let { toolType ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.common_type)) },
+                            supportingContent = { Text(toolType) },
+                        )
+                    }
+                    tool.sourceType?.let { sourceType ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_tool_detail_source_type)) },
+                            supportingContent = { Text(sourceType) },
+                        )
+                    }
                     item(
-                        headlineContent = {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                tool.tags.forEach { tag ->
-                                    AssistChip(
-                                        onClick = { onTagClick(tag) },
-                                        label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                                    )
+                        headlineContent = { Text(stringResource(R.string.common_status)) },
+                        supportingContent = {
+                            Text(
+                                if (isEditableTool(tool)) {
+                                    stringResource(R.string.screen_tool_detail_editable)
+                                } else {
+                                    stringResource(R.string.screen_tool_detail_read_only)
                                 }
-                            }
+                            )
                         },
                     )
-                }
-            }
-        }
-
-        if (tool.createdAt != null || tool.updatedAt != null) {
-            item {
-                CardGroup(title = { Text(stringResource(R.string.common_metadata)) }) {
-                    tool.createdAt?.let { ts ->
-                        item(
-                            headlineContent = { Text(stringResource(R.string.common_created)) },
-                            supportingContent = { Text(ts) },
-                        )
-                    }
-                    tool.updatedAt?.let { ts ->
-                        item(
-                            headlineContent = { Text(stringResource(R.string.common_updated)) },
-                            supportingContent = { Text(ts) },
-                        )
-                    }
                 }
             }
         }
@@ -369,8 +359,12 @@ private fun ToolDetailContent(
                                 )
                             },
                             trailingContent = {
-                                TextButton(onClick = { onDetachAgent(agent.id) }) {
-                                    Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
+                                IconButton(onClick = { onDetachAgent(agent.id) }) {
+                                    Icon(
+                                        imageVector = LettaIcons.Close,
+                                        contentDescription = stringResource(R.string.action_remove),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             },
                         )
@@ -379,37 +373,101 @@ private fun ToolDetailContent(
             }
         }
 
-        tool.jsonSchema?.let { schema ->
+        if (tool.createdAt != null || tool.updatedAt != null) {
             item {
-                CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_json_schema)) }) {
-                    item(
-                        headlineContent = {
-                            CollapsibleCodeBlock(
-                                title = stringResource(R.string.screen_tool_detail_json_schema),
-                                icon = LettaIcons.Schema,
-                                content = schema.toString(),
-                            )
-                        },
-                    )
+                CardGroup(title = { Text(stringResource(R.string.common_metadata)) }) {
+                    tool.createdAt?.let { ts ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.common_created)) },
+                            supportingContent = { Text(ts) },
+                        )
+                    }
+                    tool.updatedAt?.let { ts ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.common_updated)) },
+                            supportingContent = { Text(ts) },
+                        )
+                    }
                 }
             }
         }
+    }
+}
 
-        tool.sourceCode?.let { code ->
-            item {
-                CardGroup(title = { Text(stringResource(R.string.screen_tool_detail_source_code)) }) {
-                    item(
-                        headlineContent = {
-                            CollapsibleCodeBlock(
-                                title = stringResource(R.string.screen_tool_detail_source_code),
-                                icon = LettaIcons.Code,
-                                content = code,
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ToolDetailHeader(
+    tool: Tool,
+    onTagClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CardGroup(modifier = modifier) {
+        item(
+            headlineContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = LettaIcons.Tool,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(LettaIconSizing.Toolbar)
+                                .optionalSharedElement("tool_icon_${tool.id}"),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = tool.name,
+                                style = MaterialTheme.typography.headlineSmall,
                             )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                StatusChip(
+                                    status = if (isEditableTool(tool)) {
+                                        stringResource(R.string.screen_tool_detail_editable)
+                                    } else {
+                                        stringResource(R.string.screen_tool_detail_read_only)
+                                    }
+                                )
+                                tool.sourceType?.let { sourceType ->
+                                    AssistChip(
+                                        onClick = {},
+                                        label = { Text(sourceType, style = MaterialTheme.typography.labelSmall) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        text = tool.description ?: stringResource(R.string.screen_tool_detail_no_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (tool.description != null) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
+                    if (tool.tags.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            tool.tags.forEach { tag ->
+                                AssistChip(
+                                    onClick = { onTagClick(tag) },
+                                    label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-        }
+            },
+        )
     }
 }
 
@@ -528,55 +586,85 @@ private fun DeleteToolDialog(
 }
 
 @Composable
-private fun CollapsibleCodeBlock(
+private fun ToolCodeSection(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     content: String,
+    initiallyExpanded: Boolean,
+    onCopy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember(content) { mutableStateOf(initiallyExpanded) }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = if (expanded) LettaIcons.ExpandLess else LettaIcons.ExpandMore,
-                contentDescription = if (expanded) {
-                    stringResource(R.string.screen_tool_detail_collapse)
-                } else {
-                    stringResource(R.string.screen_tool_detail_expand)
-                },
-            )
-        }
+    CardGroup(title = { Text(title) }, modifier = modifier) {
+        item(
+            headlineContent = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        FilledTonalButton(
+                            onClick = onCopy,
+                            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                        ) {
+                            Icon(
+                                imageVector = LettaIcons.Copy,
+                                contentDescription = null,
+                                modifier = Modifier.size(ButtonDefaults.IconSize),
+                            )
+                            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(stringResource(R.string.action_copy))
+                        }
+                        IconButton(onClick = { expanded = !expanded }) {
+                            Icon(
+                                imageVector = if (expanded) LettaIcons.ExpandLess else LettaIcons.ExpandMore,
+                                contentDescription = if (expanded) {
+                                    stringResource(R.string.screen_tool_detail_collapse)
+                                } else {
+                                    stringResource(R.string.screen_tool_detail_expand)
+                                },
+                            )
+                        }
+                    }
 
-        Text(
-            text = content,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis,
-            color = if (expanded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text(
+                        text = content,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        maxLines = if (expanded) Int.MAX_VALUE else 8,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (expanded) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = if (expanded) 0.dp else 112.dp),
+                    )
+                }
+            },
         )
     }
+}
+
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+    Toast.makeText(context, context.getString(R.string.action_copied), Toast.LENGTH_SHORT).show()
 }
 
 private fun isEditableTool(tool: Tool): Boolean {
