@@ -47,6 +47,9 @@ private val StepDotSize = 10.dp
 /** Stroke width of the vertical timeline rule. */
 private val GutterLineWidth = 2.dp
 
+/** Stroke width of the run identity rule drawn along the full run block. */
+private val RunIdentityLineWidth = 1.dp
+
 /** Top offset for step dots; matches the row content padding applied by ChatMessageList. */
 private val StepDotTopPadding = 6.dp
 
@@ -97,6 +100,7 @@ fun RunBlock(
     }
 
     val gutterColor = MaterialTheme.colorScheme.outlineVariant
+    val runIdentityColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.46f)
     val hiddenCount = if (collapsed) messages.size - 1 else 0
 
     // letta-mobile-d2z6 follow-up: kept the outer animateContentSize so
@@ -121,6 +125,16 @@ fun RunBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .drawBehind {
+                val x = RunIdentityLineWidth.toPx() / 2f
+                drawLine(
+                    color = runIdentityColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = RunIdentityLineWidth.toPx(),
+                )
+            }
+            .padding(start = 6.dp)
             // letta-mobile-flk2: enable animateContentSize during streaming
             // with short linear tween (60ms) — faster than typical token
             // arrival so animation finishes before next chunk. Matches
