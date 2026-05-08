@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.model.MessageCreateRequest
 import com.letta.mobile.data.model.ReasoningMessage
 import com.letta.mobile.data.model.SystemMessage
+import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.UserMessage
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
@@ -60,6 +61,62 @@ class TimelineSyncLoopTest {
         val timeline = sync.state.value
         assertEquals(2, timeline.events.size)
         assertTrue(timeline.events.all { it is TimelineEvent.Confirmed })
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `hydrate overfetches raw events so older visible turns survive tool-heavy latest run`() = runBlocking {
+        val api = FakeSyncApi()
+        api.addStoredMessage(
+            UserMessage(
+                id = "older-user",
+                contentRaw = JsonPrimitive("older prompt"),
+                date = "2026-05-07T09:00:00Z",
+            )
+        )
+        api.addStoredMessage(
+            AssistantMessage(
+                id = "older-assistant",
+                contentRaw = JsonPrimitive("older answer"),
+                date = "2026-05-07T09:00:01Z",
+            )
+        )
+        repeat(60) { index ->
+            api.addStoredMessage(
+                ToolCallMessage(
+                    id = "tool-$index",
+                    date = "2026-05-07T10:00:${index.toString().padStart(2, '0')}Z",
+                    runId = "latest-run",
+                )
+            )
+        }
+        api.addStoredMessage(
+            UserMessage(
+                id = "latest-user",
+                contentRaw = JsonPrimitive("latest prompt"),
+                date = "2026-05-07T10:01:00Z",
+            )
+        )
+        api.addStoredMessage(
+            AssistantMessage(
+                id = "latest-assistant",
+                contentRaw = JsonPrimitive("latest answer"),
+                date = "2026-05-07T10:01:01Z",
+            )
+        )
+
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val sync = TimelineSyncLoop(api, "conv1", scope)
+
+        sync.hydrate(limit = 50)
+
+        val ids = sync.state.value.events
+            .filterIsInstance<TimelineEvent.Confirmed>()
+            .map { it.serverId }
+        assertTrue("hydrate should request more than the visible target", api.lastConversationLimit!! > 50)
+        assertTrue("older visible user message should survive raw overfetch", "older-user" in ids)
+        assertTrue("older visible assistant message should survive raw overfetch", "older-assistant" in ids)
+        assertTrue("latest turn should still be present", "latest-user" in ids && "latest-assistant" in ids)
         scope.coroutineContext.job.cancel()
     }
 
@@ -1273,6 +1330,7 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
     var listMessagesFailuresBeforeSuccess: Int = 0
     var listMessagesFailure: Throwable? = null
     var listMessagesCalls: Int = 0
+    var lastConversationLimit: Int? = null
 
     fun addStoredMessage(msg: LettaMessage) {
         stored.add(msg)
@@ -1295,12 +1353,14 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
         order: String?,
     ): List<LettaMessage> {
         listMessagesCalls++
+        lastConversationLimit = limit
         if (listMessagesFailuresBeforeSuccess > 0) {
             listMessagesFailuresBeforeSuccess--
             throw listMessagesFailure
                 ?: java.io.IOException("injected listConversationMessages failure")
         }
-        return if (order == "desc") stored.reversed() else stored.toList()
+        val ordered = if (order == "desc") stored.reversed() else stored.toList()
+        return if (limit != null) ordered.take(limit) else ordered
     }
 
     override suspend fun sendConversationMessage(

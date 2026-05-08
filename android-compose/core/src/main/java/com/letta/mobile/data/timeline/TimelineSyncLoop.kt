@@ -181,10 +181,11 @@ class TimelineSyncLoop(
             // with long history, the screen would show ancient messages with
             // recent deltas appended on top, making the timeline look years
             // out of date. letta-mobile-mge5.
+            val rawFetchLimit = hydrateRawFetchLimit(limit)
             val response = normalizeHydratedMessageOrder(
                 messageApi.listConversationMessages(
                     conversationId = conversationId,
-                    limit = limit,
+                    limit = rawFetchLimit,
                     order = "desc",
                 ).reversed()
             )
@@ -901,9 +902,15 @@ class TimelineSyncLoop(
         else -> false
     }
 
+    private fun hydrateRawFetchLimit(visibleTarget: Int): Int =
+        (visibleTarget * HYDRATE_RAW_FETCH_MULTIPLIER)
+            .coerceIn(visibleTarget, HYDRATE_RAW_FETCH_MAX)
+
     companion object {
         private const val TAG = "TimelineSync"
         private const val DATA_URL_PREVIEW_CHARS = 32
+        private const val HYDRATE_RAW_FETCH_MULTIPLIER = 5
+        private const val HYDRATE_RAW_FETCH_MAX = 500
 
         // Resume-stream subscriber (letta-mobile-mge5).
         private const val STREAM_BACKOFF_START_MS = 1_000L
