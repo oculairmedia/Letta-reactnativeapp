@@ -46,12 +46,17 @@ import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Archive
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.listItemSupporting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -261,12 +266,14 @@ private fun ArchiveCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var showContextMenu by remember { mutableStateOf(false) }
+
     Card(onClick = onInspect, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(archive.name, style = MaterialTheme.typography.titleMedium)
@@ -275,13 +282,8 @@ private fun ArchiveCard(
                         Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(LettaIcons.Edit, contentDescription = stringResource(R.string.screen_archives_edit_title))
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(LettaIcons.Delete, contentDescription = stringResource(R.string.action_delete))
-                    }
+                IconButton(onClick = { showContextMenu = true }) {
+                    Icon(LettaIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -290,6 +292,30 @@ private fun ArchiveCard(
                 archive.embeddingConfig?.embeddingModel?.let { AssistChip(onClick = {}, label = { Text(it) }) }
             }
         }
+    }
+
+    ActionSheet(
+        show = showContextMenu,
+        onDismiss = { showContextMenu = false },
+        title = archive.name,
+    ) {
+        ActionSheetItem(
+            text = stringResource(R.string.screen_archives_edit_title),
+            icon = LettaIcons.Edit,
+            onClick = {
+                showContextMenu = false
+                onEdit()
+            },
+        )
+        ActionSheetItem(
+            text = stringResource(R.string.action_delete),
+            icon = LettaIcons.Delete,
+            onClick = {
+                showContextMenu = false
+                onDelete()
+            },
+            destructive = true,
+        )
     }
 }
 
@@ -310,52 +336,86 @@ private fun ArchiveDetailDialog(
         onConfirm = onDismiss,
         onDismiss = onDismiss,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.screen_archives_id_label, archive.id), style = MaterialTheme.typography.bodySmall)
-            archive.description?.let { Text(stringResource(R.string.screen_archives_description_label, it), style = MaterialTheme.typography.bodySmall) }
-            archive.organizationId?.let { Text(stringResource(R.string.screen_archives_organization_label, it), style = MaterialTheme.typography.bodySmall) }
-            archive.vectorDbProvider?.let { Text(stringResource(R.string.screen_archives_vector_provider_label, it), style = MaterialTheme.typography.bodySmall) }
-            archive.embeddingConfig?.embeddingModel?.let { Text(stringResource(R.string.screen_archives_embedding_model_label, it), style = MaterialTheme.typography.bodySmall) }
-            archive.createdAt?.let { Text(stringResource(R.string.screen_archives_created_label, it), style = MaterialTheme.typography.bodySmall) }
-            if (attachedAgents.isNotEmpty()) {
-                Text(stringResource(R.string.screen_archives_agents_title), style = MaterialTheme.typography.labelLarge)
-                attachedAgents.forEach { agent ->
-                    AssistChip(
-                        onClick = { onDetachAgent(agent) },
-                        label = { Text(agent.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        leadingIcon = {
-                            Icon(
-                                LettaIcons.People,
-                                contentDescription = null,
-                                modifier = Modifier.size(AssistChipDefaults.IconSize),
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                LettaIcons.LinkOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(AssistChipDefaults.IconSize),
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CardGroup {
+                item(
+                    headlineContent = { Text(stringResource(R.string.screen_archives_id_label, "")) },
+                    supportingContent = { Text(archive.id, style = MaterialTheme.typography.listItemSupporting) },
+                )
+                archive.description?.let { desc ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_archives_description_label, "")) },
+                        supportingContent = { Text(desc, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                archive.organizationId?.let { orgId ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_archives_organization_label, "")) },
+                        supportingContent = { Text(orgId, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                archive.vectorDbProvider?.let { provider ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_archives_vector_provider_label, "")) },
+                        supportingContent = { Text(provider, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                archive.embeddingConfig?.embeddingModel?.let { model ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_archives_embedding_model_label, "")) },
+                        supportingContent = { Text(model, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                archive.createdAt?.let { created ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_archives_created_label, "")) },
+                        supportingContent = { Text(created, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+            }
+
+            CardGroup(title = { Text(stringResource(R.string.screen_archives_agents_title)) }) {
+                if (attachedAgents.isEmpty()) {
+                    item(
+                        headlineContent = {
+                            Text(
+                                text = stringResource(R.string.screen_archives_no_agents),
+                                style = MaterialTheme.typography.listItemSupporting,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         },
                     )
+                } else {
+                    attachedAgents.forEach { agent ->
+                        item(
+                            headlineContent = { Text(agent.name, style = MaterialTheme.typography.listItemSupporting) },
+                            trailingContent = {
+                                TextButton(onClick = { onDetachAgent(agent) }) {
+                                    Text(stringResource(R.string.action_remove_attachment), color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                        )
+                    }
                 }
-            } else {
-                Text(
-                    text = stringResource(R.string.screen_archives_no_agents),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-            TextButton(onClick = onAttachAgent, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
-                Text(stringResource(R.string.screen_archives_attach_action))
-            }
-            TextButton(onClick = onEdit, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
-                Text(stringResource(R.string.screen_archives_edit_title))
-            }
+
             if (archive.metadata.isNotEmpty()) {
-                Text(stringResource(R.string.screen_archival_metadata_title), style = MaterialTheme.typography.labelLarge)
-                archive.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
-                    Text("$key: ${value.toString().trim('"')}", style = MaterialTheme.typography.bodySmall)
+                CardGroup(title = { Text(stringResource(R.string.screen_archival_metadata_title)) }) {
+                    archive.metadata.entries.sortedBy { it.key }.forEach { (key, value) ->
+                        item(
+                            headlineContent = { Text(key, style = MaterialTheme.typography.listItemSupporting) },
+                            supportingContent = { Text(value.toString().trim('"'), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onAttachAgent) {
+                    Text(stringResource(R.string.screen_archives_attach_action))
+                }
+                TextButton(onClick = onEdit) {
+                    Text(stringResource(R.string.screen_archives_edit_title))
                 }
             }
         }
@@ -430,10 +490,43 @@ private fun ArchiveEditorDialog(
         confirmEnabled = name.isNotBlank(),
         onConfirm = { onConfirm(name.trim(), description.trim(), embeddingModel.trim()) },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.common_name)) }, singleLine = true)
-            OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.common_description)) }, minLines = 2)
-            OutlinedTextField(value = embeddingModel, onValueChange = { embeddingModel = it }, label = { Text(stringResource(R.string.screen_archives_embedding_model_input)) }, singleLine = true)
+        CardGroup {
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.common_name)) }) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+            )
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.common_description)) }) {
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+            )
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.screen_archives_embedding_model_input)) }) {
+                        OutlinedTextField(
+                            value = embeddingModel,
+                            onValueChange = { embeddingModel = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+            )
         }
     }
 }

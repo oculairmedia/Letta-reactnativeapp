@@ -50,13 +50,18 @@ import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
+import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.TextInputDialog
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.listItemSupporting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -275,12 +280,14 @@ private fun GroupCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var showContextMenu by remember { mutableStateOf(false) }
+
     Card(onClick = onInspect, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -292,13 +299,8 @@ private fun GroupCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(group.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(LettaIcons.Edit, contentDescription = stringResource(R.string.screen_groups_edit_title))
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(LettaIcons.Delete, contentDescription = stringResource(R.string.action_delete))
-                    }
+                IconButton(onClick = { showContextMenu = true }) {
+                    Icon(LettaIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -310,6 +312,30 @@ private fun GroupCard(
                 }
             }
         }
+    }
+
+    ActionSheet(
+        show = showContextMenu,
+        onDismiss = { showContextMenu = false },
+        title = group.description.ifBlank { group.id },
+    ) {
+        ActionSheetItem(
+            text = stringResource(R.string.screen_groups_edit_title),
+            icon = LettaIcons.Edit,
+            onClick = {
+                showContextMenu = false
+                onEdit()
+            },
+        )
+        ActionSheetItem(
+            text = stringResource(R.string.action_delete),
+            icon = LettaIcons.Delete,
+            onClick = {
+                showContextMenu = false
+                onDelete()
+            },
+            destructive = true,
+        )
     }
 }
 
@@ -330,21 +356,77 @@ private fun GroupDetailDialog(
         onConfirm = onDismiss,
         onDismiss = onDismiss,
     ) {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { Text(group.description.ifBlank { stringResource(R.string.common_description) }, style = MaterialTheme.typography.titleSmall) }
-            item { Text(stringResource(R.string.screen_groups_manager_type_label, group.managerType), style = MaterialTheme.typography.bodySmall) }
-            item { Text(stringResource(R.string.screen_groups_agents_label, group.agentIds.joinToString()), style = MaterialTheme.typography.bodySmall) }
-            group.projectId?.let { item { Text(stringResource(R.string.screen_groups_project_label, it), style = MaterialTheme.typography.bodySmall) } }
-            if (group.sharedBlockIds.isNotEmpty()) {
-                item { Text(stringResource(R.string.screen_groups_shared_blocks_label, group.sharedBlockIds.joinToString()), style = MaterialTheme.typography.bodySmall) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                CardGroup {
+                    item(
+                        headlineContent = { Text(stringResource(R.string.common_description)) },
+                        supportingContent = { Text(group.description.ifBlank { stringResource(R.string.common_description) }, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_groups_manager_type_label, "")) },
+                        supportingContent = { Text(group.managerType, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_groups_agents_label, "")) },
+                        supportingContent = { Text(group.agentIds.joinToString(), style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                    group.projectId?.let { projectId ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_project_label, "")) },
+                            supportingContent = { Text(projectId, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    if (group.sharedBlockIds.isNotEmpty()) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_shared_blocks_label, "")) },
+                            supportingContent = { Text(group.sharedBlockIds.joinToString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.managerAgentId?.let { managerId ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_manager_agent_label, "")) },
+                            supportingContent = { Text(managerId, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.templateId?.let { templateId ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_template_label, "")) },
+                            supportingContent = { Text(templateId, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.baseTemplateId?.let { baseTemplateId ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_base_template_label, "")) },
+                            supportingContent = { Text(baseTemplateId, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.deploymentId?.let { deploymentId ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_deployment_label, "")) },
+                            supportingContent = { Text(deploymentId, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.terminationToken?.let { token ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_termination_label, "")) },
+                            supportingContent = { Text(token, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.maxTurns?.let { maxTurns ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_max_turns_label, "")) },
+                            supportingContent = { Text(maxTurns.toString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    group.turnsCounter?.let { turnsCounter ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_groups_turns_counter_label, "")) },
+                            supportingContent = { Text(turnsCounter.toString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                }
             }
-            group.managerAgentId?.let { item { Text(stringResource(R.string.screen_groups_manager_agent_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.templateId?.let { item { Text(stringResource(R.string.screen_groups_template_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.baseTemplateId?.let { item { Text(stringResource(R.string.screen_groups_base_template_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.deploymentId?.let { item { Text(stringResource(R.string.screen_groups_deployment_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.terminationToken?.let { item { Text(stringResource(R.string.screen_groups_termination_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.maxTurns?.let { item { Text(stringResource(R.string.screen_groups_max_turns_label, it), style = MaterialTheme.typography.bodySmall) } }
-            group.turnsCounter?.let { item { Text(stringResource(R.string.screen_groups_turns_counter_label, it), style = MaterialTheme.typography.bodySmall) } }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onEdit) { Text(stringResource(R.string.screen_groups_edit_title)) }
@@ -422,35 +504,68 @@ private fun GroupEditorDialog(
             onConfirm(description.trim(), agentIds.trim(), projectId.trim(), sharedBlockIds.trim(), hidden)
         },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text(stringResource(R.string.common_description)) },
-                minLines = 2,
+        CardGroup {
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.common_description)) }) {
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
             )
-            OutlinedTextField(
-                value = agentIds,
-                onValueChange = { agentIds = it },
-                label = { Text(stringResource(R.string.screen_groups_agent_ids_input)) },
-                supportingText = { Text(stringResource(R.string.screen_groups_csv_helper)) },
+            item(
+                headlineContent = {
+                    FormItem(
+                        label = { Text(stringResource(R.string.screen_groups_agent_ids_input)) },
+                        description = { Text(stringResource(R.string.screen_groups_csv_helper)) },
+                    ) {
+                        OutlinedTextField(
+                            value = agentIds,
+                            onValueChange = { agentIds = it },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
             )
-            OutlinedTextField(
-                value = projectId,
-                onValueChange = { projectId = it },
-                label = { Text(stringResource(R.string.screen_groups_project_id_input)) },
-                singleLine = true,
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.screen_groups_project_id_input)) }) {
+                        OutlinedTextField(
+                            value = projectId,
+                            onValueChange = { projectId = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
             )
-            OutlinedTextField(
-                value = sharedBlockIds,
-                onValueChange = { sharedBlockIds = it },
-                label = { Text(stringResource(R.string.screen_groups_shared_block_ids_input)) },
-                supportingText = { Text(stringResource(R.string.screen_groups_csv_helper)) },
+            item(
+                headlineContent = {
+                    FormItem(
+                        label = { Text(stringResource(R.string.screen_groups_shared_block_ids_input)) },
+                        description = { Text(stringResource(R.string.screen_groups_csv_helper)) },
+                    ) {
+                        OutlinedTextField(
+                            value = sharedBlockIds,
+                            onValueChange = { sharedBlockIds = it },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = hidden, onCheckedChange = { hidden = it })
-                Text(stringResource(R.string.screen_groups_hidden_input))
-            }
+            item(
+                headlineContent = {
+                    FormItem(label = { Text(stringResource(R.string.screen_groups_hidden_input)) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = hidden, onCheckedChange = { hidden = it })
+                        }
+                    }
+                },
+            )
         }
     }
 }
