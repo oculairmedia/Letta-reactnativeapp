@@ -60,6 +60,7 @@ object Telemetry {
     private const val MAX_RING_SIZE = 1000
 
     private val ring = ConcurrentLinkedDeque<Event>()
+    private val ringLock = Any()
     private val _eventsFlow = MutableStateFlow<List<Event>>(emptyList())
 
     /**
@@ -228,8 +229,10 @@ object Telemetry {
 
     /** Clear the in-memory ring buffer (does not affect Logcat history). */
     fun clear() {
-        ring.clear()
-        _eventsFlow.value = emptyList()
+        synchronized(ringLock) {
+            ring.clear()
+            _eventsFlow.value = emptyList()
+        }
     }
 
     fun snapshot(): List<Event> = _eventsFlow.value
@@ -239,10 +242,15 @@ object Telemetry {
             logToLogcat(ev)
         }
 
-        // Ring buffer.
-        ring.addFirst(ev)
-        while (ring.size > MAX_RING_SIZE) ring.pollLast()
-        _eventsFlow.value = ring.toList()
+        // Ring buffer. ConcurrentLinkedDeque makes individual operations safe,
+        // but size/trim/snapshot is a compound operation. Keep it atomic so a
+        // background emitter cannot race a clear() or another emitter and throw
+        // into an unrelated coroutine test.
+        synchronized(ringLock) {
+            ring.addFirst(ev)
+            while (ring.size > MAX_RING_SIZE) ring.pollLast()
+            _eventsFlow.value = ring.toList()
+        }
     }
 
     private fun logToLogcat(ev: Event) {

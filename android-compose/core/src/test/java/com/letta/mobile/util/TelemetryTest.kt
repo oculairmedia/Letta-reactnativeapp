@@ -4,6 +4,10 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContain
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Tag
 
 @Tag("unit")
@@ -25,6 +29,37 @@ class TelemetryTest : WordSpec({
                 snapshot.first().tag shouldBe "Metrics"
                 snapshot.first().name shouldBe "sample"
                 snapshot.first().attrs shouldContain ("count" to 1)
+            } finally {
+                Telemetry.clear()
+                Telemetry.enabled.set(wasEnabled)
+                Telemetry.logcatEnabled.set(wasLogcatEnabled)
+            }
+        }
+
+        "tolerate concurrent emitters and clear operations" {
+            val wasEnabled = Telemetry.enabled.get()
+            val wasLogcatEnabled = Telemetry.logcatEnabled.get()
+
+            try {
+                Telemetry.clear()
+                Telemetry.enabled.set(true)
+                Telemetry.logcatEnabled.set(false)
+
+                runBlocking {
+                    val emitters = (1..8).map { worker ->
+                        async(Dispatchers.Default) {
+                            repeat(250) { index ->
+                                Telemetry.event("Concurrent", "sample", "worker" to worker, "index" to index)
+                            }
+                        }
+                    }
+                    val clearer = async(Dispatchers.Default) {
+                        repeat(50) { Telemetry.clear() }
+                    }
+                    (emitters + clearer).awaitAll()
+                }
+
+                (Telemetry.snapshot().size <= 1000) shouldBe true
             } finally {
                 Telemetry.clear()
                 Telemetry.enabled.set(wasEnabled)
