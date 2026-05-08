@@ -12,6 +12,7 @@ plugins {
     id("io.gitlab.arturbosch.detekt")
     id("io.sentry.android.gradle")
     id("androidx.baselineprofile")
+    id("org.jetbrains.kotlinx.kover") // version inherited from root
 }
 
 allOpen {
@@ -22,6 +23,14 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/detekt.yml")
     parallel = true
+}
+
+kover {
+    currentProject {
+        createVariant("rootDebugCoverage") {
+            add("rootDebug")
+        }
+    }
 }
 
 sentry {

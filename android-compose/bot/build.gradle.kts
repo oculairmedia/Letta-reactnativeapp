@@ -6,6 +6,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("io.gitlab.arturbosch.detekt")
+    id("org.jetbrains.kotlinx.kover") // version inherited from root
 }
 
 allOpen {
@@ -16,6 +17,14 @@ detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/detekt.yml")
     parallel = true
+}
+
+kover {
+    currentProject {
+        createVariant("rootDebugCoverage") {
+            add("debug")
+        }
+    }
 }
 
 android {

@@ -1,4 +1,5 @@
 plugins {
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
     id("com.android.application") version "8.9.2" apply false
     id("com.android.library") version "8.9.2" apply false
     id("app.cash.paparazzi") version "1.3.5" apply false
@@ -26,4 +27,60 @@ tasks.register<Delete>("cleanKotlinIC") {
     group = "build"
     delete(allprojects.map { it.layout.buildDirectory.dir("kotlin") })
     delete(allprojects.map { it.layout.buildDirectory.dir("tmp/kotlin-classes") })
+}
+
+// ---------------------------------------------------------------------------
+// Kover — aggregated code coverage reports (HTML for humans, XML for CI)
+//
+//   ./gradlew koverHtmlReportRootDebugCoverage
+//
+// Use the RootDebug coverage variant for refactor safety checks. The default
+// total Kover tasks compile every app variant, including benchmark/release
+// unit-test variants that are not part of the normal local safety gate.
+//
+// The root module acts as the merging module. Submodules declare the plugin
+// without version (inherited from here). Add a kover(project(":name"))
+// dependency below for each module whose coverage should be aggregated.
+// ---------------------------------------------------------------------------
+dependencies {
+    kover(project(":app"))
+    kover(project(":core"))
+    kover(project(":designsystem"))
+    kover(project(":bot"))
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    // Hilt/Dagger generated code
+                    "*_Factory",
+                    "*_Factory\$*",
+                    "*_MembersInjector",
+                    "*_MembersInjector\$*",
+                    "*_HiltModules",
+                    "*_HiltModules\$*",
+                    "dagger.hilt.*",
+                    "hilt_aggregated_deps.*",
+                    // Databinding & generated
+                    "*.databinding.*",
+                    "*.BR",
+                    // Compose compiler generated
+                    "*_ComposableSingletons*",
+                    // DI wiring classes
+                    "com.letta.mobile.di.*",
+                )
+            }
+        }
+
+        total {
+            html {
+                onCheck = false
+            }
+            xml {
+                onCheck = false
+            }
+        }
+    }
 }

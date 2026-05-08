@@ -4,12 +4,21 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("io.gitlab.arturbosch.detekt")
+    id("org.jetbrains.kotlinx.kover") // version inherited from root
 }
 
 detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/detekt.yml")
     parallel = true
+}
+
+kover {
+    currentProject {
+        createVariant("rootDebugCoverage") {
+            add("debug")
+        }
+    }
 }
 
 android {
