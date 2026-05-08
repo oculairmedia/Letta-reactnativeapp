@@ -12,6 +12,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -64,12 +65,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -85,11 +93,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.letta.mobile.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Conversation
+import com.letta.mobile.data.model.ParsedSearchMessage
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ConnectionState
-import com.letta.mobile.ui.components.ExpandableTitleSearch
+import com.letta.mobile.ui.components.LettaSearchBar
 import com.letta.mobile.ui.components.ConnectionStatusBanner
 import com.letta.mobile.ui.components.MarkdownText
 import com.letta.mobile.ui.components.Accordions
@@ -140,6 +149,8 @@ fun AgentScaffold(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showBugReportSheet by remember { mutableStateOf(false) }
     var showAgentSwitcher by remember { mutableStateOf(false) }
+    var isChatSearchExpanded by rememberSaveable { mutableStateOf(false) }
+    val chatSearchFocusRequester = remember { FocusRequester() }
     val chatBackground by viewModel.chatBackground.collectAsStateWithLifecycle()
     val availableAgents by viewModel.availableAgents.collectAsStateWithLifecycle()
     var chatMode by rememberSaveable { mutableStateOf("interactive") }
@@ -168,6 +179,17 @@ fun AgentScaffold(
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
+    }
+
+    BackHandler(enabled = !drawerState.isOpen && (isChatSearchExpanded || uiState.isSearchActive)) {
+        isChatSearchExpanded = false
+        viewModel.clearChatSearch()
+    }
+
+    LaunchedEffect(isChatSearchExpanded) {
+        if (isChatSearchExpanded) {
+            chatSearchFocusRequester.requestFocus()
+        }
     }
 
     LaunchedEffect(agentId) {
@@ -242,12 +264,27 @@ fun AgentScaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Box {
+                        if (isChatSearchExpanded || uiState.isSearchActive) {
+                            LettaSearchBar(
+                                query = uiState.searchQuery,
+                                onQueryChange = viewModel::updateChatSearchQuery,
+                                onClear = viewModel::clearChatSearch,
+                                placeholder = stringResource(R.string.screen_conversations_search_hint),
+                                compact = true,
+                                searchIconContentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(chatSearchFocusRequester),
+                            )
+                        } else {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag(AgentScaffoldTestTags.CONVERSATION_PICKER_TRIGGER)
-                                    .clickable { showAgentSwitcher = true }
+                                    .clickable {
+                                        viewModel.refreshAvailableAgents()
+                                        showAgentSwitcher = true
+                                    }
                                     .padding(end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -265,44 +302,6 @@ fun AgentScaffold(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            DropdownMenu(
-                                expanded = showAgentSwitcher,
-                                onDismissRequest = { showAgentSwitcher = false },
-                            ) {
-                                switchableAgents.forEach { agent ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(
-                                                    text = agent.name.ifBlank { "Agent" },
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                                Text(
-                                                    text = agent.id.take(12),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                            }
-                                        },
-                                        leadingIcon = {
-                                            if (agent.id == agentId) {
-                                                Icon(LettaIcons.Check, contentDescription = null)
-                                            } else {
-                                                Spacer(modifier = Modifier.size(LettaIconSizing.Toolbar))
-                                            }
-                                        },
-                                        onClick = {
-                                            showAgentSwitcher = false
-                                            if (agent.id != agentId) {
-                                                onSwitchConversation?.invoke(agent.id, null)
-                                            }
-                                        },
-                                    )
-                                }
-                            }
                         }
                     },
                     colors = LettaTopBarDefaults.topAppBarColors(),
@@ -313,6 +312,21 @@ fun AgentScaffold(
                         }
                     },
                     actions = {
+                        IconButton(onClick = {
+                            if (isChatSearchExpanded || uiState.isSearchActive) {
+                                isChatSearchExpanded = false
+                                viewModel.clearChatSearch()
+                            } else {
+                                isChatSearchExpanded = true
+                            }
+                        }) {
+                            Icon(
+                                if (isChatSearchExpanded || uiState.isSearchActive) LettaIcons.Clear else LettaIcons.Search,
+                                contentDescription = stringResource(
+                                    if (isChatSearchExpanded || uiState.isSearchActive) R.string.action_close else R.string.action_search
+                                ),
+                            )
+                        }
                         IconButton(onClick = {
                             viewModel.refreshContextWindow()
                             scope.launch { drawerState.open() }
@@ -357,15 +371,50 @@ fun AgentScaffold(
                         modifier = Modifier.testTag(AgentScaffoldTestTags.PROJECT_BUG_SUMMARY_CARD),
                     )
                 }
-                ChatScreen(
-                    modifier = Modifier.fillMaxWidth().weight(1f).testTag(AgentScaffoldTestTags.CHAT_SCREEN_CONTENT),
-                    chatBackground = chatBackground,
-                    chatMode = chatMode,
-                    onBugCommand = { showBugReportSheet = true },
-                    viewModel = viewModel,
-                )
+                if (uiState.isSearchActive) {
+                    ChatSearchResultsContent(
+                        searchQuery = uiState.searchQuery,
+                        results = uiState.searchResults,
+                        isSearching = uiState.isSearching,
+                        conversations = drawerConversations,
+                        currentConversationId = conversationId,
+                        onResultClick = { result ->
+                            isChatSearchExpanded = false
+                            viewModel.clearChatSearch()
+                            result.conversationId?.let { targetConversationId ->
+                                onSwitchConversation?.invoke(agentId, targetConversationId)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .testTag(AgentScaffoldTestTags.CHAT_SCREEN_CONTENT),
+                    )
+                } else {
+                    ChatScreen(
+                        modifier = Modifier.fillMaxWidth().weight(1f).testTag(AgentScaffoldTestTags.CHAT_SCREEN_CONTENT),
+                        chatBackground = chatBackground,
+                        chatMode = chatMode,
+                        onBugCommand = { showBugReportSheet = true },
+                        viewModel = viewModel,
+                    )
+                }
             }
         }
+    }
+
+    if (showAgentSwitcher) {
+        AgentPickerSheet(
+            agents = switchableAgents,
+            currentAgentId = agentId,
+            onDismiss = { showAgentSwitcher = false },
+            onAgentSelected = { selectedAgentId ->
+                showAgentSwitcher = false
+                if (selectedAgentId != agentId) {
+                    onSwitchConversation?.invoke(selectedAgentId, null)
+                }
+            },
+        )
     }
 
     if (showBugReportSheet && projectContext != null) {
@@ -377,6 +426,165 @@ fun AgentScaffold(
                 showBugReportSheet = false
             },
         )
+    }
+}
+
+@Composable
+private fun ChatSearchResultsContent(
+    searchQuery: String,
+    results: List<ParsedSearchMessage>,
+    isSearching: Boolean,
+    conversations: List<Conversation>,
+    currentConversationId: String?,
+    onResultClick: (ParsedSearchMessage) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+    val highlightTextColor = MaterialTheme.colorScheme.primary
+    val conversationsById = remember(conversations) { conversations.associateBy { it.id } }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item(key = "chat-search-header") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.screen_home_search_messages_section),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isSearching) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+            }
+        }
+
+        if (!isSearching && results.isEmpty()) {
+            item(key = "chat-search-empty") {
+                Text(
+                    text = stringResource(R.string.screen_home_search_no_results),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                )
+            }
+        }
+
+        items(results, key = { it.messageId ?: "${it.conversationId}-${it.content.hashCode()}" }) { result ->
+            val conversation = result.conversationId?.let(conversationsById::get)
+            val isCurrentConversation = result.conversationId != null && result.conversationId == currentConversationId
+            val conversationScope = when {
+                isCurrentConversation -> "Current conversation"
+                result.conversationId != null -> "Previous conversation"
+                else -> "Conversation unknown"
+            }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onResultClick(result) },
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            LettaIcons.ChatOutline,
+                            contentDescription = null,
+                            tint = if (isCurrentConversation) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.tertiary
+                            },
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = conversationScope,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isCurrentConversation) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.tertiary
+                            },
+                        )
+                        result.date?.let(::formatRelativeTime)?.takeIf { it.isNotBlank() }?.let { timeText ->
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = timeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    conversation?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    Text(
+                        text = highlightChatMatches(
+                            result.content ?: "",
+                            searchQuery,
+                            highlightColor,
+                            highlightTextColor,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun highlightChatMatches(
+    text: String,
+    query: String,
+    highlightColor: Color,
+    matchTextColor: Color = Color.Unspecified,
+) = buildAnnotatedString {
+    if (query.isBlank()) {
+        append(text)
+        return@buildAnnotatedString
+    }
+    val lowerText = text.lowercase()
+    val lowerQuery = query.trim().lowercase()
+    var cursor = 0
+    while (cursor < text.length) {
+        val matchIndex = lowerText.indexOf(lowerQuery, cursor)
+        if (matchIndex < 0) {
+            append(text.substring(cursor))
+            break
+        }
+        append(text.substring(cursor, matchIndex))
+        withStyle(
+            SpanStyle(
+                background = highlightColor,
+                fontWeight = FontWeight.Bold,
+                color = if (matchTextColor != Color.Unspecified) matchTextColor else Color.Unspecified,
+            )
+        ) {
+            append(text.substring(matchIndex, matchIndex + lowerQuery.length))
+        }
+        cursor = matchIndex + lowerQuery.length
     }
 }
 
@@ -1238,6 +1446,143 @@ internal fun ConversationPickerSheet(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentPickerSheet(
+    agents: List<Agent>,
+    currentAgentId: String,
+    onDismiss: () -> Unit,
+    onAgentSelected: (String) -> Unit,
+) {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var isDismissingForAction by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val filteredAgents = remember(agents, searchQuery) {
+        if (searchQuery.isBlank()) {
+            agents
+        } else {
+            val query = searchQuery.trim()
+            agents.filter { agent ->
+                agent.name.contains(query, ignoreCase = true) ||
+                    agent.id.contains(query, ignoreCase = true) ||
+                    agent.description?.contains(query, ignoreCase = true) == true ||
+                    agent.model?.contains(query, ignoreCase = true) == true ||
+                    agent.tags.any { it.contains(query, ignoreCase = true) }
+            }
+        }
+    }
+
+    fun dismissThen(action: () -> Unit) {
+        if (isDismissingForAction) return
+        isDismissingForAction = true
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) {
+                action()
+                onDismiss()
+            } else {
+                isDismissingForAction = false
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = onDismiss,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.common_agents),
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LettaSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onClear = { searchQuery = "" },
+                placeholder = stringResource(R.string.screen_agents_search_hint),
+                compact = true,
+                searchIconContentDescription = null,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (filteredAgents.isEmpty()) {
+                Text(
+                    text = if (searchQuery.isBlank()) {
+                        stringResource(R.string.screen_agents_empty)
+                    } else {
+                        "No agents matching \"$searchQuery\""
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.heightIn(max = 400.dp),
+                ) {
+                    items(filteredAgents, key = { it.id }) { agent ->
+                        val isActive = agent.id == currentAgentId
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !isDismissingForAction) {
+                                    dismissThen { onAgentSelected(agent.id) }
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isActive) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    CardDefaults.cardColors().containerColor
+                                },
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = agent.name.ifBlank { "Agent" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val detail = agent.model
+                                        ?: agent.description?.takeIf { it.isNotBlank() }
+                                        ?: agent.id.take(12)
+                                    Text(
+                                        text = detail,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (isActive) {
+                                    Icon(
+                                        LettaIcons.CheckCircle,
+                                        contentDescription = "Current agent",
+                                        modifier = Modifier.size(LettaIconSizing.Toolbar),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
 sealed interface ConversationSwitchAction {
     val conversationId: String?
 
@@ -1442,19 +1787,6 @@ internal fun DrawerContent(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var conversationSearchExpanded by rememberSaveable { mutableStateOf(false) }
-    var conversationSearchQuery by rememberSaveable(agentId) { mutableStateOf("") }
-    val filteredConversations = remember(conversations, conversationSearchQuery) {
-        if (conversationSearchQuery.isBlank()) {
-            conversations
-        } else {
-            val query = conversationSearchQuery.trim()
-            conversations.filter { conversation ->
-                conversation.summary?.contains(query, ignoreCase = true) == true ||
-                    conversation.id.contains(query, ignoreCase = true)
-            }
-        }
-    }
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -1540,24 +1872,11 @@ internal fun DrawerContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        ExpandableTitleSearch(
-            query = conversationSearchQuery,
-            onQueryChange = { conversationSearchQuery = it },
-            onClear = { conversationSearchQuery = "" },
-            expanded = conversationSearchExpanded,
-            onExpandedChange = { conversationSearchExpanded = it },
-            placeholder = stringResource(R.string.screen_conversations_search_hint),
-            collapsedHint = "",
-            openSearchContentDescription = stringResource(R.string.action_search),
-            closeSearchContentDescription = stringResource(R.string.action_close),
-            titleContent = {
-                Text(
-                    text = stringResource(R.string.common_conversations),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            },
+        Text(
+            text = stringResource(R.string.common_conversations),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
         NavigationDrawerItem(
             icon = { Icon(LettaIcons.Add, contentDescription = null) },
@@ -1565,19 +1884,15 @@ internal fun DrawerContent(
             selected = currentConversationId == null,
             onClick = onNewConversation,
         )
-        if (filteredConversations.isEmpty()) {
+        if (conversations.isEmpty()) {
             Text(
-                text = if (conversationSearchQuery.isBlank()) {
-                    "No conversations yet"
-                } else {
-                    "No conversations matching \"$conversationSearchQuery\""
-                },
+                text = "No conversations yet",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
         } else {
-            filteredConversations.forEach { conversation ->
+            conversations.forEach { conversation ->
                 val isActive = conversation.id == currentConversationId
                 NavigationDrawerItem(
                     icon = {

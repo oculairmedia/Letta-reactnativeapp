@@ -19,9 +19,12 @@ import com.letta.mobile.data.model.ProjectBugReport
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.MessageContentPart
+import com.letta.mobile.data.model.MessageSearchRequest
 import com.letta.mobile.data.model.MessageType
+import com.letta.mobile.data.model.ParsedSearchMessage
 import com.letta.mobile.data.model.UiImageAttachment
 import com.letta.mobile.data.model.buildContentParts
+import com.letta.mobile.data.model.toParsed
 import com.letta.mobile.data.model.toJsonArray
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
@@ -252,6 +255,10 @@ data class ChatUiState(
     val isClientModeEnabled: Boolean = false,
     val clientModeLocation: ClientModeLocationUiState = ClientModeLocationUiState(),
     val clientModeFilesystemPicker: ClientModeFilesystemPickerUiState = ClientModeFilesystemPickerUiState(),
+    val searchQuery: String = "",
+    val isSearchActive: Boolean = false,
+    val isSearching: Boolean = false,
+    val searchResults: ImmutableList<ParsedSearchMessage> = persistentListOf(),
     /**
      * Surfaced when the LettaBot harness substituted a fresh conversation ID for
      * the one we requested (i.e. our requested conv was unrecoverable on the
@@ -438,6 +445,68 @@ class AdminChatViewModel @Inject constructor(
         }
     }
 
+    fun updateChatSearchQuery(query: String) {
+        chatSearchJob?.cancel()
+        if (query.isBlank()) {
+            clearChatSearch()
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                isSearchActive = true,
+                isSearching = true,
+                searchResults = persistentListOf(),
+            )
+        }
+
+        chatSearchJob = viewModelScope.launch {
+            delay(300L)
+            try {
+                val results = messageRepository.searchMessages(
+                    MessageSearchRequest(
+                        query = query,
+                        searchMode = "fts",
+                        roles = listOf("user", "assistant"),
+                        limit = 50,
+                    )
+                )
+                val parsed = results
+                    .map { it.toParsed() }
+                    .filter { it.agentId == agentId }
+                    .toImmutableList()
+                _uiState.update { current ->
+                    if (current.searchQuery == query) {
+                        current.copy(searchResults = parsed, isSearching = false)
+                    } else {
+                        current
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("AdminChatViewModel", "Chat search failed", e)
+                _uiState.update { current ->
+                    if (current.searchQuery == query) current.copy(isSearching = false) else current
+                }
+            }
+        }
+    }
+
+    fun clearChatSearch() {
+        chatSearchJob?.cancel()
+        chatSearchJob = null
+        _uiState.update {
+            it.copy(
+                searchQuery = "",
+                isSearchActive = false,
+                isSearching = false,
+                searchResults = persistentListOf(),
+            )
+        }
+    }
+
     fun setChatBackground(background: ChatBackground) {
         viewModelScope.launch {
             settingsRepository.setChatBackgroundKey(background.key)
@@ -583,6 +652,7 @@ class AdminChatViewModel @Inject constructor(
     // and we must rebind" — fixing letta-mobile-nw2e, where the previous
     // `isActive == true` guard silently ignored conversation switches.
     private var timelineObserverConversationId: String? = null
+    private var chatSearchJob: Job? = null
 
     init {
         // letta-mobile-w2hx.6: route arg already pre-populated `activeConversationId`
