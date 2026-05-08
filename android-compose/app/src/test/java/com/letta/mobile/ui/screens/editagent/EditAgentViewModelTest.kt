@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
+import com.letta.mobile.data.model.CompactionSettings
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.repository.AgentRepository
@@ -40,6 +41,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -283,6 +286,74 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `loadAgent includes compaction settings`() = runTest {
+        fakeAgentRepo.loadedCompactionSettings = CompactionSettings(
+            prompt = "Summarize for handoff",
+            clipChars = 12000,
+            slidingWindowPercentage = 0.45,
+            promptAcknowledgement = true,
+            mode = "self_compact_sliding_window",
+            model = "openai/gpt-5-mini",
+            modelSettings = buildJsonObject {
+                put("max_output_tokens", JsonPrimitive(1024))
+            },
+        )
+
+        viewModel.loadAgent()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertEquals("Summarize for handoff", state.data.summarizationPrompt)
+            assertEquals(12000, state.data.compactionClipChars)
+            assertEquals(0.45f, state.data.slidingWindowPercentage, 0.001f)
+            assertTrue(state.data.promptAcknowledgement)
+            assertEquals("self_compact_sliding_window", state.data.compactionMode)
+            assertEquals("openai/gpt-5-mini", state.data.compactionModel)
+            assertTrue(state.data.compactionModelSettingsJson.contains("max_output_tokens"))
+        }
+    }
+
+    @Test
+    fun `saveAgent persists compaction settings`() = runTest {
+        fakeAgentRepo.loadedCompactionSettings = CompactionSettings(
+            model = "openai/gpt-5-mini",
+            mode = "sliding_window",
+        )
+
+        viewModel.loadAgent()
+        viewModel.updateCompactionMode("self_compact_all")
+        viewModel.updateCompactionModel("anthropic/claude-3-5-sonnet")
+        viewModel.updateCompactionModelSettingsJson("""{"max_output_tokens":1024}""")
+        viewModel.updateSummarizationPrompt("Keep tasks, decisions, and open questions.")
+        viewModel.updateCompactionClipChars(24000)
+        viewModel.updateSlidingWindowPercentage(0.35f)
+        viewModel.updatePromptAcknowledgement(true)
+
+        viewModel.saveAgent {}
+
+        val compactionSettings = fakeAgentRepo.lastUpdateParams?.compactionSettings
+        assertEquals("anthropic/claude-3-5-sonnet", compactionSettings?.model)
+        assertEquals("self_compact_all", compactionSettings?.mode)
+        assertEquals("""{"max_output_tokens":1024}""", compactionSettings?.modelSettings.toString())
+        assertEquals("Keep tasks, decisions, and open questions.", compactionSettings?.prompt)
+        assertEquals(24000, compactionSettings?.clipChars)
+        assertEquals(0.35, compactionSettings?.slidingWindowPercentage ?: -1.0, 0.001)
+        assertEquals(true, compactionSettings?.promptAcknowledgement)
+    }
+
+    @Test
+    fun `saveAgent rejects invalid compaction model settings json`() = runTest {
+        viewModel.loadAgent()
+        viewModel.updateCompactionModelSettingsJson("not json")
+
+        viewModel.saveAgent {}
+
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is UiState.Error)
+        }
+    }
+
+    @Test
     fun `saveAgent persists client mode settings`() = runTest {
         viewModel.loadAgent()
         viewModel.updateClientModeEnabled(true)
@@ -377,6 +448,7 @@ class EditAgentViewModelTest {
         var lastUpdateParams: AgentUpdateParams? = null
         var loadedModel: String = "letta/letta-free"
         var loadedProviderType: String? = "openai"
+        var loadedCompactionSettings: CompactionSettings? = null
 
         override fun getAgent(id: String): Flow<Agent> = flow {
             if (shouldFail) throw Exception("Load failed")
@@ -390,6 +462,7 @@ class EditAgentViewModelTest {
                 system = "System prompt",
                 agentType = "stateful",
                 enableSleeptime = true,
+                compactionSettings = loadedCompactionSettings,
                 tools = listOf(TestData.tool(id = "t1", name = "attached_tool")),
                 modelSettings = com.letta.mobile.data.model.ModelSettings(
                     providerType = loadedProviderType,
@@ -417,6 +490,7 @@ class EditAgentViewModelTest {
                 system = params.system,
                 tags = params.tags ?: emptyList(),
                 enableSleeptime = params.enableSleeptime,
+                compactionSettings = params.compactionSettings,
                 agentType = "stateful",
                 modelSettings = params.modelSettings,
             )

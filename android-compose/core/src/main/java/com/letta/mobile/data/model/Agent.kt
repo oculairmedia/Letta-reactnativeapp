@@ -32,6 +32,17 @@ data class ContextWindowOverview(
 )
 
 @Serializable
+data class CompactionSettings(
+    val model: String? = null,
+    @SerialName("model_settings") val modelSettings: JsonElement? = null,
+    val prompt: String? = null,
+    @SerialName("prompt_acknowledgement") val promptAcknowledgement: Boolean? = null,
+    @SerialName("clip_chars") val clipChars: Int? = null,
+    val mode: String? = null,
+    @SerialName("sliding_window_percentage") val slidingWindowPercentage: Double? = null,
+)
+
+@Serializable
 data class Agent(
     val id: String,
     val name: String,
@@ -54,6 +65,7 @@ data class Agent(
     @SerialName("project_id") val projectId: String? = null,
     @SerialName("template_id") val templateId: String? = null,
     @SerialName("base_template_id") val baseTemplateId: String? = null,
+    @SerialName("compaction_settings") val compactionSettings: CompactionSettings? = null,
     @SerialName("deployment_id") val deploymentId: String? = null,
     @SerialName("entity_id") val entityId: String? = null,
     @SerialName("identity_ids") val identityIds: List<String> = emptyList(),
@@ -120,6 +132,7 @@ data class AgentCreateParams(
     val hidden: Boolean? = null,
     @SerialName("parallel_tool_calls") val parallelToolCalls: Boolean? = null,
     @SerialName("context_window_limit") val contextWindowLimit: Int? = null,
+    @SerialName("compaction_settings") val compactionSettings: CompactionSettings? = null,
 )
 
 @Serializable
@@ -158,6 +171,7 @@ data class AgentUpdateParams(
     @SerialName("per_file_view_window_char_limit") val perFileViewWindowCharLimit: Int? = null,
     val hidden: Boolean? = null,
     @SerialName("parallel_tool_calls") val parallelToolCalls: Boolean? = null,
+    @SerialName("compaction_settings") val compactionSettings: CompactionSettings? = null,
 )
 
 /**
@@ -175,6 +189,7 @@ data class AgentConfigCheckpoint(
     val contextWindowLimit: Int?,
     val system: String?,
     val responseFormat: JsonElement?,
+    val compactionSettings: CompactionSettings?,
 ) {
     companion object {
         /**
@@ -188,6 +203,7 @@ data class AgentConfigCheckpoint(
             contextWindowLimit = agent.contextWindowLimit,
             system = agent.system,
             responseFormat = agent.responseFormat,
+            compactionSettings = agent.compactionSettings,
         )
     }
 
@@ -202,7 +218,8 @@ data class AgentConfigCheckpoint(
             embeddingConfig == agent.embeddingConfig &&
             contextWindowLimit == agent.contextWindowLimit &&
             system == agent.system &&
-            responseFormat == agent.responseFormat
+            responseFormat == agent.responseFormat &&
+            compactionSettings == agent.compactionSettings
     }
 
     /**
@@ -216,5 +233,6 @@ data class AgentConfigCheckpoint(
         contextWindowLimit = contextWindowLimit,
         system = system,
         responseFormat = responseFormat,
+        compactionSettings = compactionSettings,
     )
 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.BlockUpdateParams
+import com.letta.mobile.data.model.CompactionSettings
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.ImportedAgentsResponse
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
@@ -70,6 +74,13 @@ data class EditAgentUiState(
     val clientModeBaseUrl: String = "",
     val clientModeApiKey: String = "",
     val clientModeConnectionState: ClientModeConnectionState = ClientModeConnectionState.Idle,
+    val summarizationPrompt: String = "",
+    val compactionClipChars: Int = 50_000,
+    val slidingWindowPercentage: Float = 0.3f,
+    val promptAcknowledgement: Boolean = false,
+    val compactionMode: String = "sliding_window",
+    val compactionModel: String = "",
+    val compactionModelSettingsJson: String = "",
 ) {
     typealias BlockState = EditableBlock
 }
@@ -104,6 +115,11 @@ class EditAgentViewModel @Inject constructor(
             "openrouter",
             "chatgpt_oauth",
         )
+
+        private const val DEFAULT_COMPACTION_CLIP_CHARS = 50_000
+        private const val DEFAULT_SLIDING_WINDOW_PERCENTAGE = 0.3f
+        private const val DEFAULT_COMPACTION_MODE = "sliding_window"
+        private val compactionSettingsJson = Json { prettyPrint = true }
 
         private fun normalizeModelSettingsProviderType(providerType: String?, modelHandle: String?): String? {
             val normalizedProviderType = providerType?.trim()?.lowercase().orEmpty()
@@ -186,6 +202,7 @@ class EditAgentViewModel @Inject constructor(
                 val clientModeEnabled = settingsRepository.observeClientModeEnabled().first()
                 val clientModeBaseUrl = settingsRepository.observeClientModeBaseUrl().first()
                 val clientModeApiKey = settingsRepository.getClientModeApiKey().orEmpty()
+                val compactionSettings = agent.compactionSettings
                 originalProviderType = normalizedProviderType
                 _uiState.value = UiState.Success(
                     EditAgentUiState(
@@ -212,6 +229,20 @@ class EditAgentViewModel @Inject constructor(
                         clientModeEnabled = clientModeEnabled,
                         clientModeBaseUrl = clientModeBaseUrl,
                         clientModeApiKey = clientModeApiKey,
+                        summarizationPrompt = compactionSettings?.prompt.orEmpty(),
+                        compactionClipChars = compactionSettings?.clipChars ?: DEFAULT_COMPACTION_CLIP_CHARS,
+                        slidingWindowPercentage = compactionSettings
+                            ?.slidingWindowPercentage
+                            ?.toFloat()
+                            ?.coerceIn(0f, 1f)
+                            ?: DEFAULT_SLIDING_WINDOW_PERCENTAGE,
+                        promptAcknowledgement = compactionSettings?.promptAcknowledgement ?: false,
+                        compactionMode = compactionSettings?.mode ?: DEFAULT_COMPACTION_MODE,
+                        compactionModel = compactionSettings?.model.orEmpty(),
+                        compactionModelSettingsJson = compactionSettings
+                            ?.modelSettings
+                            ?.let { compactionSettingsJson.encodeToString(JsonElement.serializer(), it) }
+                            .orEmpty(),
                     )
                 )
             } catch (e: Exception) {
@@ -410,6 +441,41 @@ class EditAgentViewModel @Inject constructor(
         }
     }
 
+    fun updateSummarizationPrompt(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(summarizationPrompt = value))
+    }
+
+    fun updateCompactionClipChars(value: Int) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(compactionClipChars = value.coerceAtLeast(1)))
+    }
+
+    fun updateSlidingWindowPercentage(value: Float) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(slidingWindowPercentage = value.coerceIn(0f, 1f)))
+    }
+
+    fun updatePromptAcknowledgement(value: Boolean) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(promptAcknowledgement = value))
+    }
+
+    fun updateCompactionMode(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(compactionMode = value.ifBlank { DEFAULT_COMPACTION_MODE }))
+    }
+
+    fun updateCompactionModel(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(compactionModel = value))
+    }
+
+    fun updateCompactionModelSettingsJson(value: String) {
+        val currentState = (_uiState.value as? UiState.Success)?.data ?: return
+        _uiState.value = UiState.Success(currentState.copy(compactionModelSettingsJson = value))
+    }
+
     fun updateClientModeEnabled(value: Boolean) {
         val currentState = (_uiState.value as? UiState.Success)?.data ?: return
         _uiState.value = UiState.Success(
@@ -562,6 +628,7 @@ class EditAgentViewModel @Inject constructor(
                             maxOutputTokens = state.maxOutputTokens,
                             parallelToolCalls = state.parallelToolCalls,
                         ),
+                        compactionSettings = state.toCompactionSettings(),
                     )
                 )
                 state.blocks.forEach { block ->
@@ -590,6 +657,29 @@ class EditAgentViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "Failed to save agent")
             }
+        }
+    }
+
+    private fun EditAgentUiState.toCompactionSettings(): CompactionSettings {
+        return CompactionSettings(
+            model = compactionModel.trim().ifBlank { null },
+            modelSettings = parseCompactionModelSettingsJson(compactionModelSettingsJson),
+            prompt = summarizationPrompt.trim().ifBlank { null },
+            promptAcknowledgement = promptAcknowledgement,
+            clipChars = compactionClipChars.takeIf { it > 0 },
+            mode = compactionMode.ifBlank { DEFAULT_COMPACTION_MODE },
+            slidingWindowPercentage = slidingWindowPercentage.coerceIn(0f, 1f).toDouble(),
+        )
+    }
+
+    private fun parseCompactionModelSettingsJson(rawJson: String): JsonElement? {
+        val trimmed = rawJson.trim()
+        if (trimmed.isEmpty()) return null
+
+        return try {
+            compactionSettingsJson.parseToJsonElement(trimmed).jsonObject
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Compaction model settings must be a valid JSON object.", e)
         }
     }
 
