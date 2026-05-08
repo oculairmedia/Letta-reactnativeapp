@@ -2,8 +2,6 @@ package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -60,6 +57,7 @@ import kotlin.math.max
 fun ChatScreen(
     modifier: Modifier = Modifier,
     chatBackground: ChatBackground = ChatBackground.Default,
+    chatMode: String = "interactive",
     onBugCommand: (() -> Unit)? = null,
     viewModel: AdminChatViewModel = hiltViewModel()
 ) {
@@ -144,6 +142,7 @@ fun ChatScreen(
                             activeFontScale = activeFontScale,
                             onActiveFontScaleChange = { activeFontScale = it },
                             onFontScaleChange = { viewModel.setChatFontScale(it) },
+                            chatMode = chatMode,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -173,6 +172,7 @@ fun ChatScreen(
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
+                                chatMode = chatMode,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -241,6 +241,7 @@ internal fun NoConversationChatContent(
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
+    chatMode: String = "interactive",
     modifier: Modifier = Modifier,
 ) {
     // letta-mobile-qkct: a fresh Client Mode send remains in
@@ -268,6 +269,7 @@ internal fun NoConversationChatContent(
             activeFontScale = activeFontScale,
             onActiveFontScaleChange = onActiveFontScaleChange,
             onFontScaleChange = onFontScaleChange,
+            chatMode = chatMode,
             modifier = modifier,
         )
     }
@@ -287,10 +289,9 @@ private fun ChatContent(
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
+    chatMode: String = "interactive",
     modifier: Modifier = Modifier,
 ) {
-    var chatMode by remember { mutableStateOf("interactive") }
-
     val renderModel = remember(state.messages, chatMode) {
         buildChatRenderModel(
             messages = state.messages,
@@ -299,21 +300,13 @@ private fun ChatContent(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf("simple", "interactive", "debug").forEach { mode ->
-                FilterChip(
-                    selected = chatMode == mode,
-                    onClick = { chatMode = mode },
-                    label = { Text(mode.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) },
-                )
-            }
-            if (state.isClientModeEnabled) {
+        if (state.isClientModeEnabled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 AssistChip(
                     onClick = onOpenLocationPicker,
                     leadingIcon = { Icon(LettaIcons.Storage, contentDescription = null) },

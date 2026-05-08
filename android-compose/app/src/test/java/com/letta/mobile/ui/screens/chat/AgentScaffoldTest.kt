@@ -1,6 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -32,9 +33,13 @@ class AgentScaffoldTest {
                 agentId = "agent-drawer-42",
                 messageCount = 99,
                 contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},
@@ -54,9 +59,13 @@ class AgentScaffoldTest {
                 agentId = "agent-edit-1",
                 messageCount = 1,
                 contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = { fired = true },
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},
@@ -68,47 +77,54 @@ class AgentScaffoldTest {
     }
 
     @Test
-    fun drawerArchivalMemoryFiresCallback() {
-        var fired = false
+    fun drawerDoesNotRenderArchivalOrToolsEntries() {
         composeRule.setLettaTestContent(useChatTheme = false) {
             DrawerContent(
-                agentName = "ArchBot",
-                agentId = "agent-arch-1",
+                agentName = "LeanDrawerBot",
+                agentId = "agent-lean-1",
                 messageCount = 1,
                 contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = { fired = true },
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},
             )
         }
 
-        composeRule.onNodeWithText("Archival Memory").performClick()
-        assertTrue("Archival callback should fire", fired)
+        composeRule.onNodeWithText("Archival Memory").assertDoesNotExist()
+        composeRule.onNodeWithText("Tools").assertDoesNotExist()
     }
 
     @Test
-    fun drawerToolsFiresCallback() {
+    fun drawerChatModeFiresCallback() {
         var fired = false
         composeRule.setLettaTestContent(useChatTheme = false) {
             DrawerContent(
-                agentName = "ToolBot",
-                agentId = "agent-tool-1",
+                agentName = "ModeBot",
+                agentId = "agent-mode-1",
                 messageCount = 1,
                 contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = { if (it == "debug") fired = true },
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = { fired = true },
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},
             )
         }
 
-        composeRule.onNodeWithText("Tools").performClick()
-        assertTrue("Tools callback should fire", fired)
+        composeRule.onNodeWithText("Debug").performClick()
+        assertTrue("Debug mode callback should fire", fired)
     }
 
     @Test
@@ -120,9 +136,13 @@ class AgentScaffoldTest {
                 agentId = "agent-reset-1",
                 messageCount = 1,
                 contextWindow = emptyContextWindow(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = { fired = true },
                 onRefreshContextWindow = {},
                 onClose = {},
@@ -142,9 +162,13 @@ class AgentScaffoldTest {
                 agentId = "agent-ctx-1",
                 messageCount = 1,
                 contextWindow = ContextWindowUiState(maxTokens = 1000, currentTokens = 300),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = { fired = true },
                 onClose = {},
@@ -167,9 +191,13 @@ class AgentScaffoldTest {
                     currentTokens = 300,
                     messageCount = 5,
                 ),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},
@@ -187,9 +215,13 @@ class AgentScaffoldTest {
                 agentId = "agent-noctx",
                 messageCount = 0,
                 contextWindow = ContextWindowUiState(),
+                chatMode = "interactive",
+                onChatModeSelected = {},
+                conversations = emptyList(),
+                currentConversationId = null,
+                onNewConversation = {},
+                onConversationSelected = {},
                 onEditAgent = {},
-                onArchivalMemory = {},
-                onTools = {},
                 onResetMessages = {},
                 onRefreshContextWindow = {},
                 onClose = {},

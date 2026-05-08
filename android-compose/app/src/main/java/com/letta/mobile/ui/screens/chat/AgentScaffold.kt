@@ -83,6 +83,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.letta.mobile.R
+import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ConfirmDialog
@@ -137,6 +138,11 @@ fun AgentScaffold(
     var showConversationPicker by remember { mutableStateOf(false) }
     var showBugReportSheet by remember { mutableStateOf(false) }
     val chatBackground by viewModel.chatBackground.collectAsStateWithLifecycle()
+    var chatMode by rememberSaveable { mutableStateOf("interactive") }
+    val drawerConversationViewModel: ConversationPickerViewModel = hiltViewModel()
+    val drawerConversationRepo = drawerConversationViewModel.conversationRepository
+    val drawerConversations by drawerConversationRepo.getConversations(viewModel.agentId)
+        .collectAsStateWithLifecycle(emptyList())
 
     val agentName = uiState.agentName
     val agentId = viewModel.agentId
@@ -151,6 +157,10 @@ fun AgentScaffold(
 
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch { drawerState.close() }
+    }
+
+    LaunchedEffect(agentId) {
+        drawerConversationRepo.refreshConversations(agentId)
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -181,17 +191,21 @@ fun AgentScaffold(
                     agentId = agentId,
                     messageCount = uiState.messages.size,
                     contextWindow = uiState.contextWindow,
+                    chatMode = chatMode,
+                    onChatModeSelected = { chatMode = it },
+                    conversations = drawerConversations,
+                    currentConversationId = conversationId,
+                    onNewConversation = {
+                        scope.launch { drawerState.close() }
+                        onSwitchConversation?.invoke(agentId, null)
+                    },
+                    onConversationSelected = { selectedConversationId ->
+                        scope.launch { drawerState.close() }
+                        onSwitchConversation?.invoke(agentId, selectedConversationId)
+                    },
                     onEditAgent = {
                         scope.launch { drawerState.close() }
                         onNavigateToSettings(agentId)
-                    },
-                    onArchivalMemory = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToArchival?.invoke(agentId)
-                    },
-                    onTools = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToTools?.invoke()
                     },
                     onResetMessages = {
                         scope.launch { drawerState.close() }
@@ -288,6 +302,7 @@ fun AgentScaffold(
                 ChatScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f).testTag(AgentScaffoldTestTags.CHAT_SCREEN_CONTENT),
                     chatBackground = chatBackground,
+                    chatMode = chatMode,
                     onBugCommand = { showBugReportSheet = true },
                     viewModel = viewModel,
                 )
@@ -1365,9 +1380,13 @@ internal fun DrawerContent(
     agentId: String,
     messageCount: Int,
     contextWindow: ContextWindowUiState,
+    chatMode: String,
+    onChatModeSelected: (String) -> Unit,
+    conversations: List<Conversation>,
+    currentConversationId: String?,
+    onNewConversation: () -> Unit,
+    onConversationSelected: (String) -> Unit,
     onEditAgent: () -> Unit,
-    onArchivalMemory: () -> Unit,
-    onTools: () -> Unit = {},
     onResetMessages: () -> Unit = {},
     onRefreshContextWindow: () -> Unit,
     onClose: () -> Unit,
@@ -1411,28 +1430,92 @@ internal fun DrawerContent(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(8.dp))
 
+        Text(
+            text = "Chat mode",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+        listOf("simple", "interactive", "debug").forEach { mode ->
+            NavigationDrawerItem(
+                icon = {
+                    if (chatMode == mode) {
+                        Icon(LettaIcons.Check, contentDescription = null)
+                    } else {
+                        Spacer(modifier = Modifier.size(LettaIconSizing.Toolbar))
+                    }
+                },
+                label = { Text(mode.replaceFirstChar { it.uppercase() }) },
+                selected = chatMode == mode,
+                onClick = { onChatModeSelected(mode) },
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Text(
+            text = stringResource(R.string.common_conversations),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+        NavigationDrawerItem(
+            icon = { Icon(LettaIcons.Add, contentDescription = null) },
+            label = { Text(stringResource(R.string.screen_conversations_new_action)) },
+            selected = currentConversationId == null,
+            onClick = onNewConversation,
+        )
+        if (conversations.isEmpty()) {
+            Text(
+                text = "No conversations yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        } else {
+            conversations.forEach { conversation ->
+                val isActive = conversation.id == currentConversationId
+                NavigationDrawerItem(
+                    icon = {
+                        if (isActive) {
+                            Icon(LettaIcons.CheckCircle, contentDescription = null)
+                        } else {
+                            Icon(LettaIcons.ChatOutline, contentDescription = null)
+                        }
+                    },
+                    label = {
+                        Column {
+                            Text(
+                                text = conversation.summary ?: "Conversation",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val timeText = formatRelativeTime(conversation.lastMessageAt ?: conversation.createdAt)
+                            if (timeText.isNotBlank()) {
+                                Text(
+                                    text = timeText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    },
+                    selected = isActive,
+                    onClick = { onConversationSelected(conversation.id) },
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
         NavigationDrawerItem(
             icon = { Icon(LettaIcons.Edit, contentDescription = "Edit") },
             label = { Text(stringResource(R.string.screen_drawer_edit_agent)) },
             selected = false,
             onClick = onEditAgent,
         )
-
-        NavigationDrawerItem(
-            icon = { Icon(LettaIcons.Inventory, contentDescription = "Archival") },
-            label = { Text(stringResource(R.string.screen_drawer_archival)) },
-            selected = false,
-            onClick = onArchivalMemory,
-        )
-
-        NavigationDrawerItem(
-            icon = { Icon(LettaIcons.Tool, contentDescription = "Tools") },
-            label = { Text(stringResource(R.string.common_tools)) },
-            selected = false,
-            onClick = onTools,
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         NavigationDrawerItem(
             icon = { Icon(LettaIcons.Delete, contentDescription = "Reset") },
