@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
@@ -184,6 +185,121 @@ class WsBotClientTest : WordSpec({
             }
         }
 
+        "forward batched websocket tool calls" {
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        """
+                        {"type":"session_init","agent_id":"agent-2","conversation_id":"conv-tools","session_id":"sess-tools"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        val requestId = payload["request_id"]!!.jsonPrimitive.content
+                        socket.send(
+                            """
+                            {"type":"stream","event":"tool_call","tool_calls":[{"tool_call_id":"call-a","tool_name":"Bash","tool_input":{"command":"a"}},{"id":"call-b","function":{"name":"Bash","arguments":"{\"command\":\"b\"}"}}],"request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        socket.send(
+                            """
+                            {"type":"result","success":true,"conversation_id":"conv-tools","request_id":"$requestId","duration_ms":8}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(gatewayUrl(server), "secret")
+
+                val chunks = runBlocking {
+                    withTimeout(5_000) {
+                        client.streamMessage(BotChatRequest(message = "batch", agentId = "agent-2", chatId = "chat-2")).toList()
+                    }
+                }
+
+                chunks[0].event shouldBe BotStreamEvent.TOOL_CALL
+                chunks[0].toolCalls!! shouldHaveSize 2
+                chunks[0].toolCalls!![0].effectiveId shouldBe "call-a"
+                chunks[0].toolCalls!![0].name shouldBe "Bash"
+                chunks[0].toolCalls!![0].arguments shouldBe """{"command":"a"}"""
+                chunks[0].toolCalls!![1].effectiveId shouldBe "call-b"
+                chunks[0].toolCalls!![1].name shouldBe "Bash"
+                chunks[0].toolCalls!![1].arguments shouldBe """{"command":"b"}"""
+                chunks[1].done shouldBe true
+
+                client.close()
+            }
+        }
+
+        "keep delayed progressive batch tool streams alive" {
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        """
+                        {"type":"session_init","agent_id":"agent-batch-delay","conversation_id":"conv-batch-delay","session_id":"sess-batch-delay"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        val requestId = payload["request_id"]!!.jsonPrimitive.content
+                        Thread.sleep(120)
+                        socket.send(
+                            """
+                            {"type":"stream","event":"tool_call","tool_calls":[{"tool_call_id":"call-a","tool_name":"Bash","tool_input":{"command":"a"}}],"conversation_id":"conv-batch-delay","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        Thread.sleep(120)
+                        socket.send(
+                            """
+                            {"type":"stream","event":"tool_call","tool_calls":[{"tool_call_id":"call-a","tool_name":"Bash","tool_input":{"command":"a"}},{"tool_call_id":"call-b","tool_name":"Bash","tool_input":{"command":"b"}}],"conversation_id":"conv-batch-delay","request_id":"$requestId"}
+                            """.trimIndent()
+                        )
+                        Thread.sleep(120)
+                        socket.send(
+                            """
+                            {"type":"result","success":true,"conversation_id":"conv-batch-delay","request_id":"$requestId","duration_ms":360}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(
+                    baseUrl = gatewayUrl(server),
+                    apiKey = "secret",
+                    streamReceiveTimeoutMs = 250,
+                )
+
+                val chunks = runBlocking {
+                    withTimeout(5_000) {
+                        client.streamMessage(
+                            BotChatRequest(
+                                message = "batch delayed",
+                                agentId = "agent-batch-delay",
+                                chatId = "chat-batch-delay",
+                                conversationId = "conv-batch-delay",
+                            )
+                        ).toList()
+                    }
+                }
+
+                chunks shouldHaveSize 3
+                chunks[0].toolCalls!! shouldHaveSize 1
+                chunks[0].toolCalls!![0].effectiveId shouldBe "call-a"
+                chunks[1].toolCalls!! shouldHaveSize 2
+                chunks[1].toolCalls!![1].effectiveId shouldBe "call-b"
+                chunks[2].done shouldBe true
+                chunks[2].conversationId shouldBe "conv-batch-delay"
+
+                client.close()
+            }
+        }
+
         "abort an in-flight request and emit a terminal aborted chunk" {
             val server = websocketServer { socket, text ->
                 val payload = json.parseToJsonElement(text).jsonObject
@@ -275,6 +391,57 @@ class WsBotClientTest : WordSpec({
                 }.exceptionOrNull() as BotGatewayException
 
                 exception.code shouldBe BotGatewayErrorCode.SESSION_BUSY
+                client.close()
+            }
+        }
+
+        "timeout stalled stream requests and send abort" {
+            var abortRequestId: String? = null
+            var messageRequestId: String? = null
+            val server = websocketServer { socket, text ->
+                val payload = json.parseToJsonElement(text).jsonObject
+                when (payload["type"]!!.jsonPrimitive.content) {
+                    "session_start" -> socket.send(
+                        """
+                        {"type":"session_init","agent_id":"agent-timeout","conversation_id":"conv-timeout","session_id":"sess-timeout"}
+                        """.trimIndent()
+                    )
+
+                    "message" -> {
+                        messageRequestId = payload["request_id"]!!.jsonPrimitive.content
+                        // Simulate a gateway/upstream stall: accept the send but
+                        // never emit a stream/result/error frame.
+                    }
+
+                    "abort" -> abortRequestId = payload["request_id"]!!.jsonPrimitive.content
+                }
+            }
+
+            server.use {
+                val client = WsBotClient(
+                    baseUrl = gatewayUrl(server),
+                    apiKey = "secret",
+                    streamReceiveTimeoutMs = 100,
+                )
+
+                val exception = runCatching {
+                    runBlocking {
+                        withTimeout(5_000) {
+                            client.streamMessage(
+                                BotChatRequest(
+                                    message = "hang",
+                                    agentId = "agent-timeout",
+                                    chatId = "chat-timeout",
+                                )
+                            ).toList()
+                        }
+                    }
+                }.exceptionOrNull().shouldBeInstanceOf<BotGatewayException>()
+
+                exception.code shouldBe BotGatewayErrorCode.STREAM_ERROR
+                exception.message shouldBe "Timed out waiting for WebSocket stream response"
+                abortRequestId shouldBe messageRequestId
+                client.connectionState.value shouldBe ConnectionState.READY
                 client.close()
             }
         }

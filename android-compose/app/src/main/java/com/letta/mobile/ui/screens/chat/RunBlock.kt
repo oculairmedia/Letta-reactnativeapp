@@ -1,8 +1,6 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,9 +24,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.ui.common.GroupPosition
@@ -39,19 +39,27 @@ import com.letta.mobile.ui.icons.LettaIcons
  * dot icon plus a small breathing margin; the vertical line passes through
  * the centre of the gutter.
  */
-private val RunGutterWidth = 24.dp
+private val RunGutterWidth = 18.dp
 
 /** Diameter of the per-step indicator dot painted in the gutter. */
-private val StepDotSize = 10.dp
+private val StepDotSize = 3.dp
 
-/** Stroke width of the vertical timeline rule. */
-private val GutterLineWidth = 2.dp
-
-/** Stroke width of the run identity rule drawn along the full run block. */
+/** Stroke width of the run identity rule drawn through the step dots. */
 private val RunIdentityLineWidth = 1.dp
 
-/** Top offset for step dots; matches the row content padding applied by ChatMessageList. */
-private val StepDotTopPadding = 6.dp
+/** Dot pattern for the run identity rule so it reads as a guide, not a border. */
+private val RunIdentityDotLength = 1.dp
+private val RunIdentityDotGap = 4.dp
+
+/** Center offset for step dots on regular assistant/reasoning rows. */
+private val DefaultStepDotCenterY = 17.dp
+
+/**
+ * Tool-call rows render directly as a tool card, whose first meaningful text
+ * row sits lower than plain assistant/reasoning content. Anchor the bead to
+ * that card header instead of the generic text row.
+ */
+private val ToolCallStepDotCenterY = 25.5f.dp
 
 /**
  * Renders a contiguous run of assistant messages sharing a `runId` as a
@@ -99,8 +107,7 @@ fun RunBlock(
         return
     }
 
-    val gutterColor = MaterialTheme.colorScheme.outlineVariant
-    val runIdentityColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.46f)
+    val runIdentityColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.24f)
     val hiddenCount = if (collapsed) messages.size - 1 else 0
 
     // letta-mobile-d2z6 follow-up: kept the outer animateContentSize so
@@ -125,24 +132,13 @@ fun RunBlock(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .drawBehind {
-                val x = RunIdentityLineWidth.toPx() / 2f
-                drawLine(
-                    color = runIdentityColor,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = RunIdentityLineWidth.toPx(),
-                )
-            }
-            .padding(start = 6.dp)
-            // letta-mobile-flk2: enable animateContentSize during streaming
-            // with short linear tween (60ms) — faster than typical token
-            // arrival so animation finishes before next chunk. Matches
-            // ChatMessageComponents behavior for consistent height tween.
+            // Use the shared chat content ramp after streaming settles.
+            // During active streaming it can collide with LazyColumn
+            // measurement, so keep that path static.
             .then(
                 if (isPinching || isStreaming) Modifier
                 else Modifier.animateContentSize(
-                    animationSpec = tween(durationMillis = 60, easing = LinearEasing),
+                    animationSpec = ChatMotion.contentSizeSpec,
                 )
             ),
     ) {
@@ -188,12 +184,12 @@ fun RunBlock(
                                 idx == visibleMessages.lastIndex -> GroupPosition.Last
                                 else -> GroupPosition.Middle
                             }
-                            val drawLineAbove = !collapsed && idx > 0
-                            val drawLineBelow = !collapsed && idx < visibleMessages.lastIndex
+                            val drawLineAbove = idx > 0
+                            val drawLineBelow = idx < visibleMessages.lastIndex
                             RunStepRow(
                                 message = msg,
                                 position = pos,
-                                gutterColor = gutterColor,
+                                runIdentityColor = runIdentityColor,
                                 drawLineAbove = drawLineAbove,
                                 drawLineBelow = drawLineBelow,
                                 renderRow = renderRow,
@@ -270,7 +266,7 @@ private fun RunHeader(
 private fun RunStepRow(
     message: UiMessage,
     position: GroupPosition,
-    gutterColor: androidx.compose.ui.graphics.Color,
+    runIdentityColor: androidx.compose.ui.graphics.Color,
     drawLineAbove: Boolean,
     drawLineBelow: Boolean,
     renderRow: @Composable (
@@ -284,8 +280,41 @@ private fun RunStepRow(
     val icon = remember(message.id, message.role, message.isReasoning, message.toolCalls, message.approvalRequest) {
         message.runStepDotIcon()
     }
+    val stepDotCenterY = message.runStepDotCenterY()
+    val stepDotTopPadding = stepDotCenterY - (StepDotSize / 2f)
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawWithContent {
+                drawContent()
+
+                val cx = RunGutterWidth.toPx() / 2f
+                val dotCenterY = stepDotCenterY.toPx()
+                val stroke = RunIdentityLineWidth.toPx()
+                val dotPattern = PathEffect.dashPathEffect(
+                    floatArrayOf(RunIdentityDotLength.toPx(), RunIdentityDotGap.toPx()),
+                )
+                if (drawLineAbove) {
+                    drawLine(
+                        color = runIdentityColor,
+                        start = Offset(cx, 0f),
+                        end = Offset(cx, dotCenterY),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round,
+                        pathEffect = dotPattern,
+                    )
+                }
+                if (drawLineBelow) {
+                    drawLine(
+                        color = runIdentityColor,
+                        start = Offset(cx, dotCenterY),
+                        end = Offset(cx, size.height),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round,
+                        pathEffect = dotPattern,
+                    )
+                }
+            },
         verticalAlignment = Alignment.Top,
     ) {
         // Gutter column: a fixed-width box that draws the connector lines
@@ -294,31 +323,11 @@ private fun RunStepRow(
         // lines on the same axis so there's no horizontal jitter).
         Box(
             modifier = Modifier
-                .width(RunGutterWidth)
-                .drawBehind {
-                    val cx = size.width / 2f
-                    val stroke = GutterLineWidth.toPx()
-                    if (drawLineAbove) {
-                        drawLine(
-                            color = gutterColor,
-                            start = Offset(cx, 0f),
-                            end = Offset(cx, size.height / 2f),
-                            strokeWidth = stroke,
-                        )
-                    }
-                    if (drawLineBelow) {
-                        drawLine(
-                            color = gutterColor,
-                            start = Offset(cx, size.height / 2f),
-                            end = Offset(cx, size.height),
-                            strokeWidth = stroke,
-                        )
-                    }
-                },
+                .width(RunGutterWidth),
             contentAlignment = Alignment.TopCenter,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(StepDotTopPadding))
+                Spacer(modifier = Modifier.height(stepDotTopPadding))
                 Box(
                     modifier = Modifier
                         .size(StepDotSize)
@@ -343,4 +352,9 @@ private fun RunStepRow(
         // hand them a Modifier that fills the remaining width.
         renderRow(message, position, Modifier.fillMaxWidth())
     }
+}
+
+private fun UiMessage.runStepDotCenterY() = when {
+    !toolCalls.isNullOrEmpty() -> ToolCallStepDotCenterY
+    else -> DefaultStepDotCenterY
 }

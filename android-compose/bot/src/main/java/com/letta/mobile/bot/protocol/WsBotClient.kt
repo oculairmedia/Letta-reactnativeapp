@@ -1,6 +1,7 @@
 package com.letta.mobile.bot.protocol
 
 import android.util.Log
+import com.letta.mobile.data.model.ToolCall
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
@@ -60,6 +62,7 @@ class WsBotClient(
     // Matrix-style clients want. Mobile sets this true so the existing
     // dedup-by-id renderer can show running indicators incrementally.
     progressiveToolCalls: Boolean = false,
+    private val streamReceiveTimeoutMs: Long = DEFAULT_STREAM_RECEIVE_TIMEOUT_MS,
 ) : BotClient, GatewayReadyClient, AutoCloseable {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -243,7 +246,24 @@ class WsBotClient(
                 var sessionRetries = 0
 
                 while (!finished) {
-                    when (val signal = requestChannel.receive()) {
+                    val signal = try {
+                        withTimeout(streamReceiveTimeoutMs) {
+                            requestChannel.receive()
+                        }
+                    } catch (timeout: TimeoutCancellationException) {
+                        Log.w(
+                            TAG,
+                            "Timed out waiting for WebSocket stream response " +
+                                "rid=${activeRoute.requestId.take(8)} timeoutMs=$streamReceiveTimeoutMs",
+                        )
+                        runCatching { sendWebSocketMessage(WsAbortMessage(requestId = activeRoute.requestId)) }
+                        throw BotGatewayException(
+                            code = BotGatewayErrorCode.STREAM_ERROR,
+                            message = "Timed out waiting for WebSocket stream response",
+                            cause = timeout,
+                        )
+                    }
+                    when (signal) {
                         is RequestSignal.Message -> {
                             when (val message = signal.message) {
                                 is WsStreamEventMessage -> {
@@ -940,6 +960,7 @@ class WsBotClient(
         toolName = toolName,
         toolCallId = toolCallId,
         toolInput = toolInput,
+        toolCalls = toolCalls,
         isError = isError,
         requestId = requestId,
         uuid = uuid,
@@ -1075,6 +1096,9 @@ class WsBotClient(
         @SerialName("tool_name") val toolName: String? = null,
         @SerialName("tool_call_id") val toolCallId: String? = null,
         @SerialName("tool_input") val toolInput: JsonElement? = null,
+        @SerialName("tool_calls")
+        @Serializable(with = BotToolCallListSerializer::class)
+        val toolCalls: List<ToolCall>? = null,
         @SerialName("is_error") val isError: Boolean = false,
         val uuid: String? = null,
         @SerialName("request_id") val requestId: String? = null,
@@ -1118,5 +1142,6 @@ class WsBotClient(
     companion object {
         private const val TAG = "WsBotClient"
         private const val WS_PATH = "/api/v1/agent-gateway"
+        private const val DEFAULT_STREAM_RECEIVE_TIMEOUT_MS = 300_000L
     }
 }

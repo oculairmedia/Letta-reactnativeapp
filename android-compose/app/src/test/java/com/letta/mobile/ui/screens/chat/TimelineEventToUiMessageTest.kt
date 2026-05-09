@@ -34,6 +34,8 @@ class TimelineEventToUiMessageTest {
         approvalDecided: Boolean = false,
         toolReturnContent: String? = null,
         toolReturnIsError: Boolean = false,
+        toolReturnContentByCallId: Map<String, String> = emptyMap(),
+        toolReturnIsErrorByCallId: Map<String, Boolean> = emptyMap(),
         source: MessageSource = MessageSource.LETTA_SERVER,
     ) = TimelineEvent.Confirmed(
         position = 1.0,
@@ -49,6 +51,8 @@ class TimelineEventToUiMessageTest {
         approvalDecided = approvalDecided,
         toolReturnContent = toolReturnContent,
         toolReturnIsError = toolReturnIsError,
+        toolReturnContentByCallId = toolReturnContentByCallId,
+        toolReturnIsErrorByCallId = toolReturnIsErrorByCallId,
         source = source,
     )
 
@@ -68,6 +72,7 @@ class TimelineEventToUiMessageTest {
         )
         val ui = timelineEventToUiMessage(ev)!!
         assertEquals("assistant", ui.role)
+        assertEquals("", ui.content)
         val calls = ui.toolCalls!!
         assertEquals(1, calls.size)
         assertEquals("Bash", calls[0].name)
@@ -308,22 +313,29 @@ class TimelineEventToUiMessageTest {
     }
 
     @Test
-    fun `multi-tool call batch attaches return to first call only`() {
-        // Server batches two tools in one approval. tool_return is stored
-        // against the first id. Subsequent calls get null result.
+    fun `multi-tool call batch attaches each return by tool call id`() {
         val t1 = ToolCall(id = "toolu_a", name = "Bash", arguments = "{\"command\":\"a\"}")
         val t2 = ToolCall(id = "toolu_b", name = "Bash", arguments = "{\"command\":\"b\"}")
         val ev = confirmed(
             TimelineMessageType.TOOL_CALL,
             toolCalls = listOf(t1, t2),
-            toolReturnContent = "a-output",
+            toolReturnContentByCallId = mapOf(
+                "toolu_a" to "a-output",
+                "toolu_b" to "b-output",
+            ),
+            toolReturnIsErrorByCallId = mapOf(
+                "toolu_a" to false,
+                "toolu_b" to true,
+            ),
             approvalDecided = true,
         )
         val ui = timelineEventToUiMessage(ev)!!
         val calls = ui.toolCalls!!
         assertEquals(2, calls.size)
         assertEquals("a-output", calls[0].result)
-        assertNull(calls[1].result)
+        assertEquals("success", calls[0].status)
+        assertEquals("b-output", calls[1].result)
+        assertEquals("error", calls[1].status)
     }
 
     @Test

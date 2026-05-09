@@ -108,33 +108,59 @@ fun buildChatRenderModel(
 }
 
 private fun attachLatencyMetadata(messages: List<UiMessage>): List<UiMessage> {
-    var lastUserAt: Instant? = null
-    var assistantLatencyAssignedForTurn = false
-    return messages.map { message ->
+    val result = messages.toMutableList()
+    var promptAt: Instant? = null
+    val assistantIndices = mutableListOf<Int>()
+
+    fun flushTurn() {
+        val turnPromptAt = promptAt
+        if (turnPromptAt == null || assistantIndices.isEmpty()) {
+            assistantIndices.clear()
+            return
+        }
+        if (assistantIndices.any { result[it].latencyMs != null }) {
+            assistantIndices.clear()
+            return
+        }
+        val targetIndex = assistantIndices.lastOrNull { result[it].isTurnLatencyTarget() }
+        val target = targetIndex?.let(result::get)
+        val responseAt = target?.timestamp?.parseInstantOrNull()
+        val latency = responseAt?.let { end ->
+            Duration.between(turnPromptAt, end).toMillis()
+                .takeIf { it in 0L..30 * 60 * 1000L }
+        }
+        if (targetIndex != null && latency != null) {
+            result[targetIndex] = result[targetIndex].copy(latencyMs = latency)
+        }
+        assistantIndices.clear()
+    }
+
+    messages.forEachIndexed { index, message ->
         when (message.role) {
             "user" -> {
-                lastUserAt = message.timestamp.parseInstantOrNull()
-                assistantLatencyAssignedForTurn = false
-                message
+                flushTurn()
+                promptAt = message.timestamp.parseInstantOrNull()
             }
-            "assistant" -> {
-                val promptAt = lastUserAt
-                val responseAt = message.timestamp.parseInstantOrNull()
-                val latency = message.latencyMs ?: if (!assistantLatencyAssignedForTurn && promptAt != null && responseAt != null) {
-                    Duration.between(promptAt, responseAt).toMillis()
-                        .takeIf { it in 0L..30 * 60 * 1000L }
-                } else {
-                    null
-                }
-                if (latency != null && !message.isReasoning) assistantLatencyAssignedForTurn = true
-                if (latency == message.latencyMs) message else message.copy(latencyMs = latency)
-            }
-            else -> message
+            "assistant" -> assistantIndices.add(index)
+            else -> Unit
         }
     }
+    flushTurn()
+    return result
 }
 
 private fun String.parseInstantOrNull(): Instant? = runCatching { Instant.parse(this) }.getOrNull()
+
+private fun UiMessage.isTurnLatencyTarget(): Boolean =
+    role == "assistant" &&
+        !isReasoning &&
+        !isError &&
+        content.isNotBlank() &&
+        toolCalls.isNullOrEmpty() &&
+        generatedUi == null &&
+        approvalRequest == null &&
+        approvalResponse == null &&
+        attachments.isEmpty()
 
 fun dedupeReasoningAssistantEchoes(messages: List<UiMessage>): List<UiMessage> {
     val result = ArrayList<UiMessage>(messages.size)
@@ -143,7 +169,7 @@ fun dedupeReasoningAssistantEchoes(messages: List<UiMessage>): List<UiMessage> {
         if (msg.isReasoning) {
             lastReasoningContent = msg.content
             result.add(msg)
-        } else if (msg.role == "assistant" && msg.content == lastReasoningContent) {
+        } else if (msg.isPlainAssistantTextEchoOf(lastReasoningContent)) {
             // Skip assistant message that duplicates the immediately preceding reasoning content.
         } else {
             lastReasoningContent = null
@@ -151,6 +177,18 @@ fun dedupeReasoningAssistantEchoes(messages: List<UiMessage>): List<UiMessage> {
         }
     }
     return result
+}
+
+private fun UiMessage.isPlainAssistantTextEchoOf(lastReasoningContent: String?): Boolean {
+    return role == "assistant" &&
+        content == lastReasoningContent &&
+        !isReasoning &&
+        !isError &&
+        toolCalls.isNullOrEmpty() &&
+        generatedUi == null &&
+        approvalRequest == null &&
+        approvalResponse == null &&
+        attachments.isEmpty()
 }
 
 fun filterMessagesForMode(

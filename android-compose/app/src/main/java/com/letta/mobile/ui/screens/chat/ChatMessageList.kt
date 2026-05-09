@@ -1,10 +1,6 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -302,8 +298,8 @@ fun ChatMessageList(
                 item(key = "typing") {
                     AnimatedVisibility(
                         visible = state.isStreaming,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
+                        enter = ChatMotion.expandEnter(),
+                        exit = ChatMotion.expandExit(),
                     ) {
                         TypingIndicator(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
                     }

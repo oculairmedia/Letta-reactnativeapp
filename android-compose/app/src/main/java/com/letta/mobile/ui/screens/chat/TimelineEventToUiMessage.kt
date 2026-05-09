@@ -13,6 +13,7 @@ import com.letta.mobile.data.timeline.TimelineEvent
 import com.letta.mobile.data.timeline.TimelineMessageType
 import com.letta.mobile.data.timeline.stripEnvelopeReminders
 import com.letta.mobile.util.Telemetry
+import java.time.Duration
 
 /**
  * lettabot-y4j (defensive client-side scrub):
@@ -136,12 +137,22 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
                             UiToolApprovalDecision.Approved
                         } else null
                     ev.toolCalls.mapIndexed { index, tc ->
+                        val callId = tc.effectiveId.takeIf { it.isNotBlank() }
+                        val result = callId?.let { ev.toolReturnContentByCallId[it] }
+                            ?: if (index == 0) ev.toolReturnContent else null
+                        val isError = callId?.let { ev.toolReturnIsErrorByCallId[it] }
+                            ?: ev.toolReturnIsError
+                        val executionTimeMs = if (result != null && callId != null) {
+                            ev.toolStartedAtByCallId[callId]
+                                ?.let { startedAt -> Duration.between(startedAt, ev.sentAt).toMillis().coerceAtLeast(0L) }
+                        } else null
                         UiToolCall(
                             name = tc.name ?: "tool",
                             arguments = tc.arguments ?: "",
-                            result = if (index == 0) ev.toolReturnContent else null,
-                            status = if (ev.toolReturnContent == null) null
-                                else if (ev.toolReturnIsError) "error" else "success",
+                            result = result,
+                            status = if (result == null) null else if (isError) "error" else "success",
+                            executionTimeMs = executionTimeMs,
+                            toolCallId = callId,
                             approvalDecision = chip,
                         )
                     }
@@ -169,6 +180,8 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
             val displayContent = when (ev.messageType) {
                 TimelineMessageType.REASONING ->
                     ev.reasoningContent?.takeIf { it.isNotEmpty() } ?: ev.content
+                TimelineMessageType.TOOL_CALL ->
+                    if (uiToolCalls != null) "" else ev.content
                 else -> ev.content
             }.stripEnvelopeReminders()
             UiMessage(
@@ -217,15 +230,17 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
                             UiToolApprovalDecision.Approved
                         } else null
                     ev.toolCalls.mapIndexed { index, tc ->
+                        val callId = tc.effectiveId.takeIf { it.isNotBlank() }
+                        val result = callId?.let { ev.toolReturnContentByCallId[it] }
+                            ?: if (index == 0) ev.toolReturnContent else null
+                        val isError = callId?.let { ev.toolReturnIsErrorByCallId[it] }
+                            ?: ev.toolReturnIsError
                         UiToolCall(
                             name = tc.name ?: "tool",
                             arguments = tc.arguments ?: "",
-                            // Attach the return body to the first call —
-                            // servers almost always return one result per
-                            // batched-tools message, linked to the first id.
-                            result = if (index == 0) ev.toolReturnContent else null,
-                            status = if (ev.toolReturnContent == null) null
-                                else if (ev.toolReturnIsError) "error" else "success",
+                            result = result,
+                            status = if (result == null) null else if (isError) "error" else "success",
+                            toolCallId = callId,
                             approvalDecision = chip,
                         )
                     }
@@ -275,11 +290,15 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
             // :id/messages` which goes directly to the Letta server (the
             // lettabot REST scrub doesn't run here), so we MUST strip on
             // render. Drop the bubble entirely if the content was envelope-only.
-            val confirmedContent = if (role == "user") {
-                val stripped = scrubUserEnvelope(ev.content)
-                if (stripped.isEmpty() && ev.content.isNotEmpty()) return null
-                stripped
-            } else ev.content
+            val confirmedContent = when {
+                ev.messageType == TimelineMessageType.TOOL_CALL && uiToolCalls != null -> ""
+                role == "user" -> {
+                    val stripped = scrubUserEnvelope(ev.content)
+                    if (stripped.isEmpty() && ev.content.isNotEmpty()) return null
+                    stripped
+                }
+                else -> ev.content
+            }
             UiMessage(
                 // Letta can use the same message id for multiple event shapes
                 // in a single step (observed Client Mode replay: reasoning_message

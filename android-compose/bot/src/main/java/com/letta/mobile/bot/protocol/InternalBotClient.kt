@@ -37,6 +37,7 @@ class InternalBotClient @Inject constructor(
                 toolName = chunk.toolName,
                 toolCallId = chunk.toolCallId,
                 toolInput = chunk.toolInput,
+                toolCalls = chunk.toolCalls,
                 isError = chunk.isError,
                 done = chunk.isComplete,
             )

@@ -69,12 +69,13 @@ sealed interface ChatRenderItem {
     data class RunBlock(
         val runId: String,
         val messages: List<Pair<UiMessage, GroupPosition>>,
+        private val stableKey: String? = null,
     ) : ChatRenderItem {
         init {
             require(messages.isNotEmpty()) { "RunBlock must contain at least one message" }
         }
 
-        override val key: String = "run-$runId"
+        override val key: String = stableKey ?: "run-$runId"
 
         /**
          * Newest message timestamp in the run. The reversed input to
@@ -168,9 +169,35 @@ fun groupMessagesForRender(
             val stableKey = if ((runIdCounts[runId] ?: 0) == 1) "run-$runId" else null
             out.add(ChatRenderItem.Single(acc[0].first, acc[0].second, stableRunKey = stableKey))
         } else {
-            out.add(ChatRenderItem.RunBlock(runId = runId, messages = acc.asReversed()))
+            out.add(
+                ChatRenderItem.RunBlock(
+                    runId = runId,
+                    messages = acc.asReversed(),
+                    stableKey = runBlockKey(
+                        runId = runId,
+                        runIdCounts = runIdCounts,
+                        accumulator = acc,
+                    ),
+                )
+            )
         }
         i = j
     }
     return out
+}
+
+private fun runBlockKey(
+    runId: String,
+    runIdCounts: Map<String, Int>,
+    accumulator: List<Pair<UiMessage, GroupPosition>>,
+): String {
+    val matchingMessagesInThisBlock = accumulator.count { (message, _) ->
+        message.role == "assistant" && message.runId == runId
+    }
+    val allMatchingMessagesAreInThisBlock = runIdCounts[runId] == matchingMessagesInThisBlock
+    return if (allMatchingMessagesAreInThisBlock) {
+        "run-$runId"
+    } else {
+        "run-$runId-${accumulator.first().first.id}"
+    }
 }

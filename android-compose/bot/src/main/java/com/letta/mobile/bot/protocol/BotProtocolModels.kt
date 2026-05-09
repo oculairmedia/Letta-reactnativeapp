@@ -1,10 +1,12 @@
 package com.letta.mobile.bot.protocol
 
+import com.letta.mobile.data.model.ToolCall
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
@@ -236,6 +238,9 @@ data class BotStreamChunk(
     @SerialName("tool_name") val toolName: String? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
     @SerialName("tool_input") val toolInput: JsonElement? = null,
+    @SerialName("tool_calls")
+    @Serializable(with = BotToolCallListSerializer::class)
+    val toolCalls: List<ToolCall>? = null,
     @SerialName("is_error") val isError: Boolean = false,
     @SerialName("request_id") val requestId: String? = null,
     val uuid: String? = null,
@@ -261,10 +266,68 @@ data class BotStreamChunk(
         require(event == null) {
             "$context emitted a terminal BotStreamChunk with event payload"
         }
-        require(toolName == null && toolCallId == null && toolInput == null) {
+        require(toolName == null && toolCallId == null && toolInput == null && toolCalls.isNullOrEmpty()) {
             "$context emitted a terminal BotStreamChunk with tool payload"
         }
         return this
+    }
+}
+
+object BotToolCallListSerializer : KSerializer<List<ToolCall>?> {
+    private val listDelegate = ListSerializer(ToolCall.serializer()).nullable
+
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("BotToolCallList")
+
+    override fun deserialize(decoder: Decoder): List<ToolCall>? {
+        val jd = decoder as? JsonDecoder
+            ?: error("BotToolCallListSerializer only supports JSON")
+        val element = jd.decodeJsonElement()
+        return when (element) {
+            is JsonArray -> element.mapNotNull(::decodeToolCall).ifEmpty { null }
+            is JsonObject -> listOfNotNull(decodeToolCall(element)).ifEmpty { null }
+            else -> null
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: List<ToolCall>?) {
+        val je = encoder as? JsonEncoder
+            ?: error("BotToolCallListSerializer only supports JSON")
+        je.encodeSerializableValue(listDelegate, value)
+    }
+
+    private fun decodeToolCall(element: JsonElement): ToolCall? {
+        val obj = element as? JsonObject ?: return null
+        val function = obj["function"] as? JsonObject
+        val id = obj.stringValue("id")
+        val toolCallId = obj.stringValue("tool_call_id")
+            ?: obj.stringValue("toolCallId")
+        val name = obj.stringValue("name")
+            ?: obj.stringValue("tool_name")
+            ?: function?.stringValue("name")
+        val arguments = (obj["arguments"]
+            ?: obj["tool_input"]
+            ?: obj["toolInput"]
+            ?: obj["input"]
+            ?: function?.get("arguments"))?.toToolArgumentString()
+
+        if (id == null && toolCallId == null && name == null && arguments == null) {
+            return null
+        }
+        return ToolCall(
+            id = id,
+            toolCallId = toolCallId,
+            name = name,
+            arguments = arguments,
+        )
+    }
+
+    private fun JsonObject.stringValue(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonElement.toToolArgumentString(): String = when (this) {
+        is JsonPrimitive -> contentOrNull ?: toString()
+        else -> toString()
     }
 }
 

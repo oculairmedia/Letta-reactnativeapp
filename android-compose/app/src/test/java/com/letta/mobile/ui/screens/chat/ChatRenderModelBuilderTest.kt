@@ -53,6 +53,22 @@ class ChatRenderModelBuilderTest {
     }
 
     @Test
+    fun `empty tool-call batch is not dropped as reasoning echo`() {
+        val messages = listOf(
+            reasoning("r1", content = ""),
+            assistantToolCall(
+                id = "tc1",
+                toolCalls = listOf(
+                    UiToolCall(name = "Bash", arguments = "{\"command\":\"a\"}", result = null),
+                    UiToolCall(name = "Bash", arguments = "{\"command\":\"b\"}", result = null),
+                ),
+            ),
+        )
+
+        assertEquals(listOf("r1", "tc1"), dedupeReasoningAssistantEchoes(messages).map { it.id })
+    }
+
+    @Test
     fun `simple mode keeps user assistant and errors but filters reasoning`() {
         val messages = listOf(
             user("u1"),
@@ -115,7 +131,7 @@ class ChatRenderModelBuilderTest {
     }
 
     @Test
-    fun `render model adds first assistant latency from previous user timestamp`() {
+    fun `render model adds latency to final assistant response from previous user timestamp`() {
         val model = buildChatRenderModel(
             messages = listOf(
                 user("u1", ts = "2026-04-19T12:00:00Z"),
@@ -125,8 +141,25 @@ class ChatRenderModelBuilderTest {
             mode = ChatDisplayMode.Interactive,
         )
 
-        assertEquals(2500L, model.visibleMessages.first { it.id == "a1" }.latencyMs)
-        assertEquals(null, model.visibleMessages.first { it.id == "a2" }.latencyMs)
+        assertEquals(null, model.visibleMessages.first { it.id == "a1" }.latencyMs)
+        assertEquals(4000L, model.visibleMessages.first { it.id == "a2" }.latencyMs)
+    }
+
+    @Test
+    fun `render model puts tool run latency on final assistant response`() {
+        val model = buildChatRenderModel(
+            messages = listOf(
+                user("u1", ts = "2026-04-19T12:00:00Z"),
+                assistantToolCall("tc1", ts = "2026-04-19T12:00:01Z"),
+                assistantToolCall("tc2", ts = "2026-04-19T12:00:02Z"),
+                assistant("a1", content = "final answer", ts = "2026-04-19T12:00:06Z"),
+            ),
+            mode = ChatDisplayMode.Interactive,
+        )
+
+        assertEquals(null, model.visibleMessages.first { it.id == "tc1" }.latencyMs)
+        assertEquals(null, model.visibleMessages.first { it.id == "tc2" }.latencyMs)
+        assertEquals(6000L, model.visibleMessages.first { it.id == "a1" }.latencyMs)
     }
 
     @Test
@@ -228,18 +261,19 @@ class ChatRenderModelBuilderTest {
     private fun assistantToolCall(
         id: String,
         ts: String = "2026-04-19T12:00:00Z",
-    ) = UiMessage(
-        id = id,
-        role = "assistant",
-        content = "",
-        timestamp = ts,
-        toolCalls = listOf(
+        toolCalls: List<UiToolCall> = listOf(
             UiToolCall(
                 name = "Bash",
                 arguments = "{\"command\":\"pwd\"}",
                 result = "/tmp\n",
             )
         ),
+    ) = UiMessage(
+        id = id,
+        role = "assistant",
+        content = "",
+        timestamp = ts,
+        toolCalls = toolCalls,
     )
 
     private fun reasoning(

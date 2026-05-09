@@ -179,6 +179,7 @@ class RemoteBotSession @AssistedInject constructor(
                             toolName = chunk.toolName,
                             toolCallId = chunk.toolCallId,
                             toolInput = chunk.toolInput,
+                            toolCalls = chunk.toolCalls,
                             isError = chunk.isError,
                         )
                     )

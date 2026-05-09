@@ -3,6 +3,7 @@ package com.letta.mobile.bot.core
 import com.letta.mobile.bot.channel.ChannelMessage
 import com.letta.mobile.bot.protocol.BotStreamEvent
 import com.letta.mobile.bot.channel.DeliveryResult
+import com.letta.mobile.data.model.ToolCall
 import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -123,6 +124,7 @@ data class BotResponseChunk(
     val toolName: String? = null,
     val toolCallId: String? = null,
     val toolInput: JsonElement? = null,
+    val toolCalls: List<ToolCall>? = null,
     val isError: Boolean = false,
 )
 

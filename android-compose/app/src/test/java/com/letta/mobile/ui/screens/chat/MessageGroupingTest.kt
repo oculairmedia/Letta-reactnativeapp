@@ -257,6 +257,32 @@ class MessageGroupingTest {
     }
 
     @Test
+    fun `non-contiguous RunBlocks with repeated leading runId get unique keys`() {
+        // Search/highlight hydration can surface two separate assistant groups
+        // whose newest message shares the same runId, while each group also
+        // contains tool/reasoning sub-runs. The groups must remain collapsed
+        // for realtime tool visibility, but their LazyColumn keys cannot both
+        // be `run-r1`.
+        val items = groupMessagesForRender(
+            listOf(
+                assistant("new-tool", runId = "r1") to GroupPosition.First,
+                assistant("new-text", runId = "r2") to GroupPosition.Last,
+                user("u1") to GroupPosition.None,
+                assistant("old-tool", runId = "r1") to GroupPosition.First,
+                assistant("old-text", runId = "r3") to GroupPosition.Last,
+            ),
+        )
+
+        val keys = items.map { it.key }
+        assertEquals(keys.size, keys.toSet().size)
+        assertEquals("run-r1-new-tool", items[0].key)
+        assertEquals("msg-u1", items[1].key)
+        assertEquals("run-r1-old-tool", items[2].key)
+        assertTrue(items[0] is ChatRenderItem.RunBlock)
+        assertTrue(items[2] is ChatRenderItem.RunBlock)
+    }
+
+    @Test
     fun `cross-runId assistants do not merge across user messages`() {
         // User message breaks assistant contiguity.
         val items = groupMessagesForRender(

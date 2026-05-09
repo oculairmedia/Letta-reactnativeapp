@@ -112,6 +112,7 @@ class TimelineSyncLoop(
     private val scope: CoroutineScope,
     private val logTag: String = "TimelineSync",
     private val ingestedListener: IngestedMessageListener? = null,
+    private val ingestedListenerProvider: (() -> IngestedMessageListener?)? = null,
     // mge5.24: persist Locals with image attachments so they survive app
     // restarts even though the Letta server doesn't store user_message
     // records carrying non-text content. Defaults to no-op for tests that
@@ -224,15 +225,26 @@ class TimelineSyncLoop(
                     TimelineMessageType.TOOL_CALL -> {
                         val byResponse = ev.approvalRequestId != null && ev.approvalRequestId in decidedIds
                         val byReturn = ev.toolCalls.any { it.effectiveId in returnedToolCallIds }
-                        val matchingReturn = ev.toolCalls.asSequence()
-                            .mapNotNull { tc -> toolReturnsByCallId[tc.effectiveId] }
-                            .firstOrNull()
+                        val matchingReturns = ev.toolCalls.mapNotNull { tc ->
+                            val callId = tc.effectiveId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                            val toolReturn = toolReturnsByCallId[callId] ?: return@mapNotNull null
+                            callId to toolReturn
+                        }
+                        val matchingReturn = matchingReturns.firstOrNull()?.second
+                        val returnContentByCallId = ev.toolReturnContentByCallId + matchingReturns.mapNotNull { (callId, toolReturn) ->
+                            toolReturn.toolReturn.funcResponse?.let { callId to it }
+                        }.toMap()
+                        val returnIsErrorByCallId = ev.toolReturnIsErrorByCallId + matchingReturns.associate { (callId, toolReturn) ->
+                            callId to (toolReturn.isErr == true || toolReturn.status == "error")
+                        }
                         ev.copy(
                             approvalDecided = byResponse || byReturn || ev.approvalDecided,
                             toolReturnContent = matchingReturn?.toolReturn?.funcResponse
                                 ?: ev.toolReturnContent,
                             toolReturnIsError = matchingReturn?.let { it.isErr == true || it.status == "error" }
                                 ?: ev.toolReturnIsError,
+                            toolReturnContentByCallId = returnContentByCallId,
+                            toolReturnIsErrorByCallId = returnIsErrorByCallId,
                         )
                     }
                     else -> ev
@@ -786,18 +798,29 @@ class TimelineSyncLoop(
             if (ev !is TimelineEvent.Confirmed || ev.messageType != TimelineMessageType.TOOL_CALL) {
                 return@map ev
             }
-            val matchingReturn = ev.toolCalls.asSequence()
-                .mapNotNull { tc -> returnsByCallId[tc.effectiveId] }
-                .firstOrNull()
+            val matchingReturns = ev.toolCalls.mapNotNull { tc ->
+                val callId = tc.effectiveId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val toolReturn = returnsByCallId[callId] ?: return@mapNotNull null
+                callId to toolReturn
+            }
+            val matchingReturn = matchingReturns.firstOrNull()?.second
             val byResponse = ev.approvalRequestId != null && ev.approvalRequestId in decidedIds
             val byReturn = ev.toolCalls.any { it.effectiveId in returnedToolCallIds }
             if (matchingReturn == null && !byResponse && !byReturn) return@map ev
+            val returnContentByCallId = ev.toolReturnContentByCallId + matchingReturns.mapNotNull { (callId, toolReturn) ->
+                toolReturn.toolReturn.funcResponse?.let { callId to it }
+            }.toMap()
+            val returnIsErrorByCallId = ev.toolReturnIsErrorByCallId + matchingReturns.associate { (callId, toolReturn) ->
+                callId to (toolReturn.isErr == true || toolReturn.status == "error")
+            }
             ev.copy(
                 approvalDecided = byResponse || byReturn || ev.approvalDecided,
                 toolReturnContent = matchingReturn?.toolReturn?.funcResponse
                     ?: ev.toolReturnContent,
                 toolReturnIsError = matchingReturn?.let { it.isErr == true || it.status == "error" }
                     ?: ev.toolReturnIsError,
+                toolReturnContentByCallId = returnContentByCallId,
+                toolReturnIsErrorByCallId = returnIsErrorByCallId,
             )
         }
         if (newEvents !== _state.value.events) {
@@ -954,9 +977,10 @@ class TimelineSyncLoop(
 
         private const val REQUEST_PREVIEW_MAX_CHARS = 2_048
 
-        // Most sends produce 1-3 server messages (user echo + assistant + maybe
-        // reasoning). Fetching only what we need keeps reconcile snappy.
-        private const val RECONCILE_LIMIT = 10
+        // Batch tool runs can persist dozens of tool_call/tool_return records
+        // after a single approval. Keep reconcile wide enough to attach every
+        // return to its call instead of only the most recent handful.
+        private const val RECONCILE_LIMIT = 200
 
         // letta-mobile-j44j: bounded retry on transient reconcile failures.
         // 3 attempts → ~200+400+800ms ≈ 1.4s worst-case before surfacing
@@ -1273,10 +1297,17 @@ class TimelineSyncLoop(
                 if (match != null) {
                     val body = message.toolReturn.funcResponse ?: ""
                     val isError = message.isErr == true || message.status == "error"
+                    val contentByCallId = if (body.isEmpty()) {
+                        match.toolReturnContentByCallId
+                    } else {
+                        match.toolReturnContentByCallId + (tcid to body)
+                    }
                     val updated = match.copy(
                         approvalDecided = true,  // tool ran → approved
                         toolReturnContent = body.ifEmpty { match.toolReturnContent },
                         toolReturnIsError = isError,
+                        toolReturnContentByCallId = contentByCallId,
+                        toolReturnIsErrorByCallId = match.toolReturnIsErrorByCallId + (tcid to isError),
                     )
                     _state.value = _state.value.replaceByServerId(updated)
                     _events.emit(TimelineSyncEvent.StreamEventIngested(match.serverId, message.messageType))
@@ -1391,6 +1422,8 @@ class TimelineSyncLoop(
                 approvalDecided = existing.approvalDecided || confirmed.approvalDecided,
                 toolReturnContent = confirmed.toolReturnContent ?: existing.toolReturnContent,
                 toolReturnIsError = confirmed.toolReturnIsError || existing.toolReturnIsError,
+                toolReturnContentByCallId = existing.toolReturnContentByCallId + confirmed.toolReturnContentByCallId,
+                toolReturnIsErrorByCallId = existing.toolReturnIsErrorByCallId + confirmed.toolReturnIsErrorByCallId,
                 approvalRequestId = confirmed.approvalRequestId ?: existing.approvalRequestId,
                 source = existing.source,
             )
@@ -1468,7 +1501,7 @@ class TimelineSyncLoop(
         val mt = message.messageType
         if (mt == "assistant_message" || mt == "tool_return_message") {
             try {
-                ingestedListener?.onMessageIngested(
+                (ingestedListenerProvider?.invoke() ?: ingestedListener)?.onMessageIngested(
                     conversationId = conversationId,
                     serverId = confirmed.serverId,
                     messageType = mt,

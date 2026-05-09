@@ -6,17 +6,8 @@ import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -327,7 +318,7 @@ private fun MessageBubbleSurface(
     val isPinchingForBubble = LocalChatIsPinching.current
     val bubbleSizeAnimation = if (isLastAssistant && !isPinchingForBubble) {
         Modifier.animateContentSize(
-            animationSpec = tween(durationMillis = 60, easing = LinearEasing),
+            animationSpec = ChatMotion.streamingSizeSpec,
         )
     } else {
         Modifier
@@ -389,12 +380,14 @@ private fun MessageBubbleSurface(
 
             val approvalRequest = message.approvalRequest
             if (approvalRequest != null) {
-                ApprovalRequestCard(
-                    approval = approvalRequest,
-                    isSubmitting = approvalInFlight,
-                    onDecision = onApprovalDecision,
-                )
-                return@Column
+                if (message.toolCalls.isNullOrEmpty()) {
+                    ApprovalRequestCard(
+                        approval = approvalRequest,
+                        isSubmitting = approvalInFlight,
+                        onDecision = onApprovalDecision,
+                    )
+                    return@Column
+                }
             }
 
             if (message.approvalResponse != null) {
@@ -430,6 +423,13 @@ private fun MessageBubbleSurface(
                     modifier = Modifier,
                     onGeneratedUiMessage = onGeneratedUiMessage,
                     isStreaming = isLastAssistant,
+                )
+            }
+            if (!message.toolCalls.isNullOrEmpty()) {
+                ApprovalRequestControls(
+                    approval = approvalRequest,
+                    isSubmitting = approvalInFlight,
+                    onDecision = onApprovalDecision,
                 )
             }
             if (!isLastAssistant && message.role == "assistant" && !message.isReasoning) {
@@ -477,9 +477,6 @@ private fun ApprovalRequestCard(
     isSubmitting: Boolean,
     onDecision: ((String, List<String>, Boolean, String?) -> Unit)?,
 ) {
-    var showRejectDialog by remember { mutableStateOf(false) }
-    val toolCallIds = remember(approval) { approval.toolCalls.map { it.toolCallId } }
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.screen_chat_approval_request_title),
@@ -496,30 +493,64 @@ private fun ApprovalRequestCard(
                     name = toolCall.name,
                     arguments = toolCall.arguments,
                     result = null,
+                    toolCallId = toolCall.toolCallId,
                 ),
+                approvalStateOverride = ToolApprovalState.RequestingInput,
                 keepExpanded = true,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = { showRejectDialog = true },
-                enabled = !isSubmitting && onDecision != null,
-            ) {
-                Text(stringResource(R.string.screen_chat_approval_reject_action))
-            }
-            androidx.compose.material3.Button(
-                onClick = {
-                    onDecision?.invoke(approval.requestId, toolCallIds, true, null)
-                },
-                enabled = !isSubmitting && onDecision != null,
+        ApprovalActionRow(
+            approval = approval,
+            isSubmitting = isSubmitting,
+            onDecision = onDecision,
+        )
+    }
+}
+
+@Composable
+private fun ApprovalRequestControls(
+    approval: UiApprovalRequest?,
+    isSubmitting: Boolean,
+    onDecision: ((String, List<String>, Boolean, String?) -> Unit)?,
+) {
+    var rememberedApproval by remember { mutableStateOf(approval) }
+    LaunchedEffect(approval) {
+        if (approval != null) rememberedApproval = approval
+    }
+
+    AnimatedVisibility(
+        visible = approval != null && rememberedApproval != null,
+        enter = ChatMotion.expandEnter(),
+        exit = ChatMotion.expandExit(),
+    ) {
+        rememberedApproval?.let { visibleApproval ->
+            Column(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    if (isSubmitting) stringResource(R.string.screen_chat_approval_submitting)
-                    else stringResource(R.string.screen_chat_approval_approve_action)
+                    text = stringResource(R.string.screen_chat_approval_request_body),
+                    style = MaterialTheme.chatTypography.toolDetail,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ApprovalActionRow(
+                    approval = visibleApproval,
+                    isSubmitting = isSubmitting,
+                    onDecision = onDecision,
                 )
             }
         }
     }
+}
+
+@Composable
+private fun ApprovalActionRow(
+    approval: UiApprovalRequest,
+    isSubmitting: Boolean,
+    onDecision: ((String, List<String>, Boolean, String?) -> Unit)?,
+) {
+    var showRejectDialog by remember { mutableStateOf(false) }
+    val toolCallIds = remember(approval) { approval.toolCalls.map { it.toolCallId } }
 
     TextInputDialog(
         show = showRejectDialog,
@@ -537,6 +568,26 @@ private fun ApprovalRequestCard(
         minLines = 3,
         validate = { true },
     )
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(
+            onClick = { showRejectDialog = true },
+            enabled = !isSubmitting && onDecision != null,
+        ) {
+            Text(stringResource(R.string.screen_chat_approval_reject_action))
+        }
+        androidx.compose.material3.Button(
+            onClick = {
+                onDecision?.invoke(approval.requestId, toolCallIds, true, null)
+            },
+            enabled = !isSubmitting && onDecision != null,
+        ) {
+            Text(
+                if (isSubmitting) stringResource(R.string.screen_chat_approval_submitting)
+                else stringResource(R.string.screen_chat_approval_approve_action)
+            )
+        }
+    }
 }
 
 @Composable
@@ -679,9 +730,9 @@ internal fun MessageReasoning(
     val sizeAnimation = when {
         isPinching -> Modifier
         isStreaming -> Modifier.animateContentSize(
-            animationSpec = tween(durationMillis = 60, easing = LinearEasing),
+            animationSpec = ChatMotion.streamingSizeSpec,
         )
-        else -> Modifier.animateContentSize()
+        else -> Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec)
     }
     Column(
         modifier = modifier
@@ -702,8 +753,8 @@ internal fun MessageReasoning(
         ) {
             AnimatedVisibility(
                 visible = isStreaming,
-                enter = fadeIn() + expandHorizontally(),
-                exit = fadeOut() + shrinkHorizontally(),
+                enter = ChatMotion.horizontalEnter(),
+                exit = ChatMotion.horizontalExit(),
             ) {
                 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
                 LoadingIndicator(
@@ -740,8 +791,8 @@ internal fun MessageReasoning(
 
         AnimatedVisibility(
             visible = !isCollapsed,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 4 }) + expandVertically(),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 4 }) + shrinkVertically(),
+            enter = ChatMotion.verticalEnter(slideDivisor = 4),
+            exit = ChatMotion.verticalExit(slideDivisor = 4),
         ) {
             val lineColor = if (isStreaming) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
@@ -807,27 +858,60 @@ internal fun MessageToolCalls(
     toolCalls: kotlinx.collections.immutable.ImmutableList<UiToolCall>,
     modifier: Modifier = Modifier,
     animateEntrance: Boolean = false,
+    approvalRequest: UiApprovalRequest? = null,
 ) {
+    val pendingApprovalToolCallIds = remember(approvalRequest) {
+        approvalRequest?.toolCalls
+            ?.mapTo(mutableSetOf()) { it.toolCallId }
+            .orEmpty()
+    }
+    if (shouldUseCompactToolCallGroup(toolCalls)) {
+        if (animateEntrance) {
+            ToolCallEntrance {
+                CompactToolCallGroupCard(
+                    toolCalls = toolCalls,
+                    pendingApprovalToolCallIds = pendingApprovalToolCallIds,
+                    modifier = modifier,
+                )
+            }
+        } else {
+            CompactToolCallGroupCard(
+                toolCalls = toolCalls,
+                pendingApprovalToolCallIds = pendingApprovalToolCallIds,
+                modifier = modifier,
+            )
+        }
+        return
+    }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        toolCalls.forEach { toolCall ->
-            key(toolCall.toolCallMotionKey()) {
+        toolCalls.forEachIndexed { index, toolCall ->
+            key(index, toolCall.toolCallMotionKey()) {
                 if (animateEntrance) {
                     ToolCallEntrance {
-                        ToolCallCard(toolCall = toolCall)
+                        ToolCallCard(
+                            toolCall = toolCall,
+                            approvalStateOverride = toolCall.approvalState(pendingApprovalToolCallIds),
+                        )
                     }
                 } else {
-                    ToolCallCard(toolCall = toolCall)
+                    ToolCallCard(
+                        toolCall = toolCall,
+                        approvalStateOverride = toolCall.approvalState(pendingApprovalToolCallIds),
+                    )
                 }
             }
         }
     }
 }
 
+internal fun shouldUseCompactToolCallGroup(toolCalls: List<UiToolCall>): Boolean =
+    toolCalls.size > 1
+
 private fun UiToolCall.toolCallMotionKey(): String = buildString {
-    append(name)
+    append(toolCallId ?: name)
     append('|')
     append(arguments.hashCode())
 }
@@ -839,46 +923,191 @@ private fun ToolCallEntrance(content: @Composable () -> Unit) {
 
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 140)) +
-            slideInVertically(
-                animationSpec = tween(durationMillis = 180),
-                initialOffsetY = { it / 10 },
-            ) +
-            expandVertically(
-                animationSpec = tween(durationMillis = 180),
-                expandFrom = Alignment.Top,
-            ),
-        exit = fadeOut(animationSpec = tween(durationMillis = 90)) +
-            shrinkVertically(animationSpec = tween(durationMillis = 90)),
+        enter = ChatMotion.verticalEnter(slideDivisor = 10),
+        exit = ChatMotion.expandExit(),
     ) {
         content()
     }
 }
 
+@Composable
+private fun CompactToolCallGroupCard(
+    toolCalls: List<UiToolCall>,
+    pendingApprovalToolCallIds: Set<String>,
+    modifier: Modifier = Modifier,
+) {
+    val isPinchingForCard = LocalChatIsPinching.current
+    Card(
+        modifier = modifier.then(
+            if (isPinchingForCard) Modifier
+            else Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec),
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${toolCalls.size} tool calls",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                val completedCount = toolCalls.count { it.result != null }
+                if (completedCount > 0) {
+                    ToolMetaChip(text = "$completedCount/${toolCalls.size} done")
+                }
+            }
+            toolCalls.forEachIndexed { index, toolCall ->
+                key(index, toolCall.toolCallMotionKey()) {
+                    CompactToolCallRow(
+                        toolCall = toolCall,
+                        approvalState = toolCall.approvalState(pendingApprovalToolCallIds),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactToolCallRow(
+    toolCall: UiToolCall,
+    approvalState: ToolApprovalState?,
+) {
+    val fontScale = LocalChatFontScale.current
+    val display = remember(toolCall.name, toolCall.arguments) {
+        ToolDisplayRegistry.resolve(toolCall.name, toolCall.arguments)
+    }
+    val summary = remember(toolCall.name, toolCall.arguments, toolCall.result, toolCall.status, display.detailLine) {
+        compactToolCallSummary(toolCall, display.detailLine)
+    }
+    val isError = ToolReturnStatus.isError(toolCall.status)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(display.emoji, style = MaterialTheme.chatTypography.codeBlock)
+        Text(
+            text = toolCall.name,
+            style = MaterialTheme.typography.chatBubbleSender
+                .copy(fontFamily = MaterialTheme.chatTypography.codeBlock.fontFamily)
+                .scaledBy(fontScale),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.42f),
+        )
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.listItemSupporting
+                .copy(fontFamily = MaterialTheme.chatTypography.codeBlock.fontFamily)
+                .scaledBy(fontScale),
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.58f),
+        )
+        if (approvalState != null) {
+            AnimatedToolApprovalChip(state = approvalState)
+        }
+        when {
+            isError -> Icon(
+                imageVector = LettaIcons.Error,
+                contentDescription = "Error",
+                modifier = Modifier.size(LettaIconSizing.Inline),
+                tint = MaterialTheme.colorScheme.error,
+            )
+            toolCall.result != null -> Icon(
+                imageVector = LettaIcons.CheckCircle,
+                contentDescription = "Success",
+                modifier = Modifier.size(LettaIconSizing.Inline),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+private fun compactToolCallSummary(toolCall: UiToolCall, displayDetailLine: String?): String {
+    val result = toolCall.result?.trim()?.takeIf { it.isNotBlank() }
+    if (result != null) return "${if (ToolReturnStatus.isError(toolCall.status)) "Error" else "Result"}: $result"
+    val argumentSummary = summarizeToolArguments(toolCall.arguments)
+    if (argumentSummary != null) return "${argumentSummary.label}: ${argumentSummary.value}"
+    return displayDetailLine ?: if (toolCall.result == null) "Running" else "Completed"
+}
+
+private enum class ToolApprovalState {
+    RequestingInput,
+    Approved,
+    Rejected,
+}
+
+private fun UiToolApprovalDecision.toToolApprovalState(): ToolApprovalState = when (this) {
+    UiToolApprovalDecision.Approved -> ToolApprovalState.Approved
+    UiToolApprovalDecision.Rejected -> ToolApprovalState.Rejected
+}
+
+private fun UiToolCall.approvalState(pendingApprovalToolCallIds: Set<String>): ToolApprovalState? {
+    val id = toolCallId?.takeIf { it.isNotBlank() }
+    if (id != null && id in pendingApprovalToolCallIds) {
+        return ToolApprovalState.RequestingInput
+    }
+    return approvalDecision?.toToolApprovalState()
+}
+
 /**
- * Compact, inline approval chip shown in the `ToolCallCard` header when a
- * pre-tool approval decision was folded onto the call (letta-mobile-23h5).
- *
- * Keeps the visual footprint tiny (one word + a translucent pill) so it
- * doesn't fight with the tool label.
+ * Compact, inline approval chip shown in the `ToolCallCard` header. Pending
+ * requests and folded decisions share the same slot so the chip can crossfade
+ * from "requesting input" to "approved" instead of popping in as new chrome.
  */
 @Composable
-private fun ApprovalChip(decision: UiToolApprovalDecision) {
-    val approved = decision == UiToolApprovalDecision.Approved
-    val container = if (approved) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+private fun AnimatedToolApprovalChip(state: ToolApprovalState?) {
+    AnimatedVisibility(
+        visible = state != null,
+        enter = ChatMotion.horizontalEnter(),
+        exit = ChatMotion.horizontalExit(),
+    ) {
+        Crossfade(
+            targetState = state,
+            animationSpec = ChatMotion.chipCrossfadeSpec,
+            label = "Tool approval chip",
+        ) { targetState ->
+            targetState?.let { ToolApprovalChip(it) }
+        }
     }
-    val text = if (approved) {
-        stringResource(R.string.screen_chat_tool_approval_chip_approved)
-    } else {
-        stringResource(R.string.screen_chat_tool_approval_chip_rejected)
+}
+
+@Composable
+private fun ToolApprovalChip(state: ToolApprovalState) {
+    val container = when (state) {
+        ToolApprovalState.RequestingInput -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
+        ToolApprovalState.Approved -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        ToolApprovalState.Rejected -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
     }
-    val tint = if (approved) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.error
+    val text = when (state) {
+        ToolApprovalState.RequestingInput -> stringResource(R.string.screen_chat_tool_approval_chip_requesting_input)
+        ToolApprovalState.Approved -> stringResource(R.string.screen_chat_tool_approval_chip_approved)
+        ToolApprovalState.Rejected -> stringResource(R.string.screen_chat_tool_approval_chip_rejected)
+    }
+    val tint = when (state) {
+        ToolApprovalState.RequestingInput -> MaterialTheme.colorScheme.onSecondaryContainer
+        ToolApprovalState.Approved -> MaterialTheme.colorScheme.primary
+        ToolApprovalState.Rejected -> MaterialTheme.colorScheme.error
     }
     Surface(
         shape = MaterialTheme.shapes.small,
@@ -942,6 +1171,7 @@ private fun ToolSummaryLine(
 @Composable
 private fun ToolCallCard(
     toolCall: UiToolCall,
+    approvalStateOverride: ToolApprovalState? = null,
     keepExpanded: Boolean = false,
 ) {
     val fontScale = LocalChatFontScale.current
@@ -960,6 +1190,7 @@ private fun ToolCallCard(
     val isError = ToolReturnStatus.isError(toolCall.status)
     val codeStyle = MaterialTheme.chatTypography.codeBlock
     val showDetails = keepExpanded || expanded
+    val approvalState = approvalStateOverride ?: toolCall.approvalDecision?.toToolApprovalState()
     val compactDetail = remember(
         display.label,
         display.detailLine,
@@ -988,7 +1219,11 @@ private fun ToolCallCard(
     // letta-mobile-5e0f.r2: gate animateContentSize on !isPinching.
     val isPinchingForCard = LocalChatIsPinching.current
     Card(
-        modifier = if (isPinchingForCard) Modifier else Modifier.animateContentSize(),
+        modifier = if (isPinchingForCard) {
+            Modifier
+        } else {
+            Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec)
+        },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         ),
@@ -1018,8 +1253,10 @@ private fun ToolCallCard(
                 // letta-mobile-23h5: folded-in approval decision. Rendered as
                 // a compact chip so the user can see "approved" / "rejected"
                 // without the old stack of redundant standalone pill bubbles.
-                toolCall.approvalDecision?.let { decision ->
-                    ApprovalChip(decision = decision)
+                // Pending approval requests use the same slot so the tool card
+                // animates from "requesting input" to "approved".
+                if (approvalState != null) {
+                    AnimatedToolApprovalChip(state = approvalState)
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 executionTimeText?.let { time ->
@@ -1076,8 +1313,8 @@ private fun ToolCallCard(
             // Expanded content
             AnimatedVisibility(
                 visible = showDetails,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 4 }) + expandVertically(),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 4 }) + shrinkVertically(),
+                enter = ChatMotion.verticalEnter(slideDivisor = 4),
+                exit = ChatMotion.verticalExit(slideDivisor = 4),
             ) {
                 Column(modifier = Modifier.padding(top = 4.dp)) {
                     // Tool name and timing
@@ -1170,7 +1407,11 @@ private fun ToolCallCard(
                             maxLines = if (resultExpanded) Int.MAX_VALUE else 2,
                             overflow = TextOverflow.Ellipsis,
                             // letta-mobile-5e0f.r2: gate animateContentSize on !isPinching.
-                            modifier = if (isPinchingForCard) Modifier else Modifier.animateContentSize(),
+                            modifier = if (isPinchingForCard) {
+                                Modifier
+                            } else {
+                                Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec)
+                            },
                         )
                     }
                 }

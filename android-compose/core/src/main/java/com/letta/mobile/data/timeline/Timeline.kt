@@ -83,6 +83,9 @@ sealed class TimelineEvent {
         val approvalDecided: Boolean = false,
         val toolReturnContent: String? = null,
         val toolReturnIsError: Boolean = false,
+        val toolReturnContentByCallId: Map<String, String> = emptyMap(),
+        val toolReturnIsErrorByCallId: Map<String, Boolean> = emptyMap(),
+        val toolStartedAtByCallId: Map<String, Instant> = emptyMap(),
         val reasoningContent: String? = null,
     ) : TimelineEvent()
 
@@ -118,6 +121,8 @@ sealed class TimelineEvent {
         // collapsible output in a single card.
         val toolReturnContent: String? = null,
         val toolReturnIsError: Boolean = false,
+        val toolReturnContentByCallId: Map<String, String> = emptyMap(),
+        val toolReturnIsErrorByCallId: Map<String, Boolean> = emptyMap(),
         override val source: MessageSource = MessageSource.LETTA_SERVER,
     ) : TimelineEvent()
 }

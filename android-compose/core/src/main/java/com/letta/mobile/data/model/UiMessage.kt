@@ -66,6 +66,7 @@ data class UiToolCall(
      * timestamp when both are available.
      */
     val executionTimeMs: Long? = null,
+    val toolCallId: String? = null,
     /**
      * Folded-in approval outcome for this specific tool call, when the mapper
      * absorbed a bare `approve=true` / `approve=false` `APPROVAL_RESPONSE`

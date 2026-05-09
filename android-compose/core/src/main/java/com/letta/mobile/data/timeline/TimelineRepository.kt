@@ -85,7 +85,7 @@ open class TimelineRepository @Inject constructor(
                 messageApi = messageApi,
                 conversationId = conversationId,
                 scope = scope,
-                ingestedListener = ingestedListener,
+                ingestedListenerProvider = { ingestedListener },
                 pendingLocalStore = pendingLocalStore,
             )
             loops[conversationId] = created

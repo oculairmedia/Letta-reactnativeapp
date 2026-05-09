@@ -845,6 +845,54 @@ class TimelineSyncLoopTest {
     }
 
     @Test
+    fun `hydrate attaches batched tool returns by tool call id`() = runBlocking {
+        val api = FakeSyncApi()
+        val callA = com.letta.mobile.data.model.ToolCall(
+            id = "toolu_a", name = "Bash", arguments = "{\"command\":\"a\"}",
+        )
+        val callB = com.letta.mobile.data.model.ToolCall(
+            id = "toolu_b", name = "Bash", arguments = "{\"command\":\"b\"}",
+        )
+        api.addStoredMessage(
+            com.letta.mobile.data.model.ApprovalRequestMessage(
+                id = "req-batch",
+                toolCalls = listOf(callA, callB),
+            )
+        )
+        api.addStoredMessage(
+            com.letta.mobile.data.model.ToolReturnMessage(
+                id = "ret-a",
+                toolCallId = "toolu_a",
+                toolReturnRaw = JsonPrimitive("a-output"),
+            )
+        )
+        api.addStoredMessage(
+            com.letta.mobile.data.model.ToolReturnMessage(
+                id = "ret-b",
+                toolCallId = "toolu_b",
+                toolReturnRaw = JsonPrimitive("b-output"),
+                status = "error",
+            )
+        )
+
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val sync = TimelineSyncLoop(api, "conv-batch", scope)
+        sync.hydrate()
+
+        val bubble = sync.state.value.events
+            .filterIsInstance<TimelineEvent.Confirmed>()
+            .single { it.messageType == TimelineMessageType.TOOL_CALL }
+        assertEquals("a-output", bubble.toolReturnContentByCallId["toolu_a"])
+        assertEquals("b-output", bubble.toolReturnContentByCallId["toolu_b"])
+        assertEquals(false, bubble.toolReturnIsErrorByCallId["toolu_a"])
+        assertEquals(true, bubble.toolReturnIsErrorByCallId["toolu_b"])
+        assertEquals("a-output", bubble.toolReturnContent)
+        assertTrue(bubble.approvalDecided)
+
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
     fun `streamed tool_return attaches to tool_call event and flips approvalDecided`() = runBlocking {
         val api = FakeSyncApi()
         val reqId = "req-2"
@@ -1244,6 +1292,73 @@ scope.coroutineContext.job.cancel()
 
         scope.coroutineContext.job.cancel()
     }
+
+    @Test
+    fun `stream subscriber resolves ingested listener dynamically`() = runTest {
+        val api = OneShotAssistantStreamApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        var listener: IngestedMessageListener? = null
+        val received = mutableListOf<String>()
+
+        TimelineSyncLoop(
+            messageApi = api,
+            conversationId = "conv-dynamic-listener",
+            scope = scope,
+            ingestedListenerProvider = { listener },
+        )
+
+        listener = object : IngestedMessageListener {
+            override suspend fun onMessageIngested(
+                conversationId: String,
+                serverId: String,
+                messageType: String?,
+                contentPreview: String?,
+            ) {
+                received += listOf(conversationId, serverId, messageType.orEmpty(), contentPreview.orEmpty())
+            }
+        }
+
+        repeat(10) {
+            if (received.isNotEmpty()) return@repeat
+            testScheduler.advanceTimeBy(100)
+            testScheduler.runCurrent()
+        }
+
+        assertEquals(
+            listOf("conv-dynamic-listener", "asst-dynamic", "assistant_message", "late listener works"),
+            received,
+        )
+        scope.coroutineContext.job.cancel()
+    }
+}
+
+private class OneShotAssistantStreamApi : MessageApi(mockk(relaxed = true)) {
+    private var opened = false
+
+    override suspend fun streamConversation(conversationId: String): ByteReadChannel {
+        if (opened) kotlinx.coroutines.awaitCancellation()
+        opened = true
+        val json = kotlinx.serialization.json.Json { encodeDefaults = true }
+        val message = AssistantMessage(
+            id = "asst-dynamic",
+            contentRaw = JsonPrimitive("late listener works"),
+        )
+        val sseBody = buildString {
+            append("data: ")
+            append(json.encodeToString(LettaMessage.serializer(), message))
+            append("\n\n")
+            append("data: [DONE]\n\n")
+        }
+        return ByteReadChannel(sseBody.toByteArray())
+    }
+
+    override suspend fun listConversationMessages(
+        conversationId: String,
+        limit: Int?,
+        after: String?,
+        order: String?,
+    ): List<LettaMessage> = emptyList()
 }
 
 private class SilentAfterHeartbeatApi : MessageApi(mockk(relaxed = true)) {
