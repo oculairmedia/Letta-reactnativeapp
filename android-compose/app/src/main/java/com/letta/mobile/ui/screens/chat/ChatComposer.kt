@@ -1,7 +1,5 @@
 package com.letta.mobile.ui.screens.chat
 
-import android.util.Base64
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,12 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.letta.mobile.R
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.ui.components.LettaInputBar
@@ -163,30 +163,39 @@ private fun AttachmentThumbnail(
     image: MessageContentPart.Image,
     onRemove: () -> Unit,
 ) {
-    val bitmap = remember(image.base64) {
-        runCatching {
-            val bytes = Base64.decode(image.base64, Base64.NO_WRAP)
-            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        }.getOrNull()
+    val context = LocalContext.current
+    val cacheKey = remember(image.base64, image.mediaType) {
+        chatAttachmentImageCacheKey(
+            base64 = image.base64,
+            mediaType = image.mediaType,
+        )
+    }
+    val dataUrl = remember(image.base64, image.mediaType) {
+        chatAttachmentImageDataUrl(
+            base64 = image.base64,
+            mediaType = image.mediaType,
+        )
+    }
+    val request = remember(context, dataUrl, cacheKey) {
+        ImageRequest.Builder(context)
+            .data(dataUrl)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
+            .build()
     }
 
     Box(modifier = Modifier.size(64.dp)) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
+        Surface(
+            modifier = Modifier.size(64.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            AsyncImage(
+                model = request,
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier.fillMaxWidth().size(64.dp),
                 contentScale = ContentScale.Crop,
             )
-        } else {
-            Surface(
-                modifier = Modifier.size(64.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {}
         }
         // Remove button overlay (top-right)
         Surface(

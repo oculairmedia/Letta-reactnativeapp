@@ -1,8 +1,5 @@
 package com.letta.mobile.ui.screens.chat
 
-import android.graphics.BitmapFactory
-import android.util.Base64
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,16 +11,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.letta.mobile.data.model.UiImageAttachment
 
 /**
  * Renders attached images for a chat bubble. Up to 4 images per row in a wrap-
  * style flow; for 1 image we use full-width, 2-up for 2, 3-up for 3+. Each
- * thumbnail decodes its base64 lazily and caches via remember.
+ * thumbnail delegates base64 decoding to Coil so image work stays off the
+ * Compose/UI thread and can be downsampled/cached by the image pipeline.
  */
 @Composable
 fun MessageAttachmentsGrid(
@@ -53,36 +52,57 @@ fun MessageAttachmentsGrid(
 
 @Composable
 private fun SingleImage(attachment: UiImageAttachment, modifier: Modifier = Modifier) {
-    val bitmap = remember(attachment.base64) { decodeBase64Image(attachment.base64) }
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = null,
-            modifier = modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        Placeholder(modifier = modifier.fillMaxWidth().height(220.dp))
-    }
+    AttachmentImage(
+        attachment = attachment,
+        modifier = modifier.fillMaxWidth().height(220.dp),
+    )
 }
 
 @Composable
 private fun ImageCell(attachment: UiImageAttachment, modifier: Modifier = Modifier) {
-    val bitmap = remember(attachment.base64) { decodeBase64Image(attachment.base64) }
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
+    AttachmentImage(
+        attachment = attachment,
+        modifier = modifier.height(120.dp),
+    )
+}
+
+@Composable
+private fun AttachmentImage(
+    attachment: UiImageAttachment,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val cacheKey = remember(attachment.base64, attachment.mediaType) {
+        chatAttachmentImageCacheKey(
+            base64 = attachment.base64,
+            mediaType = attachment.mediaType,
+        )
+    }
+    val dataUrl = remember(attachment.base64, attachment.mediaType) {
+        chatAttachmentImageDataUrl(
+            base64 = attachment.base64,
+            mediaType = attachment.mediaType,
+        )
+    }
+    val request = remember(context, dataUrl, cacheKey) {
+        ImageRequest.Builder(context)
+            .data(dataUrl)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
+            .build()
+    }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        AsyncImage(
+            model = request,
             contentDescription = null,
-            modifier = modifier
-                .height(120.dp)
-                .clip(RoundedCornerShape(8.dp)),
+            modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
         )
-    } else {
-        Placeholder(modifier = modifier.height(120.dp))
     }
 }
 
@@ -98,7 +118,8 @@ private fun Placeholder(modifier: Modifier = Modifier) {
     }
 }
 
-private fun decodeBase64Image(base64: String): android.graphics.Bitmap? = runCatching {
-    val bytes = Base64.decode(base64, Base64.NO_WRAP)
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-}.getOrNull()
+internal fun chatAttachmentImageDataUrl(base64: String, mediaType: String): String =
+    "data:$mediaType;base64,$base64"
+
+internal fun chatAttachmentImageCacheKey(base64: String, mediaType: String): String =
+    "chat-attachment-image:$mediaType:${base64.length}:${base64.hashCode()}"
