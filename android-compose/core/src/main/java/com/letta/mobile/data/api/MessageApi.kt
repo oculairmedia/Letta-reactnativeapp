@@ -9,6 +9,13 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -303,14 +310,49 @@ open class MessageApi @Inject constructor(
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl()
 
-        val response = client.post("$baseUrl/v1/agents/messages/search") {
+        val response = client.post("$baseUrl/v1/messages/search") {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
-        return response.body()
+        return response.body<JsonElement>().jsonArray.map { it.toMessageSearchResult() }
+    }
+
+    private fun JsonElement.toMessageSearchResult(): MessageSearchResult {
+        val result = jsonObject
+        val wrappedMessage = result["message"] as? JsonObject
+        if (wrappedMessage != null) {
+            val embeddedText = (result["embedded_text"] as? JsonPrimitive)?.contentOrNull
+                ?: wrappedMessage.extractSearchText()
+                ?: ""
+            return MessageSearchResult(embeddedText = embeddedText, message = wrappedMessage)
+        }
+
+        return MessageSearchResult(
+            embeddedText = result.extractSearchText().orEmpty(),
+            message = result,
+        )
+    }
+
+    private fun JsonObject.extractSearchText(): String? {
+        val content = this["content"]
+        return when (content) {
+            is JsonPrimitive -> content.contentOrNull
+            is JsonArray -> content.mapNotNull { part ->
+                when (part) {
+                    is JsonPrimitive -> part.contentOrNull
+                    is JsonObject -> (part["text"] as? JsonPrimitive)?.contentOrNull
+                        ?: (part["content"] as? JsonPrimitive)?.contentOrNull
+                    else -> null
+                }
+            }.joinToString(" ").takeIf { it.isNotBlank() }
+            is JsonObject -> (content["text"] as? JsonPrimitive)?.contentOrNull
+                ?: (content["content"] as? JsonPrimitive)?.contentOrNull
+            else -> null
+        } ?: (this["text"] as? JsonPrimitive)?.contentOrNull
+            ?: (this["embedded_text"] as? JsonPrimitive)?.contentOrNull
     }
 
     open suspend fun createBatch(request: CreateBatchMessagesRequest): Job {

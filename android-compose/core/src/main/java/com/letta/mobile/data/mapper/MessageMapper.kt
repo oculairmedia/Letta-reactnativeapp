@@ -351,6 +351,7 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
                     result = returnContent,
                     status = returnStatus,
                     executionTimeMs = executionTimeMs,
+                    toolCallId = msg.toolCallId,
                     approvalDecision = msg.toolCallId?.let { foldedApprovals[it]?.decision },
                 )
                 result.add(UiMessage(
@@ -407,6 +408,7 @@ fun List<AppMessage>.toUiMessages(): List<UiMessage> {
                     arguments = "",
                     result = msg.content.ifBlank { null },
                     status = msg.toolReturnStatus,
+                    toolCallId = msg.toolCallId,
                     approvalDecision = msg.toolCallId?.let { foldedApprovals[it]?.decision },
                 )
                 result.add(UiMessage(
@@ -507,10 +509,10 @@ fun AppMessage.toUiMessage(): UiMessage {
     }
     val toolCalls = when {
         messageType == MessageType.TOOL_CALL -> {
-            listOf(UiToolCall(name = toolName ?: "tool", arguments = content, result = null))
+            listOf(UiToolCall(name = toolName ?: "tool", arguments = content, result = null, toolCallId = toolCallId))
         }
         messageType == MessageType.TOOL_RETURN -> {
-            listOf(UiToolCall(name = toolName ?: "tool", arguments = "", result = content.ifBlank { null }))
+            listOf(UiToolCall(name = toolName ?: "tool", arguments = "", result = content.ifBlank { null }, toolCallId = toolCallId))
         }
         else -> null
     }

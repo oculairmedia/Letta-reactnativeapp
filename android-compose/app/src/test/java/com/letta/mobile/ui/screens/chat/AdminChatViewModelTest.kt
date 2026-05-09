@@ -12,8 +12,11 @@ import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.Conversation
+import com.letta.mobile.data.model.MessageSearchRequest
+import com.letta.mobile.data.model.MessageSearchResult
 import com.letta.mobile.data.model.MessageType
 import com.letta.mobile.data.model.ProjectBugReport
+import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
@@ -40,6 +43,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -50,6 +54,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -76,7 +82,7 @@ class AdminChatViewModelTest {
 
     private lateinit var internalBotClient: InternalBotClient
     private lateinit var clientModeChatSender: ClientModeChatSender
-    private lateinit var channelNotificationPublisher: com.letta.mobile.channel.ChannelNotificationPublisher
+    private lateinit var notificationDeliveryCoordinator: com.letta.mobile.channel.NotificationDeliveryCoordinator
     private lateinit var notificationReplyHandler: com.letta.mobile.channel.NotificationReplyHandler
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var clientModeEnabledFlow: MutableStateFlow<Boolean>
@@ -184,7 +190,7 @@ class AdminChatViewModelTest {
         clientModeAgentLocationRepository = mockk(relaxed = true)
         internalBotClient = mockk(relaxed = true)
         clientModeChatSender = mockk(relaxed = true)
-        channelNotificationPublisher = mockk(relaxed = true)
+        notificationDeliveryCoordinator = mockk(relaxed = true)
         notificationReplyHandler = mockk(relaxed = true)
         clientModeEnabledFlow = MutableStateFlow(false)
         activeConversationIds.clear()
@@ -269,7 +275,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
     }
@@ -322,6 +328,80 @@ class AdminChatViewModelTest {
         assertEquals(2, state.messages.size)
         assertEquals("Test Agent", state.agentName)
         assertFalse(state.isLoadingMessages)
+    }
+
+    @Test
+    fun `chat search scopes request to current agent and renders flat results`() = runTest {
+        var capturedRequest: MessageSearchRequest? = null
+        coEvery { messageRepository.searchMessages(any()) } answers {
+            capturedRequest = firstArg()
+            listOf(
+                MessageSearchResult(
+                    embeddedText = "needle hit",
+                    message = JsonObject(
+                        mapOf(
+                            "message_id" to JsonPrimitive("msg-1"),
+                            "agent_id" to JsonPrimitive("agent-1"),
+                            "conversation_id" to JsonPrimitive("conv-previous"),
+                            "message_type" to JsonPrimitive("assistant"),
+                            "content" to JsonPrimitive("needle hit"),
+                            "created_at" to JsonPrimitive("2026-05-08T12:00:00Z"),
+                        )
+                    ),
+                )
+            )
+        }
+
+        val vm = createViewModel(agentId = "agent-1", conversationId = "conv-current")
+        advanceUntilIdle()
+
+        vm.updateChatSearchQuery("needle")
+        advanceTimeBy(301L)
+        advanceUntilIdle()
+
+        assertEquals("needle", capturedRequest?.query)
+        assertEquals("fts", capturedRequest?.searchMode)
+        assertEquals(listOf("user", "assistant"), capturedRequest?.roles)
+        assertEquals("agent-1", capturedRequest?.agentId)
+        assertEquals(null, capturedRequest?.conversationId)
+        assertEquals(50, capturedRequest?.limit)
+        assertFalse(vm.uiState.value.isSearching)
+        assertEquals(1, vm.uiState.value.searchResults.size)
+        val result = vm.uiState.value.searchResults.single()
+        assertEquals("msg-1", result.messageId)
+        assertEquals("assistant", result.role)
+        assertEquals("needle hit", result.content)
+        assertEquals("conv-previous", result.conversationId)
+    }
+
+    @Test
+    fun `chat search shows current conversation matches before remote search returns`() = runTest {
+        messages = listOf(
+            TestData.appMessage(
+                id = "local-user",
+                messageType = MessageType.USER,
+                content = "needle from the visible conversation",
+            ),
+            TestData.appMessage(
+                id = "local-assistant",
+                messageType = MessageType.ASSISTANT,
+                content = "plain reply",
+            ),
+        )
+        coEvery { messageRepository.searchMessages(any()) } returns emptyList()
+
+        val vm = createViewModel(agentId = "agent-1", conversationId = "conv-1")
+        advanceUntilIdle()
+
+        vm.updateChatSearchQuery("needle")
+
+        val state = vm.uiState.value
+        assertTrue(state.isSearching)
+        assertEquals(1, state.searchResults.size)
+        val result = state.searchResults.single()
+        assertEquals("local-user", result.messageId)
+        assertEquals("conv-1", result.conversationId)
+        assertEquals("needle from the visible conversation", result.content)
     }
 
     @Test
@@ -1425,6 +1505,65 @@ class AdminChatViewModelTest {
     }
 
     @Test
+    fun `client mode renders websocket batched tool calls as one tool card`() = runTest {
+        clientModeEnabledFlow.value = true
+        every {
+            clientModeChatSender.streamMessage(any(), any(), any())
+        } returns flow {
+            emit(
+                BotStreamChunk(
+                    event = BotStreamEvent.TOOL_CALL,
+                    toolCalls = listOf(
+                        ToolCall(id = "call-a", name = "Bash", arguments = "{\"command\":\"a\"}"),
+                        ToolCall(id = "call-b", name = "Bash", arguments = "{\"command\":\"b\"}"),
+                    ),
+                    conversationId = "client-conv",
+                )
+            )
+            emit(
+                BotStreamChunk(
+                    event = BotStreamEvent.TOOL_RESULT,
+                    toolCallId = "call-a",
+                    text = "result a",
+                    isError = false,
+                    conversationId = "client-conv",
+                )
+            )
+            emit(
+                BotStreamChunk(
+                    event = BotStreamEvent.TOOL_RESULT,
+                    toolCallId = "call-b",
+                    text = "result b",
+                    isError = false,
+                    conversationId = "client-conv",
+                )
+            )
+            emit(BotStreamChunk(text = "Final answer", conversationId = "client-conv", done = true))
+        }
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 1L)
+        advanceUntilIdle()
+
+        vm.sendMessage("run batch")
+        advanceUntilIdle()
+
+        val toolMessages = vm.uiState.value.messages.filter { !it.toolCalls.isNullOrEmpty() }
+        assertEquals("batched result frames must update the original tool card", 1, toolMessages.size)
+        val calls = toolMessages.single().toolCalls!!
+        assertEquals(2, calls.size)
+        assertEquals("Bash", calls[0].name)
+        assertEquals("{\"command\":\"a\"}", calls[0].arguments)
+        assertEquals("result a", calls[0].result)
+        assertEquals("success", calls[0].status)
+        assertNotNull(calls[0].executionTimeMs)
+        assertEquals("Bash", calls[1].name)
+        assertEquals("{\"command\":\"b\"}", calls[1].arguments)
+        assertEquals("result b", calls[1].result)
+        assertEquals("success", calls[1].status)
+        assertNotNull(calls[1].executionTimeMs)
+    }
+
+    @Test
     fun `toggling client mode off keeps gateway-created fresh client conversation`() = runTest {
         clientModeEnabledFlow.value = true
         messages = listOf(
@@ -1490,7 +1629,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
@@ -1626,7 +1765,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
 
@@ -1730,7 +1869,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
@@ -1772,7 +1911,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
@@ -1824,7 +1963,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
@@ -1860,7 +1999,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
 
@@ -1891,7 +2030,7 @@ class AdminChatViewModelTest {
             clientModeChatSender,
             clientModeAgentLocationRepository,
             com.letta.mobile.channel.CurrentConversationTracker(),
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
@@ -2539,12 +2678,12 @@ class AdminChatViewModelTest {
     // ────────────────────────────────────────────────
 
     /**
-     * letta-mobile-9bs1 regression: when the user is actively viewing a
-     * conversation (tracker is set to its ID), no notification should be
-     * published during Client Mode streaming, even when done=true.
+     * letta-mobile-tb6v regression: Client Mode streaming submits notification
+     * candidates to the coordinator, but does not publish directly or inspect
+     * foreground state itself. The coordinator owns foreground suppression.
      */
     @Test
-    fun `client mode does not publish notification when user is viewing conversation`() = runTest {
+    fun `client mode routes final notification candidate through coordinator`() = runTest {
         clientModeEnabledFlow.value = true
         every { notificationReplyHandler.activeReplyStreams } returns MutableStateFlow(emptySet())
         val tracker = com.letta.mobile.channel.CurrentConversationTracker()
@@ -2567,15 +2706,62 @@ class AdminChatViewModelTest {
             settingsRepository, internalBotClient, clientModeChatSender,
             clientModeAgentLocationRepository,
             tracker,
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()
         vm.sendMessage("hi")
         advanceUntilIdle()
 
-        verify(exactly = 0) {
-            channelNotificationPublisher.publish(any())
+        verify(exactly = 1) {
+            notificationDeliveryCoordinator.submit(match {
+                it.source == com.letta.mobile.channel.NotificationCandidateSource.WebsocketClientMode &&
+                    it.phase == com.letta.mobile.channel.NotificationCandidatePhase.Final &&
+                    it.conversationId == "conv-1" &&
+                    it.previewText == "Hello" &&
+                    it.isFinal
+            })
+        }
+    }
+
+    @Test
+    fun `client mode publishes final notification when terminal frame omits conversation id`() = runTest {
+        clientModeEnabledFlow.value = true
+        every { notificationReplyHandler.activeReplyStreams } returns MutableStateFlow(emptySet())
+        val tracker = com.letta.mobile.channel.CurrentConversationTracker()
+
+        every {
+            clientModeChatSender.streamMessage(any(), any(), any())
+        } returns flow {
+            emit(BotStreamChunk(text = "Hello", conversationId = "conv-1", event = BotStreamEvent.ASSISTANT))
+            emit(BotStreamChunk(done = true))
+        }
+
+        val vm = AdminChatViewModel(
+            SavedStateHandle().apply {
+                set("agentId", "agent-1")
+                set("conversationId", "conv-1")
+            },
+            messageRepository, timelineRepository, agentRepository, blockRepository,
+            bugReportRepository, folderRepository, conversationRepository,
+            settingsRepository, internalBotClient, clientModeChatSender,
+            clientModeAgentLocationRepository,
+            tracker,
+            notificationDeliveryCoordinator,
+            notificationReplyHandler,
+        )
+        advanceUntilIdle()
+        vm.sendMessage("hi")
+        advanceUntilIdle()
+
+        verify(exactly = 1) {
+            notificationDeliveryCoordinator.submit(match {
+                it.source == com.letta.mobile.channel.NotificationCandidateSource.WebsocketClientMode &&
+                    it.phase == com.letta.mobile.channel.NotificationCandidatePhase.Final &&
+                    it.conversationId == "conv-1" &&
+                    it.previewText == "Hello" &&
+                    it.isFinal
+            })
         }
     }
 
@@ -2612,7 +2798,7 @@ class AdminChatViewModelTest {
             settingsRepository, internalBotClient, clientModeChatSender,
             clientModeAgentLocationRepository,
             tracker,
-            channelNotificationPublisher,
+            notificationDeliveryCoordinator,
             notificationReplyHandler,
         )
         advanceUntilIdle()

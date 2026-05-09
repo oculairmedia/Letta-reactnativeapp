@@ -441,6 +441,7 @@ object ToolCallRenderer : MessageContentRenderer {
                 MessageToolCalls(
                     toolCalls = stableToolCalls,
                     animateEntrance = shouldAnimateToolCallEntrance(isStreaming),
+                    approvalRequest = message.approvalRequest,
                 )
             }
         }

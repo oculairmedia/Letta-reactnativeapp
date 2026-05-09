@@ -429,6 +429,7 @@
     <string name="screen_chat_approval_rejected_title">Rejected</string>
     <string name="screen_chat_tool_approval_chip_approved">approved</string>
     <string name="screen_chat_tool_approval_chip_rejected">rejected</string>
+    <string name="screen_chat_tool_approval_chip_requesting_input">requesting input</string>
     <string name="channel_notifications_name">Agent updates</string>
     <string name="channel_notifications_description">Background delivery for new Letta messages</string>
     <string name="channel_notifications_fallback_title">Letta update</string>

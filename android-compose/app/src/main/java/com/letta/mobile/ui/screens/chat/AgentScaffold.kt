@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -69,15 +70,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -105,6 +101,9 @@ import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.ActionSheet
 import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.highlightSearchMatches
+import com.letta.mobile.ui.components.rememberSearchHighlightColors
+import com.letta.mobile.ui.components.searchResultSnippet
 
 import com.letta.mobile.util.ConnectivityMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -442,8 +441,7 @@ private fun ChatSearchResultsContent(
     onResultClick: (ParsedSearchMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-    val highlightTextColor = MaterialTheme.colorScheme.primary
+    val highlightColors = rememberSearchHighlightColors()
     val conversationsById = remember(conversations) { conversations.associateBy { it.id } }
 
     LazyColumn(
@@ -483,7 +481,10 @@ private fun ChatSearchResultsContent(
             }
         }
 
-        items(results, key = { it.messageId ?: "${it.conversationId}-${it.content.hashCode()}" }) { result ->
+        itemsIndexed(
+            items = results,
+            key = { index, result -> chatSearchResultKey(result, index) },
+        ) { _, result ->
             val conversation = result.conversationId?.let(conversationsById::get)
             val isCurrentConversation = result.conversationId != null && result.conversationId == currentConversationId
             val conversationScope = when {
@@ -540,11 +541,10 @@ private fun ChatSearchResultsContent(
                         )
                     }
                     Text(
-                        text = highlightChatMatches(
-                            result.content ?: "",
+                        text = highlightSearchMatches(
+                            searchResultSnippet(result.content.orEmpty(), searchQuery),
                             searchQuery,
-                            highlightColor,
-                            highlightTextColor,
+                            highlightColors,
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -558,37 +558,14 @@ private fun ChatSearchResultsContent(
     }
 }
 
-private fun highlightChatMatches(
-    text: String,
-    query: String,
-    highlightColor: Color,
-    matchTextColor: Color = Color.Unspecified,
-) = buildAnnotatedString {
-    if (query.isBlank()) {
-        append(text)
-        return@buildAnnotatedString
-    }
-    val lowerText = text.lowercase()
-    val lowerQuery = query.trim().lowercase()
-    var cursor = 0
-    while (cursor < text.length) {
-        val matchIndex = lowerText.indexOf(lowerQuery, cursor)
-        if (matchIndex < 0) {
-            append(text.substring(cursor))
-            break
+@androidx.annotation.VisibleForTesting
+internal fun chatSearchResultKey(result: ParsedSearchMessage, index: Int): String {
+    val identity = result.messageId
+        ?: result.conversationId?.let { conversationId ->
+            "$conversationId-${result.content.hashCode()}"
         }
-        append(text.substring(cursor, matchIndex))
-        withStyle(
-            SpanStyle(
-                background = highlightColor,
-                fontWeight = FontWeight.Bold,
-                color = if (matchTextColor != Color.Unspecified) matchTextColor else Color.Unspecified,
-            )
-        ) {
-            append(text.substring(matchIndex, matchIndex + lowerQuery.length))
-        }
-        cursor = matchIndex + lowerQuery.length
-    }
+        ?: result.content.hashCode().toString()
+    return "chat-search-$identity-$index"
 }
 
 @androidx.annotation.VisibleForTesting

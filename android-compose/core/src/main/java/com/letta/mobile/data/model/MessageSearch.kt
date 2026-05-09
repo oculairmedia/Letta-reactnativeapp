@@ -2,6 +2,8 @@ package com.letta.mobile.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -16,6 +18,8 @@ data class MessageSearchRequest(
     val query: String? = null,
     @SerialName("search_mode") val searchMode: String = "hybrid",
     val roles: List<String>? = null,
+    @SerialName("agent_id") val agentId: String? = null,
+    @SerialName("conversation_id") val conversationId: String? = null,
     @SerialName("project_id") val projectId: String? = null,
     @SerialName("template_id") val templateId: String? = null,
     val limit: Int = 50,
@@ -40,11 +44,30 @@ data class ParsedSearchMessage(
 
 fun MessageSearchResult.toParsed(): ParsedSearchMessage {
     return ParsedSearchMessage(
-        messageId = (message["id"] as? JsonPrimitive)?.contentOrNull,
-        agentId = (message["agent_id"] as? JsonPrimitive)?.contentOrNull,
-        role = (message["role"] as? JsonPrimitive)?.contentOrNull,
-        content = (message["content"] as? JsonPrimitive)?.contentOrNull ?: embeddedText,
-        date = (message["date"] as? JsonPrimitive)?.contentOrNull,
-        conversationId = (message["conversation_id"] as? JsonPrimitive)?.contentOrNull,
+        messageId = message.primitive("id") ?: message.primitive("message_id"),
+        agentId = message.primitive("agent_id"),
+        role = message.primitive("role") ?: message.primitive("message_type"),
+        content = message["content"].asSearchText() ?: message.primitive("text") ?: embeddedText,
+        date = message.primitive("date") ?: message.primitive("created_at"),
+        conversationId = message.primitive("conversation_id"),
     )
+}
+
+private fun JsonObject.primitive(key: String): String? {
+    return (this[key] as? JsonPrimitive)?.contentOrNull
+}
+
+fun JsonElement?.asSearchText(): String? {
+    return when (this) {
+        is JsonPrimitive -> contentOrNull
+        is JsonArray -> mapNotNull { part ->
+            when (part) {
+                is JsonPrimitive -> part.contentOrNull
+                is JsonObject -> part.primitive("text") ?: part.primitive("content")
+                else -> null
+            }
+        }.joinToString(" ").takeIf { it.isNotBlank() }
+        is JsonObject -> primitive("text") ?: primitive("content") ?: get("value").asSearchText()
+        else -> null
+    }
 }

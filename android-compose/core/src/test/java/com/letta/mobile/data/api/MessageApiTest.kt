@@ -17,11 +17,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.letta.mobile.data.model.MessageCreateRequest
+import com.letta.mobile.data.model.MessageSearchRequest
 import org.junit.jupiter.api.Tag
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,6 +78,81 @@ class MessageApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
 
         val payload = Json.parseToJsonElement(body!!).jsonObject
         assertEquals("true", payload["streaming"]!!.toString())
+    }
+
+    @Test
+    fun `searchMessages posts to messages search and normalizes flat response`() = runTest {
+        var url: String? = null
+        var body: String? = null
+        val api = createApi { req ->
+            url = req.url.toString()
+            body = requestBody(req.body)
+            respond(
+                """
+                [
+                  {
+                    "message_id": "msg-1",
+                    "agent_id": "agent-1",
+                    "conversation_id": "conv-previous",
+                    "message_type": "assistant",
+                    "content": "needle hit",
+                    "created_at": "2026-05-08T12:00:00Z"
+                  }
+                ]
+                """.trimIndent(),
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
+        }
+
+        val results = api.searchMessages(
+            MessageSearchRequest(
+                query = "needle",
+                searchMode = "fts",
+                roles = listOf("user", "assistant"),
+                agentId = "agent-1",
+                limit = 50,
+            )
+        )
+
+        assertTrue(url!!.endsWith("/v1/messages/search"))
+        val payload = Json.parseToJsonElement(body!!).jsonObject
+        assertEquals("needle", payload["query"]!!.jsonPrimitive.content)
+        assertEquals("fts", payload["search_mode"]!!.jsonPrimitive.content)
+        assertEquals("agent-1", payload["agent_id"]!!.jsonPrimitive.content)
+        assertEquals(1, results.size)
+        assertEquals("needle hit", results.single().embeddedText)
+        assertEquals("msg-1", results.single().message["message_id"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `searchMessages still decodes legacy wrapped response`() = runTest {
+        val api = createApi {
+            respond(
+                """
+                [
+                  {
+                    "embedded_text": "legacy needle hit",
+                    "message": {
+                      "id": "msg-old",
+                      "agent_id": "agent-1",
+                      "role": "assistant",
+                      "content": "legacy needle hit",
+                      "date": "2026-05-08T12:00:00Z"
+                    }
+                  }
+                ]
+                """.trimIndent(),
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
+        }
+
+        val results = api.searchMessages(MessageSearchRequest(query = "needle"))
+
+        assertEquals(1, results.size)
+        assertEquals("legacy needle hit", results.single().embeddedText)
+        assertEquals("msg-old", results.single().message["id"]!!.jsonPrimitive.content)
     }
 
     private fun requestBody(body: Any): String {

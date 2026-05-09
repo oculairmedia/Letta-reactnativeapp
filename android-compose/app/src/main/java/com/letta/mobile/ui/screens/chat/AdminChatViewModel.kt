@@ -9,13 +9,16 @@ import com.letta.mobile.bot.protocol.BotStreamEvent
 import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.mapper.toUiMessages
 import com.letta.mobile.data.model.AppMessage
-import com.letta.mobile.channel.ChannelNotification
-import com.letta.mobile.channel.ChannelNotificationPublisher
+import com.letta.mobile.channel.NotificationCandidatePhase
+import com.letta.mobile.channel.NotificationCandidateSource
+import com.letta.mobile.channel.NotificationDeliveryCandidate
+import com.letta.mobile.channel.NotificationDeliveryCoordinator
 import com.letta.mobile.channel.NotificationReplyHandler
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.ProjectBugReport
+import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.MessageContentPart
@@ -344,12 +347,13 @@ class AdminChatViewModel @Inject constructor(
     private val clientModeChatSender: ClientModeChatSender,
     private val clientModeAgentLocationRepository: ClientModeAgentLocationRepository,
     private val currentConversationTracker: com.letta.mobile.channel.CurrentConversationTracker,
-    private val channelNotificationPublisher: ChannelNotificationPublisher,
+    private val notificationDeliveryCoordinator: NotificationDeliveryCoordinator,
     private val notificationReplyHandler: NotificationReplyHandler,
 ) : ViewModel() {
     companion object {
         private const val CONVERSATION_CACHE_TTL_MS = 30_000L
         private const val MESSAGE_SYNC_INTERVAL_MS = 5_000L
+        private const val CHAT_SEARCH_REMOTE_DEBOUNCE_MS = 180L
         private const val COLLAPSED_RUN_IDS_KEY = "collapsedRunIds"
         private const val AUTO_COLLAPSE_SUPPRESSED_RUN_IDS_KEY = "autoCollapseSuppressedRunIds"
         private const val EXPANDED_REASONING_MESSAGE_IDS_KEY = "expandedReasoningMessageIds"
@@ -452,33 +456,40 @@ class AdminChatViewModel @Inject constructor(
             return
         }
 
+        val localResults = localChatSearchResults(query)
         _uiState.update {
             it.copy(
                 searchQuery = query,
                 isSearchActive = true,
                 isSearching = true,
-                searchResults = persistentListOf(),
+                searchResults = localResults,
             )
         }
 
         chatSearchJob = viewModelScope.launch {
-            delay(300L)
+            delay(CHAT_SEARCH_REMOTE_DEBOUNCE_MS)
             try {
                 val results = messageRepository.searchMessages(
                     MessageSearchRequest(
                         query = query,
                         searchMode = "fts",
                         roles = listOf("user", "assistant"),
+                        agentId = agentId,
                         limit = 50,
                     )
                 )
                 val parsed = results
                     .map { it.toParsed() }
                     .filter { it.agentId == agentId }
-                    .toImmutableList()
                 _uiState.update { current ->
                     if (current.searchQuery == query) {
-                        current.copy(searchResults = parsed, isSearching = false)
+                        current.copy(
+                            searchResults = mergeSearchResults(
+                                local = localChatSearchResults(query, current),
+                                remote = parsed,
+                            ),
+                            isSearching = false,
+                        )
                     } else {
                         current
                     }
@@ -492,6 +503,46 @@ class AdminChatViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun localChatSearchResults(
+        query: String,
+        state: ChatUiState = _uiState.value,
+    ): ImmutableList<ParsedSearchMessage> {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return persistentListOf()
+        val currentConversationId = conversationId
+        return state.messages
+            .asSequence()
+            .filter { it.role == "user" || it.role == "assistant" }
+            .filter { it.content.contains(trimmedQuery, ignoreCase = true) }
+            .map { message ->
+                ParsedSearchMessage(
+                    messageId = message.id,
+                    agentId = agentId,
+                    role = message.role,
+                    content = message.content,
+                    date = message.timestamp,
+                    conversationId = currentConversationId,
+                )
+            }
+            .toList()
+            .toImmutableList()
+    }
+
+    private fun mergeSearchResults(
+        local: List<ParsedSearchMessage>,
+        remote: List<ParsedSearchMessage>,
+    ): ImmutableList<ParsedSearchMessage> {
+        val seen = LinkedHashSet<String>()
+        return (local + remote)
+            .filter { seen.add(it.searchIdentity()) }
+            .toImmutableList()
+    }
+
+    private fun ParsedSearchMessage.searchIdentity(): String {
+        return messageId
+            ?: listOfNotNull(agentId, conversationId, role, content).joinToString("|")
     }
 
     fun clearChatSearch() {
@@ -521,6 +572,7 @@ class AdminChatViewModel @Inject constructor(
 
     private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     private val clientToolStartedAtMs = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val clientToolBatchMessageIds = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var hasSummary = false
     // letta-mobile-flk.6: tracks whether the VM has already resolved its
     // conversation at least once. Used to gate the fresh-route fallback
@@ -1829,8 +1881,7 @@ class AdminChatViewModel @Inject constructor(
             // new ID to the nav saved-state-handle so a back-then-re-enter doesn't
             // try to resume the dead requested ID again.
             var swapEvaluated = false
-            var lastAssistantPreview: String? = null
-            var lastNotifiedPreview: String? = null
+            var accumulatedAssistantPreview = ""
             // letta-mobile-hf93: track whether the gateway ever sent any
             // user-visible payload (text, reasoning, or a tool event) for
             // this turn. If the stream terminates with no payload — e.g. a
@@ -1858,25 +1909,13 @@ class AdminChatViewModel @Inject constructor(
                             chunk.event != BotStreamEvent.TOOL_RESULT
 
                         if (isTextPayload) {
-                            lastAssistantPreview = chunk.text?.takeIf { it.isNotBlank() }
-                        }
-
-                        val shouldNotify = lastAssistantPreview != null &&
-                            lastAssistantPreview != lastNotifiedPreview &&
-                            currentConversationTracker.current == null
-
-                        if (shouldNotify) {
-                            lastNotifiedPreview = lastAssistantPreview
-                            android.util.Log.w("AdminChatVM-NOTIFY", "publishing conv=$conversationId tracker=${currentConversationTracker.current} done=${chunk.done}")
-                            channelNotificationPublisher.publish(
-                                ChannelNotification(
-                                    agentId = agentId,
-                                    agentName = _uiState.value.agentName,
-                                    conversationId = conversationId,
-                                    conversationSummary = null,
-                                    messageId = chunk.uuid ?: conversationId,
-                                    messagePreview = lastAssistantPreview ?: "",
-                                )
+                            accumulatedAssistantPreview += chunk.text.orEmpty()
+                            submitClientModeNotificationCandidate(
+                                conversationId = conversationId,
+                                messageId = assistantMessageId,
+                                previewText = accumulatedAssistantPreview,
+                                phase = NotificationCandidatePhase.Partial,
+                                isFinal = false,
                             )
                         }
                         if (!swapEvaluated) {
@@ -2102,6 +2141,18 @@ class AdminChatViewModel @Inject constructor(
                         conversationId = latestConversationId?.takeIf { it.isNotBlank() },
                     )
 
+                    latestConversationId?.takeIf { it.isNotBlank() }?.let { conversationId ->
+                        if (accumulatedAssistantPreview.isNotBlank()) {
+                            submitClientModeNotificationCandidate(
+                                conversationId = conversationId,
+                                messageId = assistantMessageId,
+                                previewText = accumulatedAssistantPreview,
+                                phase = NotificationCandidatePhase.Final,
+                                isFinal = true,
+                            )
+                        }
+                    }
+
                     // letta-mobile-hf93: a stream that completed without
                     // any payload would otherwise look identical to a
                     // dropped network round-trip — typing indicator
@@ -2258,6 +2309,7 @@ class AdminChatViewModel @Inject constructor(
                                 existing.copy(
                                     reasoningContent = merged,
                                     messageType = com.letta.mobile.data.timeline.TimelineMessageType.REASONING,
+                                    sentAt = sentAt,
                                 )
                             },
                         )
@@ -2286,13 +2338,41 @@ class AdminChatViewModel @Inject constructor(
                 // `arguments.ifBlank { existing }` fallback below preserves
                 // prior args if a follow-up frame omits them, which is
                 // the only documented variation.
-                val toolCallId = chunk.toolCallId ?: chunk.uuid ?: return
+                val incomingToolCalls = chunk.effectiveToolCalls()
+                val rawToolCallId = chunk.toolFrameId(incomingToolCalls) ?: return
+                val toolCallId = if (chunk.event == BotStreamEvent.TOOL_RESULT) {
+                    clientToolBatchMessageIds[rawToolCallId] ?: rawToolCallId
+                } else {
+                    rawToolCallId
+                }
                 val localId = "cm-tool-$toolCallId"
-                val toolName = chunk.toolName ?: "tool"
-                val arguments = chunk.toolInput?.toString().orEmpty()
                 val isResult = chunk.event == BotStreamEvent.TOOL_RESULT
                 val resultText: String? = if (isResult) chunk.text else null
                 val resultIsError: Boolean = isResult && chunk.isError
+                val resultCallId = if (isResult) rawToolCallId else toolCallId
+                val resultByCallId: Map<String, String> = if (resultText != null) {
+                    mapOf(resultCallId to resultText)
+                } else {
+                    emptyMap()
+                }
+                val resultErrorByCallId: Map<String, Boolean> = if (isResult) {
+                    mapOf(resultCallId to resultIsError)
+                } else {
+                    emptyMap()
+                }
+                val startedAtByCallId = mutableMapOf<String, java.time.Instant>()
+                if (chunk.event == BotStreamEvent.TOOL_CALL) {
+                    val startedAtMs = System.currentTimeMillis()
+                    clientToolStartedAtMs.putIfAbsent(toolCallId, startedAtMs)
+                    startedAtByCallId[toolCallId] = sentAt
+                    incomingToolCalls.forEach { call ->
+                        call.effectiveId.takeIf { it.isNotBlank() }?.let { callId ->
+                            clientToolStartedAtMs.putIfAbsent(callId, startedAtMs)
+                            clientToolBatchMessageIds.putIfAbsent(callId, toolCallId)
+                            startedAtByCallId[callId] = sentAt
+                        }
+                    }
+                }
                 viewModelScope.launch {
                     runCatching {
                         timelineRepository.upsertClientModeLocalAssistantChunk(
@@ -2308,29 +2388,28 @@ class AdminChatViewModel @Inject constructor(
                                     deliveryState = com.letta.mobile.data.timeline.DeliveryState.SENT,
                                     source = com.letta.mobile.data.timeline.MessageSource.CLIENT_MODE_HARNESS,
                                     messageType = com.letta.mobile.data.timeline.TimelineMessageType.TOOL_CALL,
-                                    toolCalls = listOf(
-                                        com.letta.mobile.data.model.ToolCall(
-                                            id = toolCallId,
-                                            name = toolName,
-                                            arguments = arguments,
-                                        ),
-                                    ),
+                                    toolCalls = incomingToolCalls,
                                     toolReturnContent = resultText,
                                     toolReturnIsError = resultIsError,
+                                    toolReturnContentByCallId = resultByCallId,
+                                    toolReturnIsErrorByCallId = resultErrorByCallId,
+                                    toolStartedAtByCallId = startedAtByCallId,
                                 )
                             },
                             transform = { existing ->
-                                val existingTool = existing.toolCalls.firstOrNull()
-                                val mergedTool = com.letta.mobile.data.model.ToolCall(
-                                    id = existingTool?.id ?: toolCallId,
-                                    name = existingTool?.name ?: toolName,
-                                    arguments = arguments.ifBlank { existingTool?.arguments.orEmpty() },
+                                val mergedToolCalls = mergeToolCallSnapshots(
+                                    existing = existing.toolCalls,
+                                    incoming = incomingToolCalls,
                                 )
                                 existing.copy(
                                     messageType = com.letta.mobile.data.timeline.TimelineMessageType.TOOL_CALL,
-                                    toolCalls = listOf(mergedTool),
+                                    toolCalls = mergedToolCalls,
                                     toolReturnContent = resultText ?: existing.toolReturnContent,
                                     toolReturnIsError = if (isResult) resultIsError else existing.toolReturnIsError,
+                                    toolReturnContentByCallId = existing.toolReturnContentByCallId + resultByCallId,
+                                    toolReturnIsErrorByCallId = existing.toolReturnIsErrorByCallId + resultErrorByCallId,
+                                    toolStartedAtByCallId = existing.toolStartedAtByCallId + startedAtByCallId,
+                                    sentAt = sentAt,
                                 )
                             },
                         )
@@ -2416,6 +2495,7 @@ class AdminChatViewModel @Inject constructor(
                                 existing.copy(
                                     content = merged,
                                     messageType = com.letta.mobile.data.timeline.TimelineMessageType.ASSISTANT,
+                                    sentAt = sentAt,
                                 )
                             },
                         )
@@ -2445,6 +2525,29 @@ class AdminChatViewModel @Inject constructor(
             BotStreamEvent.CONVERSATION_SWAP,
             BotStreamEvent.ASSISTANT, null -> false
         }
+    }
+
+    private fun submitClientModeNotificationCandidate(
+        conversationId: String,
+        messageId: String,
+        previewText: String,
+        phase: NotificationCandidatePhase,
+        isFinal: Boolean,
+    ) {
+        notificationDeliveryCoordinator.submit(
+            NotificationDeliveryCandidate(
+                conversationId = conversationId,
+                agentId = agentId,
+                agentName = _uiState.value.agentName,
+                conversationSummary = null,
+                messageId = messageId,
+                runId = null,
+                source = NotificationCandidateSource.WebsocketClientMode,
+                phase = phase,
+                previewText = previewText,
+                isFinal = isFinal,
+            ),
+        )
     }
 
     private fun logTimelineUpsertFailure(t: Throwable, kind: String, localId: String) {
@@ -2500,46 +2603,68 @@ class AdminChatViewModel @Inject constructor(
             BotStreamEvent.TOOL_CALL,
             BotStreamEvent.TOOL_RESULT,
             -> {
-                val toolCallId = chunk.toolCallId ?: chunk.uuid ?: return
+                val incomingToolCalls = chunk.effectiveToolCalls()
+                val rawToolCallId = chunk.toolFrameId(incomingToolCalls) ?: return
+                val toolCallId = if (chunk.event == BotStreamEvent.TOOL_RESULT) {
+                    clientToolBatchMessageIds[rawToolCallId] ?: rawToolCallId
+                } else {
+                    rawToolCallId
+                }
                 val messageId = "client-tool-$toolCallId"
-                val toolName = chunk.toolName ?: "tool"
-                val arguments = chunk.toolInput?.toString().orEmpty()
                 if (chunk.event == BotStreamEvent.TOOL_CALL) {
-                    clientToolStartedAtMs.putIfAbsent(toolCallId, System.currentTimeMillis())
+                    val startedAtMs = System.currentTimeMillis()
+                    clientToolStartedAtMs.putIfAbsent(toolCallId, startedAtMs)
+                    incomingToolCalls.forEach { call ->
+                        call.effectiveId.takeIf { it.isNotBlank() }?.let { callId ->
+                            clientToolStartedAtMs.putIfAbsent(callId, startedAtMs)
+                            clientToolBatchMessageIds.putIfAbsent(callId, toolCallId)
+                        }
+                    }
                 }
                 upsertClientModeMessage(
                     messageId = messageId,
                     timestamp = timestamp,
                 ) { existing ->
-                    val existingTool = existing?.toolCalls?.firstOrNull()
-                    val result = when (chunk.event) {
-                        BotStreamEvent.TOOL_RESULT -> chunk.text ?: existingTool?.result
-                        else -> existingTool?.result
+                    val resultTargetId = if (chunk.event == BotStreamEvent.TOOL_RESULT) rawToolCallId else null
+                    val incomingUiToolCalls = incomingToolCalls.mapIndexed { index, toolCall ->
+                        val incomingId = toolCall.effectiveId.takeIf { it.isNotBlank() }
+                        val old = existing?.toolCalls.findByToolCallId(incomingId)
+                            ?: existing?.toolCalls?.getOrNull(index)
+                        val isResultForCall = chunk.event == BotStreamEvent.TOOL_RESULT &&
+                            (resultTargetId == null || incomingId == null || resultTargetId == incomingId)
+                        val executionTimeMs = if (isResultForCall) {
+                            clientToolStartedAtMs[incomingId ?: resultTargetId ?: toolCallId]?.let { startedAt ->
+                                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                            } ?: old?.executionTimeMs
+                        } else {
+                            old?.executionTimeMs
+                        }
+                        val incomingName = toolCall.name?.takeIf {
+                            it.isNotBlank() && (it != "tool" || old == null)
+                        }
+                        UiToolCall(
+                            name = incomingName ?: old?.name ?: "tool",
+                            arguments = toolCall.arguments?.takeIf { it.isNotBlank() } ?: old?.arguments.orEmpty(),
+                            result = if (isResultForCall) chunk.text ?: old?.result else old?.result,
+                            status = if (isResultForCall) {
+                                if (chunk.isError) "error" else "success"
+                            } else {
+                                old?.status
+                            },
+                            executionTimeMs = executionTimeMs,
+                            toolCallId = incomingId ?: old?.toolCallId,
+                        )
                     }
-                    val status = when (chunk.event) {
-                        BotStreamEvent.TOOL_RESULT -> if (chunk.isError) "error" else "success"
-                        else -> existingTool?.status
-                    }
-                    val executionTimeMs = when (chunk.event) {
-                        BotStreamEvent.TOOL_RESULT -> clientToolStartedAtMs[toolCallId]?.let { startedAt ->
-                            (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
-                        } ?: existingTool?.executionTimeMs
-                        else -> existingTool?.executionTimeMs
-                    }
+                    val renderedToolCalls = mergeStreamingUiToolCalls(
+                        existing = existing?.toolCalls.orEmpty(),
+                        incoming = incomingUiToolCalls,
+                    )
                     UiMessage(
                         id = messageId,
                         role = "assistant",
                         content = "",
                         timestamp = existing?.timestamp ?: timestamp,
-                        toolCalls = listOf(
-                            UiToolCall(
-                                name = toolName,
-                                arguments = arguments.ifBlank { existingTool?.arguments.orEmpty() },
-                                result = result,
-                                status = status,
-                                executionTimeMs = executionTimeMs,
-                            )
-                        ),
+                        toolCalls = renderedToolCalls,
                     )
                 }
             }
@@ -3172,6 +3297,108 @@ $path
 
 Use this as the cwd/base path for subsequent filesystem and shell tool calls in this conversation. After switching, briefly confirm the current working directory.
 """.trim()
+
+private fun BotStreamChunk.effectiveToolCalls(): List<ToolCall> {
+    val batchedCalls = toolCalls.orEmpty().filter { call ->
+        call.effectiveId.isNotBlank() ||
+            !call.name.isNullOrBlank() ||
+            !call.arguments.isNullOrBlank()
+    }
+    if (batchedCalls.isNotEmpty()) return batchedCalls
+
+    if (toolCallId == null && uuid == null && toolName == null && toolInput == null) {
+        return emptyList()
+    }
+    return listOf(
+        ToolCall(
+            id = toolCallId ?: uuid,
+            name = toolName ?: "tool",
+            arguments = toolInput?.toString().orEmpty(),
+        )
+    )
+}
+
+private fun BotStreamChunk.toolFrameId(calls: List<ToolCall>): String? {
+    return toolCallId
+        ?: uuid
+        ?: calls.firstNotNullOfOrNull { call ->
+            call.effectiveId.takeIf { it.isNotBlank() }
+        }
+        ?: calls.takeIf { it.isNotEmpty() }?.hashCode()?.toString()
+}
+
+private fun mergeToolCallSnapshots(
+    existing: List<ToolCall>,
+    incoming: List<ToolCall>,
+): List<ToolCall> {
+    if (incoming.isEmpty()) return existing
+    if (existing.isEmpty()) return incoming
+
+    val merged = existing.toMutableList()
+    incoming.forEach { incomingCall ->
+        val incomingId = incomingCall.effectiveId.takeIf { it.isNotBlank() }
+        val index = if (incomingId != null) {
+            merged.indexOfFirst { it.effectiveId == incomingId }
+        } else {
+            -1
+        }
+        if (index >= 0) {
+            merged[index] = merged[index].mergeWith(incomingCall)
+        } else {
+            merged.add(incomingCall)
+        }
+    }
+    return merged
+}
+
+private fun ToolCall.mergeWith(incoming: ToolCall): ToolCall = ToolCall(
+    id = incoming.id ?: id,
+    toolCallId = incoming.toolCallId ?: toolCallId,
+    name = incoming.name?.takeIf {
+        it.isNotBlank() && (it != "tool" || name.isNullOrBlank() || name == "tool")
+    } ?: name,
+    arguments = incoming.arguments?.takeIf { it.isNotBlank() } ?: arguments,
+    type = incoming.type,
+)
+
+private fun mergeStreamingUiToolCalls(
+    existing: List<UiToolCall>,
+    incoming: List<UiToolCall>,
+): List<UiToolCall> {
+    if (incoming.isEmpty()) return existing
+    if (existing.isEmpty()) return incoming
+
+    val merged = existing.toMutableList()
+    incoming.forEachIndexed { incomingIndex, incomingCall ->
+        val existingIndex = incomingCall.toolCallId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { callId -> merged.indexOfFirst { it.toolCallId == callId } }
+            ?.takeIf { it >= 0 }
+            ?: incomingIndex.takeIf { it in merged.indices && incoming.size == merged.size }
+
+        if (existingIndex != null) {
+            merged[existingIndex] = merged[existingIndex].mergeWith(incomingCall)
+        } else {
+            merged.add(incomingCall)
+        }
+    }
+    return merged
+}
+
+private fun List<UiToolCall>?.findByToolCallId(toolCallId: String?): UiToolCall? {
+    val id = toolCallId?.takeIf { it.isNotBlank() } ?: return null
+    return this?.firstOrNull { it.toolCallId == id }
+}
+
+private fun UiToolCall.mergeWith(incoming: UiToolCall): UiToolCall = UiToolCall(
+    name = incoming.name.takeIf { it.isNotBlank() && (it != "tool" || name == "tool") } ?: name,
+    arguments = incoming.arguments.takeIf { it.isNotBlank() } ?: arguments,
+    result = incoming.result ?: result,
+    status = incoming.status ?: status,
+    executionTimeMs = incoming.executionTimeMs ?: executionTimeMs,
+    toolCallId = incoming.toolCallId ?: toolCallId,
+    approvalDecision = incoming.approvalDecision ?: approvalDecision,
+)
 
 /**
  * Client Mode rides through lettabot's WebSocket gateway, whose Matrix/Tuwunel
