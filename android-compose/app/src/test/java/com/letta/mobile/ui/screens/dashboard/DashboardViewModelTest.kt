@@ -9,6 +9,7 @@ import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
+import com.letta.mobile.data.repository.ConversationCountEstimate
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.RunRepository
 import com.letta.mobile.data.repository.SettingsRepository
@@ -102,6 +103,10 @@ class DashboardViewModelTest {
         every { conversationsRepository.hasMore } returns MutableStateFlow(false)
         coEvery { conversationsRepository.countConversations() } returns 1
         coEvery { conversationsRepository.refresh() } returns Unit
+        every { conversationsRepository.loadedCountEstimate() } returns ConversationCountEstimate(
+            count = 1,
+            isApproximate = false,
+        )
 
         toolRepository = mockk(relaxed = true)
         every { toolRepository.getTools() } returns MutableStateFlow(
@@ -174,6 +179,51 @@ class DashboardViewModelTest {
         assertEquals(100, state.usageSummary?.averageTokensPerHour)
         assertEquals(listOf("gpt-4.1", "claude-3.7"), state.usageSummary?.modelUsage?.map { it.model })
         assertEquals(1500, state.usageSummary?.modelUsage?.first()?.totalTokens)
+    }
+
+    @Test
+    fun `loadProgressively renders approximate conversation count`() = runTest {
+        every { conversationsRepository.loadedCountEstimate() } returns ConversationCountEstimate(
+            count = 50,
+            isApproximate = true,
+        )
+
+        val viewModel = DashboardViewModel(
+            agentRepository = agentRepository,
+            allConversationsRepository = conversationsRepository,
+            toolRepository = toolRepository,
+            blockRepository = blockRepository,
+            settingsRepository = settingsRepository,
+            messageRepository = messageRepository,
+            runRepository = runRepository,
+        )
+
+        val state = viewModel.uiState.value
+        assertEquals(50, state.conversationCount)
+        assertTrue(state.isConversationCountApproximate)
+        assertFalse(state.isConversationCountLoading)
+        coVerify(exactly = 0) { conversationsRepository.countConversations() }
+    }
+
+    @Test
+    fun `loadProgressively keeps conversation count unknown when estimate is unavailable`() = runTest {
+        every { conversationsRepository.loadedCountEstimate() } returns null
+
+        val viewModel = DashboardViewModel(
+            agentRepository = agentRepository,
+            allConversationsRepository = conversationsRepository,
+            toolRepository = toolRepository,
+            blockRepository = blockRepository,
+            settingsRepository = settingsRepository,
+            messageRepository = messageRepository,
+            runRepository = runRepository,
+        )
+
+        val state = viewModel.uiState.value
+        assertNull(state.conversationCount)
+        assertFalse(state.isConversationCountApproximate)
+        assertFalse(state.isConversationCountLoading)
+        coVerify(exactly = 0) { conversationsRepository.countConversations() }
     }
 
     @Test

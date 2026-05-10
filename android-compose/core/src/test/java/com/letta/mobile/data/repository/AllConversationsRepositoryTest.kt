@@ -89,14 +89,46 @@ class AllConversationsRepositoryTest {
     }
 
     @Test
-    fun `countConversations uses bounded page instead of overfetching all conversations`() = runTest {
+    fun `loadedCountEstimate uses loaded page and does not make count network request`() = runTest {
         repeat(125) { index ->
             fakeApi.conversations.add(TestData.conversation(id = "conv-$index"))
         }
+        repository.refresh()
+        fakeApi.calls.clear()
+        fakeApi.listLimits.clear()
+
+        val estimate = repository.loadedCountEstimate()
+
+        assertEquals(50, estimate?.count)
+        assertEquals(true, estimate?.isApproximate)
+        assertTrue(fakeApi.calls.none { it == "listConversations" })
+        assertTrue(fakeApi.listLimits.none { it == 1_000 || it == 10_000 })
+    }
+
+    @Test
+    fun `countConversations compatibility shim does not fetch`() = runTest {
+        repeat(125) { index ->
+            fakeApi.conversations.add(TestData.conversation(id = "conv-$index"))
+        }
+        repository.refresh()
+        fakeApi.calls.clear()
+        fakeApi.listLimits.clear()
 
         val count = repository.countConversations()
 
         assertEquals(50, count)
-        assertEquals(listOf(50), fakeApi.listLimits)
+        assertTrue(fakeApi.calls.none { it == "listConversations" })
+        assertTrue(fakeApi.listLimits.isEmpty())
+    }
+
+    @Test
+    fun `empty refresh response is fresh and exact zero estimate`() = runTest {
+        repository.refresh()
+        fakeApi.calls.clear()
+
+        assertEquals(ConversationCountEstimate(count = 0, isApproximate = false), repository.loadedCountEstimate())
+        assertTrue(repository.hasFreshConversations(maxAgeMs = 60_000))
+        assertEquals(false, repository.refreshIfStale(maxAgeMs = 60_000))
+        assertTrue(fakeApi.calls.none { it == "listConversations" })
     }
 }

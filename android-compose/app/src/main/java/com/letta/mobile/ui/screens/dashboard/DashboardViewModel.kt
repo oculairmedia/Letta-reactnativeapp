@@ -319,10 +319,10 @@ class DashboardViewModel @Inject constructor(
                 // count when there are no more pages, or as a lower bound
                 // (for example, "50+") when pagination says more exist.
                 allConversationsRepository.refresh()
-                val loadedCount = allConversationsRepository.conversations.value.size
+                val countEstimate = allConversationsRepository.loadedCountEstimate()
                 _uiState.value = _uiState.value.copy(
-                    conversationCount = loadedCount,
-                    isConversationCountApproximate = allConversationsRepository.hasMore.value,
+                    conversationCount = countEstimate?.count,
+                    isConversationCountApproximate = countEstimate?.isApproximate == true,
                     isConversationCountLoading = false,
                 )
             } catch (e: Exception) {

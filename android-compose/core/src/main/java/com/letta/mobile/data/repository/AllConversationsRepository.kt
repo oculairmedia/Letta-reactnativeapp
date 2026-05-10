@@ -11,6 +11,11 @@ import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class ConversationCountEstimate(
+    val count: Int,
+    val isApproximate: Boolean,
+)
+
 @Singleton
 class AllConversationsRepository @Inject constructor(
     private val conversationApi: ConversationApi,
@@ -24,6 +29,7 @@ class AllConversationsRepository @Inject constructor(
     private val refreshMutex = Mutex()
     private var currentCursor: String? = null
     private var lastRefreshAtMillis: Long = 0L
+    private var hasLoadedAtLeastOnce: Boolean = false
 
     suspend fun loadNextPage() {
         if (!_hasMore.value) return
@@ -33,6 +39,7 @@ class AllConversationsRepository @Inject constructor(
             after = currentCursor
         )
 
+        hasLoadedAtLeastOnce = true
         if (newConversations.isEmpty() || newConversations.size < PAGE_SIZE) {
             _hasMore.update { false }
         }
@@ -53,6 +60,7 @@ class AllConversationsRepository @Inject constructor(
 
     private suspend fun refreshLocked() {
         currentCursor = null
+        hasLoadedAtLeastOnce = false
         _conversations.update { emptyList() }
         _hasMore.update { true }
         loadNextPage()
@@ -60,7 +68,7 @@ class AllConversationsRepository @Inject constructor(
     }
 
     fun hasFreshConversations(maxAgeMs: Long): Boolean {
-        return _conversations.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
+        return hasLoadedAtLeastOnce && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
     suspend fun refreshIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
@@ -85,18 +93,30 @@ class AllConversationsRepository @Inject constructor(
     }
 
     /**
-     * Lightweight bounded count estimate.
+     * Lightweight loaded-page count estimate.
      *
-     * Letta API doesn't have a /v1/conversations/count endpoint. Do not fetch a
-     * huge page just to compute an exact count on dashboard startup; callers
-     * that only need a stat tile should use [refresh] and display
-     * [conversations].size with a "+" suffix when [hasMore] is true.
-     *
-     * This legacy helper is kept for compatibility and is intentionally bounded
-     * to one normal page.
+     * Letta API doesn't have a /v1/conversations/count endpoint. Do not make a
+     * dedicated network request just to compute a dashboard count; refresh or
+     * page the list first, then display [ConversationCountEstimate.count] as an
+     * exact count when [ConversationCountEstimate.isApproximate] is false or as a
+     * lower bound (for example, "50+") when more pages are available.
      */
+    fun loadedCountEstimate(): ConversationCountEstimate? {
+        if (!hasLoadedAtLeastOnce && _conversations.value.isEmpty()) return null
+        return ConversationCountEstimate(
+            count = _conversations.value.size,
+            isApproximate = _hasMore.value,
+        )
+    }
+
+    /**
+     * Legacy compatibility shim. Prefer [loadedCountEstimate] so callers must
+     * decide how to display approximate/unknown counts. This method intentionally
+     * performs no network I/O.
+     */
+    @Deprecated("Use loadedCountEstimate() and render approximate/unknown states explicitly.")
     suspend fun countConversations(): Int {
-        return conversationApi.listConversations(limit = PAGE_SIZE).size
+        return loadedCountEstimate()?.count ?: 0
     }
 
     companion object {
