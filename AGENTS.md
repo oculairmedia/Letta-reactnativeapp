@@ -282,7 +282,10 @@ bd close <id>         # Complete work
    ```
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+7. **Hand off** - Provide context for next session. Add a `bd note` to the active/next bead with a concise bootstrap handoff and include the exact retrieval command in your final response:
+   ```bash
+   bd show <active-or-next-bead-id> && git status --short --branch
+   ```
 
 **CRITICAL RULES:**
 
