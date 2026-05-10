@@ -22,6 +22,8 @@ import com.letta.mobile.data.tooloutput.ToolOutputBlock
 import com.letta.mobile.ui.theme.LettaChatTheme
 import com.letta.mobile.ui.theme.LettaTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -147,6 +149,41 @@ class ToolOutputRendererTest {
         assertEquals(raw.length - block.raw.length, document.omittedCharCount)
         assertTrue(block.raw.length <= ToolOutputMaxRenderedChars)
         assertTrue("ANSI escape sequences should be stripped from the bounded preview", !block.raw.contains("\u001B"))
+    }
+
+    @Test
+    fun cachedDocumentReusesParsedToolOutputAcrossCompositions() {
+        clearToolOutputRenderCachesForTest()
+        val raw = """{"ok":true,"count":2}"""
+
+        val first = cachedToolOutputDocument(raw)
+        val second = cachedToolOutputDocument(raw)
+
+        assertSame(first, second)
+    }
+
+    @Test
+    fun cachedDocumentSkipsOversizedRawOutput() {
+        clearToolOutputRenderCachesForTest()
+        val raw = "x".repeat(ToolOutputDocumentMaxCacheableRawChars + 1)
+
+        val first = cachedToolOutputDocument(raw)
+        val second = cachedToolOutputDocument(raw)
+
+        assertNotSame(first, second)
+        assertEquals(raw, first.raw)
+        assertEquals(raw, second.raw)
+    }
+
+    @Test
+    fun cachedHighlightSpansReuseTokenizationAcrossCompositions() {
+        clearToolOutputRenderCachesForTest()
+        val json = """{"ok":true,"count":2}"""
+
+        val first = cachedToolOutputHighlightSpans(json, ToolOutputHighlightMode.Json)
+        val second = cachedToolOutputHighlightSpans(json, ToolOutputHighlightMode.Json)
+
+        assertSame(first, second)
     }
 
     @Test

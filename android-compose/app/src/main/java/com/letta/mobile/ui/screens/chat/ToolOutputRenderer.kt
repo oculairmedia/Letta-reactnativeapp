@@ -41,6 +41,7 @@ import com.letta.mobile.ui.theme.chatTypography
 import com.letta.mobile.ui.theme.customColors
 import com.letta.mobile.ui.theme.listItemSupporting
 import com.letta.mobile.ui.theme.scaledBy
+import java.util.LinkedHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -50,6 +51,20 @@ internal const val ToolOutputMaxRenderedChars = 20_000
 internal const val ToolOutputMaxRenderedLines = 320
 internal const val ToolOutputPreviewMaxRenderedChars = 1_200
 internal const val ToolOutputMaxHighlightSpans = 800
+internal const val ToolOutputDocumentMaxCacheableRawChars = ToolOutputParser.MaxAnalyzedChars
+
+private const val TOOL_OUTPUT_DOCUMENT_CACHE_ENTRIES = 32
+private const val TOOL_OUTPUT_HIGHLIGHT_CACHE_ENTRIES = 128
+private const val TOOL_OUTPUT_CACHE_FINGERPRINT_CHARS = 96
+
+private val toolOutputDocumentCache =
+    ToolOutputLruCache<ToolOutputContentKey, ToolOutputDocument>(
+        TOOL_OUTPUT_DOCUMENT_CACHE_ENTRIES,
+    )
+private val toolOutputHighlightCache =
+    ToolOutputLruCache<ToolOutputHighlightCacheKey, List<ToolOutputHighlightSpan>>(
+        TOOL_OUTPUT_HIGHLIGHT_CACHE_ENTRIES,
+    )
 
 @Composable
 @OptIn(ExperimentalAnimationApi::class)
@@ -59,10 +74,14 @@ internal fun ToolOutputRenderer(
     isError: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val initialDocument = remember(raw) { initialToolOutputDocument(raw) }
-    val document by produceState(initialValue = initialDocument, raw) {
-        if (raw.length > ToolOutputBackgroundParseThresholdChars) {
-            value = withContext(Dispatchers.Default) { ToolOutputParser.parse(raw) }
+    val rawCacheKey = remember(raw) { raw.toolOutputContentKey() }
+    val cachedDocument = remember(rawCacheKey) { toolOutputDocumentCache.get(rawCacheKey) }
+    val initialDocument = remember(rawCacheKey, raw, cachedDocument) {
+        cachedDocument ?: initialToolOutputDocument(raw)
+    }
+    val document by produceState(initialValue = initialDocument, rawCacheKey, raw, cachedDocument) {
+        if (cachedDocument == null && raw.length > ToolOutputBackgroundParseThresholdChars) {
+            value = withContext(Dispatchers.Default) { cachedToolOutputDocument(raw) }
         }
     }
     val isPinching = LocalChatIsPinching.current
@@ -132,7 +151,7 @@ private fun ToolOutputBody(
 
 internal fun initialToolOutputDocument(raw: String): ToolOutputDocument {
     if (raw.length <= ToolOutputBackgroundParseThresholdChars) {
-        return ToolOutputParser.parse(raw)
+        return cachedToolOutputDocument(raw)
     }
     val preview = ToolOutputParser.stripAnsi(raw.take(ToolOutputMaxRenderedChars))
     return ToolOutputDocument(
@@ -224,14 +243,37 @@ private fun CodeOutputSurface(
     val syntaxColors = toolOutputSyntaxColors(isError)
     val highlightInBackground = limited.text.length > ToolOutputBackgroundHighlightThresholdChars &&
         highlightMode != ToolOutputHighlightMode.None
-    val initialAnnotatedText = remember(limited.text, highlightMode, languageHint, syntaxColors, highlightInBackground) {
-        if (highlightInBackground) {
-            AnnotatedString(limited.text)
-        } else {
-            highlightedToolOutputText(
+    val highlightCacheKey = remember(limited.text, highlightMode, languageHint) {
+        ToolOutputHighlightCacheKey(
+            content = limited.text.toolOutputContentKey(),
+            mode = highlightMode,
+            languageHint = languageHint,
+        )
+    }
+    val cachedSpans = remember(highlightCacheKey) { toolOutputHighlightCache.get(highlightCacheKey) }
+    val initialAnnotatedText = remember(
+        limited.text,
+        highlightMode,
+        languageHint,
+        syntaxColors,
+        highlightInBackground,
+        cachedSpans,
+    ) {
+        when {
+            highlightMode == ToolOutputHighlightMode.None -> AnnotatedString(limited.text)
+            cachedSpans != null -> annotatedToolOutputText(
                 text = limited.text,
-                mode = highlightMode,
-                languageHint = languageHint,
+                spans = cachedSpans,
+                colors = syntaxColors,
+            )
+            highlightInBackground -> AnnotatedString(limited.text)
+            else -> annotatedToolOutputText(
+                text = limited.text,
+                spans = cachedToolOutputHighlightSpans(
+                    text = limited.text,
+                    mode = highlightMode,
+                    languageHint = languageHint,
+                ),
                 colors = syntaxColors,
             )
         }
@@ -243,16 +285,21 @@ private fun CodeOutputSurface(
         languageHint,
         syntaxColors,
         highlightInBackground,
+        cachedSpans,
     ) {
-        if (highlightInBackground) {
-            value = withContext(Dispatchers.Default) {
-                highlightedToolOutputText(
+        if (highlightInBackground && cachedSpans == null) {
+            val spans = withContext(Dispatchers.Default) {
+                cachedToolOutputHighlightSpans(
                     text = limited.text,
                     mode = highlightMode,
                     languageHint = languageHint,
-                    colors = syntaxColors,
                 )
             }
+            value = annotatedToolOutputText(
+                text = limited.text,
+                spans = spans,
+                colors = syntaxColors,
+            )
         }
     }
     Surface(
@@ -500,6 +547,84 @@ internal data class ToolOutputHighlightSpan(
     val kind: ToolOutputHighlightKind,
 )
 
+private data class ToolOutputContentKey(
+    val length: Int,
+    val hash: Int,
+    val prefix: String,
+    val suffix: String,
+)
+
+private data class ToolOutputHighlightCacheKey(
+    val content: ToolOutputContentKey,
+    val mode: ToolOutputHighlightMode,
+    val languageHint: String?,
+)
+
+private fun String.toolOutputContentKey(): ToolOutputContentKey =
+    ToolOutputContentKey(
+        length = length,
+        hash = hashCode(),
+        prefix = take(TOOL_OUTPUT_CACHE_FINGERPRINT_CHARS),
+        suffix = takeLast(TOOL_OUTPUT_CACHE_FINGERPRINT_CHARS),
+    )
+
+internal fun cachedToolOutputDocument(raw: String): ToolOutputDocument {
+    if (raw.length > ToolOutputDocumentMaxCacheableRawChars) {
+        return ToolOutputParser.parse(raw)
+    }
+    return toolOutputDocumentCache.getOrPut(raw.toolOutputContentKey()) {
+        ToolOutputParser.parse(raw)
+    }
+}
+
+internal fun cachedToolOutputHighlightSpans(
+    text: String,
+    mode: ToolOutputHighlightMode,
+    languageHint: String? = null,
+): List<ToolOutputHighlightSpan> =
+    toolOutputHighlightCache.getOrPut(
+        ToolOutputHighlightCacheKey(
+            content = text.toolOutputContentKey(),
+            mode = mode,
+            languageHint = languageHint,
+        )
+    ) {
+        highlightToolOutputText(text = text, mode = mode, languageHint = languageHint)
+    }
+
+internal fun clearToolOutputRenderCachesForTest() {
+    toolOutputDocumentCache.clear()
+    toolOutputHighlightCache.clear()
+}
+
+private class ToolOutputLruCache<K, V>(
+    private val maxEntries: Int,
+) {
+    private val lock = Any()
+    private val values = object : LinkedHashMap<K, V>(maxEntries, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean =
+            size > maxEntries
+    }
+
+    fun get(key: K): V? = synchronized(lock) {
+        values[key]
+    }
+
+    fun getOrPut(key: K, producer: () -> V): V {
+        get(key)?.let { return it }
+        val produced = producer()
+        return synchronized(lock) {
+            values[key] ?: produced.also { values[key] = it }
+        }
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            values.clear()
+        }
+    }
+}
+
 private data class ToolOutputSyntaxColors(
     val default: Color,
     val key: Color,
@@ -546,6 +671,14 @@ private fun highlightedToolOutputText(
     colors: ToolOutputSyntaxColors,
 ): AnnotatedString {
     val spans = highlightToolOutputText(text = text, mode = mode, languageHint = languageHint)
+    return annotatedToolOutputText(text = text, spans = spans, colors = colors)
+}
+
+private fun annotatedToolOutputText(
+    text: String,
+    spans: List<ToolOutputHighlightSpan>,
+    colors: ToolOutputSyntaxColors,
+): AnnotatedString {
     if (spans.isEmpty()) return AnnotatedString(text)
 
     val builder = AnnotatedString.Builder()
