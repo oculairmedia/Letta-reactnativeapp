@@ -5,6 +5,8 @@ import com.letta.mobile.data.model.ProjectSummary
 import com.letta.mobile.testutil.FakeProjectApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,6 +25,19 @@ class ProjectRepositoryTest {
     fun setup() {
         fakeApi = FakeProjectApi()
         repository = ProjectRepository(fakeApi)
+    }
+
+    @Test
+    fun `concurrent refreshProjectsIfStale callers share one list request`() = runTest {
+        fakeApi.projects.add(ProjectSummary(identifier = "GRAPH", name = "Graphiti"))
+        fakeApi.listDelayMillis = 1L
+
+        List(8) {
+            launch { repository.refreshProjectsIfStale(maxAgeMs = 60_000) }
+        }.joinAll()
+
+        assertEquals(1, fakeApi.calls.count { it == "listProjects" })
+        assertEquals(listOf("GRAPH"), repository.projects.first().map { it.identifier })
     }
 
     @Test

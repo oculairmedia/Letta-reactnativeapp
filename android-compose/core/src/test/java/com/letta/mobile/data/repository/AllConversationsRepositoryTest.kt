@@ -3,6 +3,8 @@ package com.letta.mobile.data.repository
 import com.letta.mobile.testutil.FakeConversationApi
 import com.letta.mobile.testutil.TestData
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,6 +24,19 @@ class AllConversationsRepositoryTest {
     fun setup() {
         fakeApi = FakeConversationApi()
         repository = AllConversationsRepository(fakeApi)
+    }
+
+    @Test
+    fun `concurrent refreshIfStale callers share one list request`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "1"))
+        fakeApi.listDelayMillis = 1L
+
+        List(8) {
+            launch { repository.refreshIfStale(maxAgeMs = 60_000) }
+        }.joinAll()
+
+        assertEquals(1, fakeApi.calls.count { it == "listConversations" })
+        assertEquals(listOf("1"), repository.conversations.value.map { it.id })
     }
 
     @Test

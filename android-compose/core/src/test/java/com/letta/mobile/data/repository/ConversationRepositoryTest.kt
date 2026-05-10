@@ -6,6 +6,8 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,6 +30,19 @@ class ConversationRepositoryTest {
             secondArg<suspend () -> Unit>().invoke()
         }
         repository = ConversationRepository(fakeApi, agentRepository)
+    }
+
+    @Test
+    fun `concurrent refreshConversationsIfStale callers share one list request`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "1", agentId = "a1"))
+        fakeApi.listDelayMillis = 1L
+
+        List(8) {
+            launch { repository.refreshConversationsIfStale("a1", maxAgeMs = 60_000) }
+        }.joinAll()
+
+        assertEquals(1, fakeApi.calls.count { it == "listConversations" })
+        assertEquals(listOf("1"), repository.getConversations("a1").first().map { it.id })
     }
 
     @Test

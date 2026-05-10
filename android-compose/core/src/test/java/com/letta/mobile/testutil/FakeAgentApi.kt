@@ -7,10 +7,12 @@ import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 
 class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
     var agents = mutableListOf<Agent>()
     var shouldFail = false
+    var listDelayMillis: Long = 0L
     var failCode = 500
     var failMessage = "Server error"
     val calls = mutableListOf<String>()
@@ -18,6 +20,7 @@ class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
 
     override suspend fun listAgents(limit: Int?, offset: Int?, tags: List<String>?): List<Agent> {
         calls.add("listAgents")
+        if (listDelayMillis > 0L) delay(listDelayMillis)
         if (shouldFail) throw ApiException(failCode, failMessage)
         return agents.toList()
     }

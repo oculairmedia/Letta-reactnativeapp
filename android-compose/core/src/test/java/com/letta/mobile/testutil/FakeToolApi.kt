@@ -7,6 +7,7 @@ import com.letta.mobile.data.model.ToolCreateParams
 import com.letta.mobile.data.model.ToolSchemaGenerateParams
 import com.letta.mobile.data.model.ToolUpdateParams
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -16,6 +17,7 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
     var tools = mutableListOf<Tool>()
     var agentTools = mutableMapOf<String, MutableList<Tool>>()
     var shouldFail = false
+    var listDelayMillis: Long = 0L
     val calls = mutableListOf<String>()
 
     override suspend fun listTools(
@@ -24,6 +26,7 @@ class FakeToolApi : ToolApi(mockk(relaxed = true)) {
         offset: Int?
     ): List<Tool> {
         calls.add("listTools")
+        if (listDelayMillis > 0L) delay(listDelayMillis)
         if (shouldFail) throw ApiException(500, "Server error")
         var result = tools.toList()
         if (offset != null) result = result.drop(offset)

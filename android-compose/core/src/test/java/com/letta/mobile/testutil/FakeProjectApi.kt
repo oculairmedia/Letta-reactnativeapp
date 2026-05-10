@@ -5,14 +5,17 @@ import com.letta.mobile.data.api.ProjectApi
 import com.letta.mobile.data.model.ProjectCatalog
 import com.letta.mobile.data.model.ProjectSummary
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 
 class FakeProjectApi : ProjectApi(mockk(relaxed = true)) {
     var projects = mutableListOf<ProjectSummary>()
     var shouldFail = false
+    var listDelayMillis: Long = 0L
     val calls = mutableListOf<String>()
 
     override suspend fun listProjects(): ProjectCatalog {
         calls.add("listProjects")
+        if (listDelayMillis > 0L) delay(listDelayMillis)
         if (shouldFail) throw ApiException(500, "Server error")
         return ProjectCatalog(total = projects.size, projects = projects.toList())
     }

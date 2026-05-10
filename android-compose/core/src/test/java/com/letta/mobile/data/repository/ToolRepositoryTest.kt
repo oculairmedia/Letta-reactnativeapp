@@ -4,6 +4,8 @@ import com.letta.mobile.testutil.FakeToolApi
 import com.letta.mobile.testutil.TestData
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -24,6 +26,19 @@ class ToolRepositoryTest {
     fun setup() {
         fakeApi = FakeToolApi()
         repository = ToolRepository(fakeApi)
+    }
+
+    @Test
+    fun `concurrent refreshToolsIfStale callers share one list request`() = runTest {
+        fakeApi.tools.add(TestData.tool(id = "1"))
+        fakeApi.listDelayMillis = 1L
+
+        List(8) {
+            launch { repository.refreshToolsIfStale(maxAgeMs = 60_000) }
+        }.joinAll()
+
+        assertEquals(1, fakeApi.calls.count { it == "listTools" })
+        assertEquals(listOf("1"), repository.getTools().first().map { it.id })
     }
 
     @Test

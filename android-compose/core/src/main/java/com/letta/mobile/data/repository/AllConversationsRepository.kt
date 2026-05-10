@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +21,7 @@ class AllConversationsRepository @Inject constructor(
     private val _hasMore = MutableStateFlow(true)
     val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
 
+    private val refreshMutex = Mutex()
     private var currentCursor: String? = null
     private var lastRefreshAtMillis: Long = 0L
 
@@ -44,7 +47,11 @@ class AllConversationsRepository @Inject constructor(
         }
     }
 
-    suspend fun refresh() {
+    suspend fun refresh() = refreshMutex.withLock {
+        refreshLocked()
+    }
+
+    private suspend fun refreshLocked() {
         currentCursor = null
         _conversations.update { emptyList() }
         _hasMore.update { true }
@@ -56,10 +63,10 @@ class AllConversationsRepository @Inject constructor(
         return _conversations.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
-    suspend fun refreshIfStale(maxAgeMs: Long): Boolean {
-        if (hasFreshConversations(maxAgeMs)) return false
-        refresh()
-        return true
+    suspend fun refreshIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
+        if (hasFreshConversations(maxAgeMs)) return@withLock false
+        refreshLocked()
+        true
     }
 
     fun handleOptimisticUpdate(conversation: Conversation) {

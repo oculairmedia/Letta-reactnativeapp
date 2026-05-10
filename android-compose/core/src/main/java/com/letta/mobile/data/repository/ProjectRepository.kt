@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.net.URI
 import javax.inject.Inject
@@ -21,9 +23,14 @@ class ProjectRepository @Inject constructor(
     private val _projects = MutableStateFlow<List<ProjectSummary>>(emptyList())
     val projects: StateFlow<List<ProjectSummary>> = _projects.asStateFlow()
 
+    private val refreshMutex = Mutex()
     private var lastRefreshAtMillis: Long = 0L
 
-    suspend fun refreshProjects(): ProjectCatalog {
+    suspend fun refreshProjects(): ProjectCatalog = refreshMutex.withLock {
+        refreshProjectsLocked()
+    }
+
+    private suspend fun refreshProjectsLocked(): ProjectCatalog {
         val catalog = projectApi.listProjects().sanitize()
         _projects.value = catalog.projects
         lastRefreshAtMillis = System.currentTimeMillis()
@@ -115,10 +122,10 @@ class ProjectRepository @Inject constructor(
         return _projects.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
-    suspend fun refreshProjectsIfStale(maxAgeMs: Long): Boolean {
-        if (hasFreshProjects(maxAgeMs)) return false
-        refreshProjects()
-        return true
+    suspend fun refreshProjectsIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
+        if (hasFreshProjects(maxAgeMs)) return@withLock false
+        refreshProjectsLocked()
+        true
     }
 
     private fun ProjectCatalog.sanitize(): ProjectCatalog = copy(

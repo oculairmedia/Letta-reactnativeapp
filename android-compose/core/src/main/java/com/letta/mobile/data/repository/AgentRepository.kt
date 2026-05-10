@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +38,7 @@ class AgentRepository @Inject constructor(
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val refreshMutex = Mutex()
     private var lastRefreshAtMillis: Long = 0L
 
     init {
@@ -64,7 +67,11 @@ class AgentRepository @Inject constructor(
 
     override suspend fun countAgents(): Int = agentApi.countAgents()
 
-    override suspend fun refreshAgents() {
+    override suspend fun refreshAgents() = refreshMutex.withLock {
+        refreshAgentsLocked()
+    }
+
+    private suspend fun refreshAgentsLocked() {
         val fresh = agentApi.listAgents(limit = 1000)
         _agents.update { fresh }
         lastRefreshAtMillis = System.currentTimeMillis()
@@ -83,10 +90,10 @@ class AgentRepository @Inject constructor(
         return _agents.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
-    suspend fun refreshAgentsIfStale(maxAgeMs: Long): Boolean {
-        if (hasFreshAgents(maxAgeMs)) return false
-        refreshAgents()
-        return true
+    suspend fun refreshAgentsIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
+        if (hasFreshAgents(maxAgeMs)) return@withLock false
+        refreshAgentsLocked()
+        true
     }
 
     override fun getAgent(id: String): Flow<Agent> = flow {

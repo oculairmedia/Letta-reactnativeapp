@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.letta.mobile.data.repository.api.IConversationRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,13 +22,18 @@ class ConversationRepository @Inject constructor(
     private val agentRepository: AgentRepository,
 ) : IConversationRepository {
     private val _conversationsByAgent = MutableStateFlow<Map<String, List<Conversation>>>(emptyMap())
+    private val refreshMutex = Mutex()
     private val lastRefreshAtMillisByAgent = mutableMapOf<String, Long>()
 
     override fun getConversations(agentId: String): Flow<List<Conversation>> {
         return _conversationsByAgent.map { it[agentId] ?: emptyList() }
     }
 
-    override suspend fun refreshConversations(agentId: String) {
+    override suspend fun refreshConversations(agentId: String) = refreshMutex.withLock {
+        refreshConversationsLocked(agentId)
+    }
+
+    private suspend fun refreshConversationsLocked(agentId: String) {
         val conversations = conversationApi.listConversations(agentId = agentId)
         _conversationsByAgent.update { current -> current.toMutableMap().apply {
                     put(agentId, conversations)
@@ -41,10 +48,10 @@ class ConversationRepository @Inject constructor(
         return getCachedConversations(agentId).isNotEmpty() && System.currentTimeMillis() - lastRefreshAt <= maxAgeMs
     }
 
-    suspend fun refreshConversationsIfStale(agentId: String, maxAgeMs: Long): Boolean {
-        if (hasFreshConversations(agentId, maxAgeMs)) return false
-        refreshConversations(agentId)
-        return true
+    suspend fun refreshConversationsIfStale(agentId: String, maxAgeMs: Long): Boolean = refreshMutex.withLock {
+        if (hasFreshConversations(agentId, maxAgeMs)) return@withLock false
+        refreshConversationsLocked(agentId)
+        true
     }
 
     override suspend fun getConversation(id: String): Conversation {

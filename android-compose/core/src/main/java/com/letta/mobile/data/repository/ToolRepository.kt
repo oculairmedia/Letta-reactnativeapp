@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.letta.mobile.data.repository.api.IToolRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +22,7 @@ class ToolRepository @Inject constructor(
 ) : IToolRepository {
     private val _tools = MutableStateFlow<List<Tool>>(emptyList())
     private val _toolsByAgent = MutableStateFlow<Map<String, List<Tool>>>(emptyMap())
+    private val refreshMutex = Mutex()
     private var lastRefreshAtMillis: Long = 0L
 
     override fun getTools(): StateFlow<List<Tool>> = _tools.asStateFlow()
@@ -30,7 +33,11 @@ class ToolRepository @Inject constructor(
 
     override suspend fun countTools(): Int = toolApi.countTools()
 
-    override suspend fun refreshTools() {
+    override suspend fun refreshTools() = refreshMutex.withLock {
+        refreshToolsLocked()
+    }
+
+    private suspend fun refreshToolsLocked() {
         _tools.update { toolApi.listTools() }
         lastRefreshAtMillis = System.currentTimeMillis()
     }
@@ -39,10 +46,10 @@ class ToolRepository @Inject constructor(
         return _tools.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
-    suspend fun refreshToolsIfStale(maxAgeMs: Long): Boolean {
-        if (hasFreshTools(maxAgeMs)) return false
-        refreshTools()
-        return true
+    suspend fun refreshToolsIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
+        if (hasFreshTools(maxAgeMs)) return@withLock false
+        refreshToolsLocked()
+        true
     }
 
     suspend fun fetchToolsPage(limit: Int, offset: Int): List<Tool> {

@@ -5,6 +5,8 @@ import com.letta.mobile.testutil.TestData
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,6 +25,19 @@ class AgentRepositoryTest {
     fun setup() {
         fakeApi = FakeAgentApi()
         repository = AgentRepository(fakeApi, mockk(relaxed = true))
+    }
+
+    @Test
+    fun `concurrent refreshAgentsIfStale callers share one list request`() = runTest {
+        fakeApi.agents.add(TestData.agent(id = "a1", name = "Agent One"))
+        fakeApi.listDelayMillis = 1L
+
+        List(8) {
+            launch { repository.refreshAgentsIfStale(maxAgeMs = 60_000) }
+        }.joinAll()
+
+        assertEquals(1, fakeApi.calls.count { it == "listAgents" })
+        assertEquals(listOf("a1"), repository.agents.value.map { it.id })
     }
 
     @Test
