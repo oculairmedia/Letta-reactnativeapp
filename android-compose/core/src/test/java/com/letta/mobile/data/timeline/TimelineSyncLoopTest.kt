@@ -14,6 +14,7 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.writeStringUtf8
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1397,6 +1398,93 @@ scope.coroutineContext.job.cancel()
     }
 
     @Test
+    fun `hydrate fetch does not hold timeline write mutex`() = runTest {
+        val api = BlockingListApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-hydrate-lock", scope)
+
+        val hydrateJob = launch { sync.hydrate() }
+        testScheduler.runCurrent()
+        api.listStarted.await()
+
+        val localId = withTimeout(100) {
+            sync.appendClientModeLocal("mutation while hydrate fetch waits")
+        }
+
+        assertNotNull(sync.state.value.findByOtid(localId))
+        api.releaseList.complete(emptyList())
+        hydrateJob.join()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `reconcile fetch does not hold timeline write mutex`() = runTest {
+        val api = BlockingListApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-reconcile-lock", scope)
+
+        val reconcileJob = launch { sync.reconcileForExternalRun("run-slow") }
+        testScheduler.runCurrent()
+        api.listStarted.await()
+
+        val localId = withTimeout(100) {
+            sync.appendClientModeLocal("mutation while reconcile fetch waits")
+        }
+
+        assertNotNull(sync.state.value.findByOtid(localId))
+        api.releaseList.complete(emptyList())
+        reconcileJob.join()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `slow ingested listener does not hold timeline write mutex`() = runTest {
+        val api = FakeSyncApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val listenerStarted = CompletableDeferred<Unit>()
+        val releaseListener = CompletableDeferred<Unit>()
+        val sync = TimelineSyncLoop(
+            messageApi = api,
+            conversationId = "conv-listener-lock",
+            scope = scope,
+            ingestedListener = object : IngestedMessageListener {
+                override suspend fun onMessageIngested(
+                    conversationId: String,
+                    serverId: String,
+                    messageType: String?,
+                    contentPreview: String?,
+                ) {
+                    listenerStarted.complete(Unit)
+                    releaseListener.await()
+                }
+            },
+        )
+
+        val ingestJob = launch {
+            sync.ingestStreamEvent(
+                AssistantMessage(
+                    id = "asst-slow-listener",
+                    contentRaw = JsonPrimitive("slow notification"),
+                )
+            )
+        }
+        testScheduler.runCurrent()
+        listenerStarted.await()
+
+        val localId = withTimeout(100) {
+            sync.appendClientModeLocal("mutation while listener waits")
+        }
+
+        assertNotNull(sync.state.value.findByOtid(localId))
+        releaseListener.complete(Unit)
+        ingestJob.join()
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
     fun `stream subscriber resolves ingested listener dynamically`() = runTest {
         com.letta.mobile.util.Telemetry.clear()
         val api = OneShotAssistantStreamApi()
@@ -1445,6 +1533,25 @@ scope.coroutineContext.job.cancel()
         assertEquals(19, dispatchEvent.attrs["previewLength"])
         assertFalse("listener dispatch telemetry must not include raw preview", dispatchEvent.attrs.containsKey("contentPreview"))
         scope.coroutineContext.job.cancel()
+    }
+}
+
+private class BlockingListApi : MessageApi(mockk(relaxed = true)) {
+    val listStarted = CompletableDeferred<Unit>()
+    val releaseList = CompletableDeferred<List<LettaMessage>>()
+
+    override suspend fun streamConversation(conversationId: String): ByteReadChannel {
+        kotlinx.coroutines.awaitCancellation()
+    }
+
+    override suspend fun listConversationMessages(
+        conversationId: String,
+        limit: Int?,
+        after: String?,
+        order: String?,
+    ): List<LettaMessage> {
+        listStarted.complete(Unit)
+        return releaseList.await()
     }
 }
 

@@ -93,10 +93,10 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 interface IngestedMessageListener {
     /**
-     * Called on the TimelineSyncLoop's coroutine context (Dispatchers.IO),
-     * under the write lock, AFTER the event has been appended to state.
-     * Implementations should NOT call back into the loop. Must be fast and
-     * non-throwing — any exception is swallowed and logged.
+     * Called on the TimelineSyncLoop's coroutine context (Dispatchers.IO)
+     * after the event has been appended to state and the write lock has been
+     * released. Implementations may do slow lookup/network work; exceptions
+     * are swallowed and logged.
      */
     suspend fun onMessageIngested(
         conversationId: String,
@@ -189,8 +189,16 @@ class TimelineSyncLoop(
      * Replaces the current timeline entirely. Should be called once when a
      * conversation is opened.
      */
-    suspend fun hydrate(limit: Int = 50) = writeMutex.withLock {
+    suspend fun hydrate(limit: Int = 50) {
         val timer = Telemetry.startTimer("TimelineSync", "hydrate")
+        val timelineBeforeFetch = writeMutex.withLock { _state.value }
+        fun TimelineEvent.identityKeys(): Set<String> {
+            val keys = mutableSetOf("otid:$otid")
+            if (this is TimelineEvent.Confirmed) {
+                keys += "server:$serverId:$messageType"
+            }
+            return keys
+        }
         try {
             // Fetch the MOST RECENT N messages (order=desc), then reverse into
             // chronological order for display. Previously this used order=asc
@@ -257,47 +265,62 @@ class TimelineSyncLoop(
                     else -> ev
                 }
             }
-            // PRESERVE pending Local sends across hydrate. Hydrate may run
-            // concurrently with user sends now that getOrCreate releases the
-            // loop mutex before hydrating (letta-mobile-mge5.9). Without
-            // preservation, a hydrate landing right after the user taps send
-            // would wipe their just-appended SENDING bubble — Emmanuel
-            // reported the symptom "it's only sending the your response,
-            // it's not sending my query" 2026-04-19.
-            val pendingLocals = _state.value.events.filterIsInstance<TimelineEvent.Local>()
-                .filter { it.deliveryState == DeliveryState.SENDING || it.deliveryState == DeliveryState.SENT || it.deliveryState == DeliveryState.FAILED }
-                .filter { local -> converted.none { c -> c.otid == local.otid } }
-            // mge5.24: re-inject Locals persisted to disk that the server
-            // hasn't echoed (and that aren't already present in the in-memory
-            // pendingLocals list — process is fresh so usually they're not).
-            // Locks down the otid space so we don't double-add when both the
-            // in-memory and disk copies exist, e.g. hydrate during runtime
-            // after a foreground restart of the loop.
-            val knownOtids = (converted.map { it.otid } + pendingLocals.map { it.otid }).toHashSet()
-            val diskLocals = runCatching { pendingLocalStore.load(conversationId) }
+            val diskRecords = runCatching { pendingLocalStore.load(conversationId) }
                 .getOrDefault(emptyList())
-                .filter { it.otid !in knownOtids }
-                .map { rec ->
-                    TimelineEvent.Local(
-                        position = 0.0, // assigned below
-                        otid = rec.otid,
-                        content = rec.content,
-                        role = Role.USER,
-                        sentAt = rec.sentAt,
-                        deliveryState = DeliveryState.SENT,
-                        attachments = rec.attachments,
-                    )
+
+            writeMutex.withLock {
+                // PRESERVE pending Local sends across hydrate. Hydrate may run
+                // concurrently with user sends now that getOrCreate releases the
+                // loop mutex before hydrating (letta-mobile-mge5.9). Without
+                // preservation, a hydrate landing right after the user taps send
+                // would wipe their just-appended SENDING bubble — Emmanuel
+                // reported the symptom "it's only sending the your response,
+                // it's not sending my query" 2026-04-19.
+                val currentTimeline = _state.value
+                val pendingLocals = currentTimeline.events.filterIsInstance<TimelineEvent.Local>()
+                    .filter { it.deliveryState == DeliveryState.SENDING || it.deliveryState == DeliveryState.SENT || it.deliveryState == DeliveryState.FAILED }
+                    .filter { local -> converted.none { c -> c.otid == local.otid } }
+                val initialKeys = timelineBeforeFetch.events.flatMap { it.identityKeys() }.toHashSet()
+                val convertedKeys = converted.flatMap { it.identityKeys() }.toHashSet()
+                val concurrentConfirmed = currentTimeline.events.filterIsInstance<TimelineEvent.Confirmed>()
+                    .filter { event -> event.identityKeys().none { it in initialKeys } }
+                    .filter { event -> event.identityKeys().none { it in convertedKeys } }
+                // mge5.24: re-inject Locals persisted to disk that the server
+                // hasn't echoed (and that aren't already present in the in-memory
+                // pendingLocals list — process is fresh so usually they're not).
+                // Locks down the otid space so we don't double-add when both the
+                // in-memory and disk copies exist, e.g. hydrate during runtime
+                // after a foreground restart of the loop.
+                val knownOtids = (converted.map { it.otid } + pendingLocals.map { it.otid }).toHashSet()
+                val diskLocals = diskRecords
+                    .filter { it.otid !in knownOtids }
+                    .map { rec ->
+                        TimelineEvent.Local(
+                            position = 0.0, // assigned below
+                            otid = rec.otid,
+                            content = rec.content,
+                            role = Role.USER,
+                            sentAt = rec.sentAt,
+                            deliveryState = DeliveryState.SENT,
+                            attachments = rec.attachments,
+                        )
+                    }
+                val maxServerPos = converted.lastOrNull()?.position ?: 0.0
+                val runtimePreserved = (pendingLocals + concurrentConfirmed).sortedBy { it.position }
+                val allPreserved = runtimePreserved + diskLocals
+                val merged = converted + allPreserved.mapIndexed { idx, event ->
+                    val position = maxServerPos + (idx + 1).toDouble()
+                    when (event) {
+                        is TimelineEvent.Local -> event.copy(position = position)
+                        is TimelineEvent.Confirmed -> event.copy(position = position)
+                    }
                 }
-            val maxServerPos = converted.lastOrNull()?.position ?: 0.0
-            val allPending = pendingLocals + diskLocals
-            val merged = converted + allPending.mapIndexed { idx, l ->
-                l.copy(position = maxServerPos + (idx + 1).toDouble())
+                _state.value = Timeline(
+                    conversationId = conversationId,
+                    events = merged,
+                    liveCursor = converted.lastOrNull()?.serverId,
+                )
             }
-            _state.value = Timeline(
-                conversationId = conversationId,
-                events = merged,
-                liveCursor = converted.lastOrNull()?.serverId,
-            )
             _events.emit(TimelineSyncEvent.Hydrated(converted.size))
             timer.stop(
                 "conversationId" to conversationId,
@@ -710,10 +733,12 @@ class TimelineSyncLoop(
      * After a send completes, fetch recent messages and swap our Local user
      * event for the server-confirmed version, and pull in any missed events.
      */
-    private suspend fun reconcileAfterSend(otid: String) = writeMutex.withLock {
+    private suspend fun reconcileAfterSend(otid: String) {
         val timer = Telemetry.startTimer("TimelineSync", "reconcile")
         var confirmedLocal = false
         var appendedMissing = 0
+        var confirmedServerId: String? = null
+        var shouldDeletePendingLocal = false
         try {
             // letta-mobile-j44j: retry the GET on transient failures before
             // surfacing a user-visible error. The stream already landed the
@@ -721,71 +746,82 @@ class TimelineSyncLoop(
             // so reconcile's job here is the lower-stakes work of swapping
             // the Local user bubble to Confirmed and picking up anything
             // the SSE missed. A network blip on that GET shouldn't leave
-            // the bubble stuck in SENT forever.
+            // the bubble stuck in SENT forever. Keep this fetch outside the
+            // write mutex so timeline mutation/rendering is not blocked by
+            // network latency.
             val serverMessages = listMessagesWithRetry(otid).reversed()
 
-            // 1. Swap Local→Confirmed for our outbound message
-            val myMatch = serverMessages.firstOrNull { it.otid == otid }
-            if (myMatch != null) {
-                val existing = _state.value.findByOtid(otid)
-                if (existing is TimelineEvent.Local) {
-                    val confirmed = myMatch.toTimelineEvent(position = existing.position)
-                    if (confirmed != null) {
-                        _state.value = _state.value.replaceLocal(otid, confirmed)
-                        _events.emit(TimelineSyncEvent.LocalConfirmed(otid, myMatch.id))
-                        confirmedLocal = true
-                        // mge5.24: server echoed our send back, so any
-                        // disk-persisted Local for this otid is now obsolete.
-                        // (For text sends nothing was persisted; for images
-                        // this branch will rarely fire today because the
-                        // server drops them — but if/when it does, clean up.)
-                        runCatching { pendingLocalStore.delete(otid) }
+            writeMutex.withLock {
+                // 1. Swap Local→Confirmed for our outbound message
+                val myMatch = serverMessages.firstOrNull { it.otid == otid }
+                if (myMatch != null) {
+                    val existing = _state.value.findByOtid(otid)
+                    if (existing is TimelineEvent.Local) {
+                        val confirmed = myMatch.toTimelineEvent(position = existing.position)
+                        if (confirmed != null) {
+                            _state.value = _state.value.replaceLocal(otid, confirmed)
+                            confirmedServerId = myMatch.id
+                            confirmedLocal = true
+                            // mge5.24: server echoed our send back, so any
+                            // disk-persisted Local for this otid is now obsolete.
+                            // (For text sends nothing was persisted; for images
+                            // this branch will rarely fire today because the
+                            // server drops them — but if/when it does, clean up.)
+                            shouldDeletePendingLocal = true
+                        }
                     }
+                }
+
+                // 2. Pull in any server messages we don't yet have (missed stream events)
+                serverMessages.forEach { msg ->
+                    val msgOtid = msg.otid ?: return@forEach
+                    if (_state.value.findByOtid(msgOtid) == null) {
+                        val pos = _state.value.nextLocalPosition()
+                        val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
+                        // letta-mobile-c87t: before falling through to the standard
+                        // append, attempt a Client-Mode fuzzy collapse. If the user
+                        // sent this message via Client Mode, there's a `cm-<uuid>`
+                        // Local with matching content + recent timestamp + source
+                        // == CLIENT_MODE_HARNESS in the timeline; we collapse the
+                        // pair to a single Confirmed event at the Local's position
+                        // so the UI doesn't transiently show two user bubbles.
+                        //
+                        // This path is scoped strictly via the Local's `source`
+                        // field — never via ambient flags. See
+                        // [Timeline.collapseClientModeFuzzyMatch] for the matcher.
+                        val fuzzy = _state.value.collapseClientModeFuzzyMatch(confirmed)
+                        if (fuzzy.collapsed != null) {
+                            _state.value = fuzzy.timeline
+                            // Meridian guardrail (2): log every fuzzy collapse at
+                            // INFO level so 8cm8 verification + duplicate-bubble
+                            // triage have data to work with.
+                            Telemetry.event(
+                                "TimelineSync", "reconcile.fuzzyCollapsed",
+                                "conversationId" to conversationId,
+                                "localOtid" to fuzzy.collapsed.localOtid,
+                                "serverId" to fuzzy.collapsed.serverId,
+                                "deltaMs" to fuzzy.collapsed.deltaMs,
+                                "contentPrefix" to fuzzy.collapsed.contentPrefix,
+                                "source" to fuzzy.collapsed.source.name,
+                            )
+                            return@forEach
+                        }
+                        _state.value = _state.value.append(confirmed)
+                        appendedMissing++
+                    }
+                }
+
+                // 3. Advance liveCursor
+                serverMessages.lastOrNull()?.id?.let {
+                    _state.value = _state.value.copy(liveCursor = it)
                 }
             }
 
-            // 2. Pull in any server messages we don't yet have (missed stream events)
-            serverMessages.forEach { msg ->
-                val msgOtid = msg.otid ?: return@forEach
-                if (_state.value.findByOtid(msgOtid) == null) {
-                    val pos = _state.value.nextLocalPosition()
-                    val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
-                    // letta-mobile-c87t: before falling through to the standard
-                    // append, attempt a Client-Mode fuzzy collapse. If the user
-                    // sent this message via Client Mode, there's a `cm-<uuid>`
-                    // Local with matching content + recent timestamp + source
-                    // == CLIENT_MODE_HARNESS in the timeline; we collapse the
-                    // pair to a single Confirmed event at the Local's position
-                    // so the UI doesn't transiently show two user bubbles.
-                    //
-                    // This path is scoped strictly via the Local's `source`
-                    // field — never via ambient flags. See
-                    // [Timeline.collapseClientModeFuzzyMatch] for the matcher.
-                    val fuzzy = _state.value.collapseClientModeFuzzyMatch(confirmed)
-                    if (fuzzy.collapsed != null) {
-                        _state.value = fuzzy.timeline
-                        // Meridian guardrail (2): log every fuzzy collapse at
-                        // INFO level so 8cm8 verification + duplicate-bubble
-                        // triage have data to work with.
-                        Telemetry.event(
-                            "TimelineSync", "reconcile.fuzzyCollapsed",
-                            "conversationId" to conversationId,
-                            "localOtid" to fuzzy.collapsed.localOtid,
-                            "serverId" to fuzzy.collapsed.serverId,
-                            "deltaMs" to fuzzy.collapsed.deltaMs,
-                            "contentPrefix" to fuzzy.collapsed.contentPrefix,
-                            "source" to fuzzy.collapsed.source.name,
-                        )
-                        return@forEach
-                    }
-                    _state.value = _state.value.append(confirmed)
-                    appendedMissing++
-                }
+            confirmedServerId?.let { serverId ->
+                _events.emit(TimelineSyncEvent.LocalConfirmed(otid, serverId))
             }
-
-            // 3. Advance liveCursor
-            serverMessages.lastOrNull()?.id?.let {
-                _state.value = _state.value.copy(liveCursor = it)
+            if (shouldDeletePendingLocal) {
+                runCatching { pendingLocalStore.delete(otid) }
             }
             timer.stop(
                 "otid" to otid,
@@ -893,21 +929,21 @@ class TimelineSyncLoop(
         )
     }
 
-    internal suspend fun reconcileForExternalRun(runId: String) = writeMutex.withLock {
-        reconcileRecentMessagesLocked(
+    internal suspend fun reconcileForExternalRun(runId: String) {
+        reconcileRecentMessagesFromServer(
             telemetryName = "externalRunReconcile",
             telemetryAttrs = arrayOf("runId" to runId),
         )
     }
 
-    internal suspend fun reconcileRecentMessages(reason: String) = writeMutex.withLock {
-        reconcileRecentMessagesLocked(
+    internal suspend fun reconcileRecentMessages(reason: String) {
+        reconcileRecentMessagesFromServer(
             telemetryName = "recentReconcile",
             telemetryAttrs = arrayOf("reason" to reason),
         )
     }
 
-    private suspend fun reconcileRecentMessagesLocked(
+    private suspend fun reconcileRecentMessagesFromServer(
         telemetryName: String,
         telemetryAttrs: Array<Pair<String, Any?>>,
     ) {
@@ -919,48 +955,13 @@ class TimelineSyncLoop(
                 limit = RECONCILE_LIMIT,
                 order = "desc",
             ).reversed()
-            serverMessages.forEach { msg ->
-                msg.otid ?: return@forEach
-                // Never append a standalone TOOL_RETURN event — they
-                // attach to their TOOL_CALL below. letta-mobile-mge5.21.
-                val pos = _state.value.nextLocalPosition()
-                val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
-                if (confirmed.messageType == TimelineMessageType.TOOL_RETURN) return@forEach
-                val byOtid = _state.value.findByOtid(confirmed.otid)
-                val byServerId = _state.value.findByServerId(msg.id, confirmed.messageType)
-                if (byOtid == null && byServerId == null) {
-                    // Fresh Client Mode runs can finish their local WS stream before the
-                    // Letta SSE subscriber opens. The first SSE frame then triggers this
-                    // reconcile, whose REST snapshot contains the same user / reasoning /
-                    // assistant turns that the Client Mode harness already appended locally.
-                    // Collapse those local harness bubbles before the generic append path,
-                    // otherwise the REST-confirmed copy is inserted beside the local copy
-                    // and later SSE deltas double-merge into it.
-                    val fuzzy = _state.value.collapseClientModeFuzzyMatch(confirmed)
-                    if (fuzzy.collapsed != null) {
-                        _state.value = fuzzy.timeline
-                        Telemetry.event(
-                            "TimelineSync", "$telemetryName.fuzzyCollapsed",
-                            "conversationId" to conversationId,
-                            *telemetryAttrs,
-                            "localOtid" to fuzzy.collapsed.localOtid,
-                            "serverId" to fuzzy.collapsed.serverId,
-                            "deltaMs" to fuzzy.collapsed.deltaMs,
-                            "contentPrefix" to fuzzy.collapsed.contentPrefix,
-                            "source" to fuzzy.collapsed.source.name,
-                        )
-                        return@forEach
-                    }
-                    _state.value = _state.value.append(confirmed)
-                    appended++
-                }
+            writeMutex.withLock {
+                appended = applyRecentMessagesSnapshotLocked(
+                    serverMessages = serverMessages,
+                    telemetryName = telemetryName,
+                    telemetryAttrs = telemetryAttrs,
+                )
             }
-            // After appending new events, apply return/response hints from
-            // the full snapshot so existing TOOL_CALL bubbles pick up their
-            // output + decided state. This is the key path for the UX
-            // symptom "approve/reject still visible after tool ran" when the
-            // server's SSE stream doesn't emit tool_return frames.
-            applyReturnsAndResponsesFromSnapshot(serverMessages)
             timer.stop(
                 *telemetryAttrs,
                 "serverCount" to serverMessages.size,
@@ -970,6 +971,57 @@ class TimelineSyncLoop(
             timer.stopError(t, *telemetryAttrs)
             throw t
         }
+    }
+
+    private fun applyRecentMessagesSnapshotLocked(
+        serverMessages: List<LettaMessage>,
+        telemetryName: String,
+        telemetryAttrs: Array<Pair<String, Any?>>,
+    ): Int {
+        var appended = 0
+        serverMessages.forEach { msg ->
+            msg.otid ?: return@forEach
+            // Never append a standalone TOOL_RETURN event — they
+            // attach to their TOOL_CALL below. letta-mobile-mge5.21.
+            val pos = _state.value.nextLocalPosition()
+            val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
+            if (confirmed.messageType == TimelineMessageType.TOOL_RETURN) return@forEach
+            val byOtid = _state.value.findByOtid(confirmed.otid)
+            val byServerId = _state.value.findByServerId(msg.id, confirmed.messageType)
+            if (byOtid == null && byServerId == null) {
+                // Fresh Client Mode runs can finish their local WS stream before the
+                // Letta SSE subscriber opens. The first SSE frame then triggers this
+                // reconcile, whose REST snapshot contains the same user / reasoning /
+                // assistant turns that the Client Mode harness already appended locally.
+                // Collapse those local harness bubbles before the generic append path,
+                // otherwise the REST-confirmed copy is inserted beside the local copy
+                // and later SSE deltas double-merge into it.
+                val fuzzy = _state.value.collapseClientModeFuzzyMatch(confirmed)
+                if (fuzzy.collapsed != null) {
+                    _state.value = fuzzy.timeline
+                    Telemetry.event(
+                        "TimelineSync", "$telemetryName.fuzzyCollapsed",
+                        "conversationId" to conversationId,
+                        *telemetryAttrs,
+                        "localOtid" to fuzzy.collapsed.localOtid,
+                        "serverId" to fuzzy.collapsed.serverId,
+                        "deltaMs" to fuzzy.collapsed.deltaMs,
+                        "contentPrefix" to fuzzy.collapsed.contentPrefix,
+                        "source" to fuzzy.collapsed.source.name,
+                    )
+                    return@forEach
+                }
+                _state.value = _state.value.append(confirmed)
+                appended++
+            }
+        }
+        // After appending new events, apply return/response hints from
+        // the full snapshot so existing TOOL_CALL bubbles pick up their
+        // output + decided state. This is the key path for the UX
+        // symptom "approve/reject still visible after tool ran" when the
+        // server's SSE stream doesn't emit tool_return frames.
+        applyReturnsAndResponsesFromSnapshot(serverMessages)
+        return appended
     }
 
     /**
@@ -1319,23 +1371,30 @@ class TimelineSyncLoop(
         }
     }
 
+    private data class PendingIngestNotification(
+        val serverId: String,
+        val messageType: String,
+        val contentPreview: String?,
+    )
+
     /**
      * Ingest a single LettaMessage received via the resume-stream SSE
      * subscription. Dedupes by server id and otid (so stream events that
      * duplicate ones we already have via reconcile are ignored). Appends
      * novel messages as Confirmed events.
      */
-    internal suspend fun ingestStreamEvent(message: LettaMessage) = writeMutex.withLock {
+    internal suspend fun ingestStreamEvent(message: LettaMessage) {
+        val notification = writeMutex.withLock<PendingIngestNotification?> {
         // letta-mobile-mge5.15: ApprovalResponseMessage doesn't produce its own
         // bubble — instead we find the corresponding ApprovalRequestMessage
         // event (by approvalRequestId) and mark it decided so the UI hides
         // the approve/reject buttons. This covers all paths: auto-approved
         // by server, approved via phone UI, approved from another client.
         if (message is ApprovalResponseMessage) {
-            val reqId = message.approvalRequestId ?: return@withLock
+            val reqId = message.approvalRequestId ?: return@withLock null
             val match = _state.value.events.firstOrNull {
                 it is TimelineEvent.Confirmed && it.approvalRequestId == reqId
-            } as? TimelineEvent.Confirmed ?: return@withLock
+            } as? TimelineEvent.Confirmed ?: return@withLock null
             if (match.approvalDecided) {
                 // letta-mobile-mge5.6: observed a redundant approval
                 // response — already decided. Counted as a dedupe drop.
@@ -1345,12 +1404,12 @@ class TimelineSyncLoop(
                     "approvalRequestId" to reqId,
                     "conversationId" to conversationId,
                 )
-                return@withLock
+                return@withLock null
             }
             val updated = match.copy(approvalDecided = true)
             _state.value = _state.value.replaceByServerId(updated)
             _events.emit(TimelineSyncEvent.StreamEventIngested(match.serverId, message.messageType))
-            return@withLock
+            return@withLock null
         }
         // Observe a tool_return_message → the tool ran → approval (if any)
         // must have been granted. Flip any matching ApprovalRequest event to
@@ -1410,7 +1469,7 @@ class TimelineSyncLoop(
                     )
                 }
             }
-            return@withLock
+            return@withLock null
         }
         val confirmed = message.toTimelineEvent(position = _state.value.nextLocalPosition())
         if (confirmed == null) {
@@ -1424,7 +1483,7 @@ class TimelineSyncLoop(
                 "messageId" to message.id,
                 "conversationId" to conversationId,
             )
-            return@withLock
+            return@withLock null
         }
         // Letta streams one assistant_message per step with an incrementing
         // `seq_id`, and each frame's `content` carries only the NEWLY-EMITTED
@@ -1451,7 +1510,7 @@ class TimelineSyncLoop(
                     "incomingSeqId" to confirmed.seqId,
                     "conversationId" to conversationId,
                 )
-                return@withLock
+                return@withLock null
             }
             val oldText = existing.content
             val newText = confirmed.content
@@ -1549,7 +1608,7 @@ class TimelineSyncLoop(
             )
             // No notification-publish for in-place updates — we already
             // published when the event first appeared.
-            return@withLock
+            return@withLock null
         }
         // otid-based dedupe: catches our own echoes before reconcile runs.
         if (_state.value.findByOtid(confirmed.otid) != null) {
@@ -1561,7 +1620,7 @@ class TimelineSyncLoop(
                 "otid" to (confirmed.otid ?: "<null>"),
                 "conversationId" to conversationId,
             )
-            return@withLock
+            return@withLock null
         }
         // letta-mobile-c87t: Client Mode fuzzy collapse on the live stream path.
         // Mirrors the reconcile-path collapse above — if there's a recent
@@ -1581,7 +1640,7 @@ class TimelineSyncLoop(
                 "contentPrefix" to fuzzy.collapsed.contentPrefix,
                 "source" to fuzzy.collapsed.source.name,
             )
-            return@withLock
+            return@withLock null
         }
         _state.value = _state.value.append(applyPendingToolReturns(confirmed))
         _state.value = _state.value.copy(liveCursor = confirmed.serverId)
@@ -1595,31 +1654,46 @@ class TimelineSyncLoop(
         // Notify the :app module so it can post a system notification when
         // the user isn't currently viewing this conversation. We only care
         // about inbound assistant/tool_return messages — skip streams of our
-        // own echo and agent-internal plumbing.
+        // own echo and agent-internal plumbing. Resolve and invoke the
+        // listener after releasing writeMutex so notification lookup/network
+        // work cannot block timeline mutations or rendering.
         val mt = message.messageType
         if (mt == "assistant_message" || mt == "tool_return_message") {
-            try {
-                val listener = ingestedListenerProvider?.invoke() ?: ingestedListener
-                Telemetry.event(
-                    "TimelineSync", "streamSubscriber.listenerDispatch",
-                    "conversationId" to conversationId,
-                    "serverId" to confirmed.serverId,
-                    "messageType" to mt,
-                    "hasListener" to (listener != null),
-                    "previewLength" to confirmed.content.take(140).length,
-                )
-                listener?.onMessageIngested(
-                    conversationId = conversationId,
-                    serverId = confirmed.serverId,
-                    messageType = mt,
-                    contentPreview = confirmed.content.take(140).ifBlank { null },
-                )
-            } catch (t: Throwable) {
-                Telemetry.error(
-                    "TimelineSync", "streamSubscriber.listenerThrew", t,
-                    "conversationId" to conversationId,
-                )
-            }
+            PendingIngestNotification(
+                serverId = confirmed.serverId,
+                messageType = mt,
+                contentPreview = confirmed.content.take(140).ifBlank { null },
+            )
+        } else {
+            null
+        }
+    }
+        dispatchIngestedNotification(notification)
+    }
+
+    private suspend fun dispatchIngestedNotification(notification: PendingIngestNotification?) {
+        notification ?: return
+        try {
+            val listener = ingestedListenerProvider?.invoke() ?: ingestedListener
+            Telemetry.event(
+                "TimelineSync", "streamSubscriber.listenerDispatch",
+                "conversationId" to conversationId,
+                "serverId" to notification.serverId,
+                "messageType" to notification.messageType,
+                "hasListener" to (listener != null),
+                "previewLength" to (notification.contentPreview?.length ?: 0),
+            )
+            listener?.onMessageIngested(
+                conversationId = conversationId,
+                serverId = notification.serverId,
+                messageType = notification.messageType,
+                contentPreview = notification.contentPreview,
+            )
+        } catch (t: Throwable) {
+            Telemetry.error(
+                "TimelineSync", "streamSubscriber.listenerThrew", t,
+                "conversationId" to conversationId,
+            )
         }
     }
 
