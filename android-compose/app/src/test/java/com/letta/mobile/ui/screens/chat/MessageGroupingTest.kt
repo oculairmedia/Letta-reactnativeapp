@@ -1,6 +1,9 @@
 package com.letta.mobile.ui.screens.chat
 
 import com.letta.mobile.data.model.UiMessage
+import com.letta.mobile.data.model.UiApprovalRequest
+import com.letta.mobile.data.model.UiApprovalToolCall
+import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -296,6 +299,69 @@ class MessageGroupingTest {
         items.forEach { assertTrue(it is ChatRenderItem.Single) }
     }
 
+    @Test
+    fun `consecutive tool-call messages compact into one run timeline step`() {
+        val steps = compactRunToolCallSteps(
+            listOf(
+                assistantToolCall("tc1", command = "pwd"),
+                assistantToolCall("tc2", command = "ls"),
+                assistant("a1", runId = "r1"),
+            ),
+        )
+
+        assertEquals(2, steps.size)
+        val group = steps.first() as RunTimelineStep.ToolCallGroup
+        assertEquals(listOf("tc1", "tc2"), group.messages.map { it.id })
+        assertEquals(listOf("call-tc1", "call-tc2"), group.toolCalls.map { it.toolCallId })
+        assertEquals("a1", (steps[1] as RunTimelineStep.Message).message.id)
+    }
+
+    @Test
+    fun `consecutive tool-call compaction carries pending approval request`() {
+        val approval = UiApprovalRequest(
+            requestId = "approval-1",
+            toolCalls = listOf(
+                UiApprovalToolCall(
+                    toolCallId = "call-tc1",
+                    name = "Bash",
+                    arguments = """{"command":"pwd"}""",
+                ),
+                UiApprovalToolCall(
+                    toolCallId = "call-tc2",
+                    name = "Bash",
+                    arguments = """{"command":"ls"}""",
+                ),
+            ),
+        )
+
+        val steps = compactRunToolCallSteps(
+            listOf(
+                assistantToolCall("tc1", command = "pwd", approvalRequest = approval),
+                assistantToolCall("tc2", command = "ls"),
+            ),
+        )
+
+        val group = steps.single() as RunTimelineStep.ToolCallGroup
+        assertEquals(setOf("call-tc1", "call-tc2"), group.pendingApprovalToolCallIds)
+        assertEquals(listOf("approval-1"), group.approvalRequests.map { it.requestId })
+    }
+
+    @Test
+    fun `run tool-call compaction preserves non-empty content as its own step`() {
+        val steps = compactRunToolCallSteps(
+            listOf(
+                assistantToolCall("tc1", command = "pwd"),
+                assistantToolCall("tc2", command = "ls", content = "about to run ls"),
+                assistantToolCall("tc3", command = "cat file"),
+            ),
+        )
+
+        assertEquals(3, steps.size)
+        assertTrue(steps[0] is RunTimelineStep.Message)
+        assertTrue(steps[1] is RunTimelineStep.Message)
+        assertTrue(steps[2] is RunTimelineStep.Message)
+    }
+
     private fun user(id: String, ts: String = "2026-04-19T12:00:00Z") = UiMessage(
         id = id,
         role = "user",
@@ -313,5 +379,28 @@ class MessageGroupingTest {
         content = "a-$id",
         timestamp = ts,
         runId = runId,
+    )
+
+    private fun assistantToolCall(
+        id: String,
+        command: String,
+        content: String = "",
+        ts: String = "2026-04-19T12:00:00Z",
+        approvalRequest: UiApprovalRequest? = null,
+    ) = UiMessage(
+        id = id,
+        role = "assistant",
+        content = content,
+        timestamp = ts,
+        runId = "r1",
+        approvalRequest = approvalRequest,
+        toolCalls = listOf(
+            UiToolCall(
+                name = "Bash",
+                arguments = """{"command":"$command"}""",
+                result = null,
+                toolCallId = "call-$id",
+            )
+        ),
     )
 }

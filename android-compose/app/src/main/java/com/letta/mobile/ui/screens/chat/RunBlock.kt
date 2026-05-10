@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,7 +29,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
+import com.letta.mobile.data.model.UiApprovalRequest
 import com.letta.mobile.data.model.UiMessage
+import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -39,7 +40,7 @@ import com.letta.mobile.ui.icons.LettaIcons
  * dot icon plus a small breathing margin; the vertical line passes through
  * the centre of the gutter.
  */
-private val RunGutterWidth = 18.dp
+private val RunGutterWidth = 12.dp
 
 /** Diameter of the per-step indicator dot painted in the gutter. */
 private val StepDotSize = 3.dp
@@ -60,6 +61,13 @@ private val DefaultStepDotCenterY = 17.dp
  * that card header instead of the generic text row.
  */
 private val ToolCallStepDotCenterY = 25.5f.dp
+
+/**
+ * Compact grouped tool-call cards render directly in the run row instead of
+ * through the normal chat-message wrapper, so their first text line sits much
+ * closer to the top. Keep this dot on that first-line midline.
+ */
+private val CompactToolCallGroupStepDotCenterY = 18.dp
 
 /**
  * Renders a contiguous run of assistant messages sharing a `runId` as a
@@ -90,6 +98,8 @@ fun RunBlock(
     onToggleCollapsed: () -> Unit,
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
+    activeApprovalRequestId: String? = null,
+    onApprovalDecision: ((String, List<String>, Boolean, String?) -> Unit)? = null,
     renderRow: @Composable (
         message: UiMessage,
         position: GroupPosition,
@@ -108,7 +118,6 @@ fun RunBlock(
     }
 
     val runIdentityColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.24f)
-    val hiddenCount = if (collapsed) messages.size - 1 else 0
 
     // letta-mobile-d2z6 follow-up: kept the outer animateContentSize so
     // stream-end (final message addition) settles smoothly instead of
@@ -174,27 +183,40 @@ fun RunBlock(
                 } else {
                     messages
                 }
+                val visibleSteps = remember(visibleMessages) {
+                    compactRunToolCallSteps(visibleMessages)
+                }
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    visibleMessages.forEachIndexed { idx, msg ->
-                        key(msg.id) {
-                            val pos = when {
+                    visibleSteps.forEachIndexed { idx, step ->
+                        key(step.key) {
+                            val position = when {
                                 collapsed -> GroupPosition.None
-                                visibleMessages.size == 1 -> GroupPosition.None
+                                visibleSteps.size == 1 -> GroupPosition.None
                                 idx == 0 -> GroupPosition.First
-                                idx == visibleMessages.lastIndex -> GroupPosition.Last
+                                idx == visibleSteps.lastIndex -> GroupPosition.Last
                                 else -> GroupPosition.Middle
                             }
                             val drawLineAbove = idx > 0
-                            val drawLineBelow = idx < visibleMessages.lastIndex
-                            RunStepRow(
-                                message = msg,
-                                position = pos,
-                                runIdentityColor = runIdentityColor,
-                                drawLineAbove = drawLineAbove,
-                                drawLineBelow = drawLineBelow,
-                                renderRow = renderRow,
-                                collapsedHiddenCount = if (collapsed && idx == visibleMessages.lastIndex) hiddenCount else 0,
-                            )
+                            val drawLineBelow = idx < visibleSteps.lastIndex
+                            when (step) {
+                                is RunTimelineStep.Message -> RunMessageStepRow(
+                                    message = step.message,
+                                    position = position,
+                                    runIdentityColor = runIdentityColor,
+                                    drawLineAbove = drawLineAbove,
+                                    drawLineBelow = drawLineBelow,
+                                    renderRow = renderRow,
+                                )
+
+                                is RunTimelineStep.ToolCallGroup -> RunToolCallGroupStepRow(
+                                    step = step,
+                                    runIdentityColor = runIdentityColor,
+                                    drawLineAbove = drawLineAbove,
+                                    drawLineBelow = drawLineBelow,
+                                    activeApprovalRequestId = activeApprovalRequestId,
+                                    onApprovalDecision = onApprovalDecision,
+                                )
+                            }
                         }
                     }
                 }
@@ -202,6 +224,75 @@ fun RunBlock(
         }
     }
 }
+
+internal sealed interface RunTimelineStep {
+    val key: String
+
+    data class Message(
+        val message: UiMessage,
+    ) : RunTimelineStep {
+        override val key: String = message.id
+    }
+
+    data class ToolCallGroup(
+        val messages: List<UiMessage>,
+        val toolCalls: List<UiToolCall>,
+        val pendingApprovalToolCallIds: Set<String>,
+        val approvalRequests: List<UiApprovalRequest>,
+    ) : RunTimelineStep {
+        override val key: String = messages.joinToString(prefix = "tool-group-", separator = "-") { it.id }
+    }
+}
+
+internal fun compactRunToolCallSteps(messages: List<UiMessage>): List<RunTimelineStep> {
+    if (messages.isEmpty()) return emptyList()
+    val steps = ArrayList<RunTimelineStep>(messages.size)
+    val pendingToolMessages = ArrayList<UiMessage>()
+
+    fun flushToolMessages() {
+        when (pendingToolMessages.size) {
+            0 -> Unit
+            1 -> steps.add(RunTimelineStep.Message(pendingToolMessages.single()))
+            else -> {
+                val groupedMessages = pendingToolMessages.toList()
+                steps.add(
+                    RunTimelineStep.ToolCallGroup(
+                        messages = groupedMessages,
+                        toolCalls = groupedMessages.flatMap { it.toolCalls.orEmpty() },
+                        pendingApprovalToolCallIds = groupedMessages
+                            .flatMap { message -> message.approvalRequest?.toolCalls.orEmpty() }
+                            .mapTo(mutableSetOf()) { it.toolCallId },
+                        approvalRequests = groupedMessages
+                            .mapNotNull { it.approvalRequest }
+                            .distinctBy { it.requestId },
+                    )
+                )
+            }
+        }
+        pendingToolMessages.clear()
+    }
+
+    messages.forEach { message ->
+        if (message.isRunCompactableToolCallMessage()) {
+            pendingToolMessages += message
+        } else {
+            flushToolMessages()
+            steps.add(RunTimelineStep.Message(message))
+        }
+    }
+    flushToolMessages()
+    return steps
+}
+
+private fun UiMessage.isRunCompactableToolCallMessage(): Boolean =
+    role == "assistant" &&
+        !isReasoning &&
+        !isError &&
+        content.isBlank() &&
+        generatedUi == null &&
+        approvalResponse == null &&
+        attachments.isEmpty() &&
+        !toolCalls.isNullOrEmpty()
 
 /**
  * When collapsed, picks the most representative message to show as preview.
@@ -263,7 +354,7 @@ private fun RunHeader(
  * caller-supplied bubble on the right.
  */
 @Composable
-private fun RunStepRow(
+private fun RunMessageStepRow(
     message: UiMessage,
     position: GroupPosition,
     runIdentityColor: androidx.compose.ui.graphics.Color,
@@ -274,13 +365,67 @@ private fun RunStepRow(
         position: GroupPosition,
         rowModifier: Modifier,
     ) -> Unit,
-    collapsedHiddenCount: Int = 0,
 ) {
     val dotColor = message.runStepDotColor()
     val icon = remember(message.id, message.role, message.isReasoning, message.toolCalls, message.approvalRequest) {
         message.runStepDotIcon()
     }
-    val stepDotCenterY = message.runStepDotCenterY()
+    RunStepRow(
+        dotColor = dotColor,
+        stepDotCenterY = message.runStepDotCenterY(),
+        runIdentityColor = runIdentityColor,
+        drawLineAbove = drawLineAbove,
+        drawLineBelow = drawLineBelow,
+    ) { rowModifier ->
+        // Touch the icon classification value so the IDE/compiler sees the
+        // dependency chain (and so a future visual upgrade can swap the dot
+        // for an actual icon trivially).
+        @Suppress("UNUSED_EXPRESSION") icon
+        renderRow(message, position, rowModifier)
+    }
+}
+
+@Composable
+private fun RunToolCallGroupStepRow(
+    step: RunTimelineStep.ToolCallGroup,
+    runIdentityColor: androidx.compose.ui.graphics.Color,
+    drawLineAbove: Boolean,
+    drawLineBelow: Boolean,
+    activeApprovalRequestId: String?,
+    onApprovalDecision: ((String, List<String>, Boolean, String?) -> Unit)?,
+) {
+    val dotColor = if (step.pendingApprovalToolCallIds.isNotEmpty()) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    RunStepRow(
+        dotColor = dotColor,
+        stepDotCenterY = CompactToolCallGroupStepDotCenterY,
+        runIdentityColor = runIdentityColor,
+        drawLineAbove = drawLineAbove,
+        drawLineBelow = drawLineBelow,
+    ) { rowModifier ->
+        CompactToolCallGroupCard(
+            toolCalls = step.toolCalls,
+            pendingApprovalToolCallIds = step.pendingApprovalToolCallIds,
+            modifier = rowModifier,
+            approvalRequests = step.approvalRequests,
+            activeApprovalRequestId = activeApprovalRequestId,
+            onApprovalDecision = onApprovalDecision,
+        )
+    }
+}
+
+@Composable
+private fun RunStepRow(
+    dotColor: androidx.compose.ui.graphics.Color,
+    stepDotCenterY: androidx.compose.ui.unit.Dp,
+    runIdentityColor: androidx.compose.ui.graphics.Color,
+    drawLineAbove: Boolean,
+    drawLineBelow: Boolean,
+    content: @Composable (Modifier) -> Unit,
+) {
     val stepDotTopPadding = stepDotCenterY - (StepDotSize / 2f)
     Row(
         modifier = Modifier
@@ -333,24 +478,12 @@ private fun RunStepRow(
                         .size(StepDotSize)
                         .background(dotColor, CircleShape),
                 )
-                if (collapsedHiddenCount > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "+$collapsedHiddenCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // Touch the icon classification value so the IDE/compiler
-                // sees the dependency chain (and so a future visual upgrade
-                // can swap the dot for an actual icon trivially).
-                @Suppress("UNUSED_EXPRESSION") icon
             }
         }
 
         // Right-hand bubble. Caller decides padding inside the row; we just
         // hand them a Modifier that fills the remaining width.
-        renderRow(message, position, Modifier.fillMaxWidth())
+        content(Modifier.fillMaxWidth())
     }
 }
 
