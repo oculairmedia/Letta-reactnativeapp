@@ -55,15 +55,13 @@ data class ChatDimens(
 )
 
 val LocalChatColors = staticCompositionLocalOf<ChatColors> { error("No ChatColors provided") }
-// letta-mobile-5e0f.r2: ChatTypography + ChatFontScale flipped from
-// `staticCompositionLocalOf` to `compositionLocalOf`. The static variant
-// invalidates EVERY reader on any change (no equality check, no skipping),
-// which during a continuous pinch-to-zoom forces ~30+ Text composables per
-// visible bubble to recompose and re-allocate TextStyle on every pinch
-// frame. With the dynamic variant, Compose can use structural equality
-// to skip readers whose inputs (memoized TextStyle instances) didn't
-// actually change. Combined with the per-fontScale memoization in
-// LettaChatTheme below, this makes continuous reflow viable.
+// ChatTypography + ChatFontScale use `compositionLocalOf` rather than
+// `staticCompositionLocalOf` so committed font-scale changes can skip
+// readers whose memoized TextStyle inputs did not actually change. This
+// keeps the one-shot pinch commit cheap enough, but it is not a license to
+// push raw pointer-frame fontScale updates through the whole chat tree.
+// Continuous text reflow during pinch has to be throttled and profiled before
+// it replaces the current GPU-layer pinch preview in ChatMessageList.
 val LocalChatTypography = compositionLocalOf<ChatTypography> { error("No ChatTypography provided") }
 val LocalChatShapes = staticCompositionLocalOf { ChatShapes() }
 val LocalChatDimens = staticCompositionLocalOf { ChatDimens() }

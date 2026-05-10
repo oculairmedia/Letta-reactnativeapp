@@ -84,10 +84,11 @@ fun ChatMessageList(
     // 2-finger event in a gesture until the user lifts.
     var isPinching by remember { mutableStateOf(false) }
 
-    // letta-mobile-5e0f.r3: GPU-only visual scale applied via
-    // Modifier.graphicsLayer during the pinch gesture. We no longer
-    // mutate fontScale on every quantized step (r2's "continuous reflow"
-    // approach) — that recomposed the entire chat tree at gesture rate
+    // letta-mobile-5e0f.r3: realtime visual pinch, deferred text reflow.
+    // Modifier.graphicsLayer scales the list during the pinch gesture. This
+    // path does not mutate fontScale on every quantized step (r2's
+    // "continuous reflow" approach) — that recomposed the entire chat tree
+    // at gesture rate.
     // (~5–10 fontScale changes/sec × every Text reading LocalChatTypography
     // × cascading height interpolations) which produced the high-frequency
     // strobe Emmanuel reported. Instead the chat list scales as a single
@@ -96,6 +97,12 @@ fun ChatMessageList(
     // > pixel-perfect text shaping mid-gesture. Accepted UX trade-off:
     // a tiny snap on release as the layer rasters at scale 1.0 but
     // typography re-flows to the committed scale.
+    //
+    // If this is revisited, prefer a hybrid checkpoint model: keep GPU
+    // scaling every frame, but commit real fontScale at a bounded cadence
+    // (for example every 80-120 ms or every 4-6% scale delta), and profile
+    // expanded tool outputs, markdown/code blocks, and run blocks before
+    // shipping it.
     var transientPinchScale by remember { mutableFloatStateOf(1f) }
 
     LaunchedEffect(pinchTick) {
@@ -178,7 +185,8 @@ fun ChatMessageList(
         modifier = modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                // letta-mobile-5e0f.r3: GPU-only pinch.
+                // letta-mobile-5e0f.r3: GPU-backed pinch preview with
+                // deferred text reflow.
                 //
                 // Why this approach: r2 tried "continuous reflow"
                 // (push fontScale to the theme on every quantized
@@ -210,11 +218,15 @@ fun ChatMessageList(
                 //      visible "snap" instead of 45 stuttering
                 //      reflows.
                 //
-                // Trade-off: mid-gesture the text is rastered at
-                // scale 1.0 and stretched, so glyphs are slightly
-                // softer than a true reflow would render. This is
-                // the same trade-off iOS Mail / Messages / Slack
-                // make. Accepted in exchange for smoothness.
+                // Trade-off: mid-gesture the text is rastered at the
+                // committed scale and stretched by the layer, so glyphs are
+                // slightly softer than a true reflow would render. Accepted
+                // in exchange for stable frame pacing.
+                //
+                // Do not replace this with pointer-frame typography reflow
+                // without a perf pass. The safer next step is a throttled
+                // hybrid: GPU scale every frame, periodic real fontScale
+                // checkpoints, one persisted setting write on lift.
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     var gesturePinching = false
@@ -282,18 +294,18 @@ fun ChatMessageList(
                     vertical = 8.dp,
                 ),
                 reverseLayout = true,
-                // letta-mobile-5e0f.r3: GPU-only pinch scale. During
+                // letta-mobile-5e0f.r3: GPU-backed pinch scale. During
                 // a pinch gesture transientPinchScale ranges 0.7..1.6
                 // (relative to the committed fontScale baseline) and
                 // is rendered as a single uniform layer transform.
                 // At rest it's exactly 1f and graphicsLayer becomes
                 // a no-op (Compose elides identity transforms). The
                 // transformOrigin is the visual centre of the list
-                // so pinch feels like it's happening at the focal
-                // point of the user's fingers (close enough — true
+                // so pinch feels close to the user's focal point.
+                // True
                 // focal-point scaling would require tracking the
-                // gesture centroid; this is the standard messaging
-                // app behaviour and feels natural).
+                // gesture centroid and compensating list offset; that is
+                // separate from the text-reflow decision.
                 modifier = Modifier.graphicsLayer {
                     scaleX = transientPinchScale
                     scaleY = transientPinchScale
@@ -459,9 +471,9 @@ fun ChatMessageList(
         )
 
         if (showFontIndicator) {
-            // letta-mobile-5e0f.r2: activeFontScale is now updated
-            // continuously during the gesture (memoized typography
-            // makes that cheap), so the indicator reads it directly.
+            // The indicator reflects the committed font scale. During the
+            // active gesture, visual scaling comes from transientPinchScale;
+            // activeFontScale changes when the pinch commits on lift.
             Text(
                 text = "${(activeFontScale * 100).toInt()}%",
                 style = MaterialTheme.typography.headlineMedium,

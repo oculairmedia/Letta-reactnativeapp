@@ -42,6 +42,7 @@ The highest-confidence bottlenecks are not broad Compose issues. They are avoida
 - `ChatMessageList` has comments and logic around avoiding full remeasure during streaming.
 - Prior streaming-markdown work established that high-cadence active tails should avoid expensive full markdown rendering.
 - `MessageContentFactory` and related tests protect stable content parsing.
+- Chat pinch-to-zoom is visual-realtime but layout-deferred: a GPU layer scales during the gesture, then one real typography reflow commits on lift. See `docs/performance/chat-pinch-zoom.md`.
 
 **Risk:** Reintroducing full markdown parsing/rendering for every tail delta can make server-side latency feel like UI jank.
 
