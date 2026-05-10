@@ -4,6 +4,7 @@ package com.letta.mobile.platform.systemaccess
 
 import android.os.Build
 import com.letta.mobile.platform.SystemAccessFlavor
+import com.letta.mobile.platform.root.RootShellAvailabilityStatus
 
 sealed interface SystemAccessProbe {
     fun status(environment: SystemAccessEnvironment): ProbeResult
@@ -134,21 +135,48 @@ sealed interface SystemAccessProbe {
     }
 
     data object RootShell : SystemAccessProbe {
-        override fun status(environment: SystemAccessEnvironment): ProbeResult =
-            if (environment.rootToolsBuildEnabled) {
-                ProbeResult(SystemAccessCapabilityStatus.AvailableNeedsSetup, "Root bridge is compiled into this flavor but requires user opt-in and external su approval.")
-            } else {
-                ProbeResult(SystemAccessCapabilityStatus.Unavailable, "Root tools are disabled by this build flavor.")
+        override fun status(environment: SystemAccessEnvironment): ProbeResult {
+            if (!environment.rootToolsBuildEnabled) {
+                return ProbeResult(SystemAccessCapabilityStatus.Unavailable, "Root tools are disabled by this build flavor.")
             }
+            val availability = environment.rootShellAvailability()
+            return when (availability.status) {
+                RootShellAvailabilityStatus.UnsupportedBuild -> ProbeResult(
+                    SystemAccessCapabilityStatus.Unavailable,
+                    availability.reason,
+                )
+                RootShellAvailabilityStatus.SuUnavailable -> ProbeResult(
+                    SystemAccessCapabilityStatus.Unavailable,
+                    availability.reason,
+                )
+                RootShellAvailabilityStatus.NeedsDetection,
+                RootShellAvailabilityStatus.SuAvailable,
+                -> ProbeResult(
+                    SystemAccessCapabilityStatus.AvailableNeedsSetup,
+                    availability.reason,
+                )
+            }
+        }
     }
 
     data object RootFilesystem : SystemAccessProbe {
-        override fun status(environment: SystemAccessEnvironment): ProbeResult =
-            if (environment.rootToolsBuildEnabled) {
-                ProbeResult(SystemAccessCapabilityStatus.AvailableNeedsSetup, "Root filesystem tools require root shell setup and per-scope approval.")
-            } else {
-                ProbeResult(SystemAccessCapabilityStatus.Unavailable, "Root filesystem tools are disabled by this build flavor.")
+        override fun status(environment: SystemAccessEnvironment): ProbeResult {
+            if (!environment.rootToolsBuildEnabled) {
+                return ProbeResult(SystemAccessCapabilityStatus.Unavailable, "Root filesystem tools are disabled by this build flavor.")
             }
+            val availability = environment.rootShellAvailability()
+            return when (availability.status) {
+                RootShellAvailabilityStatus.UnsupportedBuild,
+                RootShellAvailabilityStatus.SuUnavailable,
+                -> ProbeResult(SystemAccessCapabilityStatus.Unavailable, availability.reason)
+                RootShellAvailabilityStatus.NeedsDetection,
+                RootShellAvailabilityStatus.SuAvailable,
+                -> ProbeResult(
+                    SystemAccessCapabilityStatus.AvailableNeedsSetup,
+                    "Root filesystem tools require root shell setup and per-scope approval. ${availability.reason}",
+                )
+            }
+        }
     }
 
     data object DocumentationOnly : SystemAccessProbe {

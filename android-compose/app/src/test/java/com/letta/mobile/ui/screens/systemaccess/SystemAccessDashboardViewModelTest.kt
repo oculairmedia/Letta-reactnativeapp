@@ -1,6 +1,8 @@
 package com.letta.mobile.ui.screens.systemaccess
 
 import com.letta.mobile.platform.SystemAccessFlavor
+import com.letta.mobile.platform.root.RootShellAvailability
+import com.letta.mobile.platform.root.RootShellAvailabilityStatus
 import com.letta.mobile.platform.systemaccess.SystemAccessCapability
 import com.letta.mobile.platform.systemaccess.SystemAccessCapabilityDefinitions
 import com.letta.mobile.platform.systemaccess.SystemAccessCapabilityIds
@@ -86,5 +88,9 @@ class SystemAccessDashboardViewModelTest {
         override fun canDrawOverlays(): Boolean = false
         override fun isNotificationListenerEnabled(serviceClassName: String): Boolean = false
         override fun isAccessibilityServiceEnabled(serviceClassName: String): Boolean = false
+        override fun rootShellAvailability(): RootShellAvailability = RootShellAvailability(
+            status = RootShellAvailabilityStatus.NeedsDetection,
+            reason = "fake root shell availability",
+        )
     }
 }

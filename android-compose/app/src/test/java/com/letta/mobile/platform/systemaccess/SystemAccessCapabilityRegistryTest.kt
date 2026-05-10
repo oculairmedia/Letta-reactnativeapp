@@ -7,6 +7,8 @@ import android.os.Build
 import com.letta.mobile.bot.tools.HostToolApprovalPolicy
 import com.letta.mobile.bot.tools.HostToolRiskLevel
 import com.letta.mobile.platform.SystemAccessFlavor
+import com.letta.mobile.platform.root.RootShellAvailability
+import com.letta.mobile.platform.root.RootShellAvailabilityStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -96,6 +98,25 @@ class SystemAccessCapabilityRegistryTest {
     }
 
     @Test
+    fun `root shell is unavailable when root bridge cannot find su provider`() {
+        val registry = DefaultSystemAccessCapabilityRegistry(
+            FakeSystemAccessEnvironment(
+                flavor = SystemAccessFlavor.Root,
+                rootToolsBuildEnabled = true,
+                rootShellAvailability = RootShellAvailability(
+                    status = RootShellAvailabilityStatus.SuUnavailable,
+                    reason = "No su provider found.",
+                ),
+            ),
+        )
+
+        val capability = registry.getCapability(SystemAccessCapabilityIds.ROOT_SHELL)
+
+        assertEquals(SystemAccessCapabilityStatus.Unavailable, capability?.status)
+        assertFalse(registry.canExposeTool("shell.root.run"))
+    }
+
+    @Test
     fun `unknown tool ids fail closed`() {
         val registry = DefaultSystemAccessCapabilityRegistry(FakeSystemAccessEnvironment())
 
@@ -150,6 +171,14 @@ class SystemAccessCapabilityRegistryTest {
         private val canDrawOverlays: Boolean = false,
         private val enabledNotificationListeners: Set<String> = emptySet(),
         private val enabledAccessibilityServices: Set<String> = emptySet(),
+        private val rootShellAvailability: RootShellAvailability = RootShellAvailability(
+            status = if (rootToolsBuildEnabled) {
+                RootShellAvailabilityStatus.NeedsDetection
+            } else {
+                RootShellAvailabilityStatus.UnsupportedBuild
+            },
+            reason = "fake root shell availability",
+        ),
     ) : SystemAccessEnvironment {
         override fun hasDeclaredPermission(permission: String): Boolean = permission in declaredPermissions
         override fun isPermissionGranted(permission: String): Boolean = permission in grantedPermissions
@@ -159,5 +188,6 @@ class SystemAccessCapabilityRegistryTest {
         override fun canDrawOverlays(): Boolean = canDrawOverlays
         override fun isNotificationListenerEnabled(serviceClassName: String): Boolean = serviceClassName in enabledNotificationListeners
         override fun isAccessibilityServiceEnabled(serviceClassName: String): Boolean = serviceClassName in enabledAccessibilityServices
+        override fun rootShellAvailability(): RootShellAvailability = rootShellAvailability
     }
 }

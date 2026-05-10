@@ -10,6 +10,8 @@ import androidx.core.content.ContextCompat
 import com.letta.mobile.platform.ManifestCapabilityProbe
 import com.letta.mobile.platform.SystemAccessBuild
 import com.letta.mobile.platform.SystemAccessFlavor
+import com.letta.mobile.platform.root.RootShellAvailability
+import com.letta.mobile.platform.root.RootShellBridge
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,11 +32,13 @@ interface SystemAccessEnvironment {
     fun canDrawOverlays(): Boolean
     fun isNotificationListenerEnabled(serviceClassName: String): Boolean
     fun isAccessibilityServiceEnabled(serviceClassName: String): Boolean
+    fun rootShellAvailability(): RootShellAvailability
 }
 
 @Singleton
 class AndroidSystemAccessEnvironment @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val rootShellBridge: RootShellBridge,
 ) : SystemAccessEnvironment {
     override val flavor: SystemAccessFlavor
         get() = SystemAccessBuild.flavor
@@ -70,6 +74,8 @@ class AndroidSystemAccessEnvironment @Inject constructor(
 
     override fun isAccessibilityServiceEnabled(serviceClassName: String): Boolean =
         enabledComponentSettingContains(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, serviceClassName)
+
+    override fun rootShellAvailability(): RootShellAvailability = rootShellBridge.peekAvailability()
 
     private fun enabledComponentSettingContains(
         settingName: String,
