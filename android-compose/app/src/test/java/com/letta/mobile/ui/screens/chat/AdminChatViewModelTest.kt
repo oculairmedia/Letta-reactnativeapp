@@ -2529,8 +2529,8 @@ class AdminChatViewModelTest {
      *
      * Fresh-route Client Mode send must show the user bubble optimistically
      * BEFORE any gateway chunk arrives. The send coroutine writes to
-     * `clientModeMessages` + `_uiState.messages` synchronously at lines
-     * 1107–1109 in AdminChatViewModel, with `isStreaming=true` set right
+     * the quarantined fresh-route USER echo + `_uiState.messages`
+     * synchronously, with `isStreaming=true` set right
      * after. If anything between the optimistic write and the first
      * stream chunk clobbers `_uiState.messages`, the user sees no
      * echo of their input.
@@ -2611,7 +2611,7 @@ class AdminChatViewModelTest {
         advanceUntilIdle()
 
         assertTrue(
-            "pre-conversation assistant chunk should be buffered, not rendered from clientModeMessages",
+            "pre-conversation assistant chunk should be buffered, not rendered from bootstrap UI state",
             vm.uiState.value.messages.none { it.role == "assistant" && it.content.contains("Hel") },
         )
         coVerify(exactly = 0) {
