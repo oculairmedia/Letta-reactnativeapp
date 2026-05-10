@@ -182,6 +182,7 @@ class AdminChatViewModelTest {
             }
             localId
         }
+        coEvery { timelineRepository.reconcileRecentMessages(any(), any()) } returns Unit
         coEvery {
             timelineRepository.upsertClientModeStreamChunk(any(), any(), any())
         } answers {
@@ -608,6 +609,57 @@ class AdminChatViewModelTest {
         assertEquals(2, vm.uiState.value.messages.size)
         assertEquals("Hello from client mode", vm.uiState.value.messages.last().content)
         assertFalse(vm.uiState.value.isStreaming)
+    }
+
+    @Test
+    fun `client mode websocket failure after conversation id reconciles timeline`() = runTest {
+        clientModeEnabledFlow.value = true
+        every {
+            clientModeChatSender.streamMessage(any(), any(), any())
+        } returns flow {
+            emit(BotStreamChunk(text = "Partial", conversationId = "client-conv"))
+            throw RuntimeException("socket closed")
+        }
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 1L)
+        advanceUntilIdle()
+
+        vm.sendMessage("Hello")
+        advanceUntilIdle()
+
+        assertEquals(ConversationState.Ready("client-conv"), vm.uiState.value.conversationState)
+        assertFalse(vm.uiState.value.isStreaming)
+        assertFalse(vm.uiState.value.isAgentTyping)
+        assertNull(vm.uiState.value.error)
+        coVerify(atLeast = 1) {
+            timelineRepository.reconcileRecentMessages("client-conv", "client_mode_stream_exception")
+        }
+    }
+
+    @Test
+    fun `client mode websocket failure before conversation id preserves bootstrap message`() = runTest {
+        clientModeEnabledFlow.value = true
+        every {
+            clientModeChatSender.streamMessage(any(), any(), any())
+        } returns flow {
+            throw RuntimeException("socket closed before session")
+        }
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 1L)
+        advanceUntilIdle()
+
+        vm.sendMessage("Hello before id")
+        advanceUntilIdle()
+
+        assertEquals(ConversationState.NoConversation, vm.uiState.value.conversationState)
+        assertEquals(1, vm.uiState.value.messages.size)
+        assertEquals("Hello before id", vm.uiState.value.messages.single().content)
+        assertFalse(vm.uiState.value.isStreaming)
+        assertFalse(vm.uiState.value.isAgentTyping)
+        assertTrue(vm.uiState.value.error!!.contains("before a conversation was created"))
+        coVerify(exactly = 0) {
+            timelineRepository.reconcileRecentMessages(any(), any())
+        }
     }
 
     /**

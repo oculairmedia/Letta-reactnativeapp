@@ -277,6 +277,13 @@ internal class ClientModeSendCoordinator(
                         null
                     }
 
+                    latestConversationId?.takeIf { it.isNotBlank() }?.let { conversationId ->
+                        reconcileClientModeConversation(
+                            conversationId = conversationId,
+                            reason = "stream_done",
+                        )
+                    }
+
                     val prevState = uiState.value
                     uiState.value = collapseCompletedRunsIfStreamingFinished(
                         prevState,
@@ -298,13 +305,44 @@ internal class ClientModeSendCoordinator(
                 )
             } catch (e: Exception) {
                 android.util.Log.e("AdminChatViewModel", "sendViaClientMode: stream exception", e)
-                uiState.value = uiState.value.copy(
-                    conversationState = latestConversationId?.let { ConversationState.Ready(it) }
-                        ?: ConversationState.NoConversation,
-                    error = e.message ?: "Client Mode send failed",
-                    isStreaming = false,
-                    isAgentTyping = false,
-                )
+                val recoverableConversationId = latestConversationId?.takeIf { it.isNotBlank() }
+                if (recoverableConversationId != null) {
+                    setClientModeConversationId(recoverableConversationId)
+                    setActiveConversationId(recoverableConversationId)
+                    markClientModeBootstrapReady(recoverableConversationId)
+                    currentConversationTracker.setCurrent(recoverableConversationId)
+                    startTimelineObserver(recoverableConversationId)
+                    uiState.value = uiState.value.copy(
+                        conversationState = ConversationState.Ready(recoverableConversationId),
+                        error = "Connection lost. Reconnecting and checking for completed output…",
+                        isStreaming = true,
+                        isAgentTyping = true,
+                    )
+                    scope.launch {
+                        val reconciled = reconcileClientModeConversation(
+                            conversationId = recoverableConversationId,
+                            reason = "stream_exception",
+                        )
+                        val prevState = uiState.value
+                        uiState.value = collapseCompletedRunsIfStreamingFinished(
+                            prevState,
+                            prevState.copy(
+                                conversationState = ConversationState.Ready(recoverableConversationId),
+                                error = if (reconciled) null else "Connection lost. Could not confirm whether the run completed; retry or refresh this conversation.",
+                                isStreaming = false,
+                                isAgentTyping = false,
+                            ),
+                        )
+                    }
+                } else {
+                    uiState.value = uiState.value.copy(
+                        conversationState = uiState.value.conversationState,
+                        error = "Client Mode send failed before a conversation was created. Your message is still shown here; retry when reconnected." +
+                            (e.message?.let { " ($it)" } ?: ""),
+                        isStreaming = false,
+                        isAgentTyping = false,
+                    )
+                }
             } finally {
                 resetPreConversationBuffer()
                 isStreamInFlight = false
@@ -444,6 +482,19 @@ internal class ClientModeSendCoordinator(
             ),
         )
     }
+
+    private suspend fun reconcileClientModeConversation(
+        conversationId: String,
+        reason: String,
+    ): Boolean = runCatching {
+        timelineRepository.reconcileRecentMessages(conversationId, "client_mode_$reason")
+    }.onFailure { t ->
+        Telemetry.error(
+            "AdminChatVM", "clientMode.reconcileFailed", t,
+            "conversationId" to conversationId,
+            "reason" to reason,
+        )
+    }.isSuccess
 
     private fun logTimelineUpsertFailure(t: Throwable, kind: String, localId: String) {
         android.util.Log.w(

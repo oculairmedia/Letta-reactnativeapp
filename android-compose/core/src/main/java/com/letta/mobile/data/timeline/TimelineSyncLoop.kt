@@ -894,7 +894,24 @@ class TimelineSyncLoop(
     }
 
     internal suspend fun reconcileForExternalRun(runId: String) = writeMutex.withLock {
-        val timer = Telemetry.startTimer("TimelineSync", "externalRunReconcile")
+        reconcileRecentMessagesLocked(
+            telemetryName = "externalRunReconcile",
+            telemetryAttrs = arrayOf("runId" to runId),
+        )
+    }
+
+    internal suspend fun reconcileRecentMessages(reason: String) = writeMutex.withLock {
+        reconcileRecentMessagesLocked(
+            telemetryName = "recentReconcile",
+            telemetryAttrs = arrayOf("reason" to reason),
+        )
+    }
+
+    private suspend fun reconcileRecentMessagesLocked(
+        telemetryName: String,
+        telemetryAttrs: Array<Pair<String, Any?>>,
+    ) {
+        val timer = Telemetry.startTimer("TimelineSync", telemetryName)
         var appended = 0
         try {
             val serverMessages = messageApi.listConversationMessages(
@@ -914,18 +931,18 @@ class TimelineSyncLoop(
                 if (byOtid == null && byServerId == null) {
                     // Fresh Client Mode runs can finish their local WS stream before the
                     // Letta SSE subscriber opens. The first SSE frame then triggers this
-                    // external-run reconcile, whose REST snapshot contains the same user /
-                    // reasoning / assistant turns that the Client Mode harness already
-                    // appended locally. Collapse those local harness bubbles before the
-                    // generic append path, otherwise the REST-confirmed copy is inserted
-                    // beside the local copy and later SSE deltas double-merge into it.
+                    // reconcile, whose REST snapshot contains the same user / reasoning /
+                    // assistant turns that the Client Mode harness already appended locally.
+                    // Collapse those local harness bubbles before the generic append path,
+                    // otherwise the REST-confirmed copy is inserted beside the local copy
+                    // and later SSE deltas double-merge into it.
                     val fuzzy = _state.value.collapseClientModeFuzzyMatch(confirmed)
                     if (fuzzy.collapsed != null) {
                         _state.value = fuzzy.timeline
                         Telemetry.event(
-                            "TimelineSync", "externalRunReconcile.fuzzyCollapsed",
+                            "TimelineSync", "$telemetryName.fuzzyCollapsed",
                             "conversationId" to conversationId,
-                            "runId" to runId,
+                            *telemetryAttrs,
                             "localOtid" to fuzzy.collapsed.localOtid,
                             "serverId" to fuzzy.collapsed.serverId,
                             "deltaMs" to fuzzy.collapsed.deltaMs,
@@ -945,12 +962,12 @@ class TimelineSyncLoop(
             // server's SSE stream doesn't emit tool_return frames.
             applyReturnsAndResponsesFromSnapshot(serverMessages)
             timer.stop(
-                "runId" to runId,
+                *telemetryAttrs,
                 "serverCount" to serverMessages.size,
                 "appended" to appended,
             )
         } catch (t: Throwable) {
-            timer.stopError(t, "runId" to runId)
+            timer.stopError(t, *telemetryAttrs)
             throw t
         }
     }

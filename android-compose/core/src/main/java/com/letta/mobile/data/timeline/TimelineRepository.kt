@@ -198,6 +198,11 @@ open class TimelineRepository @Inject constructor(
         loops[conversationId]?.postHandlerCollapse()
     }
 
+    /** Pull recent server messages into an existing or newly-created timeline loop. */
+    suspend fun reconcileRecentMessages(conversationId: String, reason: String) {
+        getOrCreate(conversationId).reconcileRecentMessages(reason)
+    }
+
     /** Force a reload — clears the cached loop for the conversation. */
     suspend fun clear(conversationId: String) = loopsMutex.withLock {
         loops.remove(conversationId)?.let { loop ->
