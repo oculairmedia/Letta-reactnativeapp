@@ -4,6 +4,7 @@ import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.ui.common.GroupPosition
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -234,6 +235,33 @@ class ChatRenderModelBuilderTest {
         assertEquals("run-r1", model.renderItems.first().key)
     }
 
+    @Test
+    fun `render model build records bounded timings for large streaming histories`() {
+        val oneThousand = streamingHistory(turnCount = 200)
+        val fiveThousand = streamingHistory(turnCount = 1_000)
+
+        val oneThousandStats = measureRenderModelBuild(oneThousand)
+        val fiveThousandStats = measureRenderModelBuild(fiveThousand)
+
+        assertEquals(1_000, oneThousand.size)
+        assertEquals(5_000, fiveThousand.size)
+        assertTrue(oneThousandStats.p50Micros > 0)
+        assertTrue(oneThousandStats.p95Micros >= oneThousandStats.p50Micros)
+        assertTrue(fiveThousandStats.p50Micros > 0)
+        assertTrue(fiveThousandStats.p95Micros >= fiveThousandStats.p50Micros)
+
+        val model = buildChatRenderModel(fiveThousand, ChatDisplayMode.Interactive)
+        val keys = model.renderItems.map { it.key }
+        assertEquals(keys.size, keys.toSet().size)
+        assertFalse(model.visibleMessages.any { it.id.startsWith("assistant-echo-") })
+
+        println(
+            "buildChatRenderModel profile: " +
+                "1k p50=${oneThousandStats.p50Micros}us p95=${oneThousandStats.p95Micros}us; " +
+                "5k p50=${fiveThousandStats.p50Micros}us p95=${fiveThousandStats.p95Micros}us"
+        )
+    }
+
     private fun user(
         id: String,
         content: String = "u-$id",
@@ -299,4 +327,48 @@ class ChatRenderModelBuilderTest {
         timestamp = ts,
         isError = true,
     )
+
+    private data class RenderBuildStats(
+        val p50Micros: Long,
+        val p95Micros: Long,
+    )
+
+    private fun measureRenderModelBuild(messages: List<UiMessage>): RenderBuildStats {
+        repeat(5) { buildChatRenderModel(messages, ChatDisplayMode.Interactive) }
+        val samples = List(30) {
+            val started = System.nanoTime()
+            buildChatRenderModel(messages, ChatDisplayMode.Interactive)
+            (System.nanoTime() - started) / 1_000L
+        }.sorted()
+        return RenderBuildStats(
+            p50Micros = samples.percentile(0.50),
+            p95Micros = samples.percentile(0.95),
+        )
+    }
+
+    private fun List<Long>.percentile(percentile: Double): Long {
+        val index = ((size - 1) * percentile).toInt().coerceIn(indices)
+        return this[index]
+    }
+
+    private fun streamingHistory(turnCount: Int): List<UiMessage> = buildList(capacity = turnCount * 5) {
+        repeat(turnCount) { index ->
+            val runId = "run-$index"
+            val timestamp = "2026-04-19T12:00:${(index % 60).toString().padStart(2, '0')}Z"
+            add(user("user-$index", content = "prompt $index", ts = timestamp))
+            add(reasoning("reasoning-$index", content = "thinking $index", ts = timestamp))
+            add(assistant("assistant-echo-$index", content = "thinking $index", runId = runId, ts = timestamp))
+            add(
+                assistantToolCall(
+                    id = "tools-$index",
+                    ts = timestamp,
+                    toolCalls = listOf(
+                        UiToolCall(name = "Bash", arguments = "{\"command\":\"pwd\"}", result = "/tmp\n"),
+                        UiToolCall(name = "Read", arguments = "{\"file\":\"README.md\"}", result = "content"),
+                    ),
+                ).copy(runId = runId)
+            )
+            add(assistant("answer-$index", content = "answer $index", runId = runId, ts = timestamp))
+        }
+    }
 }

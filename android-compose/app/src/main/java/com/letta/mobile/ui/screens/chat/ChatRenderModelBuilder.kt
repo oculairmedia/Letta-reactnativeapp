@@ -18,6 +18,8 @@ enum class ChatDisplayMode {
     Debug,
 }
 
+private const val ChatRenderModelDebugLogging = false
+
 fun String.toChatDisplayMode(): ChatDisplayMode = when (this) {
     "simple" -> ChatDisplayMode.Simple
     "debug" -> ChatDisplayMode.Debug
@@ -40,11 +42,7 @@ fun buildChatRenderModel(
     messages: List<UiMessage>,
     mode: ChatDisplayMode,
 ): ChatRenderModel {
-    // letta-mobile-thhz: render model dedup telemetry - capture per-stage counts
-    val inputCount = messages.size
-
     val afterReasoningDedup = dedupeReasoningAssistantEchoes(messages)
-    val reasoningDedupCount = afterReasoningDedup.size
 
     val visibleMessages = attachLatencyMetadata(
         filterMessagesForMode(
@@ -52,52 +50,38 @@ fun buildChatRenderModel(
             mode = mode,
         )
     )
-    val visibleCount = visibleMessages.size
 
     val groupedMessages = groupMessages(
         messages = visibleMessages,
         getRole = { it.role },
         getTimestamp = { it.timestamp },
     )
-    val groupedCount = groupedMessages.size
 
     val reversed = dedupeGroupedMessagesForLazyKeys(groupedMessages).asReversed()
-    val keyDedupCount = reversed.size
 
     val renderItems = groupMessagesForRender(reversed)
-    val renderItemCount = renderItems.size
 
-    // letta-mobile-lbur follow-up: detect duplicate render item keys
-    val seenKeys = HashSet<String>(renderItems.size)
-    val dupKeys = renderItems.filterNot { seenKeys.add(it.key) }.map { it.key }
-    if (dupKeys.isNotEmpty()) {
-        android.util.Log.w(
-            "ChatRenderModel-DEBUG",
-            "DUP_RENDER_KEYS: ${dupKeys.size} duplicates: ${dupKeys.take(5)} renderItems=$renderItemCount",
-        )
-    }
+    if (ChatRenderModelDebugLogging) {
+        val inputCount = messages.size
+        val renderItemCount = renderItems.size
+        val seenKeys = HashSet<String>(renderItems.size)
+        val dupKeys = renderItems.filterNot { seenKeys.add(it.key) }.map { it.key }
+        if (dupKeys.isNotEmpty()) {
+            android.util.Log.w(
+                "ChatRenderModel-DEBUG",
+                "DUP_RENDER_KEYS: ${dupKeys.size} duplicates: ${dupKeys.take(5)} renderItems=$renderItemCount",
+            )
+        }
 
-    // Capture assistant message count for comparison with timeline live count
-    val assistantCount = messages.count { it.role == "assistant" }
-
-    // Log per-stage message counts to detect where dedup drops messages
-    android.util.Log.w(
-        "ChatRenderModel-DEBUG",
-        "RENDER_MODEL_STAGES: input=$inputCount reasoningDedup=$reasoningDedupCount " +
-            "visible=$visibleCount grouped=$groupedCount keyDedup=$keyDedupCount " +
-            "renderItems=$renderItemCount assistantCount=$assistantCount",
-    )
-
-    // Detect significant dedup drops (>20% from input to renderItems)
-    val dedupDropPercent = if (inputCount > 0) {
-        ((inputCount - renderItemCount).toFloat() / inputCount * 100).toInt()
-    } else 0
-
-    if (dedupDropPercent > 20) {
-        android.util.Log.w(
-            "ChatRenderModel-DEBUG",
-            "RENDER_MODEL_DEDUP_DROP: input=$inputCount renderItems=$renderItemCount drop=$dedupDropPercent%",
-        )
+        val dedupDropPercent = if (inputCount > 0) {
+            ((inputCount - renderItemCount).toFloat() / inputCount * 100).toInt()
+        } else 0
+        if (dedupDropPercent > 20) {
+            android.util.Log.w(
+                "ChatRenderModel-DEBUG",
+                "RENDER_MODEL_DEDUP_DROP: input=$inputCount renderItems=$renderItemCount drop=$dedupDropPercent%",
+            )
+        }
     }
 
     return ChatRenderModel(
@@ -219,7 +203,7 @@ fun dedupeGroupedMessagesForLazyKeys(
     val seen = HashSet<String>(groupedMessages.size)
     val result = groupedMessages.filter { (msg, _) -> seen.add(msg.id) }
     val dropped = groupedMessages.size - result.size
-    if (dropped > 0) {
+    if (ChatRenderModelDebugLogging && dropped > 0) {
         android.util.Log.w(
             "ChatRenderModel-DEBUG",
             "KEY_DEDUP_DROPPED: $dropped duplicate message IDs detected in grouped messages",
