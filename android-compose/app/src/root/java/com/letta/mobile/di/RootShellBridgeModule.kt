@@ -1,5 +1,7 @@
 package com.letta.mobile.di
 
+import com.letta.mobile.platform.root.InMemoryRootShellAuditLogger
+import com.letta.mobile.platform.root.RootShellAuditLogger
 import com.letta.mobile.platform.root.RootShellBridge
 import com.letta.mobile.platform.root.SuRootShellBridge
 import dagger.Binds
@@ -14,4 +16,8 @@ abstract class RootShellBridgeModule {
     @Binds
     @Singleton
     abstract fun bindRootShellBridge(impl: SuRootShellBridge): RootShellBridge
+
+    @Binds
+    @Singleton
+    abstract fun bindRootShellAuditLogger(impl: InMemoryRootShellAuditLogger): RootShellAuditLogger
 }

@@ -20,6 +20,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Singleton
 class SuRootShellBridge @Inject constructor(
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val auditLogger: RootShellAuditLogger,
 ) : RootShellBridge {
     @Volatile
     private var cachedAvailability: RootShellAvailability? = null
@@ -80,9 +81,43 @@ class SuRootShellBridge @Inject constructor(
 
     override suspend fun execute(request: RootShellCommandRequest): RootShellCommandResult = withContext(ioDispatcher) {
         val startMs = System.currentTimeMillis()
+        if (RootShellCommandClassifier.requiresHumanApproval(request.command) && request.approvalId.isNullOrBlank()) {
+            return@withContext auditedResult(
+                request,
+                RootShellCommandResult(
+                    exitCode = null,
+                    stdout = "",
+                    stderr = "",
+                    stdoutTruncated = false,
+                    stderrTruncated = false,
+                    timedOut = false,
+                    durationMs = System.currentTimeMillis() - startMs,
+                    errorMessage = "Root command requires explicit user approval before execution.",
+                ),
+            )
+        }
+
         val availability = detect()
         if (availability.status != RootShellAvailabilityStatus.SuAvailable) {
-            return@withContext RootShellCommandResult(
+            return@withContext auditedResult(
+                request,
+                RootShellCommandResult(
+                    exitCode = null,
+                    stdout = "",
+                    stderr = "",
+                    stdoutTruncated = false,
+                    stderrTruncated = false,
+                    timedOut = false,
+                    durationMs = System.currentTimeMillis() - startMs,
+                    providerHint = availability.providerHint,
+                    errorMessage = availability.reason,
+                ),
+            )
+        }
+
+        val su = findSuExecutable() ?: return@withContext auditedResult(
+            request,
+            RootShellCommandResult(
                 exitCode = null,
                 stdout = "",
                 stderr = "",
@@ -91,20 +126,8 @@ class SuRootShellBridge @Inject constructor(
                 timedOut = false,
                 durationMs = System.currentTimeMillis() - startMs,
                 providerHint = availability.providerHint,
-                errorMessage = availability.reason,
-            )
-        }
-
-        val su = findSuExecutable() ?: return@withContext RootShellCommandResult(
-            exitCode = null,
-            stdout = "",
-            stderr = "",
-            stdoutTruncated = false,
-            stderrTruncated = false,
-            timedOut = false,
-            durationMs = System.currentTimeMillis() - startMs,
-            providerHint = availability.providerHint,
-            errorMessage = "su provider disappeared before command execution.",
+                errorMessage = "su provider disappeared before command execution.",
+            ),
         )
 
         val process = try {
@@ -113,16 +136,19 @@ class SuRootShellBridge @Inject constructor(
                 .start()
                 .also { runCatching { it.outputStream.close() } }
         } catch (t: Throwable) {
-            return@withContext RootShellCommandResult(
-                exitCode = null,
-                stdout = "",
-                stderr = "",
-                stdoutTruncated = false,
-                stderrTruncated = false,
-                timedOut = false,
-                durationMs = System.currentTimeMillis() - startMs,
-                providerHint = availability.providerHint,
-                errorMessage = t.rootShellMessage(),
+            return@withContext auditedResult(
+                request,
+                RootShellCommandResult(
+                    exitCode = null,
+                    stdout = "",
+                    stderr = "",
+                    stdoutTruncated = false,
+                    stderrTruncated = false,
+                    timedOut = false,
+                    durationMs = System.currentTimeMillis() - startMs,
+                    providerHint = availability.providerHint,
+                    errorMessage = t.rootShellMessage(),
+                ),
             )
         }
 
@@ -144,7 +170,7 @@ class SuRootShellBridge @Inject constructor(
 
                 val out = stdout.await()
                 val err = stderr.await()
-                RootShellCommandResult(
+                val result = RootShellCommandResult(
                     exitCode = if (completed) process.exitValue() else null,
                     stdout = out.text,
                     stderr = err.text,
@@ -154,22 +180,34 @@ class SuRootShellBridge @Inject constructor(
                     durationMs = System.currentTimeMillis() - startMs,
                     providerHint = availability.providerHint,
                 )
+                auditedResult(request, result)
             }
         } catch (t: Throwable) {
             process.destroyRootProcess()
             if (t is CancellationException) throw t
-            RootShellCommandResult(
-                exitCode = null,
-                stdout = "",
-                stderr = "",
-                stdoutTruncated = false,
-                stderrTruncated = false,
-                timedOut = false,
-                durationMs = System.currentTimeMillis() - startMs,
-                providerHint = availability.providerHint,
-                errorMessage = t.rootShellMessage(),
+            auditedResult(
+                request,
+                RootShellCommandResult(
+                    exitCode = null,
+                    stdout = "",
+                    stderr = "",
+                    stdoutTruncated = false,
+                    stderrTruncated = false,
+                    timedOut = false,
+                    durationMs = System.currentTimeMillis() - startMs,
+                    providerHint = availability.providerHint,
+                    errorMessage = t.rootShellMessage(),
+                ),
             )
         }
+    }
+
+    private suspend fun auditedResult(
+        request: RootShellCommandRequest,
+        result: RootShellCommandResult,
+    ): RootShellCommandResult {
+        auditLogger.record(request, result)
+        return result
     }
 
     private fun findSuExecutable(): String? {
