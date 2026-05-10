@@ -69,7 +69,9 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.MultiFieldInputDialog
+import com.letta.mobile.ui.components.expressiveContentSize
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ShimmerCard
@@ -85,6 +87,7 @@ import com.letta.mobile.ui.theme.dialogSectionHeading
 import com.letta.mobile.ui.theme.listItemHeadline
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemSupporting
+import com.letta.mobile.util.formatRelativeTime
 
 private const val MCP_TYPE_STDIO = "stdio"
 private const val MCP_TYPE_SSE = "sse"
@@ -334,7 +337,9 @@ private fun PhoneBridgeCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .expressiveContentSize(),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
@@ -439,6 +444,7 @@ private fun ServerCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
+        colors = LettaCardDefaults.listCardColors(),
         onClick = { expanded = !expanded },
     ) {
         Column(
@@ -506,19 +512,10 @@ private fun ServerCard(
                         )
                     }
 
-                    server.createdAt?.let { createdAt ->
+                    serverActivityText(server)?.let { activityText ->
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = stringResource(R.string.screen_mcp_server_created, createdAt),
-                            style = MaterialTheme.typography.listItemMetadata,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    server.updatedAt?.let { updatedAt ->
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.screen_mcp_server_updated, updatedAt),
+                            text = activityText,
                             style = MaterialTheme.typography.listItemMetadata,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -720,6 +717,14 @@ private fun ServerCard(
         onDismiss = { showDeleteDialog = false },
         destructive = true,
     )
+}
+
+private fun serverActivityText(server: McpServer): String? {
+    val updatedAt = server.updatedAt?.takeIf { it.isNotBlank() }
+    val createdAt = server.createdAt?.takeIf { it.isNotBlank() }
+    val timestamp = updatedAt ?: createdAt ?: return null
+    val relative = formatRelativeTime(timestamp).takeIf { it.isNotBlank() } ?: return null
+    return if (updatedAt != null) "Updated $relative" else "Created $relative"
 }
 
 @OptIn(ExperimentalLayoutApi::class)

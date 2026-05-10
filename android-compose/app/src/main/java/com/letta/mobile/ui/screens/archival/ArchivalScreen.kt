@@ -43,10 +43,12 @@ import com.letta.mobile.data.model.Passage
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.LoadingIndicator
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.TextInputDialog
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.util.formatRelativeTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,7 +212,11 @@ private fun PassageCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(onClick = onInspect, modifier = modifier.fillMaxWidth()) {
+    Card(
+        onClick = onInspect,
+        modifier = modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -230,8 +236,9 @@ private fun PassageCard(
             }
             passage.createdAt?.let { createdAt ->
                 Spacer(modifier = Modifier.height(4.dp))
+                val createdText = formatRelativeTime(createdAt).takeIf { it.isNotBlank() } ?: createdAt
                 Text(
-                    text = createdAt,
+                    text = "Created $createdText",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

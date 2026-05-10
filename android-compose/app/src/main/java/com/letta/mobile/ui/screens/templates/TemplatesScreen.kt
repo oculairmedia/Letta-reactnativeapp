@@ -20,6 +20,7 @@ import com.letta.mobile.R
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.TagDrillInDialog
 import com.letta.mobile.ui.icons.LettaIcons
@@ -190,7 +191,8 @@ private fun TemplateCard(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(0.9f),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(
             modifier = Modifier

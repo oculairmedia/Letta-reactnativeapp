@@ -50,6 +50,7 @@ import com.letta.mobile.ui.components.ActionSheet
 import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
@@ -272,6 +273,7 @@ private fun IdentityCard(
     Card(
         onClick = onInspect,
         modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

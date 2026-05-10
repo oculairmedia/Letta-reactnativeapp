@@ -60,6 +60,7 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
@@ -306,7 +307,7 @@ private fun BlockLibraryCard(
     val containerColor = if (isSelected) {
         selectionColors.selectionContainer
     } else {
-        CardDefaults.cardColors().containerColor
+        LettaCardDefaults.listContainerColor
     }
 
     Card(

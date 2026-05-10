@@ -48,6 +48,7 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
@@ -234,7 +235,11 @@ private fun FolderCard(
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
 
-    Card(onClick = onInspect, modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onInspect,
+        modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -252,10 +257,11 @@ private fun FolderCard(
                     Icon(LettaIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                folder.vectorDbProvider?.let { AssistChip(onClick = {}, label = { Text(it) }) }
-                folder.createdAt?.let { AssistChip(onClick = {}, label = { Text(it.take(10)) }) }
+            folder.vectorDbProvider?.let { provider ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = {}, label = { Text(provider) })
+                }
             }
         }
     }

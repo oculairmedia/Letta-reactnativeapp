@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
@@ -50,6 +51,7 @@ import com.letta.mobile.data.model.EmbeddingModel
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -204,7 +206,7 @@ private fun ModelBrowserContent(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(filteredModels, key = { it.id }) { model ->
+                        itemsIndexed(filteredModels, key = ::llmModelListKey) { _, model ->
                             LlmModelCard(
                                 model = model,
                                 onClick = { onLlmModelClick(model) },
@@ -225,7 +227,7 @@ private fun ModelBrowserContent(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(filteredEmbeddingModels, key = { it.id }) { model ->
+                        itemsIndexed(filteredEmbeddingModels, key = ::embeddingModelListKey) { _, model ->
                             EmbeddingModelCard(
                                 model = model,
                                 onClick = { onEmbeddingModelClick(model) },
@@ -244,7 +246,11 @@ private fun LlmModelCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = model.displayName,
@@ -296,7 +302,11 @@ private fun EmbeddingModelCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = model.displayName,
@@ -514,4 +524,46 @@ private fun formatNumber(value: Int): String {
     } else {
         value.toString()
     }
+}
+
+private fun llmModelListKey(index: Int, model: LlmModel): String {
+    return model.stableModelListKey(index, prefix = "llm")
+}
+
+private fun embeddingModelListKey(index: Int, model: EmbeddingModel): String {
+    return model.stableModelListKey(index, prefix = "embedding")
+}
+
+private fun LlmModel.stableModelListKey(index: Int, prefix: String): String {
+    return buildModelListKey(
+        prefix = prefix,
+        index = index,
+        id = id,
+        handle = handle,
+        name = name,
+        providerType = providerType,
+    )
+}
+
+private fun EmbeddingModel.stableModelListKey(index: Int, prefix: String): String {
+    return buildModelListKey(
+        prefix = prefix,
+        index = index,
+        id = id,
+        handle = handle,
+        name = name,
+        providerType = providerType,
+    )
+}
+
+private fun buildModelListKey(
+    prefix: String,
+    index: Int,
+    id: String,
+    handle: String?,
+    name: String,
+    providerType: String,
+): String {
+    val identity = id.ifBlank { handle.orEmpty() }.ifBlank { name }.ifBlank { providerType }.ifBlank { "model" }
+    return "$prefix:$identity:$index"
 }

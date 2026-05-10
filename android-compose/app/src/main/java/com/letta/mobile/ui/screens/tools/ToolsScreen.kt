@@ -23,6 +23,7 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerBox
 import com.letta.mobile.ui.components.shimmerColor
 import com.letta.mobile.ui.icons.LettaIcons
@@ -110,7 +111,8 @@ private fun ToolCard(
                 onClick = onClick,
                 onLongClick = { showRemoveDialog = true },
             ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Row(
             modifier = Modifier

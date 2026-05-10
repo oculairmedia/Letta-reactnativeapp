@@ -54,6 +54,7 @@ import com.letta.mobile.ui.navigation.optionalSharedElement
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerGrid
 import com.letta.mobile.ui.icons.LettaIcons
 
@@ -265,6 +266,7 @@ private fun ToolTile(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(100.dp),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(12.dp),

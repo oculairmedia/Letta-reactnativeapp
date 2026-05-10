@@ -54,6 +54,7 @@ import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
@@ -187,7 +188,10 @@ private fun ServerSummaryCard(
     toolCount: Int,
     refreshSummary: McpServerResyncResult?,
 ) {
-    Card(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+    Card(
+        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(serverName, style = MaterialTheme.typography.titleMedium)
@@ -229,7 +233,10 @@ private fun McpServerToolCard(
     isRunning: Boolean,
     onRun: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(tool.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))

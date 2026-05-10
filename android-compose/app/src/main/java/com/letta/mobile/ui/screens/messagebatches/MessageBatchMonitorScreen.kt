@@ -48,6 +48,7 @@ import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.StatusChip
 import com.letta.mobile.ui.theme.dialogSectionHeading
@@ -220,6 +221,7 @@ private fun MessageBatchCard(
     Card(
         onClick = onInspect,
         modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -414,7 +416,10 @@ private fun MessageBatchDetailDialog(
 
 @Composable
 private fun BatchMessageCard(message: BatchMessage) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
+    ) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

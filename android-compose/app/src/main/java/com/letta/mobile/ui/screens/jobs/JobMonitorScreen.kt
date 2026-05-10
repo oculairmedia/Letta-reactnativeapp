@@ -47,6 +47,7 @@ import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.StatusChip
 import com.letta.mobile.ui.theme.dialogSectionHeading
@@ -229,6 +230,7 @@ private fun JobCard(
     Card(
         onClick = onInspect,
         modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

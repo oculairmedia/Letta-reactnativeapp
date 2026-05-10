@@ -66,6 +66,7 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.ShimmerBox
 import com.letta.mobile.ui.icons.LettaIcons
@@ -712,7 +713,7 @@ private fun ProjectTile(
                 },
             ),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = LettaCardDefaults.listContainerColor,
         tonalElevation = 3.dp,
     ) {
         Column(

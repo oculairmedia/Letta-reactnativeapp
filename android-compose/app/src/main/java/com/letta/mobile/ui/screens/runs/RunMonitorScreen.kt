@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.StatusChip
 import com.letta.mobile.ui.components.TagDrillInDialog
@@ -276,6 +278,7 @@ private fun RunCard(
     Card(
         onClick = onInspect,
         modifier = Modifier.fillMaxWidth(),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -551,7 +554,10 @@ private fun RunDetailDialog(
                     )
                 }
                 items(steps.take(5), key = { it.id }) { step ->
-                    Card(onClick = { onInspectStep(step.id) }) {
+                    Card(
+                        onClick = { onInspectStep(step.id) },
+                        colors = LettaCardDefaults.listCardColors(),
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -561,8 +567,8 @@ private fun RunDetailDialog(
                             Text(
                                 text = buildString {
                                     append(step.id)
-                                    step.status?.let { append(" • ").append(it) }
-                                    step.model?.let { append(" • ").append(it) }
+                                    step.status?.let { append(" - ").append(it) }
+                                    step.model?.let { append(" - ").append(it) }
                                 },
                                 style = MaterialTheme.typography.listItemSupporting,
                                 maxLines = 2,

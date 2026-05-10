@@ -92,6 +92,7 @@ import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.FormItem
+import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.LettaSearchBar
 import com.letta.mobile.ui.components.ShimmerCard
 import com.letta.mobile.ui.components.highlightSearchMatches
@@ -1647,9 +1648,7 @@ private fun SearchPickerField(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        colors = LettaCardDefaults.listCardColors(),
     ) {
         Box(
             modifier = Modifier
@@ -1813,11 +1812,11 @@ private fun ModelPickerCard(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        colors = LettaCardDefaults.listCardColors(
             containerColor = if (selected) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLow
+                LettaCardDefaults.listContainerColor
             },
         ),
     ) {
@@ -2089,8 +2088,8 @@ private fun SelectableToolCard(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        colors = LettaCardDefaults.listCardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else LettaCardDefaults.listContainerColor,
         ),
     ) {
         Row(
@@ -2132,8 +2131,8 @@ private fun SelectableBlockCard(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        colors = LettaCardDefaults.listCardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else LettaCardDefaults.listContainerColor,
         ),
     ) {
         Row(
