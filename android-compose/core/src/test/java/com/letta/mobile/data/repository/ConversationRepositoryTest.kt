@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.jupiter.api.Tag
@@ -118,6 +119,37 @@ class ConversationRepositoryTest {
         repository.refreshConversationsIfStale("a1", maxAgeMs = 60_000)
 
         assertTrue(fakeApi.calls.none { it == "listConversations" })
+    }
+
+    @Test
+    fun `refreshConversationsIfStale refreshes stale cache`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "old", agentId = "a1"))
+        repository.refreshConversations("a1")
+        fakeApi.conversations.clear()
+        fakeApi.conversations.add(TestData.conversation(id = "new", agentId = "a1"))
+        fakeApi.calls.clear()
+
+        val refreshed = repository.refreshConversationsIfStale("a1", maxAgeMs = -1)
+
+        assertEquals(true, refreshed)
+        assertEquals(listOf("new"), repository.getConversations("a1").first().map { it.id })
+        assertEquals(1, fakeApi.calls.count { it == "listConversations" })
+    }
+
+    @Test
+    fun `failed stale refresh preserves cached conversations`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "cached", agentId = "a1"))
+        repository.refreshConversations("a1")
+        fakeApi.shouldFail = true
+
+        try {
+            repository.refreshConversationsIfStale("a1", maxAgeMs = -1)
+            fail("Expected stale refresh to throw")
+        } catch (_: Exception) {
+            // Expected.
+        }
+
+        assertEquals(listOf("cached"), repository.getConversations("a1").first().map { it.id })
     }
 
     @Test

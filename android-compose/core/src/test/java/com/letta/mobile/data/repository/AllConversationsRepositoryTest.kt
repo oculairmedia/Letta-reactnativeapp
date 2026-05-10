@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.jupiter.api.Tag
@@ -54,6 +55,37 @@ class AllConversationsRepositoryTest {
         fakeApi.conversations.add(TestData.conversation(id = "1"))
         repository.refresh()
         assertTrue(repository.conversations.value.isNotEmpty())
+    }
+
+    @Test
+    fun `refreshIfStale refreshes after ttl expires`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "old"))
+        repository.refresh()
+        fakeApi.conversations.clear()
+        fakeApi.conversations.add(TestData.conversation(id = "new"))
+        fakeApi.calls.clear()
+
+        val refreshed = repository.refreshIfStale(maxAgeMs = -1)
+
+        assertEquals(true, refreshed)
+        assertEquals(listOf("new"), repository.conversations.value.map { it.id })
+        assertEquals(1, fakeApi.calls.count { it == "listConversations" })
+    }
+
+    @Test
+    fun `failed stale refresh preserves loaded conversations`() = runTest {
+        fakeApi.conversations.add(TestData.conversation(id = "cached"))
+        repository.refresh()
+        fakeApi.shouldFail = true
+
+        try {
+            repository.refreshIfStale(maxAgeMs = -1)
+            fail("Expected stale refresh to throw")
+        } catch (_: Exception) {
+            // Expected.
+        }
+
+        assertEquals(listOf("cached"), repository.conversations.value.map { it.id })
     }
 
     @Test

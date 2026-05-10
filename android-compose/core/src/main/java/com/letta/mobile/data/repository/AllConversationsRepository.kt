@@ -85,25 +85,8 @@ class AllConversationsRepository @Inject constructor(
     suspend fun loadNextPage() {
         if (!_hasMore.value) return
 
-        val newConversations = conversationApi.listConversations(
-            limit = PAGE_SIZE,
-            after = currentCursor,
-        )
-
-        hasLoadedAtLeastOnce = true
-        if (newConversations.isEmpty() || newConversations.size < PAGE_SIZE) {
-            _hasMore.update { false }
-        }
-
-        if (newConversations.isNotEmpty()) {
-            _conversations.update { current ->
-                val existingIds = current.map { it.id }.toSet()
-                val deduped = newConversations.filter { it.id !in existingIds }
-                current + deduped
-            }
-            cacheConversations(newConversations)
-            currentCursor = newConversations.last().id
-        }
+        val newConversations = fetchPage(after = currentCursor)
+        applyLoadedPage(newConversations)
     }
 
     suspend fun refresh() = refreshMutex.withLock {
@@ -111,11 +94,12 @@ class AllConversationsRepository @Inject constructor(
     }
 
     private suspend fun refreshLocked() {
+        val firstPage = fetchPage(after = null)
         currentCursor = null
         hasLoadedAtLeastOnce = false
         _conversations.update { emptyList() }
         _hasMore.update { true }
-        loadNextPage()
+        applyLoadedPage(firstPage)
         lastRefreshAtMillis = System.currentTimeMillis()
     }
 
@@ -180,6 +164,30 @@ class AllConversationsRepository @Inject constructor(
     companion object {
         private const val PAGE_SIZE = 50
         private const val TAG = "AllConversationsRepo"
+    }
+
+    private suspend fun fetchPage(after: String?): List<Conversation> {
+        return conversationApi.listConversations(
+            limit = PAGE_SIZE,
+            after = after,
+        )
+    }
+
+    private suspend fun applyLoadedPage(newConversations: List<Conversation>) {
+        hasLoadedAtLeastOnce = true
+        if (newConversations.isEmpty() || newConversations.size < PAGE_SIZE) {
+            _hasMore.update { false }
+        }
+
+        if (newConversations.isNotEmpty()) {
+            _conversations.update { current ->
+                val existingIds = current.map { it.id }.toSet()
+                val deduped = newConversations.filter { it.id !in existingIds }
+                current + deduped
+            }
+            cacheConversations(newConversations)
+            currentCursor = newConversations.last().id
+        }
     }
 
     private suspend fun cacheConversations(conversations: List<Conversation>) {

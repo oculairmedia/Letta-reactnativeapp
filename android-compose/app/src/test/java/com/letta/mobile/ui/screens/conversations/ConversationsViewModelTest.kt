@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlin.system.measureNanoTime
 import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -118,6 +119,24 @@ class ConversationsViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals(null, viewModel.uiState.value.error)
         assertEquals(1, viewModel.uiState.value.conversations.size)
+    }
+
+    @Test
+    fun `loadConversations handles one thousand cached conversations quickly`() = runTest {
+        fakeAllRepo.setConversations(
+            List(1_000) { index ->
+                TestData.conversation(id = "conversation-$index", agentId = "a1", summary = "Conversation $index")
+            },
+        )
+        fakeAllRepo.fresh = true
+        fakeAgentRepo.fresh = true
+
+        val elapsedNanos = measureNanoTime {
+            viewModel.loadConversations()
+        }
+
+        assertEquals(1_000, viewModel.uiState.value.conversations.size)
+        assertTrue("1k conversation load should stay well under 2s", elapsedNanos < 2_000_000_000L)
     }
 
     @Test

@@ -76,6 +76,24 @@ class ChatSessionResolverTest {
     }
 
     @Test
+    fun `resolveMostRecentConversation handles one thousand cached conversations`() = runTest {
+        every { conversationRepository.getCachedConversations("agent-1") } returns List(1_000) { index ->
+            conversation(
+                id = "conversation-$index",
+                createdAt = "2026-01-01T00:00:00Z",
+                lastMessageAt = "2026-01-01T00:${(index / 60).toString().padStart(2, '0')}:${(index % 60).toString().padStart(2, '0')}Z",
+            )
+        }
+        every { conversationRepository.hasFreshConversations("agent-1", 30_000L) } returns true
+        val resolver = resolver()
+
+        val resolved = resolver.resolveMostRecentConversation("agent-1", 30_000L)
+
+        assertEquals("conversation-999", resolved)
+        coVerify(exactly = 0) { conversationRepository.refreshConversationsIfStale(any(), any()) }
+    }
+
+    @Test
     fun `resolveMostRecentConversation refreshes when cache is empty`() = runTest {
         every { conversationRepository.getCachedConversations("agent-1") } returnsMany listOf(
             emptyList(),
