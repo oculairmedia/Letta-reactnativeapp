@@ -39,6 +39,7 @@ import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -1254,6 +1255,42 @@ class AdminChatViewModelTest {
         assertFalse(vm.uiState.value.isStreaming)
     }
 
+    @Test
+    fun `client mode terminal chunk is folded before stream-end reconcile`() = runTest {
+        clientModeEnabledFlow.value = true
+        val order = mutableListOf<String>()
+        coEvery {
+            timelineRepository.upsertClientModeStreamChunk(any(), any(), any())
+        } coAnswers {
+            val chunk = secondArg<com.letta.mobile.data.timeline.ClientModeStreamChunk>()
+            if (chunk.done) delay(100)
+            order += "upsert:${chunk.done}"
+            null
+        }
+        coEvery { timelineRepository.reconcileRecentMessages(any(), any()) } coAnswers {
+            order += "reconcile"
+            Unit
+        }
+        every {
+            clientModeChatSender.streamMessage(any(), any(), any())
+        } returns flow {
+            emit(BotStreamChunk(text = "Hello", conversationId = "client-conv", event = BotStreamEvent.ASSISTANT))
+            emit(BotStreamChunk(text = " world", conversationId = "client-conv", event = BotStreamEvent.ASSISTANT, done = true))
+        }
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 1L)
+        advanceUntilIdle()
+        vm.sendMessage("hi")
+        advanceUntilIdle()
+
+        assertTrue("terminal upsert must run", order.contains("upsert:true"))
+        assertTrue("stream-end reconcile must run", order.contains("reconcile"))
+        assertTrue(
+            "stream-end reconcile must wait for the terminal chunk upsert; order=$order",
+            order.indexOf("upsert:true") < order.indexOf("reconcile"),
+        )
+    }
+
     // letta-mobile (lettabot-uww.11): the prior test
     // `client mode chunks survive accidental cumulative-snapshot frames`
     // intentionally codified the wucn-snapshot-recovery client-side defense
@@ -1956,6 +1993,39 @@ class AdminChatViewModelTest {
         assertFalse(vm.uiState.value.isStreaming)
         assertFalse(vm.uiState.value.isAgentTyping)
         assertNull(vm.uiState.value.activeApprovalRequestId)
+    }
+
+    @Test
+    fun `submitComposer while streaming blocks free-form steering instead of creating another run`() = runTest {
+        val chunks = Channel<BotStreamChunk>(capacity = Channel.UNLIMITED)
+        every {
+            clientModeChatSender.streamMessage(
+                screenAgentId = any(),
+                text = any(),
+                conversationId = any(),
+            )
+        } returns chunks.consumeAsFlow()
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.sendMessage("start a long run")
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.isStreaming)
+
+        vm.submitComposer("please steer this active run")
+        advanceUntilIdle()
+
+        assertEquals(
+            "Letta does not support free-form steering during an active run yet. Stop the run before sending another message.",
+            vm.composerState.value.error,
+        )
+        coVerify(exactly = 0) {
+            timelineRepository.sendMessage(any(), "please steer this active run")
+        }
+
+        chunks.send(BotStreamChunk(text = "done", conversationId = "conv-1", done = true))
+        chunks.close()
+        advanceUntilIdle()
     }
 
     // Project-chat embedded-bot-gateway send tests were removed in Phase 5 —

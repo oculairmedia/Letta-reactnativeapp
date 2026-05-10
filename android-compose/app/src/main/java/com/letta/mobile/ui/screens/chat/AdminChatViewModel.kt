@@ -392,7 +392,9 @@ class AdminChatViewModel @Inject constructor(
             }
             null -> {
                 if (_uiState.value.isStreaming) {
-                    sendSteeringMessage(text)
+                    composerController.setError(
+                        "Letta does not support free-form steering during an active run yet. Stop the run before sending another message."
+                    )
                 } else {
                     sendMessage(text)
                 }
@@ -430,39 +432,6 @@ class AdminChatViewModel @Inject constructor(
             }
             runCatching { internalBotClient.abort() }
             clientModeSendCoordinator.cancelActiveStream("User interrupted active run")
-        }
-    }
-
-    private fun sendSteeringMessage(text: String) {
-        val payload = composerController.payloadForSend(text) ?: return
-        if (payload.attachments.isNotEmpty()) {
-            composerController.setError("Steering updates don't support attachments yet")
-            return
-        }
-        val convId = conversationId ?: activeConversationId ?: currentClientModeConversationId()
-        if (convId.isNullOrBlank()) {
-            composerController.setError("No active conversation to steer yet")
-            return
-        }
-        val content = payload.text.trim()
-        if (content.isBlank()) return
-        viewModelScope.launch {
-            val localId = runCatching {
-                timelineRepository.appendClientModeLocal(
-                    conversationId = convId,
-                    content = content,
-                )
-            }.getOrElse { "steer-${java.util.UUID.randomUUID()}" }
-            composerController.clearAfterSend()
-            runCatching {
-                messageRepository.sendSteeringMessage(
-                    conversationId = convId,
-                    content = content,
-                    otid = localId,
-                )
-            }.onFailure { e ->
-                composerController.setError(mapErrorToUserMessage(e.asException(), "Failed to send steering update"))
-            }
         }
     }
 

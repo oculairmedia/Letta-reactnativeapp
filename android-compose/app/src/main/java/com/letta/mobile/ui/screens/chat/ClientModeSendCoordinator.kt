@@ -423,26 +423,24 @@ internal class ClientModeSendCoordinator(
         )
     }
 
-    private fun handleStreamChunk(
+    private suspend fun handleStreamChunk(
         chunk: BotStreamChunk,
         assistantMessageId: String,
         conversationId: String? = null,
     ) {
         if (conversationId != null) {
-            scope.launch {
-                runCatching {
-                    timelineRepository.upsertClientModeStreamChunk(
-                        conversationId = conversationId,
-                        chunk = chunk.toTimelineStreamChunk(),
-                        assistantMessageId = assistantMessageId,
-                    )
-                }.onFailure {
-                    logTimelineUpsertFailure(
-                        t = it,
-                        kind = chunk.event?.name ?: "ASSISTANT",
-                        localId = assistantMessageId,
-                    )
-                }
+            runCatching {
+                timelineRepository.upsertClientModeStreamChunk(
+                    conversationId = conversationId,
+                    chunk = chunk.toTimelineStreamChunk(),
+                    assistantMessageId = assistantMessageId,
+                )
+            }.onFailure {
+                logTimelineUpsertFailure(
+                    t = it,
+                    kind = chunk.event?.name ?: "ASSISTANT",
+                    localId = assistantMessageId,
+                )
             }
             return
         }
