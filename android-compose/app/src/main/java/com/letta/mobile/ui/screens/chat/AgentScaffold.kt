@@ -137,7 +137,7 @@ fun AgentScaffold(
     onNavigateToSettings: (String) -> Unit,
     onNavigateToArchival: ((String) -> Unit)? = null,
     onNavigateToTools: (() -> Unit)? = null,
-    onSwitchConversation: ((String, String?) -> Unit)? = null,
+    onSwitchConversation: ((String, String?, String?) -> Unit)? = null,
     conversationRepository: ConversationRepository? = null,
     viewModel: AdminChatViewModel = hiltViewModel()
 ) {
@@ -189,11 +189,6 @@ fun AgentScaffold(
         }
     }
 
-    LaunchedEffect(agentId) {
-        drawerConversationRepo.refreshConversations(agentId)
-        viewModel.refreshAvailableAgents()
-    }
-
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -234,11 +229,11 @@ fun AgentScaffold(
                     currentConversationId = conversationId,
                     onNewConversation = {
                         scope.launch { drawerState.close() }
-                        onSwitchConversation?.invoke(agentId, null)
+                        onSwitchConversation?.invoke(agentId, null, agentName.takeIf { it.isNotBlank() })
                     },
                     onConversationSelected = { selectedConversationId ->
                         scope.launch { drawerState.close() }
-                        onSwitchConversation?.invoke(agentId, selectedConversationId)
+                        onSwitchConversation?.invoke(agentId, selectedConversationId, agentName.takeIf { it.isNotBlank() })
                     },
                     onEditAgent = {
                         scope.launch { drawerState.close() }
@@ -327,7 +322,10 @@ fun AgentScaffold(
                         }
                         IconButton(onClick = {
                             viewModel.refreshContextWindow()
-                            scope.launch { drawerState.open() }
+                            scope.launch {
+                                drawerState.open()
+                                runCatching { drawerConversationRepo.refreshConversations(agentId) }
+                            }
                         }, modifier = Modifier.testTag(AgentScaffoldTestTags.MENU_BUTTON)) {
                             Icon(LettaIcons.Menu, "Menu")
                         }
@@ -380,7 +378,7 @@ fun AgentScaffold(
                             isChatSearchExpanded = false
                             viewModel.clearChatSearch()
                             result.conversationId?.let { targetConversationId ->
-                                onSwitchConversation?.invoke(agentId, targetConversationId)
+                                onSwitchConversation?.invoke(agentId, targetConversationId, agentName.takeIf { it.isNotBlank() })
                             }
                         },
                         modifier = Modifier
@@ -406,10 +404,10 @@ fun AgentScaffold(
             agents = switchableAgents,
             currentAgentId = agentId,
             onDismiss = { showAgentSwitcher = false },
-            onAgentSelected = { selectedAgentId ->
+            onAgentSelected = { selectedAgent ->
                 showAgentSwitcher = false
-                if (selectedAgentId != agentId) {
-                    onSwitchConversation?.invoke(selectedAgentId, null)
+                if (selectedAgent.id != agentId) {
+                    onSwitchConversation?.invoke(selectedAgent.id, null, selectedAgent.name.takeIf { it.isNotBlank() })
                 }
             },
         )
@@ -1428,7 +1426,7 @@ private fun AgentPickerSheet(
     agents: List<Agent>,
     currentAgentId: String,
     onDismiss: () -> Unit,
-    onAgentSelected: (String) -> Unit,
+    onAgentSelected: (Agent) -> Unit,
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isDismissingForAction by remember { mutableStateOf(false) }
@@ -1510,7 +1508,7 @@ private fun AgentPickerSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable(enabled = !isDismissingForAction) {
-                                    dismissThen { onAgentSelected(agent.id) }
+                                    dismissThen { onAgentSelected(agent) }
                                 },
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isActive) {
