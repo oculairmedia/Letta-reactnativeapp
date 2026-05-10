@@ -99,6 +99,7 @@ class DashboardViewModelTest {
         every {
             conversationsRepository.conversations
         } returns MutableStateFlow(listOf(TestData.conversation(id = "conv-1", agentId = "agent-1")))
+        every { conversationsRepository.hasMore } returns MutableStateFlow(false)
         coEvery { conversationsRepository.countConversations() } returns 1
         coEvery { conversationsRepository.refresh() } returns Unit
 
@@ -163,6 +164,9 @@ class DashboardViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(2, state.agentCount)
         assertEquals(1, state.conversationCount)
+        assertFalse(state.isConversationCountApproximate)
+        coVerify(exactly = 0) { conversationsRepository.countConversations() }
+        coVerify(exactly = 1) { conversationsRepository.refresh() }
         assertEquals(3, state.toolCount)
         assertEquals(2, state.blockCount)
         assertFalse(state.isUsageLoading)

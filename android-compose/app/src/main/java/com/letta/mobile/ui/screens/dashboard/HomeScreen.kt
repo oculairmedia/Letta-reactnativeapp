@@ -549,7 +549,10 @@ private fun resolveContextualInfo(
         }
         DashboardShortcut.CONVERSATIONS -> {
             if (state.isConversationCountLoading) "—"
-            else state.conversationCount?.let { stringResource(R.string.widget_tile_count_format, it) }
+            else state.conversationCount?.let {
+                val count = stringResource(R.string.widget_tile_count_format, it)
+                if (state.isConversationCountApproximate) "$count+" else count
+            }
         }
         DashboardShortcut.TOOLS -> {
             if (state.isToolCountLoading) "—"

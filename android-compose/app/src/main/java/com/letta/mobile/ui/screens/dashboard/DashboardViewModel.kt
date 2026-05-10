@@ -44,6 +44,7 @@ data class DashboardUiState(
     val agentCount: Int? = null,
     val isAgentCountLoading: Boolean = true,
     val conversationCount: Int? = null,
+    val isConversationCountApproximate: Boolean = false,
     val isConversationCountLoading: Boolean = true,
     val toolCount: Int? = null,
     val isToolCountLoading: Boolean = true,
@@ -311,12 +312,19 @@ class DashboardViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val count = allConversationsRepository.countConversations()
+                // Avoid the old startup path that fetched up to 10,000
+                // conversations solely to compute an exact count. The
+                // conversations widget only needs a lightweight dashboard hint,
+                // so refresh the first page once and display it as an exact
+                // count when there are no more pages, or as a lower bound
+                // (for example, "50+") when pagination says more exist.
+                allConversationsRepository.refresh()
+                val loadedCount = allConversationsRepository.conversations.value.size
                 _uiState.value = _uiState.value.copy(
-                    conversationCount = count,
+                    conversationCount = loadedCount,
+                    isConversationCountApproximate = allConversationsRepository.hasMore.value,
                     isConversationCountLoading = false,
                 )
-                allConversationsRepository.refresh()
             } catch (e: Exception) {
                 Log.w("DashboardVM", "Conversation count failed", e)
                 _uiState.value = _uiState.value.copy(isConversationCountLoading = false)

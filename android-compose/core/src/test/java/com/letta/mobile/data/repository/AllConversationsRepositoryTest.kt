@@ -72,4 +72,16 @@ class AllConversationsRepositoryTest {
         repository.refresh()
         assertFalse(repository.hasMore.value)
     }
+
+    @Test
+    fun `countConversations uses bounded page instead of overfetching all conversations`() = runTest {
+        repeat(125) { index ->
+            fakeApi.conversations.add(TestData.conversation(id = "conv-$index"))
+        }
+
+        val count = repository.countConversations()
+
+        assertEquals(50, count)
+        assertEquals(listOf(50), fakeApi.listLimits)
+    }
 }

@@ -78,16 +78,18 @@ class AllConversationsRepository @Inject constructor(
     }
 
     /**
-     * Gets the total count of all conversations.
-     * Note: Letta API doesn't have a /v1/conversations/count endpoint,
-     * so we use a single request with limit=1 and parse the list length.
-     * A proper count endpoint would be more efficient.
+     * Lightweight bounded count estimate.
+     *
+     * Letta API doesn't have a /v1/conversations/count endpoint. Do not fetch a
+     * huge page just to compute an exact count on dashboard startup; callers
+     * that only need a stat tile should use [refresh] and display
+     * [conversations].size with a "+" suffix when [hasMore] is true.
+     *
+     * This legacy helper is kept for compatibility and is intentionally bounded
+     * to one normal page.
      */
     suspend fun countConversations(): Int {
-        // TODO: When Letta API adds /v1/conversations/count, use that instead
-        // For now, we fetch with a high limit to get accurate count
-        // This is inefficient but gives correct results
-        return conversationApi.listConversations(limit = 10000).size
+        return conversationApi.listConversations(limit = PAGE_SIZE).size
     }
 
     companion object {

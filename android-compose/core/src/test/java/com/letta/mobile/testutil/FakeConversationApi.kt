@@ -11,6 +11,7 @@ class FakeConversationApi : ConversationApi(mockk(relaxed = true)) {
     var conversations = mutableListOf<Conversation>()
     var shouldFail = false
     val calls = mutableListOf<String>()
+    val listLimits = mutableListOf<Int?>()
 
     override suspend fun listConversations(
         agentId: String?,
@@ -22,13 +23,14 @@ class FakeConversationApi : ConversationApi(mockk(relaxed = true)) {
         orderBy: String?,
     ): List<Conversation> {
         calls.add("listConversations")
+        listLimits.add(limit)
         if (shouldFail) throw ApiException(500, "Server error")
         val filtered = if (agentId != null) {
             conversations.filter { it.agentId == agentId }
         } else {
             conversations.toList()
         }
-        return filtered.filter { conversation ->
+        val matching = filtered.filter { conversation ->
             when (archiveStatus) {
                 "archived" -> conversation.archived == true
                 "unarchived" -> conversation.archived != true
@@ -37,6 +39,9 @@ class FakeConversationApi : ConversationApi(mockk(relaxed = true)) {
         }.filter { conversation ->
             summarySearch == null || conversation.summary?.contains(summarySearch, ignoreCase = true) == true
         }
+        val afterIndex = after?.let { cursor -> matching.indexOfFirst { it.id == cursor } } ?: -1
+        val afterPage = if (afterIndex >= 0) matching.drop(afterIndex + 1) else matching
+        return limit?.let { afterPage.take(it) } ?: afterPage
     }
 
     override suspend fun createConversation(params: ConversationCreateParams): Conversation {
