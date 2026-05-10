@@ -151,6 +151,11 @@ class TimelineSyncLoop(
     // reconcile reattached it. Keep unmatched returns in memory and fold them
     // into the call event as soon as that event lands.
     private val pendingToolReturnsByCallId = LinkedHashMap<String, ToolReturnMessage>()
+    private val ingestNotificationDispatcher = TimelineIngestNotificationDispatcher(
+        conversationId = conversationId,
+        listener = ingestedListener,
+        listenerProvider = ingestedListenerProvider,
+    )
 
     /** Signal that hydrate failed — emitted by [TimelineRepository]. */
     internal suspend fun emitHydrateFailed(message: String) {
@@ -192,13 +197,6 @@ class TimelineSyncLoop(
     suspend fun hydrate(limit: Int = 50) {
         val timer = Telemetry.startTimer("TimelineSync", "hydrate")
         val timelineBeforeFetch = writeMutex.withLock { _state.value }
-        fun TimelineEvent.identityKeys(): Set<String> {
-            val keys = mutableSetOf("otid:$otid")
-            if (this is TimelineEvent.Confirmed) {
-                keys += "server:$serverId:$messageType"
-            }
-            return keys
-        }
         try {
             // Fetch the MOST RECENT N messages (order=desc), then reverse into
             // chronological order for display. Previously this used order=asc
@@ -215,117 +213,25 @@ class TimelineSyncLoop(
                     order = "desc",
                 ).reversed()
             )
-            val rawConverted = response.mapIndexedNotNull { idx, msg ->
-                msg.toTimelineEvent(position = (idx + 1).toDouble())
-            }
-            // Scan the raw server messages for ApprovalResponseMessages and
-            // mark matching request events as decided. These responses don't
-            // produce their own bubble but need to flip the approve/reject UI
-            // off. letta-mobile-mge5.15.
-            val decidedIds = response.filterIsInstance<ApprovalResponseMessage>()
-                .mapNotNull { it.approvalRequestId }
-                .toSet()
-            // Index tool returns by tool_call_id so we can (a) prove
-            // approvals were granted via tool execution (letta-mobile-mge5.17)
-            // and (b) attach the return body to the originating TOOL_CALL
-            // event (letta-mobile-mge5.19).
-            val toolReturnsByCallId: Map<String, ToolReturnMessage> =
-                response.filterIsInstance<ToolReturnMessage>()
-                    .mapNotNull { tr -> tr.toolCallId?.let { it to tr } }
-                    .toMap()
-            val returnedToolCallIds = toolReturnsByCallId.keys
-            val converted = rawConverted.mapNotNull { ev ->
-                when (ev.messageType) {
-                    TimelineMessageType.TOOL_RETURN -> null  // never standalone
-                    TimelineMessageType.TOOL_CALL -> {
-                        val byResponse = ev.approvalRequestId != null && ev.approvalRequestId in decidedIds
-                        val byReturn = ev.toolCalls.any { it.effectiveId in returnedToolCallIds }
-                        val matchingReturns = ev.toolCalls.mapNotNull { tc ->
-                            val callId = tc.effectiveId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                            val toolReturn = toolReturnsByCallId[callId] ?: return@mapNotNull null
-                            callId to toolReturn
-                        }
-                        val matchingReturn = matchingReturns.firstOrNull()?.second
-                        val returnContentByCallId = ev.toolReturnContentByCallId + matchingReturns.mapNotNull { (callId, toolReturn) ->
-                            toolReturn.toolReturn.funcResponse?.let { callId to it }
-                        }.toMap()
-                        val returnIsErrorByCallId = ev.toolReturnIsErrorByCallId + matchingReturns.associate { (callId, toolReturn) ->
-                            callId to (toolReturn.isErr == true || toolReturn.status == "error")
-                        }
-                        ev.copy(
-                            approvalDecided = byResponse || byReturn || ev.approvalDecided,
-                            toolReturnContent = matchingReturn?.toolReturn?.funcResponse
-                                ?: ev.toolReturnContent,
-                            toolReturnIsError = matchingReturn?.let { it.isErr == true || it.status == "error" }
-                                ?: ev.toolReturnIsError,
-                            toolReturnContentByCallId = returnContentByCallId,
-                            toolReturnIsErrorByCallId = returnIsErrorByCallId,
-                        )
-                    }
-                    else -> ev
-                }
-            }
             val diskRecords = runCatching { pendingLocalStore.load(conversationId) }
                 .getOrDefault(emptyList())
 
-            writeMutex.withLock {
-                // PRESERVE pending Local sends across hydrate. Hydrate may run
-                // concurrently with user sends now that getOrCreate releases the
-                // loop mutex before hydrating (letta-mobile-mge5.9). Without
-                // preservation, a hydrate landing right after the user taps send
-                // would wipe their just-appended SENDING bubble — Emmanuel
-                // reported the symptom "it's only sending the your response,
-                // it's not sending my query" 2026-04-19.
-                val currentTimeline = _state.value
-                val pendingLocals = currentTimeline.events.filterIsInstance<TimelineEvent.Local>()
-                    .filter { it.deliveryState == DeliveryState.SENDING || it.deliveryState == DeliveryState.SENT || it.deliveryState == DeliveryState.FAILED }
-                    .filter { local -> converted.none { c -> c.otid == local.otid } }
-                val initialKeys = timelineBeforeFetch.events.flatMap { it.identityKeys() }.toHashSet()
-                val convertedKeys = converted.flatMap { it.identityKeys() }.toHashSet()
-                val concurrentConfirmed = currentTimeline.events.filterIsInstance<TimelineEvent.Confirmed>()
-                    .filter { event -> event.identityKeys().none { it in initialKeys } }
-                    .filter { event -> event.identityKeys().none { it in convertedKeys } }
-                // mge5.24: re-inject Locals persisted to disk that the server
-                // hasn't echoed (and that aren't already present in the in-memory
-                // pendingLocals list — process is fresh so usually they're not).
-                // Locks down the otid space so we don't double-add when both the
-                // in-memory and disk copies exist, e.g. hydrate during runtime
-                // after a foreground restart of the loop.
-                val knownOtids = (converted.map { it.otid } + pendingLocals.map { it.otid }).toHashSet()
-                val diskLocals = diskRecords
-                    .filter { it.otid !in knownOtids }
-                    .map { rec ->
-                        TimelineEvent.Local(
-                            position = 0.0, // assigned below
-                            otid = rec.otid,
-                            content = rec.content,
-                            role = Role.USER,
-                            sentAt = rec.sentAt,
-                            deliveryState = DeliveryState.SENT,
-                            attachments = rec.attachments,
-                        )
-                    }
-                val maxServerPos = converted.lastOrNull()?.position ?: 0.0
-                val runtimePreserved = (pendingLocals + concurrentConfirmed).sortedBy { it.position }
-                val allPreserved = runtimePreserved + diskLocals
-                val merged = converted + allPreserved.mapIndexed { idx, event ->
-                    val position = maxServerPos + (idx + 1).toDouble()
-                    when (event) {
-                        is TimelineEvent.Local -> event.copy(position = position)
-                        is TimelineEvent.Confirmed -> event.copy(position = position)
-                    }
-                }
-                _state.value = Timeline(
+            val hydrated = writeMutex.withLock {
+                TimelineHydrationReducer.reduce(
                     conversationId = conversationId,
-                    events = merged,
-                    liveCursor = converted.lastOrNull()?.serverId,
-                )
+                    serverMessagesChronological = response,
+                    timelineBeforeFetch = timelineBeforeFetch,
+                    currentTimeline = _state.value,
+                    diskRecords = diskRecords,
+                ).also { result ->
+                    _state.value = result.timeline
+                }
             }
-            _events.emit(TimelineSyncEvent.Hydrated(converted.size))
+            _events.emit(TimelineSyncEvent.Hydrated(hydrated.visibleEventCount))
             timer.stop(
                 "conversationId" to conversationId,
                 "rawCount" to response.size,
-                "eventCount" to converted.size,
+                "eventCount" to hydrated.visibleEventCount,
             )
         } catch (t: Throwable) {
             timer.stopError(t, "conversationId" to conversationId)
@@ -1371,12 +1277,6 @@ class TimelineSyncLoop(
         }
     }
 
-    private data class PendingIngestNotification(
-        val serverId: String,
-        val messageType: String,
-        val contentPreview: String?,
-    )
-
     /**
      * Ingest a single LettaMessage received via the resume-stream SSE
      * subscription. Dedupes by server id and otid (so stream events that
@@ -1668,33 +1568,7 @@ class TimelineSyncLoop(
             null
         }
     }
-        dispatchIngestedNotification(notification)
-    }
-
-    private suspend fun dispatchIngestedNotification(notification: PendingIngestNotification?) {
-        notification ?: return
-        try {
-            val listener = ingestedListenerProvider?.invoke() ?: ingestedListener
-            Telemetry.event(
-                "TimelineSync", "streamSubscriber.listenerDispatch",
-                "conversationId" to conversationId,
-                "serverId" to notification.serverId,
-                "messageType" to notification.messageType,
-                "hasListener" to (listener != null),
-                "previewLength" to (notification.contentPreview?.length ?: 0),
-            )
-            listener?.onMessageIngested(
-                conversationId = conversationId,
-                serverId = notification.serverId,
-                messageType = notification.messageType,
-                contentPreview = notification.contentPreview,
-            )
-        } catch (t: Throwable) {
-            Telemetry.error(
-                "TimelineSync", "streamSubscriber.listenerThrew", t,
-                "conversationId" to conversationId,
-            )
-        }
+        ingestNotificationDispatcher.dispatch(notification)
     }
 
 }
