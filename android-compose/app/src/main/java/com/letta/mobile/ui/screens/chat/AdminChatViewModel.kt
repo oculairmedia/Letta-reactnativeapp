@@ -18,7 +18,6 @@ import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.ProjectBugReport
 import com.letta.mobile.data.model.ToolCall
-import com.letta.mobile.data.model.UiToolCall
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.model.MessageType
@@ -422,6 +421,7 @@ class AdminChatViewModel @Inject constructor(
         agentRepository = agentRepository,
         folderRepository = folderRepository,
     )
+    private val clientModeStreamReducer = ClientModeStreamReducer()
 
     private val _uiState = MutableStateFlow(
         ChatUiState(agentName = initialAgentName.orEmpty())
@@ -2558,184 +2558,23 @@ class AdminChatViewModel @Inject constructor(
         timestamp: String,
         replaceAssistant: Boolean,
     ) {
-        when (chunk.event) {
-            BotStreamEvent.REASONING -> {
-                val messageId = chunk.uuid ?: "client-reasoning-$assistantMessageId"
-                // letta-mobile-lv3e (REVERTS letta-mobile-vu6a): legacy
-                // path also receives DELTAS — append, not replace. Same
-                // defensive snapshot-shape guard as the timeline path.
-                val delta = chunk.text.orEmpty()
-                upsertClientModeMessage(
-                    messageId = messageId,
-                    timestamp = timestamp,
-                ) { existing ->
-                    val prior = existing?.content.orEmpty()
-                    // letta-mobile (lettabot-uww.11 fix): reasoning text is
-                    // emitted as PURE DELTAS, same contract as assistant
-                    // text. The previous prefix-collision guard silently
-                    // dropped chars; trust the contract and append.
-                    val merged = if (delta.isEmpty()) prior else prior + delta
-                    (existing ?: UiMessage(
-                        id = messageId,
-                        role = "assistant",
-                        content = "",
-                        timestamp = timestamp,
-                        isReasoning = true,
-                    )).copy(
-                        content = merged,
-                        isReasoning = true,
-                    )
-                }
-            }
-
-            BotStreamEvent.TOOL_CALL,
-            BotStreamEvent.TOOL_RESULT,
-            -> {
-                val incomingToolCalls = chunk.effectiveToolCalls()
-                val rawToolCallId = chunk.toolFrameId(incomingToolCalls) ?: return
-                val toolCallId = if (chunk.event == BotStreamEvent.TOOL_RESULT) {
-                    clientToolBatchMessageIds[rawToolCallId] ?: rawToolCallId
-                } else {
-                    rawToolCallId
-                }
-                val messageId = "client-tool-$toolCallId"
-                if (chunk.event == BotStreamEvent.TOOL_CALL) {
-                    val startedAtMs = System.currentTimeMillis()
-                    clientToolStartedAtMs.putIfAbsent(toolCallId, startedAtMs)
-                    incomingToolCalls.forEach { call ->
-                        call.effectiveId.takeIf { it.isNotBlank() }?.let { callId ->
-                            clientToolStartedAtMs.putIfAbsent(callId, startedAtMs)
-                            clientToolBatchMessageIds.putIfAbsent(callId, toolCallId)
-                        }
-                    }
-                }
-                upsertClientModeMessage(
-                    messageId = messageId,
-                    timestamp = timestamp,
-                ) { existing ->
-                    val resultTargetId = if (chunk.event == BotStreamEvent.TOOL_RESULT) rawToolCallId else null
-                    val incomingUiToolCalls = incomingToolCalls.mapIndexed { index, toolCall ->
-                        val incomingId = toolCall.effectiveId.takeIf { it.isNotBlank() }
-                        val old = existing?.toolCalls.findByToolCallId(incomingId)
-                            ?: existing?.toolCalls?.getOrNull(index)
-                        val isResultForCall = chunk.event == BotStreamEvent.TOOL_RESULT &&
-                            (resultTargetId == null || incomingId == null || resultTargetId == incomingId)
-                        val executionTimeMs = if (isResultForCall) {
-                            clientToolStartedAtMs[incomingId ?: resultTargetId ?: toolCallId]?.let { startedAt ->
-                                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
-                            } ?: old?.executionTimeMs
-                        } else {
-                            old?.executionTimeMs
-                        }
-                        val incomingName = toolCall.name?.takeIf {
-                            it.isNotBlank() && (it != "tool" || old == null)
-                        }
-                        UiToolCall(
-                            name = incomingName ?: old?.name ?: "tool",
-                            arguments = toolCall.arguments?.takeIf { it.isNotBlank() } ?: old?.arguments.orEmpty(),
-                            result = if (isResultForCall) chunk.text ?: old?.result else old?.result,
-                            status = if (isResultForCall) {
-                                if (chunk.isError) "error" else "success"
-                            } else {
-                                old?.status
-                            },
-                            executionTimeMs = executionTimeMs,
-                            toolCallId = incomingId ?: old?.toolCallId,
-                        )
-                    }
-                    val renderedToolCalls = mergeStreamingUiToolCalls(
-                        existing = existing?.toolCalls.orEmpty(),
-                        incoming = incomingUiToolCalls,
-                    )
-                    UiMessage(
-                        id = messageId,
-                        role = "assistant",
-                        content = "",
-                        timestamp = existing?.timestamp ?: timestamp,
-                        toolCalls = renderedToolCalls,
-                    )
-                }
-            }
-
-            else -> {
-                // letta-mobile-lv3e (REVERTS letta-mobile-vu6a): legacy
-                // path receives DELTAS, not snapshots. Append each new
-                // fragment to the bubble. The defensive snapshot-shape
-                // guard inside upsertClientModeAssistantMessage handles
-                // any future protocol change.
-                chunk.text?.takeIf { it.isNotEmpty() }?.let { delta ->
-                    upsertClientModeAssistantMessage(
-                        messageId = assistantMessageId,
-                        timestamp = timestamp,
-                        content = delta,
-                        append = true,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun upsertClientModeAssistantMessage(
-        messageId: String,
-        timestamp: String,
-        content: String,
-        append: Boolean,
-    ) {
-        upsertClientModeMessage(
-            messageId = messageId,
+        val next = clientModeStreamReducer.reduceLegacy(
+            state = ClientModeStreamReducerState(
+                messages = clientModeMessages,
+                toolStartedAtMs = clientToolStartedAtMs.toMap(),
+                toolBatchMessageIds = clientToolBatchMessageIds.toMap(),
+            ),
+            chunk = chunk,
+            assistantMessageId = assistantMessageId,
             timestamp = timestamp,
-        ) { existing ->
-            if (existing != null) {
-                // letta-mobile (lettabot-uww.11 fix): when append=true,
-                // the WS gateway emits assistant text as PURE DELTAS.
-                // Verified by ws-gateway.e2e.test.ts § "assistant text
-                // reassembly" (37 byte-perfect reassembly cases).
-                //
-                // The previous wucn-snapshot-recovery cascade had two
-                // defects that silently corrupted user-visible text:
-                //   - `existing.content.startsWith(content)` dropped
-                //     any delta whose head matched a prefix of the
-                //     accumulator (frequent for repeated tokens /
-                //     coalescer boundaries).
-                //   - the >=32-char "near-snapshot" branch replaced
-                //     the accumulator wholesale, destroying everything
-                //     before the incoming delta.
-                // Together they produced the field repro
-                // `A[LLM snapshots]` → `A[LLMapshots|`.
-                //
-                // The contract is delta-append. Trust it.
-                val merged = if (append) {
-                    if (content.isEmpty()) existing.content else existing.content + content
-                } else content
-                existing.copy(content = merged)
-            } else {
-                UiMessage(
-                    id = messageId,
-                    role = "assistant",
-                    content = content,
-                    timestamp = timestamp,
-                )
-            }
-        }
-    }
-
-    private fun upsertClientModeMessage(
-        messageId: String,
-        timestamp: String,
-        build: (UiMessage?) -> UiMessage,
-    ) {
-        val currentMessages = clientModeMessages.toMutableList()
-        val index = currentMessages.indexOfFirst { it.id == messageId }
-        val existing = currentMessages.getOrNull(index)
-        val next = build(existing)
-        if (index >= 0) {
-            currentMessages[index] = next.copy(timestamp = existing?.timestamp ?: timestamp)
-        } else {
-            currentMessages += next.copy(timestamp = next.timestamp.ifBlank { timestamp })
-        }
-        clientModeMessages = currentMessages
+        )
+        clientModeMessages = next.messages
+        clientToolStartedAtMs.clear()
+        clientToolStartedAtMs.putAll(next.toolStartedAtMs)
+        clientToolBatchMessageIds.clear()
+        clientToolBatchMessageIds.putAll(next.toolBatchMessageIds)
         if (clientModeEnabled.value) {
-            _uiState.value = _uiState.value.copy(messages = currentMessages.toImmutableList())
+            _uiState.value = _uiState.value.copy(messages = next.messages.toImmutableList())
         }
     }
 
@@ -3298,45 +3137,6 @@ private fun ToolCall.mergeWith(incoming: ToolCall): ToolCall = ToolCall(
     } ?: name,
     arguments = incoming.arguments?.takeIf { it.isNotBlank() } ?: arguments,
     type = incoming.type,
-)
-
-private fun mergeStreamingUiToolCalls(
-    existing: List<UiToolCall>,
-    incoming: List<UiToolCall>,
-): List<UiToolCall> {
-    if (incoming.isEmpty()) return existing
-    if (existing.isEmpty()) return incoming
-
-    val merged = existing.toMutableList()
-    incoming.forEachIndexed { incomingIndex, incomingCall ->
-        val existingIndex = incomingCall.toolCallId
-            ?.takeIf { it.isNotBlank() }
-            ?.let { callId -> merged.indexOfFirst { it.toolCallId == callId } }
-            ?.takeIf { it >= 0 }
-            ?: incomingIndex.takeIf { it in merged.indices && incoming.size == merged.size }
-
-        if (existingIndex != null) {
-            merged[existingIndex] = merged[existingIndex].mergeWith(incomingCall)
-        } else {
-            merged.add(incomingCall)
-        }
-    }
-    return merged
-}
-
-private fun List<UiToolCall>?.findByToolCallId(toolCallId: String?): UiToolCall? {
-    val id = toolCallId?.takeIf { it.isNotBlank() } ?: return null
-    return this?.firstOrNull { it.toolCallId == id }
-}
-
-private fun UiToolCall.mergeWith(incoming: UiToolCall): UiToolCall = UiToolCall(
-    name = incoming.name.takeIf { it.isNotBlank() && (it != "tool" || name == "tool") } ?: name,
-    arguments = incoming.arguments.takeIf { it.isNotBlank() } ?: arguments,
-    result = incoming.result ?: result,
-    status = incoming.status ?: status,
-    executionTimeMs = incoming.executionTimeMs ?: executionTimeMs,
-    toolCallId = incoming.toolCallId ?: toolCallId,
-    approvalDecision = incoming.approvalDecision ?: approvalDecision,
 )
 
 /**
