@@ -177,6 +177,8 @@ class TimelineReducerCharacterizationTest {
 
     @Test
     fun `client mode batched tool results update original timeline local`() = withLoop { loop ->
+        val startedAt = java.time.Instant.parse("2026-05-10T12:00:00Z")
+        val callBCompletedAt = startedAt.plusMillis(250)
         loop.upsertClientModeStreamChunk(
             chunk = ClientModeStreamChunk(
                 event = ClientModeStreamEvent.TOOL_CALL,
@@ -187,6 +189,7 @@ class TimelineReducerCharacterizationTest {
                 ),
             ),
             assistantMessageId = "assistant-1",
+            sentAt = startedAt,
         )
         loop.upsertClientModeStreamChunk(
             chunk = ClientModeStreamChunk(
@@ -195,6 +198,7 @@ class TimelineReducerCharacterizationTest {
                 text = "done",
             ),
             assistantMessageId = "assistant-1",
+            sentAt = callBCompletedAt,
         )
 
         val tool = loop.state.value.events.single() as TimelineEvent.Local
@@ -202,6 +206,47 @@ class TimelineReducerCharacterizationTest {
         assertEquals(listOf("call-a", "call-b"), tool.toolCalls.map { it.effectiveId })
         assertEquals("done", tool.toolReturnContentByCallId["call-b"])
         assertEquals(null, tool.toolReturnContentByCallId["call-a"])
+        assertEquals("batch-1", tool.toolBatchIdByCallId["call-a"])
+        assertEquals("batch-1", tool.toolBatchIdByCallId["call-b"])
+        assertEquals(startedAt, tool.toolStartedAtByCallId["call-a"])
+        assertEquals(startedAt, tool.toolStartedAtByCallId["call-b"])
+        assertEquals(callBCompletedAt, tool.toolCompletedAtByCallId["call-b"])
+    }
+
+    @Test
+    fun `client mode tool result before batched call folds into final batch local`() = withLoop { loop ->
+        val resultAt = java.time.Instant.parse("2026-05-10T12:00:00Z")
+        val batchAt = resultAt.plusMillis(100)
+        loop.upsertClientModeStreamChunk(
+            chunk = ClientModeStreamChunk(
+                event = ClientModeStreamEvent.TOOL_RESULT,
+                toolCallId = "call-b",
+                text = "early result",
+            ),
+            assistantMessageId = "assistant-1",
+            sentAt = resultAt,
+        )
+        assertEquals("early result", (loop.state.value.events.single() as TimelineEvent.Local).toolReturnContentByCallId["call-b"])
+
+        loop.upsertClientModeStreamChunk(
+            chunk = ClientModeStreamChunk(
+                event = ClientModeStreamEvent.TOOL_CALL,
+                toolCallId = "batch-1",
+                toolCalls = listOf(
+                    ToolCall(toolCallId = "call-a", name = "read", arguments = "a"),
+                    ToolCall(toolCallId = "call-b", name = "write", arguments = "b"),
+                ),
+            ),
+            assistantMessageId = "assistant-1",
+            sentAt = batchAt,
+        )
+
+        val tool = loop.state.value.events.single() as TimelineEvent.Local
+        assertEquals("cm-tool-batch-1", tool.otid)
+        assertEquals(listOf("call-a", "call-b"), tool.toolCalls.map { it.effectiveId })
+        assertEquals("early result", tool.toolReturnContentByCallId["call-b"])
+        assertEquals(resultAt, tool.toolCompletedAtByCallId["call-b"])
+        assertEquals("batch-1", tool.toolBatchIdByCallId["call-b"])
     }
 
     @Test

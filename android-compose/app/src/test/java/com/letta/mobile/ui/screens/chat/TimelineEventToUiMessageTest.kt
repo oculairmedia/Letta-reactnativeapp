@@ -313,6 +313,31 @@ class TimelineEventToUiMessageTest {
     }
 
     @Test
+    fun `client mode local tool call uses per-call completed timestamp for execution time`() {
+        val startedAt = Instant.parse("2026-05-10T12:00:00Z")
+        val completedAt = startedAt.plusMillis(250)
+        val ev = TimelineEvent.Local(
+            position = 1.0,
+            otid = "cm-tool-batch-1",
+            content = "",
+            role = com.letta.mobile.data.timeline.Role.ASSISTANT,
+            sentAt = completedAt.plusMillis(500),
+            deliveryState = com.letta.mobile.data.timeline.DeliveryState.SENT,
+            source = MessageSource.CLIENT_MODE_HARNESS,
+            messageType = TimelineMessageType.TOOL_CALL,
+            toolCalls = listOf(ToolCall(toolCallId = "call-a", name = "Bash", arguments = "{}")),
+            toolReturnContentByCallId = mapOf("call-a" to "ok"),
+            toolStartedAtByCallId = mapOf("call-a" to startedAt),
+            toolCompletedAtByCallId = mapOf("call-a" to completedAt),
+            toolBatchIdByCallId = mapOf("call-a" to "batch-1"),
+        )
+
+        val call = timelineEventToUiMessage(ev)!!.toolCalls!!.single()
+        assertEquals("ok", call.result)
+        assertEquals(250L, call.executionTimeMs)
+    }
+
+    @Test
     fun `multi-tool call batch attaches each return by tool call id`() {
         val t1 = ToolCall(id = "toolu_a", name = "Bash", arguments = "{\"command\":\"a\"}")
         val t2 = ToolCall(id = "toolu_b", name = "Bash", arguments = "{\"command\":\"b\"}")

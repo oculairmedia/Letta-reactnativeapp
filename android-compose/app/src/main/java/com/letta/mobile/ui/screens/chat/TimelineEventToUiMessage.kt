@@ -144,7 +144,10 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
                             ?: ev.toolReturnIsError
                         val executionTimeMs = if (result != null && callId != null) {
                             ev.toolStartedAtByCallId[callId]
-                                ?.let { startedAt -> Duration.between(startedAt, ev.sentAt).toMillis().coerceAtLeast(0L) }
+                                ?.let { startedAt ->
+                                    val completedAt = ev.toolCompletedAtByCallId[callId] ?: ev.sentAt
+                                    Duration.between(startedAt, completedAt).toMillis().coerceAtLeast(0L)
+                                }
                         } else null
                         UiToolCall(
                             name = tc.name ?: "tool",

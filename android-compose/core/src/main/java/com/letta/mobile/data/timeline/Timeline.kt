@@ -86,6 +86,8 @@ sealed class TimelineEvent {
         val toolReturnContentByCallId: Map<String, String> = emptyMap(),
         val toolReturnIsErrorByCallId: Map<String, Boolean> = emptyMap(),
         val toolStartedAtByCallId: Map<String, Instant> = emptyMap(),
+        val toolCompletedAtByCallId: Map<String, Instant> = emptyMap(),
+        val toolBatchIdByCallId: Map<String, String> = emptyMap(),
         val reasoningContent: String? = null,
     ) : TimelineEvent()
 

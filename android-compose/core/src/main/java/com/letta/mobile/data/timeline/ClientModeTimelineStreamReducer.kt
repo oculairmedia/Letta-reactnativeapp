@@ -137,10 +137,32 @@ private fun Timeline.reduceClientModeToolChunk(
     } else {
         "cm-tool-$rawToolCallId"
     }
+    val callIds = incomingToolCalls.effectiveIds() + rawToolCallId
+    val pendingResultLocals = if (isResult) {
+        emptyList()
+    } else {
+        findPendingClientModeToolResultLocals(
+            callIds = callIds,
+            targetLocalId = localId,
+        )
+    }
+    val pendingResultLocalIds = pendingResultLocals.map { it.otid }.toSet()
+    val pendingResultByCallId = pendingResultLocals.flatMap { it.toolReturnContentByCallId.entries }
+        .associate { it.key to it.value }
+    val pendingResultErrorByCallId = pendingResultLocals.flatMap { it.toolReturnIsErrorByCallId.entries }
+        .associate { it.key to it.value }
+    val pendingCompletedAtByCallId = pendingResultLocals.flatMap { it.toolCompletedAtByCallId.entries }
+        .associate { it.key to it.value }
+    val pendingStartedAtByCallId = pendingResultLocals.flatMap { it.toolStartedAtByCallId.entries }
+        .associate { it.key to it.value }
+    val pendingBatchIdByCallId = pendingResultLocals.flatMap { it.toolBatchIdByCallId.entries }
+        .associate { it.key to it.value }
+
     val resultText = if (isResult) chunk.text else null
     val resultIsError = isResult && chunk.isError
     val resultByCallId = if (resultText != null) mapOf(rawToolCallId to resultText) else emptyMap()
     val resultErrorByCallId = if (isResult) mapOf(rawToolCallId to resultIsError) else emptyMap()
+    val completedAtByCallId = if (isResult) mapOf(rawToolCallId to sentAt) else emptyMap()
     val startedAtByCallId = if (chunk.event == ClientModeStreamEvent.TOOL_CALL) {
         buildMap {
             put(rawToolCallId, sentAt)
@@ -151,6 +173,33 @@ private fun Timeline.reduceClientModeToolChunk(
     } else {
         emptyMap()
     }
+    val batchIdByCallId = if (chunk.event == ClientModeStreamEvent.TOOL_CALL) {
+        buildMap {
+            put(rawToolCallId, rawToolCallId)
+            incomingToolCalls.forEach { call ->
+                call.effectiveId.takeIf { it.isNotBlank() }?.let { put(it, rawToolCallId) }
+            }
+        }
+    } else {
+        emptyMap()
+    }
+    val mergedInitialResultByCallId = pendingResultByCallId + resultByCallId
+    val mergedInitialErrorByCallId = pendingResultErrorByCallId + resultErrorByCallId
+    val mergedInitialCompletedAtByCallId = pendingCompletedAtByCallId + completedAtByCallId
+    val mergedInitialStartedAtByCallId = mergePreservingExisting(
+        existing = pendingStartedAtByCallId,
+        incoming = startedAtByCallId,
+    )
+    val mergedInitialBatchIdByCallId = pendingBatchIdByCallId + batchIdByCallId
+    val initialToolReturnContent = resultText ?: primaryToolReturnContent(
+        calls = incomingToolCalls,
+        returnsByCallId = mergedInitialResultByCallId,
+    )
+    val initialToolReturnIsError = primaryToolReturnIsError(
+        calls = incomingToolCalls,
+        returnsByCallId = mergedInitialResultByCallId,
+        errorsByCallId = mergedInitialErrorByCallId,
+    ) ?: resultIsError
 
     return reduceClientModeLocal(localId) {
         upsertClientModeLocal(
@@ -166,26 +215,54 @@ private fun Timeline.reduceClientModeToolChunk(
                     source = MessageSource.CLIENT_MODE_HARNESS,
                     messageType = TimelineMessageType.TOOL_CALL,
                     toolCalls = incomingToolCalls,
-                    toolReturnContent = resultText,
-                    toolReturnIsError = resultIsError,
-                    toolReturnContentByCallId = resultByCallId,
-                    toolReturnIsErrorByCallId = resultErrorByCallId,
-                    toolStartedAtByCallId = startedAtByCallId,
+                    toolReturnContent = initialToolReturnContent,
+                    toolReturnIsError = initialToolReturnIsError,
+                    toolReturnContentByCallId = mergedInitialResultByCallId,
+                    toolReturnIsErrorByCallId = mergedInitialErrorByCallId,
+                    toolStartedAtByCallId = mergedInitialStartedAtByCallId,
+                    toolCompletedAtByCallId = mergedInitialCompletedAtByCallId,
+                    toolBatchIdByCallId = mergedInitialBatchIdByCallId,
                 )
             },
             transform = { existing ->
+                val mergedToolCalls = mergeToolCallSnapshots(existing.toolCalls, incomingToolCalls)
+                val mergedResultByCallId = existing.toolReturnContentByCallId + pendingResultByCallId + resultByCallId
+                val mergedErrorByCallId = existing.toolReturnIsErrorByCallId + pendingResultErrorByCallId + resultErrorByCallId
+                val mergedCompletedAtByCallId = existing.toolCompletedAtByCallId + pendingCompletedAtByCallId + completedAtByCallId
+                val mergedStartedAtByCallId = mergePreservingExisting(
+                    existing = mergePreservingExisting(existing.toolStartedAtByCallId, pendingStartedAtByCallId),
+                    incoming = startedAtByCallId,
+                )
+                val mergedBatchIdByCallId = existing.toolBatchIdByCallId + pendingBatchIdByCallId + batchIdByCallId
+                val nextToolReturnContent = resultText
+                    ?: existing.toolReturnContent
+                    ?: primaryToolReturnContent(mergedToolCalls, mergedResultByCallId)
+                val nextToolReturnIsError = if (isResult) {
+                    resultIsError
+                } else {
+                    primaryToolReturnIsError(mergedToolCalls, mergedResultByCallId, mergedErrorByCallId)
+                        ?: existing.toolReturnIsError
+                }
                 existing.copy(
                     messageType = TimelineMessageType.TOOL_CALL,
-                    toolCalls = mergeToolCallSnapshots(existing.toolCalls, incomingToolCalls),
-                    toolReturnContent = resultText ?: existing.toolReturnContent,
-                    toolReturnIsError = if (isResult) resultIsError else existing.toolReturnIsError,
-                    toolReturnContentByCallId = existing.toolReturnContentByCallId + resultByCallId,
-                    toolReturnIsErrorByCallId = existing.toolReturnIsErrorByCallId + resultErrorByCallId,
-                    toolStartedAtByCallId = existing.toolStartedAtByCallId + startedAtByCallId,
+                    toolCalls = mergedToolCalls,
+                    toolReturnContent = nextToolReturnContent,
+                    toolReturnIsError = nextToolReturnIsError,
+                    toolReturnContentByCallId = mergedResultByCallId,
+                    toolReturnIsErrorByCallId = mergedErrorByCallId,
+                    toolStartedAtByCallId = mergedStartedAtByCallId,
+                    toolCompletedAtByCallId = mergedCompletedAtByCallId,
+                    toolBatchIdByCallId = mergedBatchIdByCallId,
                     sentAt = sentAt,
                 )
             },
         )
+    }.let { reduction ->
+        if (pendingResultLocalIds.isEmpty()) {
+            reduction
+        } else {
+            reduction.copy(timeline = reduction.timeline.removeClientModeToolLocals(pendingResultLocalIds))
+        }
     }
 }
 
@@ -208,10 +285,42 @@ private fun Timeline.findClientModeToolLocalIdForCall(callId: String): String? =
             (
                 event.otid == "cm-tool-$callId" ||
                     event.toolReturnContentByCallId.containsKey(callId) ||
+                    event.toolBatchIdByCallId.containsKey(callId) ||
                     event.toolCalls.any { it.effectiveId == callId }
             )
     }
     ?.otid
+
+private fun Timeline.findPendingClientModeToolResultLocals(
+    callIds: Set<String>,
+    targetLocalId: String,
+): List<TimelineEvent.Local> {
+    if (callIds.isEmpty()) return emptyList()
+    return events
+        .asSequence()
+        .filterIsInstance<TimelineEvent.Local>()
+        .filter { event ->
+            event.otid != targetLocalId &&
+                event.source == MessageSource.CLIENT_MODE_HARNESS &&
+                event.messageType == TimelineMessageType.TOOL_CALL &&
+                callIds.any { callId ->
+                    event.otid == "cm-tool-$callId" ||
+                        event.toolReturnContentByCallId.containsKey(callId) ||
+                        event.toolCalls.any { it.effectiveId == callId }
+                }
+        }
+        .toList()
+}
+
+private fun Timeline.removeClientModeToolLocals(otids: Set<String>): Timeline {
+    if (otids.isEmpty()) return this
+    return copy(events = events.filterNot { event ->
+        event is TimelineEvent.Local &&
+            event.source == MessageSource.CLIENT_MODE_HARNESS &&
+            event.messageType == TimelineMessageType.TOOL_CALL &&
+            event.otid in otids
+    })
+}
 
 private fun ClientModeStreamChunk.effectiveToolCalls(): List<ToolCall> {
     val batchedCalls = toolCalls.filter { call ->
@@ -236,6 +345,37 @@ private fun ClientModeStreamChunk.toolFrameId(calls: List<ToolCall>): String? {
         ?: calls.firstNotNullOfOrNull { call -> call.effectiveId.takeIf { it.isNotBlank() } }
         ?: calls.takeIf { it.isNotEmpty() }?.hashCode()?.toString()
 }
+
+private fun List<ToolCall>.effectiveIds(): Set<String> = mapNotNullTo(mutableSetOf()) { call ->
+    call.effectiveId.takeIf { it.isNotBlank() }
+}
+
+private fun primaryToolReturnContent(
+    calls: List<ToolCall>,
+    returnsByCallId: Map<String, String>,
+): String? = calls
+    .asSequence()
+    .mapNotNull { call -> returnsByCallId[call.effectiveId] }
+    .firstOrNull()
+    ?: returnsByCallId.values.firstOrNull()
+
+private fun primaryToolReturnIsError(
+    calls: List<ToolCall>,
+    returnsByCallId: Map<String, String>,
+    errorsByCallId: Map<String, Boolean>,
+): Boolean? {
+    calls.forEach { call ->
+        val callId = call.effectiveId
+        if (returnsByCallId.containsKey(callId)) return errorsByCallId[callId] ?: false
+    }
+    val firstReturnedId = returnsByCallId.keys.firstOrNull() ?: return null
+    return errorsByCallId[firstReturnedId] ?: false
+}
+
+private fun <T> mergePreservingExisting(
+    existing: Map<String, T>,
+    incoming: Map<String, T>,
+): Map<String, T> = incoming + existing
 
 private fun mergeToolCallSnapshots(
     existing: List<ToolCall>,
