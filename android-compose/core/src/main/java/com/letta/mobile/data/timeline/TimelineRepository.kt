@@ -195,7 +195,8 @@ open class TimelineRepository @Inject constructor(
      * CLIENT_MODE_HARNESS Locals that arrived after the initial SSE reconcile.
      */
     suspend fun postHandlerCollapse(conversationId: String) {
-        loops[conversationId]?.postHandlerCollapse()
+        val loop = loopsMutex.withLock { loops[conversationId] }
+        loop?.postHandlerCollapse()
     }
 
     /** Pull recent server messages into an existing or newly-created timeline loop. */

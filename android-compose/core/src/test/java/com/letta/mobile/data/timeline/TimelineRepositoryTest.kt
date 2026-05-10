@@ -55,6 +55,28 @@ class TimelineRepositoryTest {
         assertTrue("new loop should remain active", api.isActive("conv-c"))
         assertFalse("least recently used loop should be closed", api.isActive("conv-b"))
     }
+
+    @Test
+    fun `post handler collapse cache hit is synchronized and refreshes access order`() = runBlocking {
+        val api = CancellableStreamApi()
+        val repository = TimelineRepository(api, NoOpPendingLocalStore, maxCachedLoops = 2)
+
+        repository.getOrCreate("conv-a")
+        repository.getOrCreate("conv-b")
+        api.awaitActive("conv-a")
+        api.awaitActive("conv-b")
+
+        repository.postHandlerCollapse("conv-a") // refresh access order, making conv-b eldest
+        repository.getOrCreate("conv-c")
+
+        api.awaitClosed("conv-b")
+        api.awaitActive("conv-c")
+
+        assertEquals(2, repository.cachedLoopCount())
+        assertTrue("postHandlerCollapse access should keep conv-a active", api.isActive("conv-a"))
+        assertTrue("new loop should remain active", api.isActive("conv-c"))
+        assertFalse("least recently used loop should be closed", api.isActive("conv-b"))
+    }
 }
 
 private class CancellableStreamApi : MessageApi(mockk(relaxed = true)) {
