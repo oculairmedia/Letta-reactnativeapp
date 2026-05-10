@@ -43,6 +43,7 @@ class BotConfigStore @Inject constructor(
     }
 
     private val configsKey = stringPreferencesKey("bot_configs_json")
+    private val tokenStore: BotSecureTokenStore by lazy { SharedPreferencesBotSecureTokenStore(context) }
 
     /**
      * Schema version for the persisted bot config blob.
@@ -64,7 +65,10 @@ class BotConfigStore @Inject constructor(
         val storedVersion = prefs[schemaVersionKey] ?: 1
         val migrated = if (storedVersion < currentSchemaVersion) migrateRaw(raw, storedVersion) else raw
         try {
-            json.decodeFromString<List<BotConfig>>(migrated)
+            hydrateAndStoreBotConfigTokens(
+                json.decodeFromString<List<BotConfig>>(migrated),
+                tokenStore,
+            ).values
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse bot configs", e)
             emptyList()
@@ -76,7 +80,8 @@ class BotConfigStore @Inject constructor(
         context.botConfigDataStore.edit { prefs ->
             val current = parseConfigs(prefs)
             val updated = current.filterNot { it.id == config.id } + config
-            prefs[configsKey] = json.encodeToString(updated)
+            val persisted = hydrateAndStoreBotConfigTokens(updated, tokenStore).values
+            prefs[configsKey] = json.encodeToString(persisted.map(::sanitizeBotConfigTokens))
             prefs[schemaVersionKey] = currentSchemaVersion
         }
     }
@@ -85,7 +90,9 @@ class BotConfigStore @Inject constructor(
     suspend fun deleteConfig(configId: String) {
         context.botConfigDataStore.edit { prefs ->
             val current = parseConfigs(prefs)
-            prefs[configsKey] = json.encodeToString(current.filterNot { it.id == configId })
+            tokenStore.remove(BotTokenKeys.configRemoteToken(configId))
+            tokenStore.remove(BotTokenKeys.configApiServerToken(configId))
+            prefs[configsKey] = json.encodeToString(current.filterNot { it.id == configId }.map(::sanitizeBotConfigTokens))
             prefs[schemaVersionKey] = currentSchemaVersion
         }
     }
@@ -95,6 +102,8 @@ class BotConfigStore @Inject constructor(
         var result = emptyList<BotConfig>()
         context.botConfigDataStore.edit { prefs ->
             result = parseConfigs(prefs)
+            prefs[configsKey] = json.encodeToString(result.map(::sanitizeBotConfigTokens))
+            prefs[schemaVersionKey] = currentSchemaVersion
         }
         return result
     }
@@ -104,7 +113,10 @@ class BotConfigStore @Inject constructor(
         val storedVersion = prefs[schemaVersionKey] ?: 1
         val migrated = if (storedVersion < currentSchemaVersion) migrateRaw(raw, storedVersion) else raw
         return try {
-            json.decodeFromString(migrated)
+            hydrateAndStoreBotConfigTokens(
+                json.decodeFromString<List<BotConfig>>(migrated),
+                tokenStore,
+            ).values
         } catch (e: Exception) {
             emptyList()
         }

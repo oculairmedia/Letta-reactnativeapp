@@ -29,6 +29,7 @@ class BotServerProfileStore @Inject constructor(
     }
 
     private val profilesKey = stringPreferencesKey("bot_server_profiles_json")
+    private val tokenStore: BotSecureTokenStore by lazy { SharedPreferencesBotSecureTokenStore(context) }
 
     override val profiles: Flow<List<BotServerProfile>> = context.botServerProfileDataStore.data.map { prefs ->
         parseProfiles(prefs[profilesKey])
@@ -38,14 +39,16 @@ class BotServerProfileStore @Inject constructor(
         context.botServerProfileDataStore.edit { prefs ->
             val current = parseProfiles(prefs[profilesKey])
             val updated = current.filterNot { it.id == profile.id } + profile
-            prefs[profilesKey] = json.encodeToString(updated)
+            val persisted = hydrateAndStoreBotServerProfileTokens(updated, tokenStore).values
+            prefs[profilesKey] = json.encodeToString(persisted.map(::sanitizeBotServerProfileToken))
         }
     }
 
     override suspend fun deleteProfile(profileId: String) {
         context.botServerProfileDataStore.edit { prefs ->
             val current = parseProfiles(prefs[profilesKey])
-            prefs[profilesKey] = json.encodeToString(current.filterNot { it.id == profileId })
+            tokenStore.remove(BotTokenKeys.serverProfileAuthToken(profileId))
+            prefs[profilesKey] = json.encodeToString(current.filterNot { it.id == profileId }.map(::sanitizeBotServerProfileToken))
         }
     }
 
@@ -53,6 +56,7 @@ class BotServerProfileStore @Inject constructor(
         var result = emptyList<BotServerProfile>()
         context.botServerProfileDataStore.edit { prefs ->
             result = parseProfiles(prefs[profilesKey])
+            prefs[profilesKey] = json.encodeToString(result.map(::sanitizeBotServerProfileToken))
         }
         return result
     }
@@ -61,7 +65,7 @@ class BotServerProfileStore @Inject constructor(
         context.botServerProfileDataStore.edit { prefs ->
             val current = parseProfiles(prefs[profilesKey])
             val updated = current.map { it.copy(isActive = it.id == profileId) }
-            prefs[profilesKey] = json.encodeToString(updated)
+            prefs[profilesKey] = json.encodeToString(updated.map(::sanitizeBotServerProfileToken))
         }
     }
 
@@ -72,7 +76,10 @@ class BotServerProfileStore @Inject constructor(
     private fun parseProfiles(raw: String?): List<BotServerProfile> {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
-            json.decodeFromString(raw)
+            hydrateAndStoreBotServerProfileTokens(
+                json.decodeFromString<List<BotServerProfile>>(raw),
+                tokenStore,
+            ).values
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse bot server profiles", e)
             emptyList()
