@@ -38,6 +38,7 @@ data class McpServerToolsRoute(val serverId: String)
 @Serializable
 data class AgentChatRoute(
     val agentId: String,
+    val agentName: String? = null,
     val conversationId: String? = null,
     val freshRouteKey: Long? = null,
     val initialMessage: String? = null,

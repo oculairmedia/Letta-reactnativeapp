@@ -363,6 +363,8 @@ class AdminChatViewModel @Inject constructor(
     val agentId: String = requireNotNull(savedStateHandle.get<String>("agentId")) {
         "Missing agentId in AdminChatViewModel navigation arguments"
     }
+    private val initialAgentName: String? = savedStateHandle.get<String>("agentName")
+        ?.takeIf { it.isNotBlank() }
     private val initialMessage: String? = savedStateHandle.get<String>("initialMessage")
     private val requestedConversationArg: String? = savedStateHandle.get<String>("conversationId")
     private val freshRouteKey: Long? = savedStateHandle.get<Long>("freshRouteKey")
@@ -411,7 +413,9 @@ class AdminChatViewModel @Inject constructor(
         )
     }
 
-    private val _uiState = MutableStateFlow(ChatUiState())
+    private val _uiState = MutableStateFlow(
+        ChatUiState(agentName = initialAgentName.orEmpty())
+    )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     /**
@@ -706,6 +710,30 @@ class AdminChatViewModel @Inject constructor(
     private var timelineObserverConversationId: String? = null
     private var chatSearchJob: Job? = null
 
+    private fun seedAgentNameFromMemoryCache() {
+        val cachedName = agentRepository.getCachedAgent(agentId)
+            ?.name
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+        _uiState.update { current ->
+            if (current.agentName.isBlank()) current.copy(agentName = cachedName) else current
+        }
+    }
+
+    private fun observeAgentNameCache() {
+        viewModelScope.launch {
+            agentRepository.agents
+                .map { agents -> agents.firstOrNull { it.id == agentId }?.name.orEmpty() }
+                .distinctUntilChanged()
+                .collect { cachedName ->
+                    if (cachedName.isBlank()) return@collect
+                    _uiState.update { current ->
+                        if (current.agentName.isBlank()) current.copy(agentName = cachedName) else current
+                    }
+                }
+        }
+    }
+
     init {
         // letta-mobile-w2hx.6: route arg already pre-populated `activeConversationId`
         // at field init; no shared singleton to seed.
@@ -716,6 +744,8 @@ class AdminChatViewModel @Inject constructor(
         if (agentId.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "No agent selected")
         } else {
+            seedAgentNameFromMemoryCache()
+            observeAgentNameCache()
             _uiState.value = _uiState.value.copy(
                 collapsedRunIds = collapsedRunIds().toImmutableSet(),
                 expandedReasoningMessageIds = expandedReasoningMessageIds().toImmutableSet(),
@@ -756,7 +786,6 @@ class AdminChatViewModel @Inject constructor(
                 loadProjectBrief()
                 loadRecentBugReports()
             }
-            refreshContextWindow()
         }
     }
 
@@ -1370,7 +1399,19 @@ class AdminChatViewModel @Inject constructor(
      *   for this agent after the refresh.
      */
     private suspend fun resolveMostRecentConversation(maxAgeMs: Long): String? {
+        mostRecentCachedConversationId()?.let { cachedConversationId ->
+            if (!conversationRepository.hasFreshConversations(agentId, maxAgeMs)) {
+                viewModelScope.launch {
+                    runCatching { conversationRepository.refreshConversationsIfStale(agentId, maxAgeMs) }
+                }
+            }
+            return cachedConversationId
+        }
         conversationRepository.refreshConversationsIfStale(agentId, maxAgeMs)
+        return mostRecentCachedConversationId()
+    }
+
+    private fun mostRecentCachedConversationId(): String? {
         val mostRecent = conversationRepository.getCachedConversations(agentId)
             .sortedByDescending { it.lastMessageAt ?: it.createdAt ?: "" }
             .firstOrNull()

@@ -251,12 +251,14 @@ class AdminChatViewModelTest {
 
     private fun createViewModel(
         agentId: String = "agent-1",
+        agentName: String? = null,
         conversationId: String? = "conv-1",
         freshRouteKey: Long? = null,
         initialMessage: String? = null,
     ): AdminChatViewModel {
         val savedState = SavedStateHandle().apply {
             set("agentId", agentId)
+            agentName?.let { set("agentName", it) }
             conversationId?.let { set("conversationId", it) }
             freshRouteKey?.let { set("freshRouteKey", it) }
             initialMessage?.let { set("initialMessage", it) }
@@ -436,6 +438,22 @@ class AdminChatViewModelTest {
             listOf("assistant-first", "user-second"),
             vm.uiState.value.messages.map { it.id },
         )
+    }
+
+    @Test
+    fun `route agent name seeds title before fresh agent load`() = runTest {
+        every { agentRepository.getCachedAgent("agent-1") } returns null
+        every { agentRepository.getAgent(any()) } returns flow {
+            kotlinx.coroutines.delay(1_000)
+            emit(TestData.agent(id = "agent-1", name = "Fresh Agent"))
+        }
+
+        val vm = createViewModel(agentName = "Route Agent", conversationId = "conv-1")
+
+        assertEquals("Route Agent", vm.uiState.value.agentName)
+        advanceTimeBy(1_000)
+        advanceUntilIdle()
+        assertEquals("Fresh Agent", vm.uiState.value.agentName)
     }
 
     @Test

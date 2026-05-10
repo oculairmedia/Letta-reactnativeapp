@@ -78,6 +78,7 @@ class ChannelNotificationPublisher @Inject constructor(
         val target = NotificationNavigationTarget(
             agentId = notification.agentId,
             conversationId = notification.conversationId,
+            agentName = notification.agentName.takeIf { it.isNotBlank() },
         )
         val pendingIntent = PendingIntent.getActivity(
             context,

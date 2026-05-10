@@ -59,6 +59,7 @@ class RouteSerializationTest {
     fun `AgentChatRoute with all optional fields round-trips`() {
         val route = AgentChatRoute(
             agentId = "agent-abc",
+            agentName = "Test Agent",
             conversationId = "conv-456",
             freshRouteKey = 42L,
             initialMessage = "hello",
