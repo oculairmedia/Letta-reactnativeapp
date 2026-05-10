@@ -5,8 +5,10 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -334,17 +336,18 @@ class WsBotClientTest : WordSpec({
                 val client = WsBotClient(gatewayUrl(server), "secret")
 
                 val chunks = runBlocking {
+                    val partialSeen = CompletableDeferred<Unit>()
                     val chunksDeferred = async {
                         withTimeout(5_000) {
-                            client.streamMessage(BotChatRequest(message = "stop", agentId = "agent-3", chatId = "chat-3")).toList()
+                            client.streamMessage(BotChatRequest(message = "stop", agentId = "agent-3", chatId = "chat-3"))
+                                .onEach { chunk ->
+                                    if (chunk.text == "partial") partialSeen.complete(Unit)
+                                }
+                                .toList()
                         }
                     }
 
-                    withTimeout(5_000) {
-                        while (client.connectionState.value != ConnectionState.PROCESSING) {
-                            delay(10)
-                        }
-                    }
+                    withTimeout(5_000) { partialSeen.await() }
                     client.abort()
                     chunksDeferred.await()
                 }
