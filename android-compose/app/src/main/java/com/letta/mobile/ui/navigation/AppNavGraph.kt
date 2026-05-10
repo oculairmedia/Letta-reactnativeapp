@@ -186,8 +186,14 @@ fun AppNavGraph(
                 onNavigateToTools = { navController.navigate(AllToolsRoute) },
                 onNavigateToBlocks = { navController.navigate(BlocksRoute) },
                 onNavigateToSettings = { navController.navigate(ConfigRoute) },
-                onNavigateToChat = { agentId, initialMessage ->
-                    navController.navigate(AgentChatRoute(agentId = agentId, initialMessage = initialMessage))
+                onNavigateToChat = { agentId, agentName, initialMessage ->
+                    navController.navigate(
+                        AgentChatRoute(
+                            agentId = agentId,
+                            agentName = agentName,
+                            initialMessage = initialMessage,
+                        )
+                    )
                 },
                 onNavigateToChatMessage = { agentId, conversationId, messageId ->
                     navController.navigate(AgentChatRoute(agentId = agentId, conversationId = conversationId, scrollToMessageId = messageId))
@@ -282,8 +288,14 @@ fun AppNavGraph(
                     )
                 } else {
                     ConversationsScreen(
-                        onNavigateToChat = { agentId, conversationId ->
-                            navController.navigate(AgentChatRoute(agentId = agentId, conversationId = conversationId))
+                        onNavigateToChat = { agentId, conversationId, agentName ->
+                            navController.navigate(
+                                AgentChatRoute(
+                                    agentId = agentId,
+                                    agentName = agentName,
+                                    conversationId = conversationId,
+                                )
+                            )
                         },
                         onNavigateToSettings = { navController.navigate(ConfigRoute) },
                         onNavigateToAgentList = { navController.navigate(AgentListRoute) },
@@ -318,8 +330,8 @@ fun AppNavGraph(
             CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                 AgentListScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToAgent = { agentId ->
-                        navController.navigate(AgentChatRoute(agentId = agentId))
+                    onNavigateToAgent = { agentId, agentName ->
+                        navController.navigate(AgentChatRoute(agentId = agentId, agentName = agentName))
                     },
                     onNavigateToEditAgent = { agentId ->
                         navController.navigate(EditAgentRoute(agentId))
@@ -338,10 +350,11 @@ fun AppNavGraph(
             CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                 AgentListScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToAgent = { agentId ->
+                    onNavigateToAgent = { agentId, agentName ->
                         navController.navigate(
                             AgentChatRoute(
                                 agentId = agentId,
+                                agentName = agentName,
                                 initialMessage = route.sharedText,
                             ),
                         ) {
@@ -558,11 +571,12 @@ fun AppNavGraph(
                     onNavigateToTools = {
                         navController.navigate(AllToolsRoute)
                     },
-                    onSwitchConversation = { agentId, conversationId ->
+                    onSwitchConversation = { agentId, conversationId, agentName ->
                         val normalizedConversationId = conversationId?.takeIf { it.isNotBlank() }
                         navController.navigate(
                             AgentChatRoute(
                                 agentId = agentId,
+                                agentName = agentName,
                                 conversationId = normalizedConversationId,
                                 freshRouteKey = if (normalizedConversationId == null) System.currentTimeMillis() else null,
                             )

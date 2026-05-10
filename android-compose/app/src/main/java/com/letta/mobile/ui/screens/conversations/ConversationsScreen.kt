@@ -87,7 +87,7 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationsScreen(
-    onNavigateToChat: (agentId: String, conversationId: String) -> Unit,
+    onNavigateToChat: (agentId: String, conversationId: String, agentName: String?) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToAgentList: () -> Unit,
     onNavigateToTemplates: () -> Unit = {},
@@ -266,7 +266,7 @@ fun ConversationsScreen(
                     isRefreshing = uiState.isRefreshing,
                     isSearchActive = uiState.searchQuery.isNotBlank(),
                     onConversationClick = { display ->
-                        onNavigateToChat(display.conversation.agentId, display.conversation.id)
+                        onNavigateToChat(display.conversation.agentId, display.conversation.id, display.routeAgentName())
                     },
                 onOpenAdmin = { display -> viewModel.openConversationAdmin(display) },
                 onDeleteConversation = { viewModel.deleteConversation(it.conversation.id) },
@@ -276,7 +276,7 @@ fun ConversationsScreen(
                 onTogglePinned = viewModel::toggleConversationPinned,
                 onForkConversation = { display ->
                     viewModel.forkConversation(display.conversation.id, display.conversation.agentId) { newConvId ->
-                        onNavigateToChat(display.conversation.agentId, newConvId)
+                        onNavigateToChat(display.conversation.agentId, newConvId, display.routeAgentName())
                     }
                 },
                 onRefresh = { viewModel.refresh() },
@@ -292,9 +292,10 @@ fun ConversationsScreen(
             agents = agents,
             onDismiss = { showAgentPickerDialog = false },
             onAgentSelected = { agentId ->
+                val agentName = agents.firstOrNull { it.id == agentId }?.name?.takeIf { it.isNotBlank() }
                 viewModel.createConversation(agentId) { conversationId ->
                     showAgentPickerDialog = false
-                    onNavigateToChat(agentId, conversationId)
+                    onNavigateToChat(agentId, conversationId, agentName)
                 }
             }
         )
@@ -317,6 +318,9 @@ fun ConversationsScreen(
         )
     }
 }
+
+private fun ConversationDisplay.routeAgentName(): String? =
+    agentName.takeIf { it.isNotBlank() && it != conversation.agentId.take(8) }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

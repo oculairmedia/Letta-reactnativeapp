@@ -107,7 +107,7 @@ fun HomeScreen(
     onNavigateToTools: () -> Unit,
     onNavigateToBlocks: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToChat: (agentId: String, initialMessage: String?) -> Unit,
+    onNavigateToChat: (agentId: String, agentName: String?, initialMessage: String?) -> Unit,
     onNavigateToChatMessage: (agentId: String, conversationId: String, messageId: String) -> Unit,
     onNavigateToEditAgent: (agentId: String) -> Unit,
     onNavigateToUsage: () -> Unit,
@@ -164,7 +164,7 @@ fun HomeScreen(
         DashboardShortcut.FAVORITE_AGENT -> {
             val agentId = uiState.favoriteAgentId
             if (agentId != null) {
-                { onNavigateToChat(agentId, null) }
+                { onNavigateToChat(agentId, uiState.favoriteAgentName, null) }
             } else {
                 onNavigateToAgents
             }
@@ -320,7 +320,7 @@ private fun HomeContent(
     state: DashboardUiState,
     onNavigateToTools: () -> Unit,
     onNavigateToBlocks: () -> Unit,
-    onNavigateToChat: (String, String?) -> Unit,
+    onNavigateToChat: (String, String?, String?) -> Unit,
     onNavigateToChatMessage: (String, String, String) -> Unit,
     onNavigateToEditAgent: (String) -> Unit,
     onUnpinAgent: (String) -> Unit,
@@ -356,7 +356,7 @@ private fun HomeContent(
                 blockResults = state.blockResults,
                 isSearching = state.isSearching,
                 searchQuery = state.searchQuery,
-                onAgentClick = { agentId -> onNavigateToChat(agentId, null) },
+                onAgentClick = { agent -> onNavigateToChat(agent.id, agent.name, null) },
                 onMessageClick = { parsed ->
                     val agentId = parsed.agentId ?: return@SearchResultsContent
                     val convId = parsed.conversationId
@@ -364,7 +364,7 @@ private fun HomeContent(
                     if (convId != null && msgId != null) {
                         onNavigateToChatMessage(agentId, convId, msgId)
                     } else {
-                        onNavigateToChat(agentId, null)
+                        onNavigateToChat(agentId, null, null)
                     }
                 },
                 onToolClick = { onNavigateToTools() },
@@ -431,7 +431,7 @@ private fun HomeContent(
                                 row.forEach { pinned ->
                                     PinnedAgentCard(
                                         name = pinned.name,
-                                        onClick = { onNavigateToChat(pinned.id, null) },
+                                        onClick = { onNavigateToChat(pinned.id, pinned.name, null) },
                                         onUnpin = { onUnpinAgent(pinned.id) },
                                         onConfigure = { onNavigateToEditAgent(pinned.id) },
                                         modifier = Modifier.weight(1f),
@@ -453,7 +453,7 @@ private fun HomeContent(
                     text = homeChatText,
                     onTextChange = { homeChatText = it },
                     onSend = { message ->
-                        onNavigateToChat(state.favoriteAgentId, message)
+                        onNavigateToChat(state.favoriteAgentId, state.favoriteAgentName, message)
                         homeChatText = ""
                     },
                     placeholder = stringResource(R.string.screen_home_chat_placeholder),
@@ -895,7 +895,7 @@ private fun SearchResultsContent(
     blockResults: List<Block>,
     isSearching: Boolean,
     searchQuery: String,
-    onAgentClick: (String) -> Unit,
+    onAgentClick: (Agent) -> Unit,
     onMessageClick: (ParsedSearchMessage) -> Unit,
     onToolClick: (String) -> Unit,
     onBlockClick: (String) -> Unit,
@@ -925,7 +925,7 @@ private fun SearchResultsContent(
             if (agentsExpanded) {
                 items(agentResults, key = { "agent-${it.id}" }) { agent ->
                     Card(
-                        onClick = { onAgentClick(agent.id) },
+                        onClick = { onAgentClick(agent) },
                         modifier = Modifier.fillMaxWidth().animateItem(),
                     ) {
                         Row(

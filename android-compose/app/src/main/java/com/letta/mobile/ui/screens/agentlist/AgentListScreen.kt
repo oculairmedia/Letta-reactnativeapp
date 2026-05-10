@@ -115,7 +115,7 @@ import com.letta.mobile.ui.theme.customColors
 @Composable
 fun AgentListScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToAgent: (String) -> Unit,
+    onNavigateToAgent: (String, String?) -> Unit,
     onNavigateToEditAgent: (String) -> Unit,
     shareContentPreview: String? = null,
     viewModel: AgentListViewModel = hiltViewModel(),
@@ -133,12 +133,12 @@ fun AgentListScreen(
     val snackbar = LocalSnackbarDispatcher.current
     val isShareMode = shareContentPreview != null
     var shareNavigationConsumed by rememberSaveable(shareContentPreview) { mutableStateOf(false) }
-    fun selectAgent(agentId: String) {
+    fun selectAgent(agentId: String, agentName: String?) {
         if (isShareMode) {
             if (shareNavigationConsumed) return
             shareNavigationConsumed = true
         }
-        onNavigateToAgent(agentId)
+        onNavigateToAgent(agentId, agentName)
     }
     val context = LocalContext.current
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -165,7 +165,7 @@ fun AgentListScreen(
                         response.agentIds.size,
                     )
                 )
-                importedId?.let(onNavigateToAgent)
+                importedId?.let { onNavigateToAgent(it, pendingImportName) }
             }
         }
     }
@@ -320,7 +320,7 @@ fun AgentListScreen(
                                     ) {
                                         FavoriteAgentCard(
                                             agent = favoriteAgent,
-                                            onClick = { selectAgent(favoriteAgent.id) },
+                                            onClick = { selectAgent(favoriteAgent.id, favoriteAgent.name) },
                                             onEdit = { onNavigateToEditAgent(favoriteAgent.id) },
                                             onUnfavorite = { viewModel.toggleFavorite(favoriteAgent.id) },
                                             contextualActionsEnabled = !isShareMode,
@@ -339,7 +339,7 @@ fun AgentListScreen(
                                         agent = agent,
                                         isFavorite = agent.id == uiState.favoriteAgentId,
                                         isPinned = agent.id in uiState.pinnedAgentIds,
-                                        onClick = { selectAgent(agent.id) },
+                                        onClick = { selectAgent(agent.id, agent.name) },
                                         onLongPress = { onNavigateToEditAgent(agent.id) },
                                         onDelete = { viewModel.deleteAgent(agent.id) },
                                         onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
@@ -364,7 +364,7 @@ fun AgentListScreen(
                                     item(key = "favorite-${favoriteAgent.id}") {
                                         FavoriteAgentCard(
                                             agent = favoriteAgent,
-                                            onClick = { selectAgent(favoriteAgent.id) },
+                                            onClick = { selectAgent(favoriteAgent.id, favoriteAgent.name) },
                                             onEdit = { onNavigateToEditAgent(favoriteAgent.id) },
                                             onUnfavorite = { viewModel.toggleFavorite(favoriteAgent.id) },
                                             contextualActionsEnabled = !isShareMode,
@@ -383,7 +383,7 @@ fun AgentListScreen(
                                         agent = agent,
                                         isFavorite = agent.id == uiState.favoriteAgentId,
                                         isPinned = agent.id in uiState.pinnedAgentIds,
-                                        onClick = { selectAgent(agent.id) },
+                                        onClick = { selectAgent(agent.id, agent.name) },
                                         onLongPress = { onNavigateToEditAgent(agent.id) },
                                         onDelete = { viewModel.deleteAgent(agent.id) },
                                         onToggleFavorite = { viewModel.toggleFavorite(agent.id) },
@@ -415,7 +415,7 @@ fun AgentListScreen(
             onCreate = { params ->
                 viewModel.createAgent(params) { agentId ->
                     showCreateDialog = false
-                    onNavigateToAgent(agentId)
+                    onNavigateToAgent(agentId, params.name)
                 }
             },
         )

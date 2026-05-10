@@ -55,10 +55,10 @@ fun TwoPaneConversationsLayout(
 
     Row(modifier = Modifier.fillMaxSize()) {
         ConversationsScreen(
-            onNavigateToChat = { agentId, conversationId ->
+            onNavigateToChat = { agentId, conversationId, agentName ->
                 hasDetail = true
                 detailNavController.navigate(
-                    AgentChatRoute(agentId = agentId, conversationId = conversationId)
+                    AgentChatRoute(agentId = agentId, agentName = agentName, conversationId = conversationId)
                 ) {
                     popUpTo(0) { inclusive = true }
                 }
@@ -110,11 +110,12 @@ fun TwoPaneConversationsLayout(
                         onNavigateToTools = {
                             outerNavController.navigate(AllToolsRoute)
                         },
-                        onSwitchConversation = { agentId, conversationId ->
+                        onSwitchConversation = { agentId, conversationId, agentName ->
                             val normalizedConversationId = conversationId?.takeIf { it.isNotBlank() }
                             detailNavController.navigate(
                                 AgentChatRoute(
                                     agentId = agentId,
+                                    agentName = agentName,
                                     conversationId = normalizedConversationId,
                                     freshRouteKey = if (normalizedConversationId == null) System.currentTimeMillis() else null,
                                 )
