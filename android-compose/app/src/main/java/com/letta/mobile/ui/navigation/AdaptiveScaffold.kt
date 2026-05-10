@@ -209,6 +209,9 @@ private fun NavController.navigateTopLevel(
     focusManager: FocusManager,
 ) {
     focusManager.clearFocus(force = true)
+    if (popToExistingTopLevel(destination)) {
+        return
+    }
     navigate(destination.route) {
         popUpTo(graph.startDestinationId) {
             saveState = true
@@ -217,6 +220,17 @@ private fun NavController.navigateTopLevel(
         restoreState = true
     }
 }
+
+private fun NavController.popToExistingTopLevel(destination: TopLevelDestination): Boolean =
+    when (destination) {
+        TopLevelDestination.HOME,
+        TopLevelDestination.CHAT,
+        -> false
+        // Chat can be opened from Admin shortcuts. In that case AgentChatRoute
+        // is visually a chat destination, but AdminRoute is still the parent
+        // stack the user expects to return to when tapping Admin.
+        TopLevelDestination.ADMIN -> popBackStack<AdminRoute>(inclusive = false)
+    }
 
 private fun TopLevelDestination.isSelected(currentDestination: NavDestination?): Boolean {
     if (currentDestination == null) return false
