@@ -45,9 +45,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -101,6 +103,9 @@ import com.letta.mobile.ui.screens.settings.ClientModeConnectionState
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LettaTopBarDefaults
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -150,8 +155,20 @@ private val anthropicEffortOptions = listOf(
     AdvancedModelOption("max", R.string.screen_agent_edit_anthropic_effort_max),
 )
 
+private enum class EditAgentConfigTab(val label: String) {
+    Basics("Basics"),
+    Models("Models"),
+    Memory("Memory"),
+    Tools("Tools"),
+    Runtime("Runtime"),
+    Advanced("Advanced"),
+}
+
 object EditAgentTestTags {
     const val CONTENT_LIST = "edit_agent_content_list"
+    const val TAB_PREFIX = "edit_agent_tab_"
+
+    fun tab(label: String): String = TAB_PREFIX + label.lowercase(Locale.US)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -502,6 +519,9 @@ private fun EditAgentContent(
         ?: state.agent?.llmConfig?.contextWindow?.takeIf { it > 0 }
         ?: state.agent?.contextWindowLimit?.takeIf { it > 0 }
 
+    var selectedTab by rememberSaveable { mutableStateOf(EditAgentConfigTab.Basics) }
+    val tabs = remember { EditAgentConfigTab.entries.toList() }
+
     LaunchedEffect(maxContextWindow, state.contextWindow) {
         if (maxContextWindow != null && state.contextWindow > maxContextWindow) {
             onContextWindowChange(maxContextWindow)
@@ -556,344 +576,384 @@ private fun EditAgentContent(
             }
         }
 
-        // ── Identity ──
-        item(key = "identity") {
-            CardGroup(title = { Text("Identity") }) {
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.name,
-                            onValueChange = onNameChange,
-                            label = { Text(stringResource(R.string.common_name)) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    },
-                )
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.description,
-                            onValueChange = onDescriptionChange,
-                            label = { Text(stringResource(R.string.common_description)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 2,
-                        )
-                    },
-                )
-            }
-        }
-
-        // ── Model ──
-        item(key = "model") {
-            CardGroup(title = { Text(stringResource(R.string.common_model)) }) {
-                item(
-                    headlineContent = {
-                        SearchPickerField(
-                            label = stringResource(R.string.common_model),
-                            title = selectedLlmModel?.displayName ?: state.model,
-                            supporting = selectedLlmModel?.handle ?: state.model,
-                            onClick = {
-                                onLoadModels()
-                                showLlmPicker = true
-                            },
-                        )
-                    },
-                )
-                item(
-                    headlineContent = {
-                        SearchPickerField(
-                            label = stringResource(R.string.screen_agent_edit_embedding_model),
-                            title = selectedEmbeddingModel?.displayName ?: state.embedding,
-                            supporting = selectedEmbeddingModel?.handle ?: state.embedding,
-                            onClick = {
-                                onLoadModels()
-                                showEmbeddingPicker = true
-                            },
-                        )
-                    },
-                )
-            }
-        }
-
-        // ── LLM Configuration ──
-        item(key = "llm_config") {
-            CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_llm_configuration)) }) {
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.providerType,
-                            onValueChange = onProviderTypeChange,
-                            label = { Text(stringResource(R.string.screen_agent_edit_provider_type)) },
-                            placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                    },
-                )
-                item(
-                    headlineContent = {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item(key = "tabs") {
+            PrimaryTabRow(
+                selectedTabIndex = tabs.indexOf(selectedTab),
+                containerColor = LettaCardDefaults.listContainerColor,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                tabs.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        modifier = Modifier.testTag(EditAgentTestTags.tab(tab.label)),
+                        text = {
+                            val hasWarning = tab.hasValidationWarning(state)
                             Text(
-                                stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Slider(
-                                value = state.temperature,
-                                onValueChange = onTemperatureChange,
-                                valueRange = 0f..2f,
-                                steps = 39,
-                            )
-                        }
-                    },
-                )
-                item(
-                    headlineContent = {
-                        ContextWindowLimitSlider(
-                            value = state.contextWindow,
-                            maxValue = maxContextWindow,
-                            onValueChange = onContextWindowChange,
-                        )
-                    },
-                )
-                item(
-                    headlineContent = { Text(stringResource(R.string.common_parallel_tool_calls)) },
-                    trailingContent = {
-                        Switch(checked = state.parallelToolCalls, onCheckedChange = onParallelToolCallsChange)
-                    },
-                )
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.maxOutputTokens.toString(),
-                            onValueChange = { it.toIntOrNull()?.let(onMaxOutputTokensChange) },
-                            label = { Text(stringResource(R.string.common_max_output_tokens)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                    },
-                )
-                item(
-                    headlineContent = { Text(stringResource(R.string.common_enable_sleeptime)) },
-                    trailingContent = {
-                        Switch(checked = state.enableSleeptime, onCheckedChange = onEnableSleeptimeChange)
-                    },
-                )
-            }
-        }
-
-        item(key = "primary_model_advanced") {
-            PrimaryModelAdvancedSection(
-                state = state,
-                onModelProviderNameChange = onModelProviderNameChange,
-                onModelProviderCategoryChange = onModelProviderCategoryChange,
-                onModelEnableReasonerChange = onModelEnableReasonerChange,
-                onModelReasoningEffortChange = onModelReasoningEffortChange,
-                onModelMaxReasoningTokensChange = onModelMaxReasoningTokensChange,
-                onModelReasoningJsonChange = onModelReasoningJsonChange,
-                onModelFrequencyPenaltyChange = onModelFrequencyPenaltyChange,
-                onModelVerbosityChange = onModelVerbosityChange,
-                onModelStrictToolCallingChange = onModelStrictToolCallingChange,
-                onModelResponseFormatJsonChange = onModelResponseFormatJsonChange,
-                onModelResponseSchemaJsonChange = onModelResponseSchemaJsonChange,
-                onModelThinkingConfigJsonChange = onModelThinkingConfigJsonChange,
-                onModelPutInnerThoughtsInKwargsChange = onModelPutInnerThoughtsInKwargsChange,
-                onModelToolCallParserChange = onModelToolCallParserChange,
-                onModelAnthropicEffortChange = onModelAnthropicEffortChange,
-            )
-        }
-
-        item(key = "advanced_compaction") {
-            AdvancedCompactionSection(
-                state = state,
-                onSummarizationPromptChange = onSummarizationPromptChange,
-                onCompactionClipCharsChange = onCompactionClipCharsChange,
-                onSlidingWindowPercentageChange = onSlidingWindowPercentageChange,
-                onPromptAcknowledgementChange = onPromptAcknowledgementChange,
-                onCompactionModeChange = onCompactionModeChange,
-                onCompactionModelChange = onCompactionModelChange,
-                onCompactionModelSettingsJsonChange = onCompactionModelSettingsJsonChange,
-                compactionModelTitle = selectedCompactionModel?.displayName
-                    ?: state.compactionModel.ifBlank { stringResource(R.string.screen_agent_edit_compaction_model_default) },
-                compactionModelSupporting = selectedCompactionModel?.handle ?: state.compactionModel,
-                onOpenCompactionModelPicker = { showCompactionModelPicker = true },
-            )
-        }
-
-        item(key = "client_mode") {
-            EditAgentClientModeSection(
-                state = state,
-                onClientModeEnabledChange = onClientModeEnabledChange,
-                onClientModeBaseUrlChange = onClientModeBaseUrlChange,
-                onClientModeApiKeyChange = onClientModeApiKeyChange,
-                onTestClientModeConnection = onTestClientModeConnection,
-            )
-        }
-
-        item(key = "tool_environment") {
-            ToolEnvironmentSection(
-                state = state,
-                onAddAgentSecret = onAddAgentSecret,
-                onAgentSecretKeyChange = onAgentSecretKeyChange,
-                onAgentSecretValueChange = onAgentSecretValueChange,
-                onRemoveAgentSecret = onRemoveAgentSecret,
-                onAddToolEnvironmentVariable = onAddToolEnvironmentVariable,
-                onToolEnvironmentVariableKeyChange = onToolEnvironmentVariableKeyChange,
-                onToolEnvironmentVariableValueChange = onToolEnvironmentVariableValueChange,
-                onRemoveToolEnvironmentVariable = onRemoveToolEnvironmentVariable,
-            )
-        }
-
-        // Memory Blocks
-        item(key = "memory_blocks") {
-            CardGroup(title = { Text("${stringResource(R.string.screen_agent_memory_blocks_section)} (${state.blocks.size})") }) {
-                state.blocks.forEach { block ->
-                    item(
-                        headlineContent = {
-                            MemoryBlockItem(
-                                block = block,
-                                onValueChange = { onBlockValueChange(block.label, it) },
-                                onDescriptionChange = { onBlockDescriptionChange(block.label, it) },
-                                onLimitChange = { onBlockLimitChange(block.label, it) },
-                                onDelete = { onDeleteBlock(block.id) },
+                                text = if (hasWarning) "${tab.label} •" else tab.label,
+                                color = if (hasWarning) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
                             )
                         },
                     )
                 }
-                item(
-                    onClick = { showAddBlockDialog = true },
-                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
-                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
-                )
-                item(
-                    onClick = { showAttachBlockDialog = true },
-                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_existing_block)) },
-                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
-                )
             }
         }
 
-        // ── Tools ──
-        item(key = "tools") {
-            CardGroup(title = { Text(stringResource(R.string.common_tools) + " (${state.attachedTools.size})") }) {
-                if (state.attachedTools.isEmpty()) {
+        if (selectedTab == EditAgentConfigTab.Basics) {
+            // ── Identity ──
+            item(key = "identity") {
+                CardGroup(title = { Text("Identity") }) {
                     item(
                         headlineContent = {
-                            Text(
-                                text = stringResource(R.string.screen_tools_empty_attached),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            OutlinedTextField(
+                                value = state.name,
+                                onValueChange = onNameChange,
+                                label = { Text(stringResource(R.string.common_name)) },
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         },
                     )
-                } else {
-                    state.attachedTools.forEach { tool ->
+                    item(
+                        headlineContent = {
+                            OutlinedTextField(
+                                value = state.description,
+                                onValueChange = onDescriptionChange,
+                                label = { Text(stringResource(R.string.common_description)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 2,
+                            )
+                        },
+                    )
+                }
+            }
+
+            // ── System Prompt ──
+            item(key = "system_prompt") {
+                CardGroup(title = { Text(stringResource(R.string.common_system_prompt) + " (${state.systemPrompt.length} chars)") }) {
+                    item(
+                        headlineContent = {
+                            OutlinedTextField(
+                                value = state.systemPrompt,
+                                onValueChange = onSystemPromptChange,
+                                label = { Text(stringResource(R.string.common_system_prompt), style = MaterialTheme.typography.bodySmall) },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 5,
+                                textStyle = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                    )
+                }
+            }
+
+            // ── Tags ──
+            item(key = "tags") {
+                var newTag by remember { mutableStateOf("") }
+                CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
+                    if (state.tags.isNotEmpty()) {
                         item(
-                            onClick = { selectedTool = tool },
                             headlineContent = {
-                                Text(tool.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                            supportingContent = tool.description?.let { desc ->
-                                {
-                                    Text(
-                                        text = desc,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    state.tags.forEach { tag ->
+                                        InputChip(
+                                            selected = false,
+                                            onClick = { onRemoveTag(tag) },
+                                            label = { Text(tag) },
+                                            trailingIcon = {
+                                                Icon(
+                                                    LettaIcons.Close,
+                                                    contentDescription = stringResource(R.string.screen_agent_edit_remove_tag),
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            },
+                                        )
+                                    }
                                 }
-                            },
-                            leadingContent = {
-                                Icon(
-                                    LettaIcons.Tool,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
                             },
                         )
                     }
-                }
-                item(
-                    onClick = { showToolPicker = true },
-                    headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_tools)) },
-                    leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
-                )
-            }
-        }
-
-        item(key = "tool_rules") {
-            ToolRulesSection(
-                state = state,
-                onToolRulesJsonChange = onToolRulesJsonChange,
-            )
-        }
-
-        // ── System Prompt ──
-        item(key = "system_prompt") {
-            CardGroup(title = { Text(stringResource(R.string.common_system_prompt) + " (${state.systemPrompt.length} chars)") }) {
-                item(
-                    headlineContent = {
-                        OutlinedTextField(
-                            value = state.systemPrompt,
-                            onValueChange = onSystemPromptChange,
-                            label = { Text(stringResource(R.string.common_system_prompt), style = MaterialTheme.typography.bodySmall) },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 5,
-                            textStyle = MaterialTheme.typography.bodySmall,
-                        )
-                    },
-                )
-            }
-        }
-
-        // ── Tags ──
-        item(key = "tags") {
-            var newTag by remember { mutableStateOf("") }
-            CardGroup(title = { Text(stringResource(R.string.common_tags)) }) {
-                if (state.tags.isNotEmpty()) {
                     item(
                         headlineContent = {
-                            FlowRow(
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                state.tags.forEach { tag ->
-                                    InputChip(
-                                        selected = false,
-                                        onClick = { onRemoveTag(tag) },
-                                        label = { Text(tag) },
-                                        trailingIcon = {
-                                            Icon(
-                                                LettaIcons.Close,
-                                                contentDescription = stringResource(R.string.screen_agent_edit_remove_tag),
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                        },
-                                    )
-                                }
+                                OutlinedTextField(
+                                    value = newTag,
+                                    onValueChange = { newTag = it },
+                                    label = { Text(stringResource(R.string.screen_agent_edit_new_tag)) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                FilledTonalButton(
+                                    onClick = { onAddTag(newTag); newTag = "" },
+                                    enabled = newTag.isNotBlank(),
+                                ) { Text(stringResource(R.string.action_add)) }
                             }
                         },
                     )
                 }
-                item(
-                    headlineContent = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedTextField(
-                                value = newTag,
-                                onValueChange = { newTag = it },
-                                label = { Text(stringResource(R.string.screen_agent_edit_new_tag)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
+            }
+        }
+
+        if (selectedTab == EditAgentConfigTab.Models) {
+            // ── Model ──
+            item(key = "model") {
+                CardGroup(title = { Text(stringResource(R.string.common_model)) }) {
+                    item(
+                        headlineContent = {
+                            SearchPickerField(
+                                label = stringResource(R.string.common_model),
+                                title = selectedLlmModel?.displayName ?: state.model,
+                                supporting = selectedLlmModel?.handle ?: state.model,
+                                onClick = {
+                                    onLoadModels()
+                                    showLlmPicker = true
+                                },
                             )
-                            FilledTonalButton(
-                                onClick = { onAddTag(newTag); newTag = "" },
-                                enabled = newTag.isNotBlank(),
-                            ) { Text(stringResource(R.string.action_add)) }
+                        },
+                    )
+                    item(
+                        headlineContent = {
+                            SearchPickerField(
+                                label = stringResource(R.string.screen_agent_edit_embedding_model),
+                                title = selectedEmbeddingModel?.displayName ?: state.embedding,
+                                supporting = selectedEmbeddingModel?.handle ?: state.embedding,
+                                onClick = {
+                                    onLoadModels()
+                                    showEmbeddingPicker = true
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+
+            // ── LLM Configuration ──
+            item(key = "llm_config") {
+                CardGroup(title = { Text(stringResource(R.string.screen_agent_edit_llm_configuration)) }) {
+                    item(
+                        headlineContent = {
+                            OutlinedTextField(
+                                value = state.providerType,
+                                onValueChange = onProviderTypeChange,
+                                label = { Text(stringResource(R.string.screen_agent_edit_provider_type)) },
+                                placeholder = { Text(stringResource(R.string.screen_agents_create_provider_placeholder)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    stringResource(R.string.screen_agent_edit_temperature_value, state.temperature),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Slider(
+                                    value = state.temperature,
+                                    onValueChange = onTemperatureChange,
+                                    valueRange = 0f..2f,
+                                    steps = 39,
+                                )
+                            }
+                        },
+                    )
+                    item(
+                        headlineContent = {
+                            ContextWindowLimitSlider(
+                                value = state.contextWindow,
+                                maxValue = maxContextWindow,
+                                onValueChange = onContextWindowChange,
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.common_parallel_tool_calls)) },
+                        trailingContent = {
+                            Switch(checked = state.parallelToolCalls, onCheckedChange = onParallelToolCallsChange)
+                        },
+                    )
+                    item(
+                        headlineContent = {
+                            OutlinedTextField(
+                                value = state.maxOutputTokens.toString(),
+                                onValueChange = { it.toIntOrNull()?.let(onMaxOutputTokensChange) },
+                                label = { Text(stringResource(R.string.common_max_output_tokens)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.common_enable_sleeptime)) },
+                        trailingContent = {
+                            Switch(checked = state.enableSleeptime, onCheckedChange = onEnableSleeptimeChange)
+                        },
+                    )
+                }
+            }
+        }
+
+        if (selectedTab == EditAgentConfigTab.Advanced) {
+            item(key = "primary_model_advanced") {
+                PrimaryModelAdvancedSection(
+                    state = state,
+                    onModelProviderNameChange = onModelProviderNameChange,
+                    onModelProviderCategoryChange = onModelProviderCategoryChange,
+                    onModelEnableReasonerChange = onModelEnableReasonerChange,
+                    onModelReasoningEffortChange = onModelReasoningEffortChange,
+                    onModelMaxReasoningTokensChange = onModelMaxReasoningTokensChange,
+                    onModelReasoningJsonChange = onModelReasoningJsonChange,
+                    onModelFrequencyPenaltyChange = onModelFrequencyPenaltyChange,
+                    onModelVerbosityChange = onModelVerbosityChange,
+                    onModelStrictToolCallingChange = onModelStrictToolCallingChange,
+                    onModelResponseFormatJsonChange = onModelResponseFormatJsonChange,
+                    onModelResponseSchemaJsonChange = onModelResponseSchemaJsonChange,
+                    onModelThinkingConfigJsonChange = onModelThinkingConfigJsonChange,
+                    onModelPutInnerThoughtsInKwargsChange = onModelPutInnerThoughtsInKwargsChange,
+                    onModelToolCallParserChange = onModelToolCallParserChange,
+                    onModelAnthropicEffortChange = onModelAnthropicEffortChange,
+                )
+            }
+        }
+
+        if (selectedTab == EditAgentConfigTab.Memory) {
+            item(key = "advanced_compaction") {
+                AdvancedCompactionSection(
+                    state = state,
+                    onSummarizationPromptChange = onSummarizationPromptChange,
+                    onCompactionClipCharsChange = onCompactionClipCharsChange,
+                    onSlidingWindowPercentageChange = onSlidingWindowPercentageChange,
+                    onPromptAcknowledgementChange = onPromptAcknowledgementChange,
+                    onCompactionModeChange = onCompactionModeChange,
+                    onCompactionModelChange = onCompactionModelChange,
+                    onCompactionModelSettingsJsonChange = onCompactionModelSettingsJsonChange,
+                    compactionModelTitle = selectedCompactionModel?.displayName
+                        ?: state.compactionModel.ifBlank { stringResource(R.string.screen_agent_edit_compaction_model_default) },
+                    compactionModelSupporting = selectedCompactionModel?.handle ?: state.compactionModel,
+                    onOpenCompactionModelPicker = { showCompactionModelPicker = true },
+                )
+            }
+
+            // Memory Blocks
+            item(key = "memory_blocks") {
+                CardGroup(title = { Text("${stringResource(R.string.screen_agent_memory_blocks_section)} (${state.blocks.size})") }) {
+                    state.blocks.forEach { block ->
+                        item(
+                            headlineContent = {
+                                MemoryBlockItem(
+                                    block = block,
+                                    onValueChange = { onBlockValueChange(block.label, it) },
+                                    onDescriptionChange = { onBlockDescriptionChange(block.label, it) },
+                                    onLimitChange = { onBlockLimitChange(block.label, it) },
+                                    onDelete = { onDeleteBlock(block.id) },
+                                )
+                            },
+                        )
+                    }
+                    item(
+                        onClick = { showAddBlockDialog = true },
+                        headlineContent = { Text(stringResource(R.string.screen_agent_edit_add_memory_block)) },
+                        leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                    )
+                    item(
+                        onClick = { showAttachBlockDialog = true },
+                        headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_existing_block)) },
+                        leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                    )
+                }
+            }
+        }
+
+        if (selectedTab == EditAgentConfigTab.Tools) {
+            item(key = "tool_environment") {
+                ToolEnvironmentSection(
+                    state = state,
+                    onAddAgentSecret = onAddAgentSecret,
+                    onAgentSecretKeyChange = onAgentSecretKeyChange,
+                    onAgentSecretValueChange = onAgentSecretValueChange,
+                    onRemoveAgentSecret = onRemoveAgentSecret,
+                    onAddToolEnvironmentVariable = onAddToolEnvironmentVariable,
+                    onToolEnvironmentVariableKeyChange = onToolEnvironmentVariableKeyChange,
+                    onToolEnvironmentVariableValueChange = onToolEnvironmentVariableValueChange,
+                    onRemoveToolEnvironmentVariable = onRemoveToolEnvironmentVariable,
+                )
+            }
+
+            // ── Tools ──
+            item(key = "tools") {
+                CardGroup(title = { Text(stringResource(R.string.common_tools) + " (${state.attachedTools.size})") }) {
+                    if (state.attachedTools.isEmpty()) {
+                        item(
+                            headlineContent = {
+                                Text(
+                                    text = stringResource(R.string.screen_tools_empty_attached),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                        )
+                    } else {
+                        state.attachedTools.forEach { tool ->
+                            item(
+                                onClick = { selectedTool = tool },
+                                headlineContent = {
+                                    Text(tool.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
+                                supportingContent = tool.description?.let { desc ->
+                                    {
+                                        Text(
+                                            text = desc,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        LettaIcons.Tool,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                            )
                         }
-                    },
+                    }
+                    item(
+                        onClick = { showToolPicker = true },
+                        headlineContent = { Text(stringResource(R.string.screen_agent_edit_attach_tools)) },
+                        leadingContent = { Icon(LettaIcons.Add, contentDescription = null, modifier = Modifier.size(LettaIconSizing.Toolbar)) },
+                    )
+                }
+            }
+
+            item(key = "tool_rules") {
+                ToolRulesSection(
+                    state = state,
+                    onToolRulesJsonChange = onToolRulesJsonChange,
+                )
+            }
+        }
+
+        if (selectedTab == EditAgentConfigTab.Runtime) {
+            item(key = "client_mode") {
+                EditAgentClientModeSection(
+                    state = state,
+                    onClientModeEnabledChange = onClientModeEnabledChange,
+                    onClientModeBaseUrlChange = onClientModeBaseUrlChange,
+                    onClientModeApiKeyChange = onClientModeApiKeyChange,
+                    onTestClientModeConnection = onTestClientModeConnection,
                 )
             }
         }
@@ -985,6 +1045,52 @@ private fun EditAgentContent(
             },
         )
     }
+}
+
+private fun EditAgentConfigTab.hasValidationWarning(state: EditAgentUiState): Boolean = when (this) {
+    EditAgentConfigTab.Advanced -> listOf(
+        state.modelReasoningJson,
+        state.modelResponseFormatJson,
+        state.modelResponseSchemaJson,
+        state.modelThinkingConfigJson,
+    ).any(::isInvalidJsonObjectIfPresent) ||
+        isInvalidWholeNumberIfPresent(state.modelMaxReasoningTokens) ||
+        isInvalidNumberIfPresent(state.modelFrequencyPenalty)
+    EditAgentConfigTab.Memory -> isInvalidJsonObjectIfPresent(state.compactionModelSettingsJson)
+    EditAgentConfigTab.Tools -> isInvalidJsonArrayIfPresent(state.toolRulesJson) ||
+        state.agentSecrets.hasDuplicateKeys() ||
+        state.toolEnvironmentVariables.hasDuplicateKeys()
+    EditAgentConfigTab.Basics,
+    EditAgentConfigTab.Models,
+    EditAgentConfigTab.Runtime,
+    -> false
+}
+
+private fun isInvalidJsonObjectIfPresent(value: String): Boolean {
+    if (value.isBlank()) return false
+    return !runCatching { Json.parseToJsonElement(value) is JsonObject }.getOrDefault(false)
+}
+
+private fun isInvalidJsonArrayIfPresent(value: String): Boolean {
+    if (value.isBlank()) return false
+    return !runCatching { Json.parseToJsonElement(value) is JsonArray }.getOrDefault(false)
+}
+
+private fun isInvalidWholeNumberIfPresent(value: String): Boolean {
+    val trimmed = value.trim()
+    if (trimmed.isEmpty()) return false
+    return trimmed.toIntOrNull()?.takeIf { it >= 0 } == null
+}
+
+private fun isInvalidNumberIfPresent(value: String): Boolean {
+    val trimmed = value.trim()
+    if (trimmed.isEmpty()) return false
+    return trimmed.toDoubleOrNull() == null
+}
+
+private fun List<EditableAgentEnvironmentVariable>.hasDuplicateKeys(): Boolean {
+    val keys = map { it.key.trim() }.filter { it.isNotBlank() }
+    return keys.distinct().size != keys.size
 }
 
 @Composable

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.EmbeddingModel
@@ -73,7 +74,22 @@ class EditAgentScreenTest {
             )
         }
 
-        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(4)
+        composeRule.onNodeWithText("Identity").assertIsDisplayed()
+        composeRule.onNodeWithText("Name").assertIsDisplayed()
+
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Models")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(3)
+        composeRule.onNodeWithText("LLM Configuration").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Embedding Model").assertCountEquals(1)
+
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(0)
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Runtime")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(2)
+        composeRule.onNodeWithText("LettaBot Client Mode").assertIsDisplayed()
+
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(0)
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Advanced")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(2)
         composeRule.onNodeWithText("Primary Model Advanced").assertIsDisplayed()
         listOf(
             "Provider Name",
@@ -92,8 +108,9 @@ class EditAgentScreenTest {
             composeRule.onAllNodesWithText(label, substring = true).assertCountEquals(1)
         }
 
-        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(5)
-        composeRule.onNodeWithText("Advanced").assertIsDisplayed()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(0)
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Memory")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(2)
         listOf(
             "Compaction Mode",
             "Summarizer Model",
@@ -106,8 +123,38 @@ class EditAgentScreenTest {
             composeRule.onAllNodesWithText(label, substring = true).assertCountEquals(1)
         }
 
-        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(9)
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(0)
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Tools")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(3)
+        composeRule.onNodeWithText("Tools (1)").assertIsDisplayed()
         composeRule.onNodeWithText("Tool Rules / Approval Policy").assertIsDisplayed()
+        composeRule.onNodeWithText("Tool Rules JSON").assertIsDisplayed()
+    }
+
+    @Test
+    fun validationWarningMarksContainingTabAndTabRemainsNavigable() {
+        val viewModel = mockk<EditAgentViewModel>(relaxed = true)
+        val uiState = MutableStateFlow(
+            UiState.Success(
+                advancedState().copy(toolRulesJson = "{not-an-array")
+            )
+        )
+        val llmModels = MutableStateFlow(emptyList<LlmModel>())
+        val embeddingModels = MutableStateFlow(emptyList<EmbeddingModel>())
+        every { viewModel.uiState } returns uiState
+        every { viewModel.llmModels } returns llmModels
+        every { viewModel.embeddingModels } returns embeddingModels
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            EditAgentScreen(
+                onNavigateBack = {},
+                viewModel = viewModel,
+            )
+        }
+
+        composeRule.onNodeWithText("Tools •").assertIsDisplayed()
+        composeRule.onNodeWithTag(EditAgentTestTags.tab("Tools")).performClick()
+        composeRule.onNodeWithTag(EditAgentTestTags.CONTENT_LIST).performScrollToIndex(4)
         composeRule.onNodeWithText("Tool Rules JSON").assertIsDisplayed()
     }
 
