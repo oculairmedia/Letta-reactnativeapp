@@ -250,6 +250,18 @@ class TimelineReducerCharacterizationTest {
     }
 
     @Test
+    fun `client mode user local is fuzzy-collapsed when matching server echo arrives`() = withLoop { loop ->
+        loop.appendClientModeLocal(content = "hello from client mode")
+
+        loop.ingestStreamEvent(UserMessage(id = "server-user-client-mode", contentRaw = JsonPrimitive("hello from client mode")))
+
+        val event = loop.state.value.events.single() as TimelineEvent.Confirmed
+        assertEquals(TimelineMessageType.USER, event.messageType)
+        assertEquals(MessageSource.CLIENT_MODE_HARNESS, event.source)
+        assertEquals("hello from client mode", event.content)
+    }
+
+    @Test
     fun `client mode local stream is replay-collapsed when matching server event arrives`() = withLoop { loop ->
         loop.upsertClientModeLocalAssistantChunk(
             localId = "cm-assist-1",
@@ -274,6 +286,25 @@ class TimelineReducerCharacterizationTest {
         assertEquals("cm-assist-1", event.otid)
         assertEquals(MessageSource.CLIENT_MODE_HARNESS, event.source)
         assertEquals("final answer", event.content)
+    }
+
+    @Test
+    fun `client mode reasoning local is fuzzy-collapsed when matching server reasoning arrives`() = withLoop { loop ->
+        loop.upsertClientModeStreamChunk(
+            chunk = ClientModeStreamChunk(
+                event = ClientModeStreamEvent.REASONING,
+                uuid = "reason-client-mode",
+                text = "thinking out loud",
+            ),
+            assistantMessageId = "assistant-1",
+        )
+
+        loop.ingestStreamEvent(ReasoningMessage(id = "server-reason-client-mode", reasoning = "thinking out loud"))
+
+        val event = loop.state.value.events.single() as TimelineEvent.Confirmed
+        assertEquals(TimelineMessageType.REASONING, event.messageType)
+        assertEquals(MessageSource.CLIENT_MODE_HARNESS, event.source)
+        assertEquals("thinking out loud", event.content)
     }
 
     @Test

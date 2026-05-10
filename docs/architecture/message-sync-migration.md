@@ -14,6 +14,11 @@ This document describes:
 3. A POC plan to validate the approach in a minimal CLI before touching mobile code
 4. A migration plan with rollback strategy
 
+For the current gateway-backed Client Mode event lifecycle, see
+[`client-mode-timeline-rules.md`](client-mode-timeline-rules.md). That document
+is the active contract for USER/ASSISTANT/REASONING/TOOL ingestion and reconcile
+behavior after the TimelineRepository migration.
+
 ---
 
 ## Part 1: Current Architecture Problems
