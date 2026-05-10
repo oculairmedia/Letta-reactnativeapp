@@ -2587,6 +2587,62 @@ class AdminChatViewModelTest {
     }
 
     @Test
+    fun `fresh route buffers pre-conversation assistant chunks and replays them to timeline`() = runTest {
+        clientModeEnabledFlow.value = true
+        activeConversationIds.clear()
+        messages = emptyList()
+
+        val chunks = Channel<BotStreamChunk>(capacity = Channel.UNLIMITED)
+        every {
+            clientModeChatSender.streamMessage(
+                screenAgentId = any(),
+                text = any(),
+                conversationId = any(),
+            )
+        } returns chunks.consumeAsFlow()
+
+        val vm = createViewModel(conversationId = null, freshRouteKey = 10000L)
+        advanceUntilIdle()
+
+        vm.sendMessage("hello fresh")
+        advanceUntilIdle()
+
+        chunks.send(BotStreamChunk(text = "Hel", event = BotStreamEvent.ASSISTANT))
+        advanceUntilIdle()
+
+        assertTrue(
+            "pre-conversation assistant chunk should be buffered, not rendered from clientModeMessages",
+            vm.uiState.value.messages.none { it.role == "assistant" && it.content.contains("Hel") },
+        )
+        coVerify(exactly = 0) {
+            timelineRepository.upsertClientModeStreamChunk(any(), any(), any())
+        }
+
+        chunks.send(
+            BotStreamChunk(
+                text = "lo",
+                event = BotStreamEvent.ASSISTANT,
+                conversationId = "new-conv",
+                done = true,
+            )
+        )
+        chunks.close()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) {
+            timelineRepository.upsertClientModeStreamChunk("new-conv", any(), any())
+        }
+        coVerify(exactly = 0) {
+            timelineRepository.upsertClientModeLocalAssistantChunk("new-conv", any(), any(), any())
+        }
+        val assistant = vm.uiState.value.messages.lastOrNull { it.role == "assistant" }
+        assertNotNull(assistant)
+        assertEquals("Hello", assistant!!.content)
+        val userBubbles = vm.uiState.value.messages.filter { it.role == "user" && it.content == "hello fresh" }
+        assertEquals(1, userBubbles.size)
+    }
+
+    @Test
     fun `fresh route client mode migrates optimistic user to gateway-created conversation`() = runTest {
         clientModeEnabledFlow.value = true
         activeConversationIds.clear()
