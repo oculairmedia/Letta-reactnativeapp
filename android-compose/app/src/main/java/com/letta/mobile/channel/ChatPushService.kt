@@ -34,6 +34,24 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+internal fun installIngestedListener(
+    timelineRepository: TimelineRepository,
+    listener: IngestedMessageListener,
+): IngestedMessageListener {
+    timelineRepository.ingestedListener = listener
+    return listener
+}
+
+internal fun clearIngestedListenerIfActive(
+    timelineRepository: TimelineRepository,
+    installedListener: IngestedMessageListener?,
+): Boolean {
+    if (installedListener == null) return false
+    if (timelineRepository.ingestedListener !== installedListener) return false
+    timelineRepository.ingestedListener = null
+    return true
+}
+
 /**
  * Keeps the app process alive and the resume-stream subscribers running even
  * when no Activity is foregrounded. Without this, Android would stop our
@@ -64,6 +82,7 @@ class ChatPushService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var warmupJob: Job? = null
+    private var installedIngestedListener: IngestedMessageListener? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -103,6 +122,7 @@ class ChatPushService : Service() {
 
     override fun onDestroy() {
         Telemetry.event("ChatPushService", "destroyed")
+        clearInstalledListener()
         scope.cancel()
         super.onDestroy()
     }
@@ -185,7 +205,7 @@ class ChatPushService : Service() {
     }
 
     private fun installListener() {
-        timelineRepository.ingestedListener = object : IngestedMessageListener {
+        val listener = object : IngestedMessageListener {
             override suspend fun onMessageIngested(
                 conversationId: String,
                 serverId: String,
@@ -223,9 +243,22 @@ class ChatPushService : Service() {
                 )
             }
         }
+        installedIngestedListener = installIngestedListener(timelineRepository, listener)
         Telemetry.event(
             "ChatPushService", "listenerInstalled",
             "listenerNonNull" to (timelineRepository.ingestedListener != null),
+        )
+    }
+
+    private fun clearInstalledListener() {
+        val cleared = clearIngestedListenerIfActive(
+            timelineRepository = timelineRepository,
+            installedListener = installedIngestedListener,
+        )
+        installedIngestedListener = null
+        Telemetry.event(
+            "ChatPushService", "listenerCleared",
+            "cleared" to cleared,
         )
     }
 
