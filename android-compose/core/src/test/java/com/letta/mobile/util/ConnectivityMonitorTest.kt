@@ -16,7 +16,11 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +36,54 @@ import org.junit.jupiter.api.Tag
 class ConnectivityMonitorTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Test
+    fun `stopMonitoring cancels active config collector and restart creates a single replacement`() {
+        val sharedPreferences = context.getSharedPreferences("connectivity-monitor-collector-test", Context.MODE_PRIVATE)
+        sharedPreferences.edit().clear().commit()
+        mockkObject(EncryptedPrefsHelper)
+
+        try {
+            every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
+
+            val settingsRepository = SettingsRepository(context)
+            val apiClient = mockk<LettaApiClient>(relaxed = true) {
+                every { getBaseUrl() } returns "https://example.com/"
+            }
+
+            var monitor: ConnectivityMonitor? = null
+            try {
+                monitor = ConnectivityMonitor(context, settingsRepository, apiClient)
+                val startMonitoring = ConnectivityMonitor::class.java.getDeclaredMethod("startMonitoring").apply {
+                    isAccessible = true
+                }
+                val stopMonitoring = ConnectivityMonitor::class.java.getDeclaredMethod("stopMonitoring").apply {
+                    isAccessible = true
+                }
+
+                var previousJob = activeConfigCollectorJob(monitor)
+                assertNotNull(previousJob)
+                assertTrue(previousJob!!.isActive)
+
+                repeat(3) {
+                    stopMonitoring.invoke(monitor)
+                    assertTrue(previousJob!!.isCancelled)
+                    assertNull(activeConfigCollectorJob(monitor))
+
+                    startMonitoring.invoke(monitor)
+                    val replacementJob = activeConfigCollectorJob(monitor)
+                    assertNotNull(replacementJob)
+                    assertTrue(replacementJob!!.isActive)
+                    assertNotSame(previousJob, replacementJob)
+                    previousJob = replacementJob
+                }
+            } finally {
+                monitor?.release()
+            }
+        } finally {
+            unmockkObject(EncryptedPrefsHelper)
+        }
+    }
 
     @Test
     fun `checkServerReachability reuses LettaApiClient client and marks server reachable`() {
@@ -74,8 +126,9 @@ class ConnectivityMonitorTest {
                 checkMethod.isAccessible = true
                 checkMethod.invoke(monitor)
 
+                val currentMonitor = monitor
                 assertTrue(requestLatch.await(2, TimeUnit.SECONDS))
-                assertTrue(waitForCondition(timeoutMillis = 2_000) { monitor!!.isServerReachable.value })
+                assertTrue(waitForCondition(timeoutMillis = 2_000) { currentMonitor.isServerReachable.value })
 
                 assertTrue(requestedUrl == "https://example.com/v1/agents?limit=1")
                 io.mockk.verify(exactly = 1) { apiClient.getBaseUrl() }
@@ -87,6 +140,12 @@ class ConnectivityMonitorTest {
         } finally {
             unmockkObject(EncryptedPrefsHelper)
         }
+    }
+
+    private fun activeConfigCollectorJob(monitor: ConnectivityMonitor): Job? {
+        val field = ConnectivityMonitor::class.java.getDeclaredField("activeConfigCollectorJob")
+        field.isAccessible = true
+        return field.get(monitor) as Job?
     }
 
     private fun waitForCondition(timeoutMillis: Long, condition: () -> Boolean): Boolean {

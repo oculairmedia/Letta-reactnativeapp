@@ -15,6 +15,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -42,6 +43,7 @@ class ConnectivityMonitor @Inject constructor(
     val isServerReachable: StateFlow<Boolean> = _isServerReachable.asStateFlow()
 
     private var isMonitoring = false
+    private var activeConfigCollectorJob: Job? = null
     private var lastPingTime = 0L
 
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -94,7 +96,7 @@ class ConnectivityMonitor @Inject constructor(
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         _isOnline.value = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
 
-        scope.launch {
+        activeConfigCollectorJob = scope.launch {
             settingsRepository.activeConfig.collectLatest { config ->
                 if (config != null && _isOnline.value) {
                     checkServerReachability()
@@ -106,6 +108,8 @@ class ConnectivityMonitor @Inject constructor(
     private fun stopMonitoring() {
         if (!isMonitoring) return
         isMonitoring = false
+        activeConfigCollectorJob?.cancel()
+        activeConfigCollectorJob = null
         connectivityManager.unregisterNetworkCallback(networkCallback)
     }
 
