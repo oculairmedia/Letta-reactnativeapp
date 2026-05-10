@@ -3,7 +3,6 @@ package com.letta.mobile.ui.screens.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.letta.mobile.bot.protocol.BotAgentInfo
 import com.letta.mobile.bot.protocol.BotStreamChunk
 import com.letta.mobile.bot.protocol.BotStreamEvent
 import com.letta.mobile.bot.protocol.InternalBotClient
@@ -416,6 +415,12 @@ class AdminChatViewModel @Inject constructor(
         agentRepository = agentRepository,
         conversationRepository = conversationRepository,
         backgroundRefreshScope = viewModelScope,
+    )
+    private val chatApprovalCoordinator = ChatApprovalCoordinator(messageRepository)
+    private val projectAgentActivityLoader = ProjectAgentActivityLoader(
+        internalBotClient = internalBotClient,
+        agentRepository = agentRepository,
+        folderRepository = folderRepository,
     )
 
     private val _uiState = MutableStateFlow(
@@ -921,7 +926,7 @@ class AdminChatViewModel @Inject constructor(
                 projectAgents = _uiState.value.projectAgents.copy(isLoading = true, error = null)
             )
             try {
-                val activities = buildProjectAgentActivities(project)
+                val activities = projectAgentActivityLoader.load(project, agentId)
                 _uiState.value = _uiState.value.copy(
                     projectAgents = ProjectAgentsUiState(
                         isLoading = false,
@@ -3037,39 +3042,43 @@ class AdminChatViewModel @Inject constructor(
         reason: String? = null,
     ) {
         viewModelScope.launch {
-            val convId = activeConversationId
-            if (convId == null) {
-                _uiState.value = _uiState.value.copy(error = "No active conversation available for approval")
-                return@launch
-            }
-
             _uiState.value = _uiState.value.copy(
                 isStreaming = true,
                 isAgentTyping = true,
                 activeApprovalRequestId = requestId,
             )
 
-            try {
-                messageRepository.submitApproval(
-                    conversationId = convId,
-                    approvalRequestId = requestId,
-                    toolCallIds = toolCallIds,
-                    approve = approve,
-                    reason = reason,
-                )
-                // Don't reload - approval response will come via streaming
-                _uiState.value = _uiState.value.copy(
-                    isStreaming = false,
-                    isAgentTyping = false,
-                    activeApprovalRequestId = null,
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = e.message ?: "Failed to submit approval",
-                    isStreaming = false,
-                    isAgentTyping = false,
-                    activeApprovalRequestId = null,
-                )
+            when (val result = chatApprovalCoordinator.submitApproval(
+                activeConversationId = activeConversationId,
+                requestId = requestId,
+                toolCallIds = toolCallIds,
+                approve = approve,
+                reason = reason,
+            )) {
+                ChatApprovalResult.Submitted -> {
+                    // Don't reload - approval response will come via streaming
+                    _uiState.value = _uiState.value.copy(
+                        isStreaming = false,
+                        isAgentTyping = false,
+                        activeApprovalRequestId = null,
+                    )
+                }
+                ChatApprovalResult.MissingActiveConversation -> {
+                    _uiState.value = _uiState.value.copy(
+                        error = "No active conversation available for approval",
+                        isStreaming = false,
+                        isAgentTyping = false,
+                        activeApprovalRequestId = null,
+                    )
+                }
+                is ChatApprovalResult.Failed -> {
+                    _uiState.value = _uiState.value.copy(
+                        error = result.message,
+                        isStreaming = false,
+                        isAgentTyping = false,
+                        activeApprovalRequestId = null,
+                    )
+                }
             }
         }
     }
@@ -3133,59 +3142,6 @@ class AdminChatViewModel @Inject constructor(
             is ConversationState.Ready,
             -> true
         }
-
-    private suspend fun buildProjectAgentActivities(
-        project: ProjectChatContext,
-    ): List<ProjectAgentActivity> {
-        val liveStatuses = runCatching { internalBotClient.listAgents() }
-            .getOrDefault(emptyList())
-            .associateBy { it.id }
-
-        val folderId = project.lettaFolderId
-        if (folderId.isNullOrBlank()) {
-            return liveStatuses[agentId]
-                ?.let { listOf(it.toProjectAgentActivity(agent = null)) }
-                ?: emptyList()
-        }
-
-        agentRepository.refreshAgentsIfStale(maxAgeMs = 60_000)
-        val folderAgentIds = folderRepository.listAgentsForFolder(folderId)
-        val agents = folderAgentIds.mapNotNull { id ->
-            agentRepository.getCachedAgent(id)
-                ?: runCatching { agentRepository.getAgent(id).first() }.getOrNull()
-        }
-
-        return agents.map { agent ->
-            liveStatuses[agent.id].toProjectAgentActivity(agent)
-        }.sortedWith(compareBy<ProjectAgentActivity> { it.statusLabel }.thenBy { it.name.lowercase() })
-    }
-
-    private fun BotAgentInfo?.toProjectAgentActivity(agent: Agent?): ProjectAgentActivity {
-        val rawStatus = this?.status?.lowercase()
-        val (statusLabel, statusTone) = when {
-            rawStatus == null && agent?.lastRunCompletion != null -> "Idle" to ProjectAgentStatusTone.Neutral
-            rawStatus == null -> "Disconnected" to ProjectAgentStatusTone.Neutral
-            rawStatus.contains("error") || rawStatus.contains("fail") -> "Error" to ProjectAgentStatusTone.Error
-            rawStatus.contains("working") || rawStatus.contains("running") || rawStatus.contains("busy") -> "Working" to ProjectAgentStatusTone.Busy
-            rawStatus.contains("connected") || rawStatus.contains("ready") || rawStatus.contains("idle") -> rawStatus.replaceFirstChar { it.uppercase() } to ProjectAgentStatusTone.Good
-            else -> rawStatus.replaceFirstChar { it.uppercase() } to ProjectAgentStatusTone.Neutral
-        }
-
-        val metadataWork = agent?.metadata?.get("current_work")?.toString()?.trim('"')
-        val detail = metadataWork
-            ?: agent?.lastRunCompletion
-            ?: if (this != null) "Embedded bot session available" else null
-
-        return ProjectAgentActivity(
-            id = agent?.id ?: this?.id.orEmpty(),
-            name = agent?.name ?: this?.name.orEmpty(),
-            statusLabel = statusLabel,
-            statusTone = statusTone,
-            detail = detail,
-            model = agent?.model,
-            lastActivity = agent?.updatedAt ?: agent?.createdAt,
-        )
-    }
 
     fun onScreenPaused() {
         android.util.Log.w("AdminChatVM-LIFECYCLE", "onScreenPaused clearing tracker prev=${currentConversationTracker.current}")
