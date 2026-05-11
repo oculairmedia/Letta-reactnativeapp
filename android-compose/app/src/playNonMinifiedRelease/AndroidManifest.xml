@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!--
+          The Baseline Profile plugin generates this non-shipping variant for
+          profile capture. Allow only this target to render while the dev device
+          is on keyguard; otherwise Macrobenchmark sees a successful
+          ActivityTaskManager launch but empty gfxinfo framestats.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            tools:node="merge" />
+    </application>
+</manifest>
