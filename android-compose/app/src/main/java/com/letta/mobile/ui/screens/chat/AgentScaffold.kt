@@ -135,7 +135,7 @@ object AgentScaffoldTestTags {
     const val AGENT_PICKER_SEARCH_FIELD = "agent_scaffold_agent_picker_search_field"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AgentScaffold(
     initialProjectStartAction: String? = null,
@@ -156,6 +156,9 @@ fun AgentScaffold(
     val chatSearchFocusRequester = remember { FocusRequester() }
     val chatBackground by viewModel.chatBackground.collectAsStateWithLifecycle()
     val availableAgents by viewModel.availableAgents.collectAsStateWithLifecycle()
+    val favoriteAgentId by viewModel.favoriteAgentId.collectAsStateWithLifecycle()
+    val pinnedAgentIds by viewModel.pinnedAgentIds.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
     var chatMode by rememberSaveable { mutableStateOf("interactive") }
     val drawerConversationRepo = conversationRepository
         ?: hiltViewModel<ConversationPickerViewModel>().conversationRepository
@@ -168,12 +171,19 @@ fun AgentScaffold(
     val projectContext = viewModel.projectContext
     var isProjectInfoExpanded by rememberSaveable(projectContext?.identifier) { mutableStateOf(false) }
     val screenTitle = projectContext?.name ?: agentName.ifBlank { stringResource(R.string.screen_chat_title) }
-    val switchableAgents = remember(availableAgents, agentId, agentName) {
-        if (availableAgents.any { it.id == agentId }) {
+    val currentAgentIsFavorite = agentId == favoriteAgentId
+    val currentAgentIsPinned = agentId in pinnedAgentIds
+    val switchableAgents = remember(availableAgents, agentId, agentName, favoriteAgentId, pinnedAgentIds) {
+        val agents = if (availableAgents.any { it.id == agentId }) {
             availableAgents
         } else {
             listOf(Agent(id = agentId, name = agentName.ifBlank { "Agent" })) + availableAgents
         }
+        sortAgentsForPicker(
+            agents = agents,
+            favoriteAgentId = favoriteAgentId,
+            pinnedAgentIds = pinnedAgentIds,
+        )
     }
     // Compact top bar — was LargeFlexibleTopAppBar (~152dp expanded), now a
     // standard TopAppBar at ~64dp. The chat surface is content-dense and
@@ -281,10 +291,16 @@ fun AgentScaffold(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag(AgentScaffoldTestTags.CONVERSATION_PICKER_TRIGGER)
-                                    .clickable {
-                                        viewModel.refreshAvailableAgents()
-                                        showAgentSwitcher = true
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            viewModel.refreshAvailableAgents()
+                                            showAgentSwitcher = true
+                                        },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            viewModel.toggleCurrentAgentPinned()
+                                        },
+                                    )
                                     .padding(end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -295,6 +311,22 @@ fun AgentScaffold(
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f, fill = false),
                                 )
+                                if (currentAgentIsFavorite) {
+                                    Icon(
+                                        LettaIcons.Star,
+                                        contentDescription = "Favorite agent",
+                                        modifier = Modifier.size(LettaIconSizing.Inline),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                if (currentAgentIsPinned) {
+                                    Icon(
+                                        LettaIcons.Pin,
+                                        contentDescription = "Pinned agent",
+                                        modifier = Modifier.size(LettaIconSizing.Inline),
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                    )
+                                }
                                 Icon(
                                     LettaIcons.ArrowDropDown,
                                     contentDescription = "Switch agent",
@@ -406,7 +438,10 @@ fun AgentScaffold(
         AgentPickerSheet(
             agents = switchableAgents,
             currentAgentId = agentId,
+            favoriteAgentId = favoriteAgentId,
+            pinnedAgentIds = pinnedAgentIds,
             onDismiss = { showAgentSwitcher = false },
+            onTogglePinned = { selectedAgent -> viewModel.toggleAgentPinned(selectedAgent.id) },
             onAgentSelected = { selectedAgent ->
                 showAgentSwitcher = false
                 if (selectedAgent.id != agentId) {
@@ -1452,18 +1487,22 @@ internal fun ConversationPickerSheet(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun AgentPickerSheet(
     agents: List<Agent>,
     currentAgentId: String,
+    favoriteAgentId: String?,
+    pinnedAgentIds: Set<String>,
     onDismiss: () -> Unit,
+    onTogglePinned: (Agent) -> Unit,
     onAgentSelected: (Agent) -> Unit,
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isDismissingForAction by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
     val filteredAgents = remember(agents, searchQuery) {
         if (searchQuery.isBlank()) {
             agents
@@ -1536,12 +1575,21 @@ private fun AgentPickerSheet(
                 ) {
                     items(filteredAgents, key = { it.id }) { agent ->
                         val isActive = agent.id == currentAgentId
+                        val isFavorite = agent.id == favoriteAgentId
+                        val isPinned = agent.id in pinnedAgentIds
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = !isDismissingForAction) {
-                                    dismissThen { onAgentSelected(agent) }
-                                },
+                                .combinedClickable(
+                                    enabled = !isDismissingForAction,
+                                    onClick = {
+                                        dismissThen { onAgentSelected(agent) }
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onTogglePinned(agent)
+                                    },
+                                ),
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isActive) {
                                     MaterialTheme.colorScheme.primaryContainer
@@ -1572,6 +1620,26 @@ private fun AgentPickerSheet(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }
+                                if (isFavorite) {
+                                    Icon(
+                                        LettaIcons.Star,
+                                        contentDescription = "Favorite agent",
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .size(LettaIconSizing.Inline),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                if (isPinned) {
+                                    Icon(
+                                        LettaIcons.Pin,
+                                        contentDescription = "Pinned agent",
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .size(LettaIconSizing.Inline),
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                    )
+                                }
                                 if (isActive) {
                                     Icon(
                                         LettaIcons.CheckCircle,
@@ -1590,6 +1658,18 @@ private fun AgentPickerSheet(
         }
     }
 }
+
+private fun sortAgentsForPicker(
+    agents: List<Agent>,
+    favoriteAgentId: String?,
+    pinnedAgentIds: Set<String>,
+): List<Agent> = agents
+    .distinctBy { it.id }
+    .sortedWith(
+        compareByDescending<Agent> { it.id == favoriteAgentId }
+            .thenByDescending { it.id in pinnedAgentIds }
+            .thenBy { it.name.lowercase(Locale.getDefault()) },
+    )
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

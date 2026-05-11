@@ -167,8 +167,12 @@ fun AgentListScreen(
     val favoriteAgent = uiState.favoriteAgentId?.let { favId ->
         uiState.agents.find { it.id == favId }
     }
-    val displayAgents = remember(filteredAgents, favoriteAgent) {
-        resolveAgentListDisplayAgents(filteredAgents, favoriteAgent)
+    val displayAgents = remember(filteredAgents, favoriteAgent, uiState.pinnedAgentIds) {
+        resolveAgentListDisplayAgents(
+            filteredAgents = filteredAgents,
+            favoriteAgent = favoriteAgent,
+            pinnedAgentIds = uiState.pinnedAgentIds,
+        )
     }
     val visibleFavoriteAgent = displayAgents.visibleFavoriteAgent
     val gridAgents = displayAgents.listAgents
@@ -434,12 +438,20 @@ internal data class AgentListDisplayAgents(
 internal fun resolveAgentListDisplayAgents(
     filteredAgents: List<Agent>,
     favoriteAgent: Agent?,
+    pinnedAgentIds: Set<String> = emptySet(),
 ): AgentListDisplayAgents {
     val filteredAgentIds = filteredAgents.mapTo(mutableSetOf()) { it.id }
     val visibleFavoriteAgent = favoriteAgent?.takeIf { it.id in filteredAgentIds }
     return AgentListDisplayAgents(
         visibleFavoriteAgent = visibleFavoriteAgent,
-        listAgents = filteredAgents.filter { it.id != visibleFavoriteAgent?.id },
+        listAgents = filteredAgents
+            .filter { it.id != visibleFavoriteAgent?.id }
+            .mapIndexed { index, agent -> index to agent }
+            .sortedWith(
+                compareByDescending<Pair<Int, Agent>> { it.second.id in pinnedAgentIds }
+                    .thenBy { it.first },
+            )
+            .map { it.second },
     )
 }
 
@@ -537,9 +549,9 @@ private fun FavoriteAgentCard(
                         modifier = Modifier.weight(1f),
                     )
                     Icon(
-                        imageVector = LettaIcons.Favorite,
+                        imageVector = LettaIcons.Star,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(LettaIconSizing.Inline),
                     )
                 }
@@ -580,7 +592,7 @@ private fun FavoriteAgentCard(
         )
         ActionSheetItem(
             text = "Remove Favorite",
-            icon = LettaIcons.Favorite,
+            icon = LettaIcons.Star,
             onClick = { showContextMenu = false; onUnfavorite() },
         )
     }
@@ -717,9 +729,9 @@ private fun AgentCard(
                     )
                     if (isFavorite) {
                         Icon(
-                            imageVector = LettaIcons.Favorite,
+                            imageVector = LettaIcons.Star,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(LettaIconSizing.Inline),
                         )
                     }
@@ -765,7 +777,7 @@ private fun AgentCard(
     ) {
         ActionSheetItem(
             text = if (isFavorite) "Remove Favorite" else "Set as Favorite",
-            icon = if (isFavorite) LettaIcons.Favorite else LettaIcons.FavoriteBorder,
+            icon = LettaIcons.Star,
             onClick = { showContextMenu = false; onToggleFavorite() },
         )
         ActionSheetItem(
@@ -871,12 +883,22 @@ private fun CompactAgentCard(
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
+                if (isFavorite) {
+                    Icon(
+                        imageVector = LettaIcons.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(LettaIconSizing.Inline),
+                    )
+                }
                 if (isPinned) {
                     Icon(
                         imageVector = LettaIcons.Pin,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(LettaIconSizing.Inline),
+                        modifier = Modifier
+                            .padding(start = if (isFavorite) 6.dp else 0.dp)
+                            .size(LettaIconSizing.Inline),
                     )
                 }
             }
@@ -904,7 +926,7 @@ private fun CompactAgentCard(
     ) {
         ActionSheetItem(
             text = if (isFavorite) "Remove Favorite" else "Set as Favorite",
-            icon = if (isFavorite) LettaIcons.Favorite else LettaIcons.FavoriteBorder,
+            icon = LettaIcons.Star,
             onClick = { showContextMenu = false; onToggleFavorite() },
         )
         ActionSheetItem(

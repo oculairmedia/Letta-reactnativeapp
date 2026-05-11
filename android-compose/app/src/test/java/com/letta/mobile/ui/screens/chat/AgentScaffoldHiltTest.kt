@@ -88,6 +88,8 @@ class AgentScaffoldHiltTest {
         every { viewModel.composerState } returns composerFlow
         every { viewModel.chatFontScale } returns fontScaleFlow
         every { viewModel.availableAgents } returns availableAgentsFlow
+        every { viewModel.favoriteAgentId } returns MutableStateFlow<String?>(null)
+        every { viewModel.pinnedAgentIds } returns MutableStateFlow(emptySet())
         every { viewModel.agentId } returns "agent-hilt-1"
         every { viewModel.conversationId } returns null
         every { viewModel.projectContext } returns null

@@ -34,4 +34,20 @@ class AgentListDisplayAgentsTest {
         assertNull(display.visibleFavoriteAgent)
         assertEquals(listOf(meridian), display.listAgents)
     }
+
+    @Test
+    fun `pinned agents are grouped before regular agents without moving favorite duplicate`() {
+        val favorite = Agent(id = "favorite", name = "Favorite")
+        val pinned = Agent(id = "pinned", name = "Pinned")
+        val regular = Agent(id = "regular", name = "Regular")
+
+        val display = resolveAgentListDisplayAgents(
+            filteredAgents = listOf(regular, favorite, pinned),
+            favoriteAgent = favorite,
+            pinnedAgentIds = setOf("pinned"),
+        )
+
+        assertEquals(favorite, display.visibleFavoriteAgent)
+        assertEquals(listOf(pinned, regular), display.listAgents)
+    }
 }
