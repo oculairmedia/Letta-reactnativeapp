@@ -21,8 +21,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -47,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -247,6 +246,7 @@ fun ProjectHomeScreen(
                             items(filteredProjects, key = { it.identifier }) { project ->
                                 ProjectTile(
                                     project = project,
+                                    isPinned = project.identifier in state.data.pinnedProjectIds,
                                     onClick = {
                                         val agentId = project.lettaAgentId
                                         if (agentId.isNullOrBlank()) {
@@ -590,6 +590,7 @@ fun ProjectHomeScreen(
                     title = selectedProject?.name,
                 ) {
                     val project = selectedProject ?: return@ActionSheet
+                    val isPinned = project.identifier in state.data.pinnedProjectIds
                     fun openProjectChat(projectStartAction: String?) {
                         viewModel.selectProject(null)
                         val agentId = project.lettaAgentId
@@ -600,6 +601,11 @@ fun ProjectHomeScreen(
                         }
                     }
 
+                    ActionSheetItem(
+                        text = if (isPinned) "Unpin from top" else "Pin to top",
+                        icon = if (isPinned) LettaIcons.PinOff else LettaIcons.Pin,
+                        onClick = viewModel::toggleSelectedProjectPinned,
+                    )
                     ActionSheetItem(
                         text = stringResource(R.string.screen_projects_active_agents_action),
                         icon = LettaIcons.People,
@@ -706,16 +712,64 @@ private fun ProjectConversationSummaryChip(
     }
 }
 
+@Composable
+private fun ProjectTileMetaRow(
+    statusLabel: String,
+    statusColor: Color,
+    issueCount: Int,
+    isPinned: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            modifier = Modifier.size(8.dp),
+            shape = RoundedCornerShape(50),
+            color = statusColor,
+        ) {}
+        Text(
+            text = statusLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (issueCount > 0) {
+            Text(
+                text = "• $issueCount issues",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (isPinned) {
+            Icon(
+                imageVector = LettaIcons.Pin,
+                contentDescription = "Pinned project",
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProjectTile(
     project: ProjectSummary,
+    isPinned: Boolean,
     onClick: () -> Unit,
     onOpenActions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val lastActivity = project.updatedAt ?: project.lastSyncAt ?: project.lastCheckedAt ?: project.lastScanAt
+    val issueCount = project.beadsIssueCount ?: project.issueCount ?: 0
+    val statusLabel = project.status?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.common_unknown)
     val statusColor = when (project.status?.lowercase()) {
         "active" -> MaterialTheme.colorScheme.tertiary
         "archived" -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -771,60 +825,19 @@ private fun ProjectTile(
                     }
                 }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.Top,
+                IconButton(
+                    onClick = onOpenActions,
+                    modifier = Modifier.size(36.dp),
                 ) {
-                    BadgedBox(
-                        badge = {
-                            val issueCount = project.beadsIssueCount ?: project.issueCount ?: 0
-                            if (issueCount > 0) {
-                                Badge {
-                                    Text(issueCount.toString())
-                                }
-                            }
-                        }
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp),
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        shape = RoundedCornerShape(50),
-                                        color = statusColor,
-                                    ) {}
-                                }
-                                Text(
-                                    text = project.status?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.common_unknown),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                    IconButton(
-                        onClick = onOpenActions,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = LettaIcons.Menu,
-                            contentDescription = stringResource(R.string.screen_projects_actions_menu),
-                        )
-                    }
+                    Icon(
+                        imageVector = LettaIcons.Menu,
+                        contentDescription = stringResource(R.string.screen_projects_actions_menu),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = project.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -837,6 +850,12 @@ private fun ProjectTile(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+                ProjectTileMetaRow(
+                    statusLabel = statusLabel,
+                    statusColor = statusColor,
+                    issueCount = issueCount,
+                    isPinned = isPinned,
                 )
             }
 

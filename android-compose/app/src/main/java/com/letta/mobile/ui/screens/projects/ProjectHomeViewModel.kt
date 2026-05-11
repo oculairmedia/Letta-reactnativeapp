@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.ProjectSummary
 import com.letta.mobile.data.repository.ProjectRepository
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -13,6 +14,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -160,20 +162,32 @@ data class ProjectHomeUiState(
     val isSubmittingManualCreate: Boolean = false,
     val isSubmittingConversationalCreate: Boolean = false,
     val isSubmittingProjectSettings: Boolean = false,
+    val pinnedProjectIds: Set<String> = emptySet(),
 )
 
 @HiltViewModel
 class ProjectHomeViewModel @Inject constructor(
     private val projectRepository: ProjectRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ProjectHomeUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<ProjectHomeUiState>> = _uiState.asStateFlow()
     private val _events = Channel<ProjectHomeUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+    private var latestPinnedProjectIds: Set<String> = emptySet()
 
     init {
+        observePinnedProjects()
         loadProjects()
+    }
+
+    private fun observePinnedProjects() {
+        viewModelScope.launch {
+            settingsRepository.getPinnedProjectIds().collect { pinnedProjectIds ->
+                applyPinnedProjects(pinnedProjectIds)
+            }
+        }
     }
 
     fun loadProjects(forceRefresh: Boolean = false) {
@@ -209,15 +223,12 @@ class ProjectHomeViewModel @Inject constructor(
                 _events.trySend(ProjectHomeUiEvent.ShowMessage(error?.message ?: "Failed to refresh projects"))
             }
 
-            val projects = projectRepository.projects.value
-                .sortedWith(
-                    compareByDescending<ProjectSummary> { projectLastActivity(it) }
-                        .thenBy { it.name.lowercase() }
-                )
+            val projects = sortProjects(projectRepository.projects.value, latestPinnedProjectIds)
 
             _uiState.value = UiState.Success(
                 ProjectHomeUiState(
                     projects = projects.toImmutableList(),
+                    pinnedProjectIds = latestPinnedProjectIds,
                     searchQuery = current?.searchQuery ?: "",
                     selectedProjectId = current?.selectedProjectId,
                     showCreateOptions = current?.showCreateOptions ?: false,
@@ -264,6 +275,36 @@ class ProjectHomeViewModel @Inject constructor(
                 showDeleteProjectDialog = if (projectId == null) current.showDeleteProjectDialog else false,
             )
         )
+    }
+
+    fun toggleSelectedProjectPinned() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        val project = current.projects.firstOrNull { it.identifier == current.selectedProjectId } ?: return
+        val isPinned = project.identifier in current.pinnedProjectIds
+        val nextPinnedProjectIds = if (isPinned) {
+            current.pinnedProjectIds - project.identifier
+        } else {
+            current.pinnedProjectIds + project.identifier
+        }
+        latestPinnedProjectIds = nextPinnedProjectIds
+        _uiState.value = UiState.Success(
+            current.resetTransientProjectActions().copy(
+                selectedProjectId = null,
+                pinnedProjectIds = nextPinnedProjectIds,
+                projects = sortProjects(
+                    projects = projectRepository.projects.value.ifEmpty { current.projects },
+                    pinnedProjectIds = nextPinnedProjectIds,
+                ).toImmutableList(),
+            )
+        )
+        viewModelScope.launch {
+            settingsRepository.setProjectPinned(project.identifier, !isPinned)
+            _events.trySend(
+                ProjectHomeUiEvent.ShowMessage(
+                    if (isPinned) "Unpinned ${project.name}." else "Pinned ${project.name}."
+                )
+            )
+        }
     }
 
     fun showCreateProjectOptions() {
@@ -616,6 +657,29 @@ class ProjectHomeViewModel @Inject constructor(
             ?: project.lastCheckedAt
             ?: project.lastScanAt
             ?: ""
+    }
+
+    private fun applyPinnedProjects(pinnedProjectIds: Set<String>) {
+        latestPinnedProjectIds = pinnedProjectIds
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        val sourceProjects = projectRepository.projects.value.ifEmpty { current.projects }
+        _uiState.value = UiState.Success(
+            current.copy(
+                pinnedProjectIds = pinnedProjectIds,
+                projects = sortProjects(sourceProjects, pinnedProjectIds).toImmutableList(),
+            )
+        )
+    }
+
+    private fun sortProjects(
+        projects: List<ProjectSummary>,
+        pinnedProjectIds: Set<String>,
+    ): List<ProjectSummary> {
+        return projects.sortedWith(
+            compareByDescending<ProjectSummary> { it.identifier in pinnedProjectIds }
+                .thenByDescending { projectLastActivity(it) }
+                .thenBy { it.name.lowercase() }
+        )
     }
 
     private fun ProjectHomeUiState.resetTransientProjectActions(): ProjectHomeUiState = copy(

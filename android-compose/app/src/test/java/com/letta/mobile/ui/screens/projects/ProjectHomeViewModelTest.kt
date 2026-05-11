@@ -5,11 +5,16 @@ import com.letta.mobile.data.api.ProjectApi
 import com.letta.mobile.data.model.ProjectCatalog
 import com.letta.mobile.data.model.ProjectSummary
 import com.letta.mobile.data.repository.ProjectRepository
+import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.common.UiState
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -29,12 +34,26 @@ class ProjectHomeViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeApi: FakeProjectApi
     private lateinit var repository: ProjectRepository
+    private lateinit var settingsRepository: SettingsRepository
+    private lateinit var pinnedProjectIds: MutableStateFlow<Set<String>>
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeApi = FakeProjectApi()
         repository = ProjectRepository(fakeApi)
+        settingsRepository = mockk(relaxed = true)
+        pinnedProjectIds = MutableStateFlow(emptySet())
+        every { settingsRepository.getPinnedProjectIds() } returns pinnedProjectIds
+        coEvery { settingsRepository.setProjectPinned(any(), any()) } answers {
+            val projectId = invocation.args[0] as String
+            val pinned = invocation.args[1] as Boolean
+            pinnedProjectIds.value = if (pinned) {
+                pinnedProjectIds.value + projectId
+            } else {
+                pinnedProjectIds.value - projectId
+            }
+        }
     }
 
     @After
@@ -62,7 +81,7 @@ class ProjectHomeViewModelTest {
             ),
         )
 
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         val state = viewModel.uiState.value as UiState.Success
         assertEquals(listOf("Echo", "Zulu", "Beta"), state.data.projects.map { it.name })
@@ -70,9 +89,52 @@ class ProjectHomeViewModelTest {
     }
 
     @Test
+    fun `loadProjects groups pinned projects before regular projects`() = runTest {
+        pinnedProjectIds.value = setOf("beta")
+        fakeApi.projects += listOf(
+            project(
+                identifier = "alpha",
+                name = "Alpha",
+                updatedAt = "2026-04-11T10:00:00Z",
+            ),
+            project(
+                identifier = "beta",
+                name = "Beta",
+                updatedAt = "2026-04-10T10:00:00Z",
+            ),
+        )
+
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals(setOf("beta"), state.data.pinnedProjectIds)
+        assertEquals(listOf("Beta", "Alpha"), state.data.projects.map { it.name })
+    }
+
+    @Test
+    fun `toggleSelectedProjectPinned pins selected project and closes action sheet`() = runTest {
+        fakeApi.projects += listOf(
+            project(identifier = "alpha", name = "Alpha"),
+            project(identifier = "beta", name = "Beta"),
+        )
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
+        val event = async { viewModel.events.first() }
+
+        viewModel.selectProject("beta")
+        viewModel.toggleSelectedProjectPinned()
+
+        val state = viewModel.uiState.value as UiState.Success
+        assertEquals(null, state.data.selectedProjectId)
+        assertEquals(setOf("beta"), state.data.pinnedProjectIds)
+        assertEquals("Beta", state.data.projects.first().name)
+        assertEquals(ProjectHomeUiEvent.ShowMessage("Pinned Beta."), event.await())
+        coVerify(exactly = 1) { settingsRepository.setProjectPinned("beta", true) }
+    }
+
+    @Test
     fun `refresh forces a second project fetch`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.refresh()
 
@@ -85,7 +147,7 @@ class ProjectHomeViewModelTest {
     fun `initial load failure shows error instead of empty projects`() = runTest {
         fakeApi.shouldFail = true
 
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         val state = viewModel.uiState.value as UiState.Error
         assertTrue(state.message.contains("Server error"))
@@ -94,7 +156,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `refresh failure keeps cached projects and emits message`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         fakeApi.shouldFail = true
         val event = async { viewModel.events.first() }
 
@@ -112,7 +174,7 @@ class ProjectHomeViewModelTest {
             project(identifier = "alpha", name = "Alpha"),
             project(identifier = "beta", name = "Beta"),
         )
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("beta")
 
@@ -128,7 +190,7 @@ class ProjectHomeViewModelTest {
             filesystemPath = "/opt/stacks/alpha",
             gitUrl = "https://github.com/example/alpha.git",
         )
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("alpha")
         viewModel.startProjectSettingsEdit()
@@ -145,7 +207,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `startArchiveProject opens archive confirmation for selected project`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("alpha")
         viewModel.startArchiveProject()
@@ -159,7 +221,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `confirmArchiveProject dismisses confirmation and emits honest pending message`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -180,7 +242,7 @@ class ProjectHomeViewModelTest {
     fun `confirmArchiveProject emits error when archive fails`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
         fakeApi.archiveShouldFail = true
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -196,7 +258,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `startDeleteProject opens delete confirmation for selected project`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("alpha")
         viewModel.startDeleteProject()
@@ -210,7 +272,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `confirmDeleteProject dismisses confirmation and emits honest pending message`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -231,7 +293,7 @@ class ProjectHomeViewModelTest {
     fun `confirmDeleteProject emits error when delete fails`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
         fakeApi.deleteShouldFail = true
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -246,7 +308,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `startManualProjectCreation opens manual dialog and hides create options`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.showCreateProjectOptions()
         viewModel.startManualProjectCreation()
@@ -262,7 +324,7 @@ class ProjectHomeViewModelTest {
             project(identifier = "alpha", name = "Alpha"),
             project(identifier = "beta", name = "Beta"),
         )
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("beta")
         viewModel.showCreateProjectOptions()
@@ -274,7 +336,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `showCreateProjectOptions dismisses manual create dialog`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startManualProjectCreation()
         viewModel.updateNewProjectDraft(
@@ -294,7 +356,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `selectProject dismisses create surfaces`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.showCreateProjectOptions()
         viewModel.startManualProjectCreation()
@@ -315,7 +377,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitManualProjectCreation resets draft and exposes pending message`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.startManualProjectCreation()
@@ -398,7 +460,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `submitProjectSettingsEdit ignores invalid path draft`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("alpha")
         viewModel.startProjectSettingsEdit()
@@ -420,7 +482,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `submitProjectSettingsEdit closes dialog and exposes pending notice`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -451,7 +513,7 @@ class ProjectHomeViewModelTest {
             filesystemPath = "/opt/stacks/alpha",
             gitUrl = "https://github.com/example/alpha.git",
         )
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.selectProject("alpha")
         viewModel.startProjectSettingsEdit()
@@ -471,7 +533,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitManualProjectCreation trims draft values before exposing pending notice`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.startManualProjectCreation()
@@ -493,7 +555,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `submitManualProjectCreation exposes action error when create fails`() = runTest {
         fakeApi.createShouldFail = true
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.startManualProjectCreation()
@@ -515,7 +577,7 @@ class ProjectHomeViewModelTest {
     fun `submitProjectSettingsEdit exposes action error when update fails`() = runTest {
         fakeApi.projects += project(identifier = "alpha", name = "Alpha")
         fakeApi.updateShouldFail = true
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.selectProject("alpha")
@@ -547,7 +609,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitManualProjectCreation ignores invalid whitespace-only draft`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startManualProjectCreation()
         viewModel.updateNewProjectDraft(
@@ -567,7 +629,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `startConversationalProjectCreation exposes pending message`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.showCreateProjectOptions()
         viewModel.startConversationalProjectCreation()
@@ -580,7 +642,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `startConversationalProjectCreation dismisses manual create dialog`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startManualProjectCreation()
         viewModel.updateNewProjectDraft(
@@ -600,7 +662,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitConversationalProjectCreation advances through guided steps`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startConversationalProjectCreation()
         viewModel.updateConversationalProjectDraft(
@@ -635,7 +697,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `dismissConversationalProjectCreation steps backward before closing`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startConversationalProjectCreation()
         viewModel.updateConversationalProjectDraft(
@@ -658,7 +720,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitConversationalProjectCreation blocks invalid path and stays on path step`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         viewModel.startConversationalProjectCreation()
         viewModel.updateConversationalProjectDraft(
@@ -682,7 +744,7 @@ class ProjectHomeViewModelTest {
 
     @Test
     fun `submitConversationalProjectCreation creates project and explains local-only brief handoff`() = runTest {
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.startConversationalProjectCreation()
@@ -733,7 +795,7 @@ class ProjectHomeViewModelTest {
     @Test
     fun `submitConversationalProjectCreation exposes action error when create fails`() = runTest {
         fakeApi.createShouldFail = true
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
         val event = async { viewModel.events.first() }
 
         viewModel.startConversationalProjectCreation()
@@ -764,7 +826,7 @@ class ProjectHomeViewModelTest {
     fun `loadProjects exposes error state on initial repository failure`() = runTest {
         fakeApi.shouldFail = true
 
-        val viewModel = ProjectHomeViewModel(repository)
+        val viewModel = ProjectHomeViewModel(repository, settingsRepository)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Error)
