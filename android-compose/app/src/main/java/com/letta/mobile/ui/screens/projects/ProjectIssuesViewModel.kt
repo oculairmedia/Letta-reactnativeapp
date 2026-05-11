@@ -16,12 +16,21 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 
 @androidx.compose.runtime.Immutable
@@ -30,9 +39,33 @@ data class ProjectIssuesUiState(
     val projectName: String?,
     val readyWork: ImmutableList<ProjectIssueSummary> = persistentListOf(),
     val issues: ImmutableList<ProjectIssueSummary> = persistentListOf(),
+    val completedTimeline: ImmutableList<ProjectIssueTimelineItem> = persistentListOf(),
+    val creationBuckets: ImmutableList<ProjectIssueCreationBucket> = persistentListOf(),
     val searchQuery: String = "",
     val selectedStatus: String? = null,
     val isRefreshing: Boolean = false,
+)
+
+@androidx.compose.runtime.Immutable
+data class ProjectIssueTimelineItem(
+    val id: String,
+    val title: String,
+    val completedAt: String,
+    val statusLabel: String,
+    val priority: String?,
+    val type: String?,
+)
+
+@androidx.compose.runtime.Immutable
+data class ProjectIssueCreationBucket(
+    val date: String,
+    val label: String,
+    val count: Int,
+)
+
+private data class ProjectIssueAnalytics(
+    val completedTimeline: ImmutableList<ProjectIssueTimelineItem>,
+    val creationBuckets: ImmutableList<ProjectIssueCreationBucket>,
 )
 
 @androidx.compose.runtime.Immutable
@@ -114,12 +147,20 @@ class ProjectIssuesViewModel @Inject constructor(
 
             issuesResult.onSuccess { issues ->
                 val ready = readyResult.getOrElse { emptyList() }
+                val analytics = withContext(Dispatchers.Default) {
+                    ProjectIssueAnalytics(
+                        completedTimeline = buildCompletedIssueTimeline(issues).toImmutableList(),
+                        creationBuckets = buildIssueCreationBuckets(issues).toImmutableList(),
+                    )
+                }
                 _uiState.value = UiState.Success(
                     ProjectIssuesUiState(
                         projectId = route.projectId,
                         projectName = route.projectName,
                         readyWork = ready.toImmutableList(),
                         issues = issues.toImmutableList(),
+                        completedTimeline = analytics.completedTimeline,
+                        creationBuckets = analytics.creationBuckets,
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedStatus = current?.selectedStatus,
                         isRefreshing = false,
@@ -235,3 +276,78 @@ class ProjectIssueDetailViewModel @Inject constructor(
 }
 
 private fun Throwable.toException(): Exception = this as? Exception ?: Exception(this)
+
+internal fun buildCompletedIssueTimeline(
+    issues: List<ProjectIssueSummary>,
+    limit: Int = 30,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): List<ProjectIssueTimelineItem> = issues
+    .asSequence()
+    .filter(ProjectIssueSummary::isCompletedIssue)
+    .mapNotNull { issue ->
+        val completedAt = listOfNotNull(issue.updatedAt, issue.createdAt)
+            .firstNotNullOfOrNull { timestamp ->
+                timestamp.toIssueInstantOrNull(zoneId)?.let { instant -> timestamp to instant }
+            }
+            ?: return@mapNotNull null
+        completedAt.second to ProjectIssueTimelineItem(
+            id = issue.id,
+            title = issue.title,
+            completedAt = completedAt.first,
+            statusLabel = issue.statusLabel ?: issue.status,
+            priority = issue.priority,
+            type = issue.type,
+        )
+    }
+    .sortedByDescending { it.first }
+    .take(limit)
+    .map { it.second }
+    .toList()
+
+internal fun buildIssueCreationBuckets(
+    issues: List<ProjectIssueSummary>,
+    maxBuckets: Int = 12,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    locale: Locale = Locale.getDefault(),
+): List<ProjectIssueCreationBucket> {
+    val groupedByDate = issues
+        .mapNotNull { issue -> issue.createdAt?.toIssueLocalDateOrNull(zoneId) }
+        .groupingBy { it }
+        .eachCount()
+
+    val sameYearFormatter = DateTimeFormatter.ofPattern("MMM d", locale)
+    val withYearFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", locale)
+    val currentYear = LocalDate.now(zoneId).year
+
+    return groupedByDate
+        .toSortedMap()
+        .entries
+        .toList()
+        .takeLast(maxBuckets)
+        .map { (date, count) ->
+            ProjectIssueCreationBucket(
+                date = date.toString(),
+                label = date.format(if (date.year == currentYear) sameYearFormatter else withYearFormatter),
+                count = count,
+            )
+        }
+}
+
+private fun ProjectIssueSummary.isCompletedIssue(): Boolean {
+    val normalizedStatus = status.lowercase(Locale.ROOT)
+    val normalizedLabel = statusLabel?.lowercase(Locale.ROOT).orEmpty()
+    return normalizedStatus in completedStatusValues ||
+        completedStatusValues.any { completedStatus -> normalizedLabel.contains(completedStatus) }
+}
+
+private val completedStatusValues = setOf("closed", "done", "completed", "complete", "resolved")
+
+private fun String.toIssueLocalDateOrNull(zoneId: ZoneId): LocalDate? =
+    toIssueInstantOrNull(zoneId)?.atZone(zoneId)?.toLocalDate()
+        ?: runCatching { LocalDate.parse(this) }.getOrNull()
+
+private fun String.toIssueInstantOrNull(zoneId: ZoneId): Instant? =
+    runCatching { Instant.parse(this) }.getOrNull()
+        ?: runCatching { OffsetDateTime.parse(this).toInstant() }.getOrNull()
+        ?: runCatching { LocalDateTime.parse(this).atZone(zoneId).toInstant() }.getOrNull()
+        ?: runCatching { LocalDate.parse(this).atStartOfDay(zoneId).toInstant() }.getOrNull()
