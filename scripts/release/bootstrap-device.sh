@@ -90,6 +90,23 @@ wait_for_log() {
   return 1
 }
 
+wait_for_any_log() {
+  local timeout_seconds="$1"
+  shift
+  local waited=0
+  while (( waited < timeout_seconds )); do
+    local needle
+    for needle in "$@"; do
+      if grep -Fq "$needle" "$log_file"; then
+        return 0
+      fi
+    done
+    sleep 1
+    ((waited += 1))
+  done
+  return 1
+}
+
 if ! "${adb_cmd[@]}" get-state >/dev/null 2>&1; then
   printf 'Device %s is not available via adb.\n' "$DEVICE" >&2
   exit 2
@@ -140,7 +157,7 @@ if [[ "$agent_list_output" == *"Error:"* ]]; then
   exit 14
 fi
 
-if ! wait_for_log "AgentList hydrated count=" 30; then
+if ! wait_for_any_log 30 "AgentList first-page ready count=" "AgentList hydrated count="; then
   printf 'Timed out waiting for agent-list hydration marker.\n' >&2
   exit 14
 fi

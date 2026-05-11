@@ -119,12 +119,15 @@ Exit codes are step-specific so orchestration can classify the failure:
 The readiness-log contract is:
 
 ```text
+AgentList first-page ready count=<n>
 AgentList hydrated count=<n>
 Timeline ready conv=<conversation-id> count=<n>
 ```
 
-These strings are part of the automation interface. If they change, update the
-script and this document together.
+`AgentList first-page ready` is the bootstrap success marker for large tenants;
+`AgentList hydrated` may arrive later after background hydration finishes. These
+strings are part of the automation interface. If they change, update the script,
+tests, and this document together.
 
 `make verify-release` builds on this gate. When the full device bootstrap
 prerequisites are present, the orchestrator runs `verify-device-ready` before
