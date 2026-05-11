@@ -875,22 +875,20 @@ internal fun MessageToolCalls(
             .orEmpty()
     }
     if (shouldUseCompactToolCallGroup(toolCalls)) {
-        val entranceKey = remember(messageId, toolCalls) {
-            toolCalls.joinToString(
-                prefix = "tool-group|${messageId.orEmpty()}|",
-                separator = "|",
-            ) { it.toolCallMotionKey() }
+        val entranceKey = remember(messageId, toolCalls.firstOrNull()?.toolCallMotionKey()) {
+            "tool-group|${messageId.orEmpty()}|${toolCalls.firstOrNull()?.toolCallMotionKey().orEmpty()}"
         }
         val shouldAnimateEntrance = remember(animateEntrance, entranceKey) {
             shouldRunToolCallEntranceAnimation(animateEntrance, entranceKey)
         }
         if (shouldAnimateEntrance) {
-            RecordToolCallEntranceAnimation(entranceKey)
             ToolCallEntrance {
                 CompactToolCallGroupCard(
                     toolCalls = toolCalls,
                     pendingApprovalToolCallIds = pendingApprovalToolCallIds,
                     modifier = modifier,
+                    animateRows = animateEntrance,
+                    rowAnimationKeyPrefix = "message|${messageId.orEmpty()}",
                 )
             }
         } else {
@@ -898,6 +896,8 @@ internal fun MessageToolCalls(
                 toolCalls = toolCalls,
                 pendingApprovalToolCallIds = pendingApprovalToolCallIds,
                 modifier = modifier,
+                animateRows = animateEntrance,
+                rowAnimationKeyPrefix = "message|${messageId.orEmpty()}",
             )
         }
         return
@@ -916,7 +916,6 @@ internal fun MessageToolCalls(
                     shouldRunToolCallEntranceAnimation(animateEntrance, entranceKey)
                 }
                 if (shouldAnimateEntrance) {
-                    RecordToolCallEntranceAnimation(entranceKey)
                     ToolCallEntrance {
                         ToolCallCard(
                             toolCall = toolCall,
@@ -941,17 +940,10 @@ internal fun shouldRunToolCallEntranceAnimation(
     animateEntrance: Boolean,
     key: String,
 ): Boolean =
-    animateEntrance && !toolCallEntranceAnimationHistory.contains(key)
+    animateEntrance && toolCallEntranceAnimationHistory.addIfAbsent(key)
 
 internal fun recordToolCallEntranceAnimationRun(key: String) {
     toolCallEntranceAnimationHistory.addIfAbsent(key)
-}
-
-@Composable
-private fun RecordToolCallEntranceAnimation(key: String) {
-    LaunchedEffect(key) {
-        recordToolCallEntranceAnimationRun(key)
-    }
 }
 
 internal fun clearToolCallEntranceAnimationHistoryForTest() {
@@ -1015,15 +1007,11 @@ internal fun CompactToolCallGroupCard(
     approvalRequests: List<UiApprovalRequest> = emptyList(),
     activeApprovalRequestId: String? = null,
     onApprovalDecision: ((String, List<String>, Boolean, String?) -> Unit)? = null,
+    animateRows: Boolean = false,
+    rowAnimationKeyPrefix: String = "",
 ) {
-    val isPinchingForCard = LocalChatIsPinching.current
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (isPinchingForCard) Modifier
-                else Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec),
-            ),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
         ),
@@ -1052,11 +1040,27 @@ internal fun CompactToolCallGroupCard(
                 }
             }
             toolCalls.forEachIndexed { index, toolCall ->
-                key(index, toolCall.toolCallMotionKey()) {
-                    CompactToolCallRow(
-                        toolCall = toolCall,
-                        approvalState = toolCall.approvalState(pendingApprovalToolCallIds),
-                    )
+                val motionKey = toolCall.toolCallMotionKey()
+                key(index, motionKey) {
+                    val entranceKey = remember(rowAnimationKeyPrefix, motionKey) {
+                        "compact-tool-row|$rowAnimationKeyPrefix|$motionKey"
+                    }
+                    val shouldAnimateEntrance = remember(animateRows, entranceKey) {
+                        shouldRunToolCallEntranceAnimation(animateRows, entranceKey)
+                    }
+                    if (shouldAnimateEntrance) {
+                        ToolCallEntrance {
+                            CompactToolCallRow(
+                                toolCall = toolCall,
+                                approvalState = toolCall.approvalState(pendingApprovalToolCallIds),
+                            )
+                        }
+                    } else {
+                        CompactToolCallRow(
+                            toolCall = toolCall,
+                            approvalState = toolCall.approvalState(pendingApprovalToolCallIds),
+                        )
+                    }
                 }
             }
             approvalRequests.forEach { approval ->
@@ -1149,11 +1153,7 @@ private fun CompactToolCallRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
             )
         }
-        AnimatedVisibility(
-            visible = expanded,
-            enter = ChatMotion.verticalEnter(slideDivisor = 4),
-            exit = ChatMotion.verticalExit(slideDivisor = 4),
-        ) {
+        if (expanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1567,12 +1567,9 @@ private fun ToolCallCard(
                 )
             }
 
-            // Expanded content
-            AnimatedVisibility(
-                visible = showDetails,
-                enter = ChatMotion.verticalEnter(slideDivisor = 4),
-                exit = ChatMotion.verticalExit(slideDivisor = 4),
-            ) {
+            // Expanded content. Keep manual detail expansion static so LazyColumn
+            // does not animate the whole timeline around the user's scroll anchor.
+            if (showDetails) {
                 Column(modifier = Modifier.padding(top = 4.dp)) {
                     // Tool name and timing
                     Text(
@@ -1664,9 +1661,9 @@ private fun ToolCallCard(
                             isError = isError,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                    }
                 }
             }
+        }
         }
     }
 }

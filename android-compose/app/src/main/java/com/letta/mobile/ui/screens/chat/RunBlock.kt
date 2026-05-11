@@ -1,6 +1,5 @@
 package com.letta.mobile.ui.screens.chat
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -119,37 +118,13 @@ fun RunBlock(
 
     val runIdentityColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.24f)
 
-    // letta-mobile-d2z6 follow-up: kept the outer animateContentSize so
-    // stream-end (final message addition) settles smoothly instead of
-    // popping. Removing it caused a visible duplicate-flash as the prior
-    // tail's GroupPosition flipped from Last → Middle when the new tail
-    // arrived. The inner AnimatedVisibility was removed (we render the
-    // visible set uniformly now) so the previous animation stack is no
-    // longer in play.
-    //
-    // letta-mobile-5e0f.r2: suppress animateContentSize during pinch so
-    // we don't get cascading 150ms height interpolations across many
-    // bubbles per pinch frame. The animation is still useful for its
-    // intended trigger (stream-end / new-tail arrival), and that trigger
-    // is impossible during a pinch.
-    //
-    // letta-mobile-lbur: also suppress during streaming. animateContentSize
-    // collides with LazyColumn fling measurement when content is still
-    // settling from streaming size changes, causing a double-measure crash.
-    // Stream-end smoothness is temporarily sacrificed for stability.
-    val isPinching = com.letta.mobile.ui.theme.LocalChatIsPinching.current
+    // Keep the run container height static from Compose's perspective. Lazy
+    // timeline recycling and manual tool-output expansion must not replay run
+    // entrance motion or animate the entire block around the user's scroll
+    // position.
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            // Use the shared chat content ramp after streaming settles.
-            // During active streaming it can collide with LazyColumn
-            // measurement, so keep that path static.
-            .then(
-                if (isPinching || isStreaming) Modifier
-                else Modifier.animateContentSize(
-                    animationSpec = ChatMotion.contentSizeSpec,
-                )
-            ),
+            .fillMaxWidth(),
     ) {
         RunHeader(
             messageCount = messages.size,
@@ -213,6 +188,7 @@ fun RunBlock(
                                     runIdentityColor = runIdentityColor,
                                     drawLineAbove = drawLineAbove,
                                     drawLineBelow = drawLineBelow,
+                                    animateRows = isStreaming,
                                     activeApprovalRequestId = activeApprovalRequestId,
                                     onApprovalDecision = onApprovalDecision,
                                 )
@@ -240,7 +216,7 @@ internal sealed interface RunTimelineStep {
         val pendingApprovalToolCallIds: Set<String>,
         val approvalRequests: List<UiApprovalRequest>,
     ) : RunTimelineStep {
-        override val key: String = messages.joinToString(prefix = "tool-group-", separator = "-") { it.id }
+        override val key: String = "tool-group-${messages.first().id}"
     }
 }
 
@@ -415,6 +391,7 @@ private fun RunToolCallGroupStepRow(
     runIdentityColor: androidx.compose.ui.graphics.Color,
     drawLineAbove: Boolean,
     drawLineBelow: Boolean,
+    animateRows: Boolean,
     activeApprovalRequestId: String?,
     onApprovalDecision: ((String, List<String>, Boolean, String?) -> Unit)?,
 ) {
@@ -437,6 +414,8 @@ private fun RunToolCallGroupStepRow(
             approvalRequests = step.approvalRequests,
             activeApprovalRequestId = activeApprovalRequestId,
             onApprovalDecision = onApprovalDecision,
+            animateRows = animateRows,
+            rowAnimationKeyPrefix = "run|${step.key}",
         )
     }
 }

@@ -317,6 +317,26 @@ class MessageGroupingTest {
     }
 
     @Test
+    fun `tool-call group key stays stable as more calls append`() {
+        val initialGroup = compactRunToolCallSteps(
+            listOf(
+                assistantToolCall("tc1", command = "pwd"),
+                assistantToolCall("tc2", command = "ls"),
+            ),
+        ).single() as RunTimelineStep.ToolCallGroup
+
+        val appendedGroup = compactRunToolCallSteps(
+            listOf(
+                assistantToolCall("tc1", command = "pwd"),
+                assistantToolCall("tc2", command = "ls"),
+                assistantToolCall("tc3", command = "date"),
+            ),
+        ).single() as RunTimelineStep.ToolCallGroup
+
+        assertEquals(initialGroup.key, appendedGroup.key)
+    }
+
+    @Test
     fun `consecutive tool-call compaction carries pending approval request`() {
         val approval = UiApprovalRequest(
             requestId = "approval-1",

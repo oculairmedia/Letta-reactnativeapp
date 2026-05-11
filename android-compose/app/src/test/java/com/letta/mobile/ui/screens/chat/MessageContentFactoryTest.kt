@@ -16,13 +16,10 @@ class MessageContentFactoryTest {
     }
 
     @Test
-    fun `tool call entrance animation is recorded only from side effect`() {
+    fun `tool call entrance animation is claimed synchronously`() {
         clearToolCallEntranceAnimationHistoryForTest()
 
         assertTrue(shouldRunToolCallEntranceAnimation(animateEntrance = true, key = "tool|call-a"))
-        assertTrue(shouldRunToolCallEntranceAnimation(animateEntrance = true, key = "tool|call-a"))
-
-        recordToolCallEntranceAnimationRun("tool|call-a")
         assertFalse(shouldRunToolCallEntranceAnimation(animateEntrance = true, key = "tool|call-a"))
 
         assertFalse(shouldRunToolCallEntranceAnimation(animateEntrance = false, key = "tool|call-b"))
