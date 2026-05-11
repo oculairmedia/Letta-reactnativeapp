@@ -1018,10 +1018,12 @@ internal fun CompactToolCallGroupCard(
 ) {
     val isPinchingForCard = LocalChatIsPinching.current
     Card(
-        modifier = modifier.then(
-            if (isPinchingForCard) Modifier
-            else Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec),
-        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (isPinchingForCard) Modifier
+                else Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec),
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
         ),
@@ -1155,7 +1157,7 @@ private fun CompactToolCallRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 22.dp, top = 2.dp, bottom = 4.dp),
+                    .padding(top = 2.dp, bottom = 4.dp),
             ) {
                 ToolCallExpandedSummary(
                     toolCall = toolCall,
@@ -1355,7 +1357,11 @@ private fun ToolCallExpandedBody(
     fontScale: Float,
 ) {
     val codeStyle = MaterialTheme.chatTypography.codeBlock
-    Column(modifier = Modifier.padding(top = 4.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    ) {
         Text(
             text = "Tool: ${toolCall.name}",
             style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
