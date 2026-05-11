@@ -87,17 +87,12 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
         if (isRobolectricRuntime()) {
             return
         }
+        runCatching {
+            AutomationAuthBootstrap.importPendingConfig(this, settingsRepository.get())
+        }.onFailure { error ->
+            Log.w("LettaApp", "Skipping automation auth bootstrap", error)
+        }
         clientModeController.get().initialize()
-        runCatching {
-            AutomationAuthBootstrap.importPendingConfig(this, settingsRepository.get())
-        }.onFailure { error ->
-            Log.w("LettaApp", "Skipping automation auth bootstrap", error)
-        }
-        runCatching {
-            AutomationAuthBootstrap.importPendingConfig(this, settingsRepository.get())
-        }.onFailure { error ->
-            Log.w("LettaApp", "Skipping automation auth bootstrap", error)
-        }
         runCatching {
             ProductionJankStatsMonitor.install(this)
         }.onFailure { error ->

@@ -27,6 +27,7 @@ import com.letta.mobile.crash.CrashReporter
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.ThemePreset
 import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.debug.AutomationAuthBootstrap
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
@@ -57,6 +58,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        ProfileCaptureKeyguardHelper.allowProfileCaptureLaunch(this)
+        importAutomationPayloadFromLaunchIntent()
         launchTarget = AppLaunchTarget.fromIntent(intent)
         enableEdgeToEdge()
         setContent {
@@ -151,6 +154,22 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        importAutomationPayloadFromLaunchIntent()
         launchTarget = AppLaunchTarget.fromIntent(intent)
+    }
+
+    private fun importAutomationPayloadFromLaunchIntent() {
+        val encodedPayload = intent.getStringExtra(AutomationAuthBootstrap.EXTRA_PAYLOAD_BASE64)
+            ?.trim()
+            .orEmpty()
+        if (encodedPayload.isBlank()) {
+            return
+        }
+        getSharedPreferences(AutomationAuthBootstrap.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(AutomationAuthBootstrap.KEY_PAYLOAD_BASE64, encodedPayload)
+            .commit()
+        AutomationAuthBootstrap.importPendingConfig(this, settingsRepository)
+        intent.removeExtra(AutomationAuthBootstrap.EXTRA_PAYLOAD_BASE64)
     }
 }
