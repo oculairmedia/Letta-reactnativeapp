@@ -30,6 +30,12 @@ import javax.inject.Singleton
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "letta_settings")
 private const val DEFAULT_CHAT_BACKGROUND_KEY = "default"
 
+data class LastChatSelection(
+    val agentId: String,
+    val agentName: String? = null,
+    val conversationId: String? = null,
+)
+
 @Singleton
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -50,6 +56,9 @@ class SettingsRepository @Inject constructor(
     private val _adminAgentId = MutableStateFlow<String?>(null)
     val adminAgentId: StateFlow<String?> = _adminAgentId.asStateFlow()
 
+    private val _lastChatSelection = MutableStateFlow<LastChatSelection?>(null)
+    val lastChatSelection: StateFlow<LastChatSelection?> = _lastChatSelection.asStateFlow()
+
     private object Keys {
         val CONFIGS = stringPreferencesKey("configs")
         val ACTIVE_CONFIG_ID = stringPreferencesKey("active_config_id")
@@ -60,8 +69,12 @@ class SettingsRepository @Inject constructor(
         val CHAT_BACKGROUND = stringPreferencesKey("chat_background")
         val FAVORITE_AGENT_ID = stringPreferencesKey("favorite_agent_id")
         val ADMIN_AGENT_ID = stringPreferencesKey("admin_agent_id")
+        val LAST_CHAT_AGENT_ID = stringPreferencesKey("last_chat_agent_id")
+        val LAST_CHAT_AGENT_NAME = stringPreferencesKey("last_chat_agent_name")
+        val LAST_CHAT_CONVERSATION_ID = stringPreferencesKey("last_chat_conversation_id")
         val PINNED_CONVERSATION_IDS = stringSetPreferencesKey("pinned_conversation_ids")
         val PINNED_AGENT_IDS = stringSetPreferencesKey("pinned_agent_ids")
+        val PINNED_PROJECT_IDS = stringSetPreferencesKey("pinned_project_ids")
         val CHAT_FONT_SCALE = floatPreferencesKey("chat_font_scale")
         val ENABLE_PROJECTS = booleanPreferencesKey("enable_projects")
         val PINNED_SHORTCUT_ORDER = stringPreferencesKey("pinned_shortcut_order")
@@ -74,6 +87,7 @@ class SettingsRepository @Inject constructor(
         loadActiveConfig()
         _favoriteAgentId.value = encryptedPrefs.getString(Keys.FAVORITE_AGENT_ID.name, null)
         _adminAgentId.value = encryptedPrefs.getString(Keys.ADMIN_AGENT_ID.name, null)
+        _lastChatSelection.value = loadLastChatSelection()
     }
 
     private fun loadConfigs() {
@@ -182,6 +196,42 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    fun setLastChatSelection(agentId: String, agentName: String?, conversationId: String?) {
+        val normalizedAgentId = agentId.takeIf { it.isNotBlank() } ?: return
+        val selection = LastChatSelection(
+            agentId = normalizedAgentId,
+            agentName = agentName?.takeIf { it.isNotBlank() },
+            conversationId = conversationId?.takeIf { it.isNotBlank() },
+        )
+        _lastChatSelection.update { selection }
+        val editor = encryptedPrefs.edit()
+            .putString(Keys.LAST_CHAT_AGENT_ID.name, selection.agentId)
+        if (selection.agentName != null) {
+            editor.putString(Keys.LAST_CHAT_AGENT_NAME.name, selection.agentName)
+        } else {
+            editor.remove(Keys.LAST_CHAT_AGENT_NAME.name)
+        }
+        if (selection.conversationId != null) {
+            editor.putString(Keys.LAST_CHAT_CONVERSATION_ID.name, selection.conversationId)
+        } else {
+            editor.remove(Keys.LAST_CHAT_CONVERSATION_ID.name)
+        }
+        editor.apply()
+    }
+
+    private fun loadLastChatSelection(): LastChatSelection? {
+        val agentId = encryptedPrefs.getString(Keys.LAST_CHAT_AGENT_ID.name, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        return LastChatSelection(
+            agentId = agentId,
+            agentName = encryptedPrefs.getString(Keys.LAST_CHAT_AGENT_NAME.name, null)
+                ?.takeIf { it.isNotBlank() },
+            conversationId = encryptedPrefs.getString(Keys.LAST_CHAT_CONVERSATION_ID.name, null)
+                ?.takeIf { it.isNotBlank() },
+        )
+    }
+
     suspend fun clearAllData() {
         encryptedPrefs.edit().clear().apply()
         dataStore.edit { it.clear() }
@@ -189,6 +239,7 @@ class SettingsRepository @Inject constructor(
         _activeConfig.update { null }
         _favoriteAgentId.update { null }
         _adminAgentId.update { null }
+        _lastChatSelection.update { null }
     }
 
     suspend fun setTheme(theme: AppTheme) {
@@ -248,6 +299,21 @@ class SettingsRepository @Inject constructor(
                 current + agentId
             } else {
                 current - agentId
+            }
+        }
+    }
+
+    fun getPinnedProjectIds(): Flow<Set<String>> = dataStore.data.map { prefs ->
+        prefs[Keys.PINNED_PROJECT_IDS] ?: emptySet()
+    }
+
+    suspend fun setProjectPinned(projectId: String, pinned: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.PINNED_PROJECT_IDS] ?: emptySet()
+            prefs[Keys.PINNED_PROJECT_IDS] = if (pinned) {
+                current + projectId
+            } else {
+                current - projectId
             }
         }
     }
