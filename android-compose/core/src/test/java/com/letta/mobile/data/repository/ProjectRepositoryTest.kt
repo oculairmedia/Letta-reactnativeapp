@@ -1,7 +1,11 @@
 package com.letta.mobile.data.repository
 
 import com.letta.mobile.data.api.ApiException
+import com.letta.mobile.data.model.ProjectDataFreshness
+import com.letta.mobile.data.model.ProjectRepoInfo
 import com.letta.mobile.data.model.ProjectSummary
+import com.letta.mobile.data.model.ProjectTrackerInfo
+import com.letta.mobile.data.model.ProjectTrackerSummary
 import com.letta.mobile.testutil.FakeProjectApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -96,6 +100,34 @@ class ProjectRepositoryTest {
         val project = repository.projects.first().single()
         assertEquals("not-a-timestamp", project.updatedAt)
         assertEquals(null, project.lastScanAt)
+        assertEquals("2026-04-13T07:45:15.930Z", project.lastSyncAt)
+    }
+
+    @Test
+    fun `refreshProjects flattens mobile project api repo and tracker summary fields`() = runTest {
+        fakeApi.projects.add(
+            ProjectSummary(
+                id = "LETMOB",
+                identifier = "LETMOB",
+                name = "Letta Mobile",
+                repo = ProjectRepoInfo(
+                    filesystemPath = "/opt/stacks/letta-mobile",
+                    remoteUrl = "https://token@github.com/oculairmedia/letta-mobile.git",
+                ),
+                tracker = ProjectTrackerInfo(
+                    summary = ProjectTrackerSummary(totalKnown = 42, ready = 5),
+                    dataFreshness = ProjectDataFreshness(lastSyncAt = "1776066315930"),
+                ),
+            )
+        )
+
+        repository.refreshProjects()
+
+        val project = repository.projects.first().single()
+        assertEquals("/opt/stacks/letta-mobile", project.filesystemPath)
+        assertEquals("https://github.com/oculairmedia/letta-mobile.git", project.gitUrl)
+        assertEquals(42, project.issueCount)
+        assertEquals(42, project.beadsIssueCount)
         assertEquals("2026-04-13T07:45:15.930Z", project.lastSyncAt)
     }
 

@@ -133,11 +133,16 @@ class ProjectRepository @Inject constructor(
     )
 
     private fun ProjectSummary.sanitize(): ProjectSummary = copy(
-        gitUrl = gitUrl?.let(::sanitizeGitUrl),
+        filesystemPath = filesystemPath ?: repo?.filesystemPath,
+        gitUrl = (gitUrl ?: repo?.remoteUrl)?.let(::sanitizeGitUrl),
+        lettaAgentId = lettaAgentId ?: agents?.defaultAgentId,
+        issueCount = issueCount ?: tracker?.summary?.totalKnown,
+        beadsIssueCount = beadsIssueCount ?: tracker?.summary?.totalKnown,
         updatedAt = normalizeTimestamp(updatedAt),
         lastScanAt = normalizeTimestamp(lastScanAt),
-        lastSyncAt = normalizeTimestamp(lastSyncAt),
+        lastSyncAt = normalizeTimestamp(lastSyncAt ?: tracker?.dataFreshness?.lastSyncAt),
         lastCheckedAt = normalizeTimestamp(lastCheckedAt),
+        lastActivityAt = normalizeTimestamp(lastActivityAt),
     )
 
     private fun sanitizeGitUrl(raw: String): String {

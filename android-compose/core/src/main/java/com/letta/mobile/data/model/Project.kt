@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class ProjectSummary(
+    val id: String? = null,
     val identifier: String,
     val name: String,
     @SerialName("filesystem_path") val filesystemPath: String? = null,
@@ -43,13 +44,88 @@ data class ProjectSummary(
     @SerialName("last_checked_at") val lastCheckedAt: String? = null,
     @Serializable(with = FlexibleBooleanSerializer::class)
     @SerialName("mcp_enabled") val mcpEnabled: Boolean? = null,
+    val repo: ProjectRepoInfo? = null,
+    val agents: ProjectAgentsInfo? = null,
+    val conversations: ProjectConversationsInfo? = null,
+    val tracker: ProjectTrackerInfo? = null,
+    @SerialName("last_activity_at") val lastActivityAt: String? = null,
+    val version: String? = null,
+    val etag: String? = null,
 )
 
 @Serializable
 data class ProjectCatalog(
-    val total: Int,
+    val total: Int? = null,
     val projects: List<ProjectSummary>,
     val timestamp: String? = null,
+)
+
+@Serializable
+data class ProjectDetailResponse(
+    val project: ProjectSummary,
+)
+
+@Serializable
+data class ProjectRepoInfo(
+    val provider: String? = null,
+    @SerialName("remote_url") val remoteUrl: String? = null,
+    @SerialName("filesystem_path") val filesystemPath: String? = null,
+    val branch: String? = null,
+    val dirty: Boolean? = null,
+)
+
+@Serializable
+data class ProjectAgentsInfo(
+    val total: Int? = null,
+    val active: Int? = null,
+    @SerialName("default_agent_id") val defaultAgentId: String? = null,
+)
+
+@Serializable
+data class ProjectConversationsInfo(
+    @SerialName("total_known") val totalKnown: Int? = null,
+    @SerialName("has_more") val hasMore: Boolean = false,
+    @SerialName("last_conversation_id") val lastConversationId: String? = null,
+)
+
+@Serializable
+data class ProjectTrackerInfo(
+    val provider: String? = null,
+    val status: String? = null,
+    @SerialName("data_freshness") val dataFreshness: ProjectDataFreshness? = null,
+    val capabilities: ProjectTrackerCapabilities? = null,
+    val summary: ProjectTrackerSummary? = null,
+)
+
+@Serializable
+data class ProjectDataFreshness(
+    val status: String? = null,
+    @SerialName("last_sync_at") val lastSyncAt: String? = null,
+    val error: String? = null,
+    @SerialName("is_stale") val isStale: Boolean = false,
+    @SerialName("stale_threshold_ms") val staleThresholdMs: Long? = null,
+)
+
+@Serializable
+data class ProjectTrackerCapabilities(
+    @SerialName("work_items") val workItems: Boolean = false,
+    val activity: Boolean = false,
+    val agents: Boolean = false,
+    val conversations: Boolean = false,
+    val priority: Boolean = false,
+    val status: Boolean = false,
+    @SerialName("parent_child") val parentChild: Boolean = false,
+    val labels: Boolean = false,
+    val dependencies: Boolean = false,
+)
+
+@Serializable
+data class ProjectTrackerSummary(
+    @SerialName("total_known") val totalKnown: Int? = null,
+    val ready: Int? = null,
+    @SerialName("in_progress") val inProgress: Int? = null,
+    val blocked: Int? = null,
+    @SerialName("closed_recent") val closedRecent: Int? = null,
 )
 
 @OptIn(ExperimentalSerializationApi::class)

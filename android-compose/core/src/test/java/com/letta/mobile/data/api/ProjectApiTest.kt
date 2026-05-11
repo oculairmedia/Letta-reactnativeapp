@@ -37,14 +37,14 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
     }
 
     @Test
-    fun `listProjects sends GET to registry endpoint`() = runTest {
+    fun `listProjects sends GET to projects endpoint`() = runTest {
         var capturedMethod: HttpMethod? = null
         var capturedUrl: String? = null
         val client = trackClient(HttpClient(MockEngine { request ->
             capturedMethod = request.method
             capturedUrl = request.url.toString()
             respond(
-                """{"total":1,"projects":[{"identifier":"GRAPH","name":"Graphiti"}]}""",
+                """{"projects":[{"id":"GRAPH","identifier":"GRAPH","name":"Graphiti","repo":{"remote_url":"https://github.com/example/graphiti.git","filesystem_path":"/opt/stacks/graphiti"},"tracker":{"summary":{"total_known":12,"ready":3}}}]}""",
                 HttpStatusCode.OK,
                 jsonHeaders,
             )
@@ -58,9 +58,10 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
         val result = api.listProjects()
 
         assertEquals(HttpMethod.Get, capturedMethod)
-        assertTrue(capturedUrl!!.endsWith("/api/registry/projects"))
-        assertEquals(1, result.total)
+        assertTrue(capturedUrl!!.endsWith("/api/projects"))
+        assertEquals(1, result.projects.size)
         assertEquals("GRAPH", result.projects.single().identifier)
+        assertEquals(3, result.projects.single().tracker?.summary?.ready)
     }
 
     @Test
@@ -69,7 +70,7 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
         val client = trackClient(HttpClient(MockEngine { request ->
             capturedUrl = request.url.toString()
             respond(
-                """{"identifier":"GRAPH","name":"Graphiti","letta_agent_id":"agent-1"}""",
+                """{"project":{"id":"GRAPH","identifier":"GRAPH","name":"Graphiti","letta_agent_id":"agent-1"}}""",
                 HttpStatusCode.OK,
                 jsonHeaders,
             )
@@ -82,7 +83,7 @@ class ProjectApiTest : com.letta.mobile.testutil.TrackedMockClientTestSupport() 
         val api = createApi(client, baseUrl = "http://test/")
         val result = api.getProject("GRAPH")
 
-        assertTrue(capturedUrl!!.endsWith("/api/registry/projects/GRAPH"))
+        assertTrue(capturedUrl!!.endsWith("/api/projects/GRAPH"))
         assertEquals("agent-1", result.lettaAgentId)
     }
 
