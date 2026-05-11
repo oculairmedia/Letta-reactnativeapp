@@ -5,6 +5,7 @@ import com.letta.mobile.data.api.AgentApi
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.BlockCreateParams
+import com.letta.mobile.data.paging.AgentPagingSource
 import com.letta.mobile.data.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +20,8 @@ class AdminAgentManager @Inject constructor(
         const val ADMIN_TAG = "letta-mobile-admin"
         private const val ADMIN_NAME = "Letta Mobile Admin"
         private const val ADMIN_DESCRIPTION = "Server administration assistant for Letta Mobile"
+        private const val LOOKUP_PAGE_SIZE = 50
+        private const val FALLBACK_FULL_FETCH_LIMIT = 5_000
         private val ADMIN_SYSTEM_PROMPT = """
             You are the Letta Mobile server administrator agent. You help the user manage their Letta server from their mobile device.
             
@@ -50,7 +53,7 @@ class AdminAgentManager @Inject constructor(
 
         // 2. Search ALL agents for one with our tag or name (belt + suspenders)
         try {
-            val allAgents = agentApi.listAgents(limit = 1000)
+            val allAgents = listAllAgentsForLookup()
             val byTag = allAgents.find { agent ->
                 agent.tags.contains(ADMIN_TAG)
             }
@@ -90,5 +93,34 @@ class AdminAgentManager @Inject constructor(
         settingsRepository.setAdminAgentId(created.id)
         Log.d(TAG, "Created admin agent: ${created.id}")
         return created
+    }
+
+    private suspend fun listAllAgentsForLookup(): List<Agent> {
+        val merged = mutableListOf<Agent>()
+        var offset = AgentPagingSource.INITIAL_OFFSET
+        while (true) {
+            val page = agentApi.listAgents(limit = LOOKUP_PAGE_SIZE, offset = offset)
+            if (page.isEmpty()) break
+
+            val existingIds = merged.asSequence().map { it.id }.toSet()
+            val newAgents = page.filter { it.id !in existingIds }
+            if (newAgents.isEmpty()) {
+                Log.w(TAG, "Agent lookup offset pagination made no progress; falling back to count-sized fetch")
+                return listAllAgentsWithoutOffsetFallback()
+            }
+
+            merged += newAgents
+            if (page.size < LOOKUP_PAGE_SIZE) break
+            offset += page.size
+        }
+        return merged
+    }
+
+    private suspend fun listAllAgentsWithoutOffsetFallback(): List<Agent> {
+        val fallbackLimit = runCatching { agentApi.countAgents() }
+            .getOrDefault(FALLBACK_FULL_FETCH_LIMIT)
+            .coerceAtLeast(LOOKUP_PAGE_SIZE)
+        return agentApi.listAgents(limit = fallbackLimit, offset = null)
+            .distinctBy { it.id }
     }
 }

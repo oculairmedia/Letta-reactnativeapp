@@ -18,6 +18,7 @@ class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
     val calls = mutableListOf<String>()
     val listLimits = mutableListOf<Int?>()
     val listOffsets = mutableListOf<Int?>()
+    var ignoreListOffset = false
     var exportPayloadByAgentId = mutableMapOf<String, String>()
 
     override suspend fun listAgents(limit: Int?, offset: Int?, tags: List<String>?): List<Agent> {
@@ -29,7 +30,14 @@ class FakeAgentApi : AgentApi(mockk(relaxed = true)) {
         val filtered = tags?.takeIf { it.isNotEmpty() }?.let { requiredTags ->
             agents.filter { agent -> requiredTags.all { it in agent.tags } }
         } ?: agents
-        return limit?.let { filtered.drop(offset ?: 0).take(it) } ?: filtered.toList()
+        val effectiveOffset = if (ignoreListOffset) 0 else offset ?: 0
+        return limit?.let { filtered.drop(effectiveOffset).take(it) } ?: filtered.toList()
+    }
+
+    override suspend fun countAgents(): Int {
+        calls.add("countAgents")
+        if (shouldFail) throw ApiException(failCode, failMessage)
+        return agents.size
     }
 
     override suspend fun getAgent(agentId: String): Agent {

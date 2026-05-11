@@ -49,8 +49,38 @@ class AgentRepositoryTest {
         repository.refreshAgents()
 
         assertEquals(125, repository.agents.value.size)
-        assertEquals(List(7) { 20 }, fakeApi.listLimits)
-        assertEquals(listOf(0, 20, 40, 60, 80, 100, 120), fakeApi.listOffsets)
+        assertEquals(List(3) { 50 }, fakeApi.listLimits)
+        assertEquals(listOf(0, 50, 100), fakeApi.listOffsets)
+    }
+
+    @Test
+    fun `refreshAgents hydrates beyond previous cache page ceiling`() = runTest {
+        repeat(425) { index ->
+            fakeApi.agents.add(TestData.agent(id = "a$index", name = "Agent $index"))
+        }
+
+        repository.refreshAgents()
+
+        assertEquals(425, repository.agents.value.size)
+        assertEquals(9, fakeApi.listLimits.size)
+        assertEquals((0..400 step 50).toList(), fakeApi.listOffsets)
+    }
+
+    @Test
+    fun `refreshAgents falls back to full fetch if offset pagination stops making progress`() = runTest {
+        repeat(125) { index ->
+            fakeApi.agents.add(TestData.agent(id = "a$index", name = "Agent $index"))
+        }
+        fakeApi.agents.add(TestData.agent(id = "meridian", name = "Meridian"))
+        fakeApi.ignoreListOffset = true
+
+        repository.refreshAgents()
+
+        assertEquals(126, repository.agents.value.size)
+        assertEquals("Meridian", repository.agents.value.single { it.id == "meridian" }.name)
+        assertEquals(listOf(50, 50, 126), fakeApi.listLimits)
+        assertEquals(listOf(0, 50, null), fakeApi.listOffsets)
+        assertEquals(1, fakeApi.calls.count { it == "countAgents" })
     }
 
     @Test

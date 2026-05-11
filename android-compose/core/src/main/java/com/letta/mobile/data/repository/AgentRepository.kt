@@ -72,7 +72,9 @@ class AgentRepository @Inject constructor(
     }
 
     private suspend fun refreshAgentsLocked() {
-        val fresh = fetchAgentsForCache()
+        val fresh = fetchAgentsForCache { partial ->
+            _agents.update { partial }
+        }
         _agents.update { fresh }
         lastRefreshAtMillis = System.currentTimeMillis()
         try {
@@ -88,21 +90,42 @@ class AgentRepository @Inject constructor(
         }
     }
 
-    private suspend fun fetchAgentsForCache(): List<Agent> {
+    private suspend fun fetchAgentsForCache(
+        onProgress: suspend (List<Agent>) -> Unit = {},
+    ): List<Agent> {
         val merged = mutableListOf<Agent>()
         var offset = AgentPagingSource.INITIAL_OFFSET
-        var pagesFetched = 0
-        while (pagesFetched < MAX_CACHE_REFRESH_PAGES) {
-            val page = agentApi.listAgents(limit = AgentPagingSource.PAGE_SIZE, offset = offset)
+        while (true) {
+            val page = agentApi.listAgents(limit = CACHE_REFRESH_PAGE_SIZE, offset = offset)
             if (page.isEmpty()) break
 
-            val existingIds = merged.map { it.id }.toSet()
-            merged += page.filter { it.id !in existingIds }
-            if (page.size < AgentPagingSource.PAGE_SIZE) break
+            val existingIds = merged.asSequence().map { it.id }.toSet()
+            val newAgents = page.filter { it.id !in existingIds }
+            if (newAgents.isEmpty()) {
+                Log.w("AgentRepository", "Agent list offset pagination made no progress; falling back to count-sized fetch")
+                return fetchAgentsWithoutOffsetFallback(onProgress)
+            }
+
+            merged += newAgents
+            onProgress(merged.toList())
+            if (page.size < CACHE_REFRESH_PAGE_SIZE) break
             offset += page.size
-            pagesFetched++
         }
         return merged
+    }
+
+    private suspend fun fetchAgentsWithoutOffsetFallback(
+        onProgress: suspend (List<Agent>) -> Unit,
+    ): List<Agent> {
+        val fallbackLimit = runCatching { agentApi.countAgents() }
+            .getOrDefault(FALLBACK_FULL_FETCH_LIMIT)
+            .coerceAtLeast(CACHE_REFRESH_PAGE_SIZE)
+        val fullList = agentApi.listAgents(limit = fallbackLimit, offset = null)
+            .distinctBy { it.id }
+        if (fullList.isNotEmpty()) {
+            onProgress(fullList)
+        }
+        return fullList
     }
 
     fun getCachedAgent(id: String): Agent? = _agents.value.find { it.id == id }
@@ -237,8 +260,8 @@ class AgentRepository @Inject constructor(
             }
         }
     }
-
     private companion object {
-        const val MAX_CACHE_REFRESH_PAGES = 20
+        const val CACHE_REFRESH_PAGE_SIZE = 50
+        const val FALLBACK_FULL_FETCH_LIMIT = 5_000
     }
 }
