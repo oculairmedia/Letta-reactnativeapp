@@ -7,6 +7,9 @@ import com.letta.mobile.data.api.ProjectIssueNoteRequest
 import com.letta.mobile.data.api.ProjectIssueReasonRequest
 import com.letta.mobile.data.api.ProjectIssueStatusRequest
 import com.letta.mobile.data.api.ProjectWorkApi
+import com.letta.mobile.data.model.IssueAnalyticsResponse
+import com.letta.mobile.data.model.IssueAnalyticsSummary
+import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import com.letta.mobile.data.model.ProjectIssueDetail
 import com.letta.mobile.data.model.ProjectIssueDetailResponse
 import com.letta.mobile.data.model.ProjectIssueListParams
@@ -20,6 +23,7 @@ import io.mockk.mockk
 class FakeProjectWorkApi : ProjectWorkApi(mockk(relaxed = true)) {
     val readyWork = mutableMapOf<String, List<ProjectIssueSummary>>()
     val issues = mutableMapOf<String, List<ProjectIssueSummary>>()
+    val issueAnalytics = mutableMapOf<String, IssueAnalyticsResponse>()
     val issueDetails = mutableMapOf<String, ProjectIssueDetail>()
     val calls = mutableListOf<String>()
     val mutationHeaders = mutableListOf<ProjectIssueMutationHeaders>()
@@ -37,13 +41,39 @@ class FakeProjectWorkApi : ProjectWorkApi(mockk(relaxed = true)) {
     }
 
     override suspend fun listIssues(projectId: String, params: ProjectIssueListParams): ProjectIssueListResponse {
-        calls.add("listIssues:$projectId:${params.ready}:${params.status}")
+        calls.add("listIssues:$projectId:${params.ready}:${params.status}:${params.limit}:${params.cursor}")
         if (shouldFail) throw ApiException(500, "Server error")
         val items = issues[projectId].orEmpty()
+        val start = params.cursor?.toIntOrNull() ?: 0
+        val limit = params.limit ?: items.size
+        val pageItems = items.drop(start).take(limit)
+        val nextOffset = start + pageItems.size
+        val hasMore = nextOffset < items.size
         return ProjectIssueListResponse(
             projectId = projectId,
-            issues = items,
-            page = ProjectIssuePage(limit = params.limit ?: items.size, hasMore = false, totalKnown = items.size),
+            issues = pageItems,
+            page = ProjectIssuePage(
+                limit = limit,
+                nextCursor = nextOffset.toString().takeIf { hasMore },
+                hasMore = hasMore,
+                totalKnown = items.size,
+            ),
+        )
+    }
+
+    override suspend fun getIssueAnalytics(
+        projectId: String,
+        params: ProjectIssueAnalyticsParams,
+    ): IssueAnalyticsResponse {
+        calls.add("getIssueAnalytics:$projectId:${params.granularity}:${params.timelineLimit}")
+        if (shouldFail) throw ApiException(500, "Server error")
+        return issueAnalytics[projectId] ?: IssueAnalyticsResponse(
+            projectId = projectId,
+            rangeStart = params.rangeStart,
+            rangeEnd = params.rangeEnd,
+            granularity = params.granularity,
+            timezone = params.timezone,
+            summary = IssueAnalyticsSummary(),
         )
     }
 

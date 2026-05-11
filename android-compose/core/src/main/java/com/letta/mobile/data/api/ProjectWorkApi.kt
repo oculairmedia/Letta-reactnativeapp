@@ -1,5 +1,7 @@
 package com.letta.mobile.data.api
 
+import com.letta.mobile.data.model.IssueAnalyticsResponse
+import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import com.letta.mobile.data.model.ProjectIssueConflictResponse
 import com.letta.mobile.data.model.ProjectIssueDetailResponse
 import com.letta.mobile.data.model.ProjectIssueListParams
@@ -84,6 +86,26 @@ open class ProjectWorkApi @Inject constructor(
             optionalParameter("sort", params.sort)
             optionalParameter("limit", params.limit)
             optionalParameter("cursor", params.cursor)
+        }
+        return response.bodyOrThrow()
+    }
+
+    open suspend fun getIssueAnalytics(
+        projectId: String,
+        params: ProjectIssueAnalyticsParams,
+    ): IssueAnalyticsResponse {
+        val response = client().get("${baseUrl()}/api/projects/$projectId/issue-analytics") {
+            optionalParameter("rangeStart", params.rangeStart)
+            optionalParameter("rangeEnd", params.rangeEnd)
+            optionalParameter("granularity", params.granularity)
+            optionalParameter("timezone", params.timezone)
+            optionalParameter("statusFilter", params.statusFilter)
+            optionalParameter("typeFilter", params.typeFilter)
+            optionalParameter("priorityFilter", params.priorityFilter)
+            optionalParameter("assigneeFilter", params.assigneeFilter)
+            optionalParameter("labelFilter", params.labelFilter)
+            optionalParameter("cursor", params.cursor)
+            optionalParameter("timelineLimit", params.timelineLimit)
         }
         return response.bodyOrThrow()
     }

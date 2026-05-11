@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.letta.mobile.data.model.IssueAnalyticsResponse
+import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import com.letta.mobile.data.model.ProjectIssueDetail
 import com.letta.mobile.data.model.ProjectIssueListParams
 import com.letta.mobile.data.model.ProjectIssueSummary
@@ -17,12 +19,14 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -41,9 +45,17 @@ data class ProjectIssuesUiState(
     val issues: ImmutableList<ProjectIssueSummary> = persistentListOf(),
     val completedTimeline: ImmutableList<ProjectIssueTimelineItem> = persistentListOf(),
     val creationBuckets: ImmutableList<ProjectIssueCreationBucket> = persistentListOf(),
+    val analyticsSummary: IssueAnalyticsSummaryUi? = null,
+    val analyticsIsPartial: Boolean = false,
+    val analyticsCompletionSource: String? = null,
+    val analyticsNotice: String? = null,
+    val timelineHasMore: Boolean = false,
     val searchQuery: String = "",
     val selectedStatus: String? = null,
     val isRefreshing: Boolean = false,
+    val isLoadingMoreIssues: Boolean = false,
+    val hasMoreIssues: Boolean = false,
+    val nextIssueCursor: String? = null,
 )
 
 @androidx.compose.runtime.Immutable
@@ -54,6 +66,8 @@ data class ProjectIssueTimelineItem(
     val statusLabel: String,
     val priority: String?,
     val type: String?,
+    val completedBy: String? = null,
+    val completionReason: String? = null,
 )
 
 @androidx.compose.runtime.Immutable
@@ -61,11 +75,27 @@ data class ProjectIssueCreationBucket(
     val date: String,
     val label: String,
     val count: Int,
+    val completedCount: Int = 0,
+)
+
+@androidx.compose.runtime.Immutable
+data class IssueAnalyticsSummaryUi(
+    val openCount: Int,
+    val inProgressCount: Int,
+    val completedCount: Int,
+    val blockedCount: Int,
+    val readyCount: Int,
+    val totalCreatedInRange: Int,
+    val totalCompletedInRange: Int,
 )
 
 private data class ProjectIssueAnalytics(
     val completedTimeline: ImmutableList<ProjectIssueTimelineItem>,
     val creationBuckets: ImmutableList<ProjectIssueCreationBucket>,
+    val summary: IssueAnalyticsSummaryUi?,
+    val isPartial: Boolean,
+    val completionSource: String?,
+    val timelineHasMore: Boolean,
 )
 
 @androidx.compose.runtime.Immutable
@@ -102,6 +132,41 @@ class ProjectIssuesViewModel @Inject constructor(
 
     fun refresh() = loadIssues(forceRefresh = true)
 
+    fun loadMoreIssues() {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return
+        if (current.isLoadingMoreIssues || current.hasMoreIssues.not()) return
+        val cursor = current.nextIssueCursor ?: return
+
+        viewModelScope.launch {
+            _uiState.value = UiState.Success(current.copy(isLoadingMoreIssues = true))
+            runCatching {
+                projectWorkRepository.refreshIssuePage(
+                    projectId = route.projectId,
+                    params = ProjectIssueListParams(
+                        limit = ISSUE_PAGE_SIZE,
+                        cursor = cursor,
+                        sort = "updated_desc",
+                    ),
+                )
+            }.onSuccess { page ->
+                val latest = (_uiState.value as? UiState.Success)?.data ?: current
+                val mergedIssues = (latest.issues + page.items).distinctBy(ProjectIssueSummary::id).toImmutableList()
+                _uiState.value = UiState.Success(
+                    latest.copy(
+                        issues = mergedIssues,
+                        hasMoreIssues = page.page.hasMore,
+                        nextIssueCursor = page.page.nextCursor,
+                        isLoadingMoreIssues = false,
+                    )
+                )
+            }.onFailure { error ->
+                val latest = (_uiState.value as? UiState.Success)?.data ?: current
+                _uiState.value = UiState.Success(latest.copy(isLoadingMoreIssues = false))
+                _events.trySend(ProjectIssuesUiEvent.ShowMessage(mapErrorToUserMessage(error.toException(), "Failed to load more project issues")))
+            }
+        }
+    }
+
     fun updateSearchQuery(query: String) {
         val current = (_uiState.value as? UiState.Success)?.data ?: return
         _uiState.value = UiState.Success(current.copy(searchQuery = query))
@@ -135,23 +200,36 @@ class ProjectIssuesViewModel @Inject constructor(
                 _uiState.value = UiState.Success(current.copy(isRefreshing = true))
             }
 
-            val readyResult = runCatching {
-                projectWorkRepository.refreshReadyWork(route.projectId, limit = 50)
-            }
-            val issuesResult = runCatching {
-                projectWorkRepository.refreshIssues(
-                    projectId = route.projectId,
-                    params = ProjectIssueListParams(limit = 100, sort = "updated_desc"),
+            val (readyResult, issuesResult, analyticsResult) = supervisorScope {
+                val readyDeferred = async {
+                    projectWorkRepository.refreshReadyWork(route.projectId, limit = ISSUE_PAGE_SIZE)
+                }
+                val issuesDeferred = async {
+                    projectWorkRepository.refreshIssuePage(
+                        projectId = route.projectId,
+                        params = ProjectIssueListParams(limit = ISSUE_PAGE_SIZE, sort = "updated_desc"),
+                    )
+                }
+                val analyticsDeferred = async {
+                    projectWorkRepository.refreshIssueAnalytics(
+                        projectId = route.projectId,
+                        params = defaultIssueAnalyticsParams(),
+                    )
+                }
+                Triple(
+                    runCatching { readyDeferred.await() },
+                    runCatching { issuesDeferred.await() },
+                    runCatching { analyticsDeferred.await() },
                 )
             }
 
-            issuesResult.onSuccess { issues ->
+            issuesResult.onSuccess { issuePage ->
+                val issues = issuePage.items
                 val ready = readyResult.getOrElse { emptyList() }
+                val analyticsError = analyticsResult.exceptionOrNull()
                 val analytics = withContext(Dispatchers.Default) {
-                    ProjectIssueAnalytics(
-                        completedTimeline = buildCompletedIssueTimeline(issues).toImmutableList(),
-                        creationBuckets = buildIssueCreationBuckets(issues).toImmutableList(),
-                    )
+                    analyticsResult.getOrNull()?.toProjectIssueAnalytics()
+                        ?: buildFallbackProjectIssueAnalytics(issues)
                 }
                 _uiState.value = UiState.Success(
                     ProjectIssuesUiState(
@@ -161,13 +239,28 @@ class ProjectIssuesViewModel @Inject constructor(
                         issues = issues.toImmutableList(),
                         completedTimeline = analytics.completedTimeline,
                         creationBuckets = analytics.creationBuckets,
+                        analyticsSummary = analytics.summary,
+                        analyticsIsPartial = analytics.isPartial,
+                        analyticsCompletionSource = analytics.completionSource,
+                        analyticsNotice = analyticsError?.let { error ->
+                            mapErrorToUserMessage(
+                                error.toException(),
+                                "Issue analytics is unavailable. Check that Server URL points to Vibesync.",
+                            )
+                        },
+                        timelineHasMore = analytics.timelineHasMore,
                         searchQuery = current?.searchQuery.orEmpty(),
                         selectedStatus = current?.selectedStatus,
                         isRefreshing = false,
+                        hasMoreIssues = issuePage.page.hasMore,
+                        nextIssueCursor = issuePage.page.nextCursor,
                     )
                 )
                 readyResult.exceptionOrNull()?.let { error ->
                     _events.trySend(ProjectIssuesUiEvent.ShowMessage(mapErrorToUserMessage(error.toException(), "Ready work is unavailable")))
+                }
+                analyticsResult.exceptionOrNull()?.let { error ->
+                    _events.trySend(ProjectIssuesUiEvent.ShowMessage(mapErrorToUserMessage(error.toException(), "Issue analytics is unavailable")))
                 }
             }.onFailure { error ->
                 val message = mapErrorToUserMessage(error.toException(), "Failed to load project issues")
@@ -179,6 +272,10 @@ class ProjectIssuesViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    companion object {
+        private const val ISSUE_PAGE_SIZE = 50
     }
 }
 
@@ -276,6 +373,69 @@ class ProjectIssueDetailViewModel @Inject constructor(
 }
 
 private fun Throwable.toException(): Exception = this as? Exception ?: Exception(this)
+
+private fun defaultIssueAnalyticsParams(
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    now: Instant = Instant.now(),
+): ProjectIssueAnalyticsParams {
+    val today = now.atZone(zoneId).toLocalDate()
+    return ProjectIssueAnalyticsParams(
+        rangeStart = today.minusDays(29).atStartOfDay(zoneId).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+        rangeEnd = today.plusDays(1).atStartOfDay(zoneId).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+        granularity = "day",
+        timezone = zoneId.id,
+        timelineLimit = 30,
+    )
+}
+
+private fun IssueAnalyticsResponse.toProjectIssueAnalytics(): ProjectIssueAnalytics {
+    val completedByBucketStart = this.completedBuckets.associateBy { it.bucketStart }
+    return ProjectIssueAnalytics(
+        completedTimeline = this.completedTimeline.map { issue ->
+            ProjectIssueTimelineItem(
+                id = issue.issueId,
+                title = issue.title,
+                completedAt = issue.completedAt,
+                statusLabel = issue.statusLabel.ifBlank { issue.status },
+                priority = issue.priority,
+                type = issue.type.ifBlank { null },
+                completedBy = issue.completedBy,
+                completionReason = issue.completionReason,
+            )
+        }.toImmutableList(),
+        creationBuckets = this.createdBuckets.map { bucket ->
+            ProjectIssueCreationBucket(
+                date = bucket.bucketStart,
+                label = bucket.label,
+                count = bucket.createdCount,
+                completedCount = completedByBucketStart[bucket.bucketStart]?.completedCount ?: 0,
+            )
+        }.toImmutableList(),
+        summary = IssueAnalyticsSummaryUi(
+            openCount = this.summary.openCount,
+            inProgressCount = this.summary.inProgressCount,
+            completedCount = this.summary.completedCount,
+            blockedCount = this.summary.blockedCount,
+            readyCount = this.summary.readyCount,
+            totalCreatedInRange = this.summary.totalCreatedInRange,
+            totalCompletedInRange = this.summary.totalCompletedInRange,
+        ),
+        isPartial = this.isPartial,
+        completionSource = this.completionSource,
+        timelineHasMore = this.timelinePage.hasMore,
+    )
+}
+
+private fun buildFallbackProjectIssueAnalytics(
+    issues: List<ProjectIssueSummary>,
+): ProjectIssueAnalytics = ProjectIssueAnalytics(
+    completedTimeline = buildCompletedIssueTimeline(issues).toImmutableList(),
+    creationBuckets = buildIssueCreationBuckets(issues).toImmutableList(),
+    summary = null,
+    isPartial = true,
+    completionSource = "client_issue_list_fallback",
+    timelineHasMore = false,
+)
 
 internal fun buildCompletedIssueTimeline(
     issues: List<ProjectIssueSummary>,

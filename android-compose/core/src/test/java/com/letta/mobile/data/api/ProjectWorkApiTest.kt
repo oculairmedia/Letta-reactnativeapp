@@ -1,5 +1,6 @@
 package com.letta.mobile.data.api
 
+import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -53,6 +54,84 @@ class ProjectWorkApiTest : com.letta.mobile.testutil.TrackedMockClientTestSuppor
         assertTrue(capturedUrl.contains("limit=10"))
         assertTrue(capturedUrl.contains("cursor=next"))
         assertEquals("letta-mobile-qmbg", result.readyWork.single().id)
+    }
+
+    @Test
+    fun `getIssueAnalytics sends analytics query and parses flexible priority`() = runTest {
+        var capturedUrl: String? = null
+        val client = trackClient(HttpClient(MockEngine { request ->
+            capturedUrl = request.url.toString()
+            respond(issueAnalyticsJson, HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val result = createApi(client).getIssueAnalytics(
+            projectId = "letta-mobile",
+            params = ProjectIssueAnalyticsParams(
+                rangeStart = "2026-05-01T00:00:00-04:00",
+                rangeEnd = "2026-05-12T00:00:00-04:00",
+                granularity = "day",
+                timezone = "America/Toronto",
+                statusFilter = "closed",
+                typeFilter = "feature",
+                priorityFilter = "high",
+                assigneeFilter = "emmanuel",
+                labelFilter = "android",
+                timelineLimit = 20,
+            ),
+        )
+
+        assertTrue(capturedUrl!!.startsWith("http://test/api/projects/letta-mobile/issue-analytics"))
+        assertTrue(capturedUrl.contains("rangeStart=2026-05-01T00%3A00%3A00-04%3A00"))
+        assertTrue(capturedUrl.contains("rangeEnd=2026-05-12T00%3A00%3A00-04%3A00"))
+        assertTrue(capturedUrl.contains("granularity=day"))
+        assertTrue(capturedUrl.contains("timezone=America%2FToronto"))
+        assertTrue(capturedUrl.contains("statusFilter=closed"))
+        assertTrue(capturedUrl.contains("typeFilter=feature"))
+        assertTrue(capturedUrl.contains("priorityFilter=high"))
+        assertTrue(capturedUrl.contains("assigneeFilter=emmanuel"))
+        assertTrue(capturedUrl.contains("labelFilter=android"))
+        assertTrue(capturedUrl.contains("timelineLimit=20"))
+        assertEquals(3, result.createdBuckets.single().createdCount)
+        assertEquals("2", result.completedTimeline.single().priority)
+        assertEquals("issue_close_metadata", result.completionSource)
+        assertEquals(true, result.isPartial)
+    }
+
+    @Test
+    fun `getIssueAnalytics parses snake case analytics payload`() = runTest {
+        val client = trackClient(HttpClient(MockEngine {
+            respond(issueAnalyticsSnakeCaseJson, HttpStatusCode.OK, jsonHeaders)
+        }) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false })
+            }
+        })
+
+        val result = createApi(client).getIssueAnalytics(
+            projectId = "letta-mobile",
+            params = ProjectIssueAnalyticsParams(
+                rangeStart = "2026-05-01T00:00:00-04:00",
+                rangeEnd = "2026-05-12T00:00:00-04:00",
+                granularity = "day",
+                timezone = "America/Toronto",
+                timelineLimit = 20,
+            ),
+        )
+
+        assertEquals("letta-mobile", result.projectId)
+        assertEquals(3, result.createdBuckets.single().createdCount)
+        assertEquals(1, result.completedBuckets.single().completedCount)
+        assertEquals("letta-mobile-123", result.completedTimeline.single().issueId)
+        assertEquals("2026-05-10T18:24:11Z", result.completedTimeline.single().completedAt)
+        assertEquals("2", result.completedTimeline.single().priority)
+        assertEquals(3, result.summary.totalCreatedInRange)
+        assertEquals("issue_close_metadata", result.completionSource)
+        assertEquals(true, result.isPartial)
+        assertEquals(false, result.timelinePage.hasMore)
     }
 
     @Test
@@ -154,6 +233,114 @@ class ProjectWorkApiTest : com.letta.mobile.testutil.TrackedMockClientTestSuppor
             "metadata": {"deleted_from_huly": false, "deleted_from_vibe": false}
           },
           "timestamp": "2026-05-10T20:00:00.000Z"
+        }
+    """.trimIndent()
+
+    private val issueAnalyticsJson = """
+        {
+          "schema_version": 1,
+          "projectId": "letta-mobile",
+          "rangeStart": "2026-05-01T00:00:00-04:00",
+          "rangeEnd": "2026-05-12T00:00:00-04:00",
+          "granularity": "day",
+          "timezone": "America/Toronto",
+          "createdBuckets": [{
+            "bucketStart": "2026-05-01T00:00:00-04:00",
+            "bucketEnd": "2026-05-02T00:00:00-04:00",
+            "label": "May 1",
+            "createdCount": 3
+          }],
+          "completedBuckets": [{
+            "bucketStart": "2026-05-01T00:00:00-04:00",
+            "bucketEnd": "2026-05-02T00:00:00-04:00",
+            "label": "May 1",
+            "completedCount": 1
+          }],
+          "completedTimeline": [{
+            "issueId": "letta-mobile-123",
+            "title": "Ship analytics",
+            "status": "closed",
+            "statusLabel": "Closed",
+            "completedAt": "2026-05-10T18:24:11Z",
+            "createdAt": "2026-05-08T12:04:00Z",
+            "updatedAt": "2026-05-10T18:24:11Z",
+            "priority": 2,
+            "type": "feature",
+            "assignee": "emmanuel",
+            "labels": ["android"],
+            "completedBy": "emmanuel",
+            "completionReason": "done"
+          }],
+          "summary": {
+            "openCount": 4,
+            "inProgressCount": 1,
+            "completedCount": 5,
+            "blockedCount": 2,
+            "readyCount": 3,
+            "totalCreatedInRange": 3,
+            "totalCompletedInRange": 1
+          },
+          "nextTimelineCursor": null,
+          "timelinePage": {"limit": 20, "has_more": false, "total_known": 1},
+          "completionSource": "issue_close_metadata",
+          "isPartial": true,
+          "etag": "analytics:1",
+          "data_freshness": {"status": "available", "source": "beads", "is_stale": false, "stale_threshold_ms": 60000},
+          "generatedAt": "2026-05-11T15:42:00Z"
+        }
+    """.trimIndent()
+
+    private val issueAnalyticsSnakeCaseJson = """
+        {
+          "schema_version": 1,
+          "project_id": "letta-mobile",
+          "range_start": "2026-05-01T00:00:00-04:00",
+          "range_end": "2026-05-12T00:00:00-04:00",
+          "granularity": "day",
+          "timezone": "America/Toronto",
+          "created_buckets": [{
+            "bucket_start": "2026-05-01T00:00:00-04:00",
+            "bucket_end": "2026-05-02T00:00:00-04:00",
+            "label": "May 1",
+            "created_count": 3
+          }],
+          "completed_buckets": [{
+            "bucket_start": "2026-05-01T00:00:00-04:00",
+            "bucket_end": "2026-05-02T00:00:00-04:00",
+            "label": "May 1",
+            "completed_count": 1
+          }],
+          "completed_timeline": [{
+            "issue_id": "letta-mobile-123",
+            "title": "Ship analytics",
+            "status": "closed",
+            "status_label": "Closed",
+            "completed_at": "2026-05-10T18:24:11Z",
+            "created_at": "2026-05-08T12:04:00Z",
+            "updated_at": "2026-05-10T18:24:11Z",
+            "priority": 2,
+            "type": "feature",
+            "assignee": "emmanuel",
+            "labels": ["android"],
+            "completed_by": "emmanuel",
+            "completion_reason": "done"
+          }],
+          "summary": {
+            "open_count": 4,
+            "in_progress_count": 1,
+            "completed_count": 5,
+            "blocked_count": 2,
+            "ready_count": 3,
+            "total_created_in_range": 3,
+            "total_completed_in_range": 1
+          },
+          "next_timeline_cursor": null,
+          "timeline_page": {"limit": 20, "has_more": false, "total_known": 1},
+          "completion_source": "issue_close_metadata",
+          "is_partial": true,
+          "etag": "analytics:1",
+          "data_freshness": {"status": "available", "source": "beads", "is_stale": false, "stale_threshold_ms": 60000},
+          "generated_at": "2026-05-11T15:42:00Z"
         }
     """.trimIndent()
 

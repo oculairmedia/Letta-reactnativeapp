@@ -2,6 +2,8 @@ package com.letta.mobile.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.JsonNames
 
 @Serializable
 data class ProjectReadyWorkResponse(
@@ -44,6 +46,141 @@ data class ProjectIssueMutationResponse(
     @SerialName("idempotent_replay") val idempotentReplay: Boolean = false,
     val issue: ProjectIssueSummary,
     val timestamp: String? = null,
+)
+
+@Serializable
+data class IssueAnalyticsResponse(
+    @SerialName("schema_version") val schemaVersion: Int = 1,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("projectId")
+    @SerialName("project_id") val projectId: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("rangeStart")
+    @SerialName("range_start") val rangeStart: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("rangeEnd")
+    @SerialName("range_end") val rangeEnd: String = "",
+    val granularity: String = "",
+    val timezone: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("createdBuckets")
+    @SerialName("created_buckets") val createdBuckets: List<CreatedBucket> = emptyList(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedBuckets")
+    @SerialName("completed_buckets") val completedBuckets: List<CompletedBucket> = emptyList(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedTimeline")
+    @SerialName("completed_timeline") val completedTimeline: List<CompletedTimelineIssue> = emptyList(),
+    val summary: IssueAnalyticsSummary = IssueAnalyticsSummary(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("nextTimelineCursor")
+    @SerialName("next_timeline_cursor") val nextTimelineCursor: String? = null,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("timelinePage")
+    @SerialName("timeline_page") val timelinePage: TimelinePage = TimelinePage(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completionSource")
+    @SerialName("completion_source") val completionSource: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("isPartial")
+    @SerialName("is_partial") val isPartial: Boolean = false,
+    val etag: String = "",
+    @SerialName("data_freshness") val dataFreshness: ProjectDataFreshness? = null,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("generatedAt")
+    @SerialName("generated_at") val generatedAt: String = "",
+)
+
+@Serializable
+data class CreatedBucket(
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("bucketStart")
+    @SerialName("bucket_start") val bucketStart: String,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("bucketEnd")
+    @SerialName("bucket_end") val bucketEnd: String,
+    val label: String,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("createdCount")
+    @SerialName("created_count") val createdCount: Int,
+)
+
+@Serializable
+data class CompletedBucket(
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("bucketStart")
+    @SerialName("bucket_start") val bucketStart: String,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("bucketEnd")
+    @SerialName("bucket_end") val bucketEnd: String,
+    val label: String,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedCount")
+    @SerialName("completed_count") val completedCount: Int,
+)
+
+@Serializable
+data class CompletedTimelineIssue(
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("issueId")
+    @SerialName("issue_id") val issueId: String,
+    val title: String = "",
+    val status: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("statusLabel")
+    @SerialName("status_label") val statusLabel: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedAt")
+    @SerialName("completed_at") val completedAt: String = "",
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("createdAt")
+    @SerialName("created_at") val createdAt: String? = null,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("updatedAt")
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val priority: String? = null,
+    val type: String = "",
+    val assignee: String? = null,
+    val labels: List<String> = emptyList(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedBy")
+    @SerialName("completed_by") val completedBy: String? = null,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completionReason")
+    @SerialName("completion_reason") val completionReason: String? = null,
+)
+
+@Serializable
+data class IssueAnalyticsSummary(
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("openCount")
+    @SerialName("open_count") val openCount: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("inProgressCount")
+    @SerialName("in_progress_count") val inProgressCount: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("completedCount")
+    @SerialName("completed_count") val completedCount: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("blockedCount")
+    @SerialName("blocked_count") val blockedCount: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("readyCount")
+    @SerialName("ready_count") val readyCount: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("totalCreatedInRange")
+    @SerialName("total_created_in_range") val totalCreatedInRange: Int = 0,
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("totalCompletedInRange")
+    @SerialName("total_completed_in_range") val totalCompletedInRange: Int = 0,
+)
+
+@Serializable
+data class TimelinePage(
+    val limit: Int = 0,
+    @SerialName("has_more") val hasMore: Boolean = false,
+    @SerialName("total_known") val totalKnown: Int = 0,
 )
 
 @Serializable
@@ -170,4 +307,18 @@ data class ProjectIssueListParams(
     val sort: String? = null,
     val limit: Int? = null,
     val cursor: String? = null,
+)
+
+data class ProjectIssueAnalyticsParams(
+    val rangeStart: String,
+    val rangeEnd: String,
+    val granularity: String,
+    val timezone: String,
+    val statusFilter: String? = null,
+    val typeFilter: String? = null,
+    val priorityFilter: String? = null,
+    val assigneeFilter: String? = null,
+    val labelFilter: String? = null,
+    val cursor: String? = null,
+    val timelineLimit: Int? = null,
 )

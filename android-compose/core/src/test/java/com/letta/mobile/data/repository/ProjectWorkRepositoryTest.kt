@@ -47,7 +47,33 @@ class ProjectWorkRepositoryTest {
 
         assertEquals(listOf("letta-mobile-m1sq"), result.map { it.id })
         assertEquals(result, repository.issuesByProject.first()["letta-mobile"])
-        assertTrue(fakeApi.calls.contains("listIssues:letta-mobile:false:open"))
+        assertTrue(fakeApi.calls.contains("listIssues:letta-mobile:false:open:20:null"))
+    }
+
+    @Test
+    fun `refreshIssuePage appends cursor pages without replacing previous issues`() = runTest {
+        fakeApi.issues["letta-mobile"] = listOf(
+            issue("letta-mobile-1"),
+            issue("letta-mobile-2"),
+            issue("letta-mobile-3"),
+        )
+
+        val firstPage = repository.refreshIssuePage(
+            projectId = "letta-mobile",
+            params = ProjectIssueListParams(limit = 2, sort = "updated_desc"),
+        )
+        val secondPage = repository.refreshIssuePage(
+            projectId = "letta-mobile",
+            params = ProjectIssueListParams(limit = 2, cursor = firstPage.page.nextCursor, sort = "updated_desc"),
+        )
+
+        assertEquals(listOf("letta-mobile-1", "letta-mobile-2"), firstPage.items.map { it.id })
+        assertEquals(listOf("letta-mobile-3"), secondPage.items.map { it.id })
+        assertEquals(
+            listOf("letta-mobile-1", "letta-mobile-2", "letta-mobile-3"),
+            repository.issuesByProject.first()["letta-mobile"]?.map { it.id },
+        )
+        assertEquals(false, secondPage.page.hasMore)
     }
 
     @Test

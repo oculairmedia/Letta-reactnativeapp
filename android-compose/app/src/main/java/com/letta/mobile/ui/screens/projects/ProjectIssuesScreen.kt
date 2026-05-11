@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -174,11 +175,18 @@ fun ProjectIssuesScreen(
                             )
                         }
                         item {
-                            ProjectIssueCreationChartCard(buckets = state.data.creationBuckets)
+                            ProjectIssueCreationChartCard(
+                                buckets = state.data.creationBuckets,
+                                summary = state.data.analyticsSummary,
+                                notice = state.data.analyticsNotice,
+                            )
                         }
                         item {
                             ProjectIssueCompletedTimelineCard(
                                 items = state.data.completedTimeline,
+                                isPartial = state.data.analyticsIsPartial,
+                                completionSource = state.data.analyticsCompletionSource,
+                                hasMore = state.data.timelineHasMore,
                                 onIssueClick = onNavigateToIssue,
                             )
                         }
@@ -214,8 +222,16 @@ fun ProjectIssuesScreen(
                                 )
                             }
                         } else {
-                            items(filteredIssues, key = { it.id }) { issue ->
+                            itemsIndexed(filteredIssues, key = { _, issue -> issue.id }) { index, issue ->
+                                if (index == filteredIssues.lastIndex && state.data.hasMoreIssues && state.data.isLoadingMoreIssues.not()) {
+                                    LaunchedEffect(issue.id, state.data.hasMoreIssues) {
+                                        viewModel.loadMoreIssues()
+                                    }
+                                }
                                 ProjectIssueCard(issue = issue, onClick = { onNavigateToIssue(issue.id) })
+                            }
+                            if (state.data.isLoadingMoreIssues) {
+                                item { ShimmerBox(height = 104.dp, widthFraction = 1f) }
                             }
                         }
                     }
@@ -381,6 +397,8 @@ private fun IssueFilterRow(
 @Composable
 private fun ProjectIssueCreationChartCard(
     buckets: List<ProjectIssueCreationBucket>,
+    summary: IssueAnalyticsSummaryUi?,
+    notice: String?,
     modifier: Modifier = Modifier,
 ) {
     val values = remember(buckets) { buckets.map { it.count } }
@@ -400,6 +418,21 @@ private fun ProjectIssueCreationChartCard(
                 text = stringResource(R.string.screen_project_issues_created_chart_title),
                 style = MaterialTheme.typography.titleMedium,
             )
+            summary?.let {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    IssueMetaChip(stringResource(R.string.screen_project_issues_analytics_created_total, it.totalCreatedInRange))
+                    IssueMetaChip(stringResource(R.string.screen_project_issues_analytics_completed_total, it.totalCompletedInRange))
+                }
+            }
+            notice?.let { message ->
+                AssistChip(
+                    onClick = {},
+                    label = { Text(message) },
+                )
+            }
 
             if (values.isEmpty() || values.all { it == 0 }) {
                 Box(
@@ -455,6 +488,9 @@ private fun ProjectIssueCreationChartCard(
 @Composable
 private fun ProjectIssueCompletedTimelineCard(
     items: List<ProjectIssueTimelineItem>,
+    isPartial: Boolean,
+    completionSource: String?,
+    hasMore: Boolean,
     onIssueClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -472,6 +508,9 @@ private fun ProjectIssueCompletedTimelineCard(
                 text = stringResource(R.string.screen_project_issues_completed_timeline_title),
                 style = MaterialTheme.typography.titleMedium,
             )
+            if (isPartial && completionSource == "issue_close_metadata") {
+                IssueMetaChip(stringResource(R.string.screen_project_issues_completion_metadata_partial))
+            }
 
             if (items.isEmpty()) {
                 EmptyState(
@@ -508,6 +547,13 @@ private fun ProjectIssueCompletedTimelineCard(
                             onClick = { onIssueClick(item.id) },
                         )
                     }
+                }
+                if (hasMore) {
+                    Text(
+                        text = stringResource(R.string.screen_project_issues_timeline_more_available),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

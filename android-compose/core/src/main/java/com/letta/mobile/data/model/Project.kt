@@ -102,6 +102,7 @@ data class ProjectDataFreshness(
     val status: String? = null,
     @SerialName("last_sync_at") val lastSyncAt: String? = null,
     val error: String? = null,
+    val source: String? = null,
     @SerialName("is_stale") val isStale: Boolean = false,
     @SerialName("stale_threshold_ms") val staleThresholdMs: Long? = null,
 )

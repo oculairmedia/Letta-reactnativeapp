@@ -143,9 +143,13 @@
     <string name="screen_project_issues_blocked_label">Blocked</string>
     <string name="screen_project_issues_created_chart_title">Issue creation volume</string>
     <string name="screen_project_issues_created_chart_empty">No issue creation dates available yet.</string>
+    <string name="screen_project_issues_analytics_created_total">Created %1$d</string>
+    <string name="screen_project_issues_analytics_completed_total">Completed %1$d</string>
     <string name="screen_project_issues_completed_timeline_title">Completed issue timeline</string>
     <string name="screen_project_issues_completed_timeline_empty">No completed issues yet.</string>
     <string name="screen_project_issues_completed_at">Completed %1$s</string>
+    <string name="screen_project_issues_completion_metadata_partial">Best available completion metadata</string>
+    <string name="screen_project_issues_timeline_more_available">More completed issues available</string>
     <string name="screen_project_issue_detail_title">Issue detail</string>
     <string name="screen_project_issue_claim_action">Claim issue</string>
     <string name="screen_project_issue_unclaim_action">Clear assignee</string>

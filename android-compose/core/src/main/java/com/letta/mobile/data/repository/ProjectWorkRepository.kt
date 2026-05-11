@@ -6,8 +6,11 @@ import com.letta.mobile.data.api.ProjectIssueNoteRequest
 import com.letta.mobile.data.api.ProjectIssueReasonRequest
 import com.letta.mobile.data.api.ProjectIssueStatusRequest
 import com.letta.mobile.data.api.ProjectWorkApi
+import com.letta.mobile.data.model.IssueAnalyticsResponse
+import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import com.letta.mobile.data.model.ProjectIssueDetail
 import com.letta.mobile.data.model.ProjectIssueListParams
+import com.letta.mobile.data.model.ProjectIssueListResponse
 import com.letta.mobile.data.model.ProjectIssueSummary
 import java.util.UUID
 import javax.inject.Inject
@@ -32,7 +35,11 @@ class ProjectWorkRepository @Inject constructor(
     private val _issueDetails = MutableStateFlow<Map<String, ProjectIssueDetail>>(emptyMap())
     val issueDetails: StateFlow<Map<String, ProjectIssueDetail>> = _issueDetails.asStateFlow()
 
+    private val _issueAnalyticsByProject = MutableStateFlow<Map<String, IssueAnalyticsResponse>>(emptyMap())
+    val issueAnalyticsByProject: StateFlow<Map<String, IssueAnalyticsResponse>> = _issueAnalyticsByProject.asStateFlow()
+
     private val refreshMutex = Mutex()
+    private val analyticsRefreshMutex = Mutex()
 
     suspend fun refreshReadyWork(projectId: String, limit: Int? = null, cursor: String? = null): List<ProjectIssueSummary> =
         refreshMutex.withLock {
@@ -48,6 +55,31 @@ class ProjectWorkRepository @Inject constructor(
         val response = projectWorkApi.listIssues(projectId, params)
         _issuesByProject.update { current -> current + (projectId to response.items) }
         response.items
+    }
+
+    suspend fun refreshIssuePage(
+        projectId: String,
+        params: ProjectIssueListParams = ProjectIssueListParams(),
+    ): ProjectIssueListResponse = refreshMutex.withLock {
+        val response = projectWorkApi.listIssues(projectId, params)
+        _issuesByProject.update { current ->
+            val mergedItems = if (params.cursor == null) {
+                response.items
+            } else {
+                (current[projectId].orEmpty() + response.items).distinctBy(ProjectIssueSummary::id)
+            }
+            current + (projectId to mergedItems)
+        }
+        response
+    }
+
+    suspend fun refreshIssueAnalytics(
+        projectId: String,
+        params: ProjectIssueAnalyticsParams,
+    ): IssueAnalyticsResponse = analyticsRefreshMutex.withLock {
+        val response = projectWorkApi.getIssueAnalytics(projectId, params)
+        _issueAnalyticsByProject.update { current -> current + (projectId to response) }
+        response
     }
 
     suspend fun getIssue(issueId: String, forceRefresh: Boolean = false): ProjectIssueDetail {
