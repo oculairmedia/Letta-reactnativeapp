@@ -95,7 +95,7 @@ fun LettaChatTheme(
         ChatColors(
             userBubble = colorScheme.primaryContainer,
             userText = colorScheme.onPrimaryContainer,
-            userRoleLabel = colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+            userRoleLabel = colorScheme.onPrimaryContainer.copy(alpha = 0.86f),
             agentBubble = colorScheme.surfaceContainerLow,
             agentText = colorScheme.onSurface,
             agentRoleLabel = colorScheme.primary,
@@ -125,7 +125,7 @@ fun LettaChatTheme(
                 fontFamily = FontFamily.Monospace,
             ).scaledBy(fontScale),
             timestamp = materialTypography.labelSmall.copy(
-                color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                color = colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
             ).scaledBy(fontScale),
         )
     }

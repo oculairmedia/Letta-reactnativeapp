@@ -1025,11 +1025,11 @@ internal fun CompactToolCallGroupCard(
                 else Modifier.animateContentSize(animationSpec = ChatMotion.contentSizeSpec),
             ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.82f),
         ),
     ) {
         Column(
@@ -1146,7 +1146,7 @@ private fun CompactToolCallRow(
                 modifier = Modifier
                     .size(14.dp)
                     .rotate(chevronRotation),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
             )
         }
         AnimatedVisibility(
@@ -1238,8 +1238,8 @@ private fun AnimatedToolApprovalChip(state: ToolApprovalState?) {
 private fun ToolApprovalChip(state: ToolApprovalState) {
     val container = when (state) {
         ToolApprovalState.RequestingInput -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
-        ToolApprovalState.Approved -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        ToolApprovalState.Rejected -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+        ToolApprovalState.Approved -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+        ToolApprovalState.Rejected -> MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
     }
     val text = when (state) {
         ToolApprovalState.RequestingInput -> stringResource(R.string.screen_chat_tool_approval_chip_requesting_input)
@@ -1268,7 +1268,7 @@ private fun ToolApprovalChip(state: ToolApprovalState) {
 private fun ToolMetaChip(text: String) {
     Surface(
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.88f),
     ) {
         Text(
             text = text,
@@ -1296,7 +1296,7 @@ private fun ToolSummaryLine(
             color = if (isError) {
                 MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
             },
         )
         Text(
@@ -1365,20 +1365,20 @@ private fun ToolCallExpandedBody(
         Text(
             text = "Tool: ${toolCall.name}",
             style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
         )
         executionTimeText?.let { time ->
             Text(
                 text = "Execution time: $time",
                 style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
             )
         }
         display.detailLine?.let { detail ->
             Text(
                 text = detail,
                 style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1388,7 +1388,7 @@ private fun ToolCallExpandedBody(
             Text(
                 text = "Arguments",
                 style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             )
             Text(
                 text = toolCall.arguments,
@@ -1419,7 +1419,7 @@ private fun ToolCallExpandedBody(
                     color = if (isError) {
                         MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -1428,7 +1428,7 @@ private fun ToolCallExpandedBody(
                     Text(
                         text = if (resultExpanded) "collapse" else "${lineCount} line${if (lineCount == 1) "" else "s"}",
                         style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                 }
@@ -1438,7 +1438,7 @@ private fun ToolCallExpandedBody(
                     modifier = Modifier
                         .size(14.dp)
                         .rotate(resultChevronRotation),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 )
             }
             ToolOutputRenderer(
@@ -1502,11 +1502,11 @@ private fun ToolCallCard(
     // shouting like a colored pill would.
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.86f),
         ),
     ) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
@@ -1578,13 +1578,13 @@ private fun ToolCallCard(
                     Text(
                         text = "Tool: ${toolCall.name}",
                         style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                     )
                     executionTimeText?.let { time ->
                         Text(
                             text = "Execution time: $time",
                             style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
                         )
                     }
                     // Detail line (extracted from arguments)
@@ -1592,7 +1592,7 @@ private fun ToolCallCard(
                         Text(
                             text = detail,
                             style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1603,7 +1603,7 @@ private fun ToolCallCard(
                         Text(
                             text = "Arguments",
                             style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                         )
                         Text(
                             text = toolCall.arguments,
@@ -1636,7 +1636,7 @@ private fun ToolCallCard(
                                 color = if (isError) {
                                     MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                                 } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                                 },
                                 modifier = Modifier.weight(1f),
                             )
@@ -1645,7 +1645,7 @@ private fun ToolCallCard(
                                 Text(
                                     text = if (resultExpanded) "collapse" else "${lineCount} line${if (lineCount == 1) "" else "s"}",
                                     style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                             }
@@ -1655,7 +1655,7 @@ private fun ToolCallCard(
                                 modifier = Modifier
                                     .size(14.dp)
                                     .rotate(resultChevronRotation),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             )
                         }
                         ToolOutputRenderer(
