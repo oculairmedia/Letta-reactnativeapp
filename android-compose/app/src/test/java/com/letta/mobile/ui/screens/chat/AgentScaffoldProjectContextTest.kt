@@ -1,5 +1,8 @@
 package com.letta.mobile.ui.screens.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -27,6 +30,7 @@ class AgentScaffoldProjectContextTest {
 
     @Test
     fun projectContextCardShowsNameAndIdentifier() {
+        var expanded by mutableStateOf(false)
         composeRule.setContent {
             LettaTheme(
                 appTheme = AppTheme.LIGHT,
@@ -38,6 +42,8 @@ class AgentScaffoldProjectContextTest {
                         identifier = "pctx-test-id",
                         name = "My Project",
                     ),
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
                 )
             }
         }
@@ -48,6 +54,7 @@ class AgentScaffoldProjectContextTest {
 
     @Test
     fun projectContextCardExpandShowsDetails() {
+        var expanded by mutableStateOf(false)
         composeRule.setContent {
             LettaTheme(
                 appTheme = AppTheme.LIGHT,
@@ -63,6 +70,8 @@ class AgentScaffoldProjectContextTest {
                         activeCodingAgents = "3 agents",
                         lastSyncAt = "2026-05-01T12:00:00Z",
                     ),
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
                 )
             }
         }
@@ -78,6 +87,7 @@ class AgentScaffoldProjectContextTest {
 
     @Test
     fun projectContextCardCollapseHidesDetails() {
+        var expanded by mutableStateOf(false)
         composeRule.setContent {
             LettaTheme(
                 appTheme = AppTheme.LIGHT,
@@ -90,6 +100,8 @@ class AgentScaffoldProjectContextTest {
                         name = "Collapse Project",
                         gitUrl = "https://git.example.com/collapse",
                     ),
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
                 )
             }
         }
@@ -103,6 +115,7 @@ class AgentScaffoldProjectContextTest {
 
     @Test
     fun projectInfoLineShowsUnknownForMissingValue() {
+        var expanded by mutableStateOf(false)
         composeRule.setContent {
             LettaTheme(
                 appTheme = AppTheme.LIGHT,
@@ -115,6 +128,8 @@ class AgentScaffoldProjectContextTest {
                         name = "Missing Fields",
                         gitUrl = null,
                     ),
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
                 )
             }
         }
