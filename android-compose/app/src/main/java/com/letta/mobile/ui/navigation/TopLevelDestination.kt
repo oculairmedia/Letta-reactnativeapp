@@ -10,7 +10,7 @@ enum class TopLevelDestination(
 ) {
     HOME(
         icon = LettaIcons.Apps,
-        label = "Home",
+        label = "Projects",
         route = HomeRoute,
     ),
     CHAT(
