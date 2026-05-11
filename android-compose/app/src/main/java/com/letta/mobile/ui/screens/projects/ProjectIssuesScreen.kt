@@ -1,0 +1,512 @@
+package com.letta.mobile.ui.screens.projects
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.letta.mobile.R
+import com.letta.mobile.data.model.ProjectIssueDetail
+import com.letta.mobile.data.model.ProjectIssueSummary
+import com.letta.mobile.ui.common.LocalSnackbarDispatcher
+import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.ActionSheet
+import com.letta.mobile.ui.components.ActionSheetItem
+import com.letta.mobile.ui.components.CardGroup
+import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.ExpandableTitleSearch
+import com.letta.mobile.ui.components.LettaCardDefaults
+import com.letta.mobile.ui.components.ShimmerBox
+import com.letta.mobile.ui.components.TextInputDialog
+import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.theme.LettaSpacing
+import com.letta.mobile.util.formatRelativeTime
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProjectIssuesScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateToIssue: (issueId: String) -> Unit,
+    viewModel: ProjectIssuesViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarDispatcher.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is ProjectIssuesUiEvent.ShowMessage -> snackbar.dispatch(event.message)
+            }
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = {
+                    ExpandableTitleSearch(
+                        query = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty(),
+                        onQueryChange = viewModel::updateSearchQuery,
+                        onClear = { viewModel.updateSearchQuery("") },
+                        expanded = isSearchExpanded,
+                        onExpandedChange = { isSearchExpanded = it },
+                        placeholder = stringResource(R.string.screen_project_issues_search_hint),
+                        openSearchContentDescription = stringResource(R.string.action_search),
+                        closeSearchContentDescription = stringResource(R.string.action_close),
+                        titleContent = {
+                            Column {
+                                Text(stringResource(R.string.screen_project_issues_title))
+                                (uiState as? UiState.Success)?.data?.projectName?.let { name ->
+                                    Text(
+                                        text = name,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+                colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(LettaIcons.Refresh, stringResource(R.string.action_refresh))
+                    }
+                },
+            )
+        },
+    ) { paddingValues ->
+        when (val state = uiState) {
+            is UiState.Loading -> ProjectIssuesLoading(modifier = Modifier.padding(paddingValues))
+            is UiState.Error -> ErrorContent(
+                message = state.message,
+                onRetry = viewModel::refresh,
+                modifier = Modifier.padding(paddingValues),
+            )
+            is UiState.Success -> {
+                val filteredIssues = remember(state.data.issues, state.data.searchQuery, state.data.selectedStatus) {
+                    viewModel.filteredIssues()
+                }
+                PullToRefreshBox(
+                    isRefreshing = state.data.isRefreshing,
+                    onRefresh = viewModel::refresh,
+                    modifier = Modifier
+                        .padding(paddingValues)
+                        .fillMaxSize(),
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(LettaSpacing.screenHorizontal),
+                        verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
+                    ) {
+                        item {
+                            IssueFilterRow(
+                                selectedStatus = state.data.selectedStatus,
+                                onStatusSelected = viewModel::selectStatus,
+                            )
+                        }
+                        if (state.data.readyWork.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.screen_project_issues_ready_section),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            items(state.data.readyWork, key = { "ready-${it.id}" }) { issue ->
+                                ProjectIssueCard(issue = issue, onClick = { onNavigateToIssue(issue.id) })
+                            }
+                        }
+                        item {
+                            Text(
+                                text = stringResource(R.string.screen_project_issues_all_section),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        if (filteredIssues.isEmpty()) {
+                            item {
+                                EmptyState(
+                                    icon = LettaIcons.ListIcon,
+                                    message = if (state.data.searchQuery.isBlank()) {
+                                        stringResource(R.string.screen_project_issues_empty)
+                                    } else {
+                                        stringResource(R.string.screen_project_issues_empty_search, state.data.searchQuery)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        } else {
+                            items(filteredIssues, key = { it.id }) { issue ->
+                                ProjectIssueCard(issue = issue, onClick = { onNavigateToIssue(issue.id) })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProjectIssueDetailScreen(
+    onNavigateBack: () -> Unit,
+    viewModel: ProjectIssueDetailViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbarDispatcher.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is ProjectIssuesUiEvent.ShowMessage -> snackbar.dispatch(event.message)
+            }
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = { Text(stringResource(R.string.screen_project_issue_detail_title)) },
+                scrollBehavior = scrollBehavior,
+                colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(LettaIcons.Refresh, stringResource(R.string.action_refresh))
+                    }
+                    IconButton(onClick = { viewModel.showActions(true) }) {
+                        Icon(LettaIcons.MoreVert, stringResource(R.string.action_more))
+                    }
+                },
+            )
+        },
+    ) { paddingValues ->
+        when (val state = uiState) {
+            is UiState.Loading -> ProjectIssuesLoading(modifier = Modifier.padding(paddingValues))
+            is UiState.Error -> ErrorContent(
+                message = state.message,
+                onRetry = viewModel::refresh,
+                modifier = Modifier.padding(paddingValues),
+            )
+            is UiState.Success -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(paddingValues)
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(LettaSpacing.screenHorizontal),
+                    verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
+                ) {
+                    item { ProjectIssueHeader(issue = state.data.issue) }
+                    item { ProjectIssueBody(issue = state.data.issue) }
+                    if (state.data.issue.notes.isNotEmpty() || state.data.issue.comments.isNotEmpty()) {
+                        item { ProjectIssueNotes(issue = state.data.issue) }
+                    }
+                }
+
+                ActionSheet(
+                    show = state.data.showActions,
+                    onDismiss = { viewModel.showActions(false) },
+                    title = state.data.issue.id,
+                ) {
+                    val issue = state.data.issue
+                    if (issue.assignee.isNullOrBlank()) {
+                        ActionSheetItem(
+                            text = stringResource(R.string.screen_project_issue_claim_action),
+                            icon = LettaIcons.Play,
+                            onClick = viewModel::claimIssue,
+                        )
+                    } else {
+                        ActionSheetItem(
+                            text = stringResource(R.string.screen_project_issue_unclaim_action),
+                            icon = LettaIcons.Close,
+                            onClick = viewModel::unclaimIssue,
+                        )
+                    }
+                    ActionSheetItem(
+                        text = stringResource(R.string.screen_project_issue_add_note_action),
+                        icon = LettaIcons.Edit,
+                        onClick = { viewModel.showNoteDialog(true) },
+                    )
+                    if (issue.status.equals("closed", ignoreCase = true)) {
+                        ActionSheetItem(
+                            text = stringResource(R.string.screen_project_issue_reopen_action),
+                            icon = LettaIcons.Refresh,
+                            onClick = viewModel::reopenIssue,
+                        )
+                    } else {
+                        ActionSheetItem(
+                            text = stringResource(R.string.screen_project_issue_close_action),
+                            icon = LettaIcons.Check,
+                            onClick = viewModel::closeIssue,
+                            destructive = true,
+                        )
+                    }
+                }
+
+                TextInputDialog(
+                    show = state.data.showNoteDialog,
+                    title = stringResource(R.string.screen_project_issue_add_note_action),
+                    label = stringResource(R.string.screen_project_issue_note_label),
+                    confirmText = stringResource(R.string.action_save),
+                    dismissText = stringResource(R.string.action_cancel),
+                    onConfirm = viewModel::addNote,
+                    onDismiss = { viewModel.showNoteDialog(false) },
+                    singleLine = false,
+                    minLines = 3,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectIssuesLoading(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(LettaSpacing.screenHorizontal),
+        verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
+    ) {
+        repeat(5) { ShimmerBox(height = 104.dp, widthFraction = 1f) }
+    }
+}
+
+@Composable
+private fun IssueFilterRow(
+    selectedStatus: String?,
+    onStatusSelected: (String?) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val statuses = listOf(null, "open", "in_progress", "closed")
+        statuses.forEach { status ->
+            FilterChip(
+                selected = selectedStatus == status,
+                onClick = { onStatusSelected(status) },
+                label = { Text(status?.toIssueLabel() ?: stringResource(R.string.screen_project_issues_filter_all)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectIssueCard(
+    issue: ProjectIssueSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = LettaCardDefaults.listContainerColor,
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(issue.id, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(issue.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                IssueStatusChip(issue.statusLabel ?: issue.status, issue.ready)
+            }
+            issue.summary?.takeIf { it.isNotBlank() }?.let { summary ->
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                issue.priority?.let { IssueMetaChip(it.uppercase()) }
+                issue.type?.let { IssueMetaChip(it) }
+                issue.assignee?.takeIf { it.isNotBlank() }?.let { IssueMetaChip(it) }
+                if (issue.isBlocked) IssueMetaChip(stringResource(R.string.screen_project_issues_blocked_label), isWarning = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectIssueHeader(issue: ProjectIssueDetail) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = LettaCardDefaults.listContainerColor,
+        tonalElevation = 3.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(issue.id, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(issue.title, style = MaterialTheme.typography.headlineSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                IssueStatusChip(issue.statusLabel ?: issue.status, issue.ready)
+                issue.priority?.let { IssueMetaChip(it.uppercase()) }
+                issue.type?.let { IssueMetaChip(it) }
+                issue.assignee?.takeIf { it.isNotBlank() }?.let { IssueMetaChip(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectIssueBody(issue: ProjectIssueDetail) {
+    CardGroup(title = { Text(stringResource(R.string.common_details)) }) {
+        issue.description?.takeIf { it.isNotBlank() }?.let { description ->
+            item(
+                overlineContent = { Text(stringResource(R.string.common_description)) },
+                supportingContent = { Text(description) },
+                headlineContent = { Text(issue.summary ?: issue.title) },
+            )
+        }
+        if (issue.acceptanceCriteria.isNotEmpty()) {
+            item(
+                overlineContent = { Text(stringResource(R.string.screen_project_issue_acceptance_title)) },
+                supportingContent = { Text(issue.acceptanceCriteria.joinToString(separator = "\n") { "• $it" }) },
+                headlineContent = { Text(stringResource(R.string.screen_project_issue_acceptance_summary, issue.acceptanceCriteria.size)) },
+            )
+        }
+        issue.updatedAt?.let { updatedAt ->
+            item(
+                overlineContent = { Text(stringResource(R.string.common_updated)) },
+                headlineContent = { Text(formatRelativeTime(updatedAt)) },
+            )
+        }
+        if (issue.blockedBy.isNotEmpty()) {
+            item(
+                overlineContent = { Text(stringResource(R.string.screen_project_issues_blocked_label)) },
+                supportingContent = { Text(issue.blockedBy.joinToString { it.id }) },
+                headlineContent = { Text(stringResource(R.string.screen_project_issue_blocked_by_summary, issue.blockedBy.size)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectIssueNotes(issue: ProjectIssueDetail) {
+    val notes = issue.notes + issue.comments
+    CardGroup(title = { Text(stringResource(R.string.screen_project_issue_notes_title)) }) {
+        notes.forEach { note ->
+            item(
+                overlineContent = note.author?.let { author -> { Text(author) } },
+                supportingContent = note.text?.let { text -> { Text(text) } },
+                headlineContent = { Text(note.createdAt?.let(::formatRelativeTime) ?: stringResource(R.string.common_unknown)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun IssueStatusChip(status: String, ready: Boolean) {
+    val container = when {
+        ready -> MaterialTheme.colorScheme.tertiaryContainer
+        status.equals("closed", ignoreCase = true) -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    val content = when {
+        ready -> MaterialTheme.colorScheme.onTertiaryContainer
+        status.equals("closed", ignoreCase = true) -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
+    }
+    AssistChip(
+        onClick = {},
+        label = { Text(if (ready) stringResource(R.string.screen_project_issues_ready_label) else status.toIssueLabel()) },
+        leadingIcon = {
+            Icon(LettaIcons.Circle, contentDescription = null, modifier = Modifier.size(12.dp), tint = content)
+        },
+        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+            containerColor = container,
+            labelColor = content,
+            leadingIconContentColor = content,
+        ),
+    )
+}
+
+@Composable
+private fun IssueMetaChip(value: String, isWarning: Boolean = false) {
+    AssistChip(
+        onClick = {},
+        label = { Text(value.toIssueLabel()) },
+        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+            containerColor = if (isWarning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+            labelColor = if (isWarning) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
+}
+
+private fun String.toIssueLabel(): String =
+    replace('_', ' ').replaceFirstChar { it.uppercase() }
