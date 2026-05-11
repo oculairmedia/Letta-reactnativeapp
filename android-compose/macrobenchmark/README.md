@@ -4,6 +4,7 @@ Macrobenchmark (end-to-end, on-device perf tests) module for
 letta-mobile. Related issues:
 
 - `letta-mobile-o7ob.2.1` — Baseline Profile generation
+- `letta-mobile-o7ob.2.2` — Startup Profile / DEX layout optimization
 - `letta-mobile-o7ob.4.1` — CI perf regression gate
 
 ## Build variant
@@ -43,6 +44,48 @@ com.letta.mobile.macrobenchmark.ScrollJankBenchmark
 Results land under
 `macrobenchmark/build/outputs/connected_android_test_additional_output/`
 as JSON + traces alongside the Gradle HTML reports.
+
+## Profile generation
+
+The `:baselineprofile` module owns both ART profile generators:
+
+```bash
+./gradlew :app:generateBenchmarkBaselineProfile
+```
+
+The broad CUJ generator emits `baseline-prof.txt`; the launcher-only
+`StartupProfileGenerator` uses `includeInStartupProfile = true` so AGP also
+emits `startup-prof.txt`. AGP 8.9 enables DEX layout optimization by default,
+so release/benchmark builds consume the Startup Profile without extra Gradle
+flags.
+
+For profile runs that need a live configured app, pass a base64-encoded
+automation payload through instrumentation. The benchmark build keeps the
+production-like `release` source set and is not debuggable, so this launch
+extra is the supported credential path for `com.letta.mobile.benchmark`:
+
+```bash
+AUTOMATION_PAYLOAD_BASE64="$(python3 - <<'PY'
+import base64, json, os
+
+payload = {
+    "serverUrl": os.environ["AUTOMATION_SERVER_URL"],
+    "accessToken": os.environ["AUTOMATION_ACCESS_TOKEN"],
+    "configId": os.environ.get("AUTOMATION_CONFIG_ID", "automation-auth"),
+    "clientModeEnabled": os.environ.get("AUTOMATION_GATEWAY_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+    "clientModeBaseUrl": os.environ.get("AUTOMATION_GATEWAY_URL", ""),
+    "clientModeApiKey": os.environ.get("AUTOMATION_GATEWAY_API_KEY", ""),
+}
+print(base64.b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode())
+PY
+)"
+
+./gradlew :baselineprofile:connectedBenchmarkAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.automationConfigPayloadBase64="$AUTOMATION_PAYLOAD_BASE64"
+```
+
+Release APKs still reject staged automation credentials; only the `.benchmark`
+application id consumes this profile-generation launch extra.
 
 ## Current benchmarks
 

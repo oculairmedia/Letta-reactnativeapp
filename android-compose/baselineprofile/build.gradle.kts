@@ -14,6 +14,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Match :app's distribution flavor dimension so the Baseline Profile
+    // consumer can resolve play/root/sideload release producer variants by
+    // Gradle attributes. The generated profile is flavor-agnostic today, but
+    // the producer must still publish compatible flavor variants.
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+        }
+        create("sideload") {
+            dimension = "distribution"
+        }
+        create("root") {
+            dimension = "distribution"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -21,17 +39,10 @@ android {
 
     targetProjectPath = ":app"
 
-    // Baseline profile plugin runs our generator against the `benchmark`
-    // build type (the profileable variant of release). Output lands in
-    // :app/src/release/generated/baselineProfiles/ and the
-    // androidx.baselineprofile plugin on :app picks it up automatically.
-    buildTypes {
-        create("benchmark") {
-            isDebuggable = true
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release")
-        }
-    }
+    // The androidx.baselineprofile producer plugin creates the special
+    // nonMinifiedRelease/benchmarkRelease test build types it needs to publish
+    // consumable baselineProfile variants. Do not replace that wiring with
+    // ad-hoc release/benchmark test build types.
 }
 
 kotlin {
@@ -40,18 +51,11 @@ kotlin {
     }
 }
 
-// Only run generator tests against the "benchmark" build type.
-androidComponents {
-    beforeVariants(selector().all()) {
-        it.enable = it.buildType == "benchmark"
-    }
-}
-
 dependencies {
     implementation("androidx.test.ext:junit:1.3.0")
     implementation("androidx.test.espresso:espresso-core:3.7.0")
     implementation("androidx.test.uiautomator:uiautomator:2.3.0")
-    implementation("androidx.benchmark:benchmark-macro-junit4:1.3.4")
+    implementation("androidx.benchmark:benchmark-macro-junit4:1.4.1")
 }
 
 baselineProfile {
