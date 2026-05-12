@@ -71,11 +71,12 @@ fun TagDrillInDialog(
             }
 
             else -> {
+                val itemsByType = remember(state.items) {
+                    state.items.groupBy { it.entityType }
+                }
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TagDrillInEntityType.entries.forEach { entityType ->
-                        val itemsForType = remember(state.items, entityType) {
-                            state.items.filter { it.entityType == entityType }
-                        }
+                        val itemsForType = itemsByType[entityType] ?: emptyList()
                         if (itemsForType.isNotEmpty()) {
                             item(key = "header_${entityType.name}") {
                                 Text(

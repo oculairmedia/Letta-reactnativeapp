@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
         // Report that the app is fully interactive. This signals Android Vitals
         // (Play Console) for accurate cold-start measurement beyond TTID. Called
         // once — subsequent calls on the same activity are no-ops.
-        ActivityCompat.reportFullyDrawn(this)
+        reportFullyDrawn()
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
