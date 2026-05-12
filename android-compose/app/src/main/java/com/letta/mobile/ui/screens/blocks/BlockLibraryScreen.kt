@@ -276,8 +276,12 @@ fun BlockLibraryScreen(
 
     manageAgentsTarget?.let { block ->
         val successData = (uiState as? UiState.Success)?.data
-        val attachedAgentIds = successData?.agentsByBlock?.get(block.id)?.map { it.id }?.toSet() ?: emptySet()
-        val allAgents = successData?.allAgents ?: emptyList()
+        val attachedAgentIds = remember(successData?.agentsByBlock, block.id) {
+            successData?.agentsByBlock?.get(block.id)?.map { it.id }?.toSet() ?: emptySet()
+        }
+        val allAgents = remember(successData?.allAgents) {
+            successData?.allAgents ?: emptyList()
+        }
 
         AgentMultiSelectDialog(
             agents = allAgents,

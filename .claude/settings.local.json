@@ -64,7 +64,11 @@
       "Bash(env:*)",
       "Bash(powershell:*)",
       "Bash(tr:*)",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Bash(xargs cat)",
+      "Bash(adb -s 192.168.50.235:5555 uninstall com.letta.mobile)",
+      "Bash(adb -s 192.168.50.235:5555 install /opt/stacks/letta-mobile/android-compose/app/build/outputs/apk/root/debug/app-root-debug.apk)",
+      "Bash(adb *)"
     ]
   }
 }

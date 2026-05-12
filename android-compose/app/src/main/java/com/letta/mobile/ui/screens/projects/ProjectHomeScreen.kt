@@ -775,12 +775,14 @@ private fun ProjectTile(
         "archived" -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.primary
     }
-    val initials = project.name
-        .split(Regex("\\s+"))
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString(separator = "") { it.take(1).uppercase() }
-        .ifBlank { project.identifier.take(2).uppercase() }
+    val initials = remember(project.name, project.identifier) {
+        project.name
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString(separator = "") { it.take(1).uppercase() }
+            .ifBlank { project.identifier.take(2).uppercase() }
+    }
 
     Surface(
         modifier = modifier
