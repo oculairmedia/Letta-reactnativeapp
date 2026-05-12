@@ -365,7 +365,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `search narrows results as query becomes more specific`() = runTest {
+    fun `search narrows results as query becomes more specific`() = runTest(testDispatcher) {
         every { agentRepository.agents } returns MutableStateFlow(
             listOf(
                 TestData.agent(id = "a1", name = "Agent Alpha", description = null),
