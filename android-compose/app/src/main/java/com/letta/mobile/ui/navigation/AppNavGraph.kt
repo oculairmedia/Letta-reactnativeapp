@@ -14,7 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -133,11 +133,11 @@ fun AppNavGraph(
     onNotificationTargetConsumed: () -> Unit = {},
 ) {
     val navViewModel: NavViewModel = hiltViewModel()
-    val hasConfig by navViewModel.hasConfig.collectAsState(initial = true)
-    val activeConfig by navViewModel.activeConfig.collectAsState(initial = null)
-    val favoriteAgentId by navViewModel.favoriteAgentId.collectAsState()
-    val adminAgentId by navViewModel.adminAgentId.collectAsState()
-    val lastChatSelection by navViewModel.lastChatSelection.collectAsState()
+    val hasConfig by navViewModel.hasConfig.collectAsStateWithLifecycle(initialValue = true)
+    val activeConfig by navViewModel.activeConfig.collectAsStateWithLifecycle(initialValue = null)
+    val favoriteAgentId by navViewModel.favoriteAgentId.collectAsStateWithLifecycle(initialValue = null)
+    val adminAgentId by navViewModel.adminAgentId.collectAsStateWithLifecycle(initialValue = null)
+    val lastChatSelection by navViewModel.lastChatSelection.collectAsStateWithLifecycle(initialValue = null)
     val activeBackendLabel = activeConfig.toBackendLabel()
 
     val initialNotificationTarget = remember { notificationTarget }

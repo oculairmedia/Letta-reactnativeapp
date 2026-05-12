@@ -56,7 +56,9 @@ fun BlockPickerDialog(
                 Text(state.message)
             }
             is UiState.Success -> {
-                val availableBlocks = state.data.blocks.filter { it.id !in excludedBlockIds }
+                val availableBlocks = remember(state.data.blocks, excludedBlockIds) {
+                    state.data.blocks.filter { it.id !in excludedBlockIds }
+                }
                 if (availableBlocks.isEmpty()) {
                     Text(
                         text = stringResource(R.string.screen_blocks_empty_available),

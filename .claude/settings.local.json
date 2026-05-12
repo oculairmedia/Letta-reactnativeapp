@@ -63,7 +63,8 @@
       "Bash(echo:*)",
       "Bash(env:*)",
       "Bash(powershell:*)",
-      "Bash(tr:*)"
+      "Bash(tr:*)",
+      "Bash(gh run *)"
     ]
   }
 }

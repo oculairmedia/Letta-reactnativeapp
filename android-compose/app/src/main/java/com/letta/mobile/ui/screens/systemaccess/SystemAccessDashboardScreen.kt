@@ -329,9 +329,11 @@ private fun CapabilityDetails(
             value = capability.policyRisk.rationale,
         )
 
-        val actions = capability.permissionIntents.filter { intent ->
-            capability.status != SystemAccessCapabilityStatus.Unavailable ||
-                intent.kind == SystemAccessPermissionIntentKind.Documentation
+        val actions = remember(capability.permissionIntents, capability.status) {
+            capability.permissionIntents.filter { intent ->
+                capability.status != SystemAccessCapabilityStatus.Unavailable ||
+                    intent.kind == SystemAccessPermissionIntentKind.Documentation
+            }
         }
         if (actions.isNotEmpty()) {
             FlowRow(

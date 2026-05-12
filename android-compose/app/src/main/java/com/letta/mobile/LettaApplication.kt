@@ -78,25 +78,38 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
-        // CrashReporter chains itself on top of Sentry's handler so
-        // unhandled exceptions are both uploaded to Sentry and persisted
-        // to app-private storage for surfacing on the next launch.
+        // CrashReporter and global exception handler must run on main thread
+        // before anything else so uncaught exceptions are captured from the start.
         crashReporter.install()
         setupGlobalExceptionHandler()
-        channelNotificationPublisher.ensureChannel()
         if (isRobolectricRuntime()) {
             return
         }
-        runCatching {
-            AutomationAuthBootstrap.importPendingConfig(this, settingsRepository.get())
-        }.onFailure { error ->
-            Log.w("LettaApp", "Skipping automation auth bootstrap", error)
+        // Notification channel registration must happen before the app can post
+        // any notifications, but not before first frame — safe to defer.
+        applicationScope.launch {
+            channelNotificationPublisher.ensureChannel()
         }
-        clientModeController.get().initialize()
-        runCatching {
-            ProductionJankStatsMonitor.install(this)
-        }.onFailure { error ->
-            Log.w("LettaApp", "Skipping production jank monitor", error)
+        applicationScope.launch {
+            runCatching {
+                AutomationAuthBootstrap.importPendingConfig(this@LettaApplication, settingsRepository.get())
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping automation auth bootstrap", error)
+            }
+        }
+        applicationScope.launch {
+            runCatching {
+                clientModeController.get().initialize()
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping client mode init", error)
+            }
+        }
+        applicationScope.launch {
+            runCatching {
+                ProductionJankStatsMonitor.install(this@LettaApplication)
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping production jank monitor", error)
+            }
         }
         applicationScope.launch {
             runCatching {
@@ -105,10 +118,12 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
                 Log.w("LettaApp", "Skipping debug performance monitor", error)
             }
         }
-        runCatching {
-            channelHeartbeatScheduler.schedule()
-        }.onFailure { error ->
-            Log.w("LettaApp", "Skipping heartbeat scheduling", error)
+        applicationScope.launch {
+            runCatching {
+                channelHeartbeatScheduler.schedule()
+            }.onFailure { error ->
+                Log.w("LettaApp", "Skipping heartbeat scheduling", error)
+            }
         }
         applicationScope.launch {
             runCatching {

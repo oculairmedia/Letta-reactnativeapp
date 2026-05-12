@@ -12,7 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -66,9 +66,9 @@ class MainActivity : ComponentActivity() {
             val windowSizeClass = calculateWindowSizeClass(this@MainActivity)
             val snackbarDispatcher = remember { SnackbarDispatcher() }
             val snackbarHostState = remember { SnackbarHostState() }
-            val appTheme = settingsRepository.getTheme().collectAsState(initial = AppTheme.SYSTEM)
-            val themePreset = settingsRepository.getThemePreset().collectAsState(initial = ThemePreset.DEFAULT)
-            val dynamicColor = settingsRepository.getDynamicColor().collectAsState(initial = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            val appTheme by settingsRepository.getTheme().collectAsStateWithLifecycle(initialValue = AppTheme.SYSTEM)
+            val themePreset by settingsRepository.getThemePreset().collectAsStateWithLifecycle(initialValue = ThemePreset.DEFAULT)
+            val dynamicColor by settingsRepository.getDynamicColor().collectAsStateWithLifecycle(initialValue = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission(),
                 onResult = { granted ->
@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
             // Surface any uncaught crash from the previous session exactly once.
             // Snackbar with a "Copy id" action lets the user file a ticket tied
             // to the Sentry event. Dismissing clears the on-disk record.
-            val lastCrash by crashReporter.lastCrash.collectAsState()
+            val lastCrash by crashReporter.lastCrash.collectAsStateWithLifecycle()
             LaunchedEffect(lastCrash) {
                 val crash = lastCrash ?: return@LaunchedEffect
                 val label = if (crash.sentryEventId != null) "Copy id" else "Details"
@@ -126,9 +126,9 @@ class MainActivity : ComponentActivity() {
             }
 
             LettaTheme(
-                appTheme = appTheme.value,
-                themePreset = themePreset.value,
-                dynamicColor = dynamicColor.value,
+                appTheme = appTheme,
+                themePreset = themePreset,
+                dynamicColor = dynamicColor,
             ) {
                 CompositionLocalProvider(
                     LocalSnackbarDispatcher provides snackbarDispatcher,
