@@ -6,6 +6,7 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.annotation.ExperimentalCoilApi
 import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import com.letta.mobile.channel.ChannelHeartbeatScheduler
@@ -28,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okio.Path.Companion.toOkioPath
+import okhttp3.ConnectionPool
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -65,6 +67,10 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
                     followRedirects(true)
                     followSslRedirects(true)
                     cache(okhttp3.Cache(cacheDir, cacheSize))
+                    // 5 idle connections, 120s keep-alive — image loads in
+                    // chat are bursty (multiple attachments per message)
+                    // so pooling prevents repeated TLS handshakes.
+                    connectionPool(ConnectionPool(5, 120, java.util.concurrent.TimeUnit.SECONDS))
                 }
             }
 
@@ -147,13 +153,23 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
                 @OptIn(ExperimentalCoilApi::class)
                 add(KtorNetworkFetcherFactory(httpClient = imageHttpClient))
             }
-            .crossfade(true)
+            // Cap memory cache at 20% of available heap. Coil's default (25%)
+            // is generous; chat message lists + decoded bitmaps already
+            // consume significant memory so we keep the ceiling tighter.
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, percent = 0.20)
+                    .build()
+            }
             .diskCache {
                 DiskCache.Builder()
                     .directory(java.io.File(cacheDir, "image_cache").toOkioPath())
                     .maxSizeBytes(50L * 1024 * 1024)
                     .build()
             }
+            // 200ms crossfade — fast enough for list scrolling, visible enough
+            // to mask the swap from placeholder to real image.
+            .crossfade(200)
             .build()
     }
 

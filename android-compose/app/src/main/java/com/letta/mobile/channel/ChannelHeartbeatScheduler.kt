@@ -18,16 +18,22 @@ class ChannelHeartbeatScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     fun schedule() {
-        val constraints = Constraints.Builder()
+        val periodicConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            // Periodic background sync should yield on critically low battery.
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val immediateConstraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
         val periodicWork = PeriodicWorkRequestBuilder<ChannelHeartbeatWorker>(15, TimeUnit.MINUTES)
-            .setConstraints(constraints)
+            .setConstraints(periodicConstraints)
             .build()
 
         val immediateWork = OneTimeWorkRequestBuilder<ChannelHeartbeatWorker>()
-            .setConstraints(constraints)
+            .setConstraints(immediateConstraints)
             .build()
 
         val workManager = WorkManager.getInstance(context)

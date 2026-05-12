@@ -1,65 +1,121 @@
 # Letta Mobile ProGuard Rules
+# Last audited: letta-mobile-o7ob.2.3
 
-# Keep data classes for Retrofit/Moshi serialization
+# ---------------------------------------------------------------------------
+# Data model serialization (Moshi + kotlinx.serialization)
+# Keep fields and constructors for Moshi-annotated classes and all data models.
+# ---------------------------------------------------------------------------
 -keepclassmembers class com.letta.mobile.data.model.** {
     <fields>;
     <init>(...);
 }
-
-# Keep Kotlin metadata for reflection
--keepattributes RuntimeVisibleAnnotations,AnnotationDefault
--keepattributes *Annotation*
-
-# Retrofit
--keepattributes Signature
--keepattributes Exceptions
--dontwarn retrofit2.**
--keep class retrofit2.** { *; }
-
-# OkHttp
--dontwarn okhttp3.**
--dontwarn okio.**
--keep class okhttp3.** { *; }
--keep class okio.** { *; }
-
-# Moshi
 -keepclassmembers class ** {
     @com.squareup.moshi.Json <fields>;
 }
--keep class com.squareup.moshi.** { *; }
 -keepclassmembers @com.squareup.moshi.JsonClass class * {
     <init>(...);
 }
+# Moshi generated adapter look-up relies on class names and no-arg constructors.
+-keep class com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+-keep class com.squareup.moshi.adapters.** { *; }
+-dontwarn com.squareup.moshi.**
 
-# Hilt
+# ---------------------------------------------------------------------------
+# Kotlin reflection metadata
+# Required for Moshi kotlin-reflect, kotlinx.serialization, and Hilt.
+# ---------------------------------------------------------------------------
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+-keepattributes *Annotation*
+-keepattributes Signature
+-keepattributes Exceptions
+-keepattributes InnerClasses,EnclosingMethod
+
+# ---------------------------------------------------------------------------
+# Retrofit (interface method signatures must survive shrinker)
+# ---------------------------------------------------------------------------
+-dontwarn retrofit2.**
+-keepclassmembernames,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+
+# ---------------------------------------------------------------------------
+# OkHttp — keep public API + TLS internals; let R8 shrink implementation.
+# The blanket `keep class okhttp3.** { *; }` prevented R8 from eliminating
+# dead OkHttp code (~300 kB of bytecode in practice).
+# ---------------------------------------------------------------------------
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.internal.publicsuffix.PublicSuffixDatabase { *; }
+-keepnames class okhttp3.internal.** { *; }
+-keepclassmembers class okhttp3.** {
+    public protected *;
+}
+-keep interface okhttp3.** { *; }
+-keep class okio.** { *; }
+
+# ---------------------------------------------------------------------------
+# Ktor — keep plugin/engine entrypoints; internal implementation is shrinkable.
+# Previously `keep class io.ktor.** { *; }` kept all ~2MB of Ktor bytecode.
+# ---------------------------------------------------------------------------
+-dontwarn io.ktor.**
+-keep class io.ktor.client.HttpClient { *; }
+-keep class io.ktor.client.engine.** { *; }
+-keep class io.ktor.client.plugins.** { *; }
+-keep class io.ktor.serialization.** { *; }
+-keepclassmembers class * extends io.ktor.client.features.HttpClientFeature { *; }
+
+# ---------------------------------------------------------------------------
+# Hilt / Dagger — generated component classes must survive renaming.
+# ---------------------------------------------------------------------------
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
--keep class * extends dagger.hilt.android.lifecycle.HiltViewModel { *; }
+-keep @dagger.hilt.android.lifecycle.HiltViewModel class * extends androidx.lifecycle.ViewModel { *; }
 
-# Compose
--keep class androidx.compose.** { *; }
+# ---------------------------------------------------------------------------
+# Compose — AGP ships built-in Compose R8 rules since AGP 7.x.
+# We only need to suppress dontwarn for internal APIs our own code touches.
+# The old `keep class androidx.compose.** { *; }` blocked ALL Compose shrinking.
+# ---------------------------------------------------------------------------
 -dontwarn androidx.compose.**
 
-# Coil
--keep class coil.** { *; }
--dontwarn coil.**
+# ---------------------------------------------------------------------------
+# Coil 3 — keep loader factory and decoder registrations; let R8 shrink internals.
+# ---------------------------------------------------------------------------
+-dontwarn coil3.**
+-keep class coil3.SingletonImageLoader$Factory { *; }
+-keep class coil3.ImageLoader { *; }
+-keep class coil3.decode.** { *; }
+-keep class coil3.fetch.** { *; }
+-keep class coil3.network.** { *; }
 
-# Keep ViewModels
+# ---------------------------------------------------------------------------
+# ViewModels — keep all ViewModel subclasses (Hilt rule above handles @HiltViewModel;
+# this catches any non-Hilt ViewModel that might be instantiated reflectively).
+# ---------------------------------------------------------------------------
 -keep class * extends androidx.lifecycle.ViewModel { *; }
 
-# Keep enums
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
 
+# ---------------------------------------------------------------------------
 # Navigation type-safe routes (kotlinx.serialization)
+# ---------------------------------------------------------------------------
 -keepclassmembers class com.letta.mobile.ui.navigation.** {
     <fields>;
     <init>(...);
 }
 
-# Netty (pulled in by Ktor server engine)
+# ---------------------------------------------------------------------------
+# Netty (pulled in by Ktor server engine — suppress don't-warn only)
+# ---------------------------------------------------------------------------
 -dontwarn reactor.blockhound.**
 -dontwarn io.netty.internal.tcnative.**
 -dontwarn org.apache.log4j.**
@@ -76,11 +132,10 @@
 -dontwarn jdk.jfr.**
 -dontwarn java.lang.foreign.**
 
-# Ktor
--keep class io.ktor.** { *; }
--dontwarn io.ktor.**
-
-# Remove logging in release
+# ---------------------------------------------------------------------------
+# Remove verbose logging in release builds.
+# Log.w and Log.e are kept so warnings and errors still surface in crash tools.
+# ---------------------------------------------------------------------------
 -assumenosideeffects class android.util.Log {
     public static int v(...);
     public static int d(...);

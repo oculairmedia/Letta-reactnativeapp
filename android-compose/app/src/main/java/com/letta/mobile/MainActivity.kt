@@ -41,6 +41,7 @@ import com.letta.mobile.ui.navigation.AdaptiveScaffold
 import com.letta.mobile.ui.navigation.AppNavGraph
 import com.letta.mobile.ui.theme.LocalWindowSizeClass
 import com.letta.mobile.ui.theme.LettaTheme
+import androidx.core.app.ActivityCompat
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -149,6 +150,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // Report that the app is fully interactive. This signals Android Vitals
+        // (Play Console) for accurate cold-start measurement beyond TTID. Called
+        // once — subsequent calls on the same activity are no-ops.
+        ActivityCompat.reportFullyDrawn(this)
     }
 
     override fun onNewIntent(intent: android.content.Intent) {

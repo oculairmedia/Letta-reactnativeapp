@@ -17,6 +17,7 @@ import io.ktor.serialization.kotlinx.json.json
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import okhttp3.ConnectionPool
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -97,6 +98,10 @@ class WsBotClient(
 
     private val wsClient = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
+        // Explicit pool: WsBotClient typically holds 1 active WS connection
+        // (rarely 2 during agent switches). 3 idle max with 90s keep-alive
+        // matches reconnect cadence without over-allocating sockets.
+        .connectionPool(ConnectionPool(3, 90, TimeUnit.SECONDS))
         .build()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
