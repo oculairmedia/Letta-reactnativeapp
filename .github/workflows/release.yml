@@ -66,6 +66,13 @@ jobs:
           SENTRY_URL: ${{ secrets.SENTRY_URL }}
         run: ./gradlew :app:assemblePlayRelease --no-daemon --build-cache
 
+      - name: Remove signing keystore
+        # Runner is ephemeral, but don't leave the decoded keystore on disk
+        # any longer than necessary. `if: always()` so failure paths clean
+        # up too.
+        if: always()
+        run: rm -f app/letta-release.jks
+
       - name: Rename APK with tag
         id: artifact
         working-directory: android-compose/app/build/outputs/apk/play/release
