@@ -69,6 +69,73 @@ val localProps = Properties().apply {
     }
 }
 
+// ───────────────────────── Tag-driven versioning ─────────────────────────
+//
+// versionName comes from the git tag (`vX.Y.Z`) when CI builds a tagged
+// release. Local / PR / untagged-main builds fall back to `git describe`
+// (e.g. `0.1.0-3-gab12cd-dirty`). When no v* tag exists yet the fallback
+// is `0.0.0-dev`.
+//
+// versionCode is derived from versionName via M*10000 + m*100 + p, so:
+//   0.1.0 → 100      1.2.6 → 10206      2.0.0 → 20000
+// Caps comfortably under the Play Store int limit (2_147_483_647).
+//
+// Override either at build time:
+//   ./gradlew assembleRelease -PversionNameOverride=1.2.3-rc1
+//
+// Release procedure:
+//   1. git tag -a v0.1.0 -m "release: 0.1.0"
+//   2. git push origin v0.1.0
+//   3. .github/workflows/release.yml picks it up, builds the signed APK,
+//      attaches it to the GitHub Release.
+
+@Suppress("UnstableApiUsage")
+fun computeVersionName(): String {
+    // 1. Explicit override (handy for one-off builds).
+    (project.findProperty("versionNameOverride") as String?)?.takeIf { it.isNotBlank() }?.let {
+        return it
+    }
+
+    // 2. Tag-driven CI build: GITHUB_REF_NAME is "v1.2.3" when a tag push fires.
+    System.getenv("GITHUB_REF_NAME")?.takeIf { it.startsWith("v") }?.let { ref ->
+        val stripped = ref.removePrefix("v")
+        if (Regex("""\d+\.\d+\.\d+.*""").matches(stripped)) {
+            return stripped
+        }
+    }
+
+    // 3. Fallback: `git describe`. Reports e.g. `0.1.0-3-gab12cd` on a
+    //    branch 3 commits past v0.1.0, or `0.1.0-3-gab12cd-dirty` with
+    //    uncommitted changes. If no tags exist yet, returns `0.0.0-dev`.
+    return runCatching {
+        val proc = ProcessBuilder("git", "describe", "--tags", "--always", "--dirty", "--match", "v[0-9]*")
+            .directory(rootProject.projectDir.parentFile ?: rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+        proc.waitFor()
+        proc.inputStream.bufferedReader().readText().trim().removePrefix("v")
+    }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() && it.matches(Regex("""\d+\.\d+\.\d+.*""")) }
+        ?: "0.0.0-dev"
+}
+
+fun computeVersionCode(versionName: String): Int {
+    // Strip any suffix (`-rc.1`, `-3-gab12cd`, `-dirty`) — only the
+    // M.m.p portion drives the integer.
+    val clean = versionName.substringBefore('-').substringBefore('+').trim()
+    val parts = clean.split('.').map { it.toIntOrNull() ?: 0 }
+    val major = parts.getOrElse(0) { 0 }
+    val minor = parts.getOrElse(1) { 0 }
+    val patch = parts.getOrElse(2) { 0 }
+    return major * 10_000 + minor * 100 + patch
+}
+
+val computedVersionName = computeVersionName()
+val computedVersionCode = computeVersionCode(computedVersionName)
+
+logger.lifecycle("[versioning] versionName=$computedVersionName versionCode=$computedVersionCode")
+
 android {
     namespace = "com.letta.mobile"
     compileSdk = 36
@@ -77,8 +144,8 @@ android {
         applicationId = "com.letta.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.2.6"
+        versionCode = computedVersionCode
+        versionName = computedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Keep Play as the conservative dependency target for any future

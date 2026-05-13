@@ -85,6 +85,53 @@ Device install:
 ./gradlew installDebug
 ```
 
+## Releases
+
+Versioning is **tag-driven**. The git tag is the single source of truth for both `versionName` and `versionCode` — no more hand-editing `build.gradle.kts`.
+
+### How it works
+
+| Build context | `versionName` source | Example |
+|---------------|----------------------|---------|
+| Tag push (`v*`) — CI release workflow | `GITHUB_REF_NAME` minus the `v` | `v0.1.0` → `0.1.0` |
+| Explicit override | `-PversionNameOverride=<value>` | `0.1.0-hotfix` |
+| Any other build (local, PR, untagged main) | `git describe --tags --match 'v[0-9]*' --dirty` | `0.1.0-3-gab12cd-dirty` |
+| No `v*` tag exists at all | hardcoded fallback | `0.0.0-dev` |
+
+`versionCode` is **derived from `versionName`** via `MAJOR * 10000 + MINOR * 100 + PATCH`:
+
+| `versionName` | `versionCode` |
+|---------------|---------------|
+| `0.1.0` | `100` |
+| `1.2.3` | `10203` |
+| `2.0.0-rc.1` (suffix stripped) | `20000` |
+| `10.0.0` | `100000` |
+
+Suffixes (`-rc.1`, `-3-gab12cd`, `-dirty`, `-sideload`) are stripped before the math. Per-flavor `versionNameSuffix` values (`-sideload`, `-root`, `-benchmark`) still append to the displayed name but don't change the integer.
+
+### Cutting a release
+
+```bash
+git checkout main && git pull
+git tag -a v0.1.0 -m "release: 0.1.0"
+git push origin v0.1.0
+```
+
+The `.github/workflows/release.yml` workflow fires on the tag push, builds the signed `play-release` APK, creates a GitHub Release with auto-generated notes diffed against the previous tag, and attaches `letta-mobile-v0.1.0.apk` as a release asset.
+
+**Pre-releases**: append a hyphen suffix to the tag — `v0.2.0-rc.1`, `v1.0.0-beta` — and `softprops/action-gh-release` auto-marks the GitHub Release as a pre-release. `versionCode` ignores the suffix, so a `v0.2.0-rc.1` build has the same `versionCode` as `v0.2.0`. Tag the GA release `v0.2.0` separately to bump `versionCode` to the next tier.
+
+**Mistake recovery**: delete the tag and the release before anyone downloads.
+
+```bash
+git push --delete origin v0.1.0
+gh release delete v0.1.0 --cleanup-tag
+```
+
+### Why this and not manual bumps
+
+Before this change, every release required editing two lines in `build.gradle.kts` (`versionCode` and `versionName`) plus tagging. The two could drift, and the tag history shows examples of inconsistency (`v0.1.3` was a `1.2.1` release). The tag-driven approach removes the manual step and the drift window entirely.
+
 ## Issue tracking
 
 This repo uses **bd (beads)** for issue tracking. Run `bd prime` for the full reference. Don't use markdown TODO lists or in-repo task files for tracking work — those fragment across machines.
