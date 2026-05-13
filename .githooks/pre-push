@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 # Local guard before pushing.
-#   1. Refuse pushes that target main / master directly. Branch protection
-#      on the remote will reject them anyway -- this skips the round-trip.
+#   1. Refuse pushes that target main / master (including deletes) directly.
+#      Branch protection on the remote will reject them anyway -- this skips
+#      the round-trip.
 #   2. Run a quick Kotlin compile so syntactic breakage is caught locally
-#      before CI burns time on it.
+#      before CI burns time on it. Skipped when every ref being pushed is a
+#      delete (no source to compile) so that branch cleanup doesn't require
+#      JAVA_HOME or a 30s gradle run.
 set -euo pipefail
+
+# A `local_sha` of all zeros means git is deleting `remote_ref` -- there's no
+# source code being pushed, so the compile is meaningless.
+ZERO_SHA="0000000000000000000000000000000000000000"
+has_content_push=0
 
 # stdin format (one line per ref being pushed):
 #   <local_ref> <local_sha> <remote_ref> <remote_sha>
 while read -r local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main|refs/heads/master)
+      # Block both pushes AND deletes targeting main / master. Branch
+      # protection's `allow_deletions: false` is the real wall; this just
+      # fails the action locally before round-tripping to the server.
       cat >&2 <<EOF
-✗ Direct pushes to '$remote_ref' are blocked.
+✗ Pushes to '$remote_ref' are blocked (including deletes).
 
 Open a PR from a feature branch instead:
     gh pr create
@@ -23,7 +34,17 @@ EOF
       exit 1
       ;;
   esac
+
+  if [ "$local_sha" != "$ZERO_SHA" ]; then
+    has_content_push=1
+  fi
 done
+
+# All refs were deletes (e.g. `git push --delete origin stale-branch`).
+# Nothing to compile.
+if [ "$has_content_push" -eq 0 ]; then
+  exit 0
+fi
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root/android-compose"
