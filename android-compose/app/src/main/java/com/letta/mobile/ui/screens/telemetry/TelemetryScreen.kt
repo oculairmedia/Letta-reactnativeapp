@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -145,7 +146,15 @@ fun TelemetryScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize().padding(padding),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                items(visibleEvents, key = { "${it.timestampMs}/${it.tag}/${it.name}" }) { ev -> TelemetryEventRow(ev) }
+                // Use itemsIndexed with an index suffix: multiple telemetry
+                // events can fire in the same millisecond with the same
+                // tag/name (e.g. repeated `Http/request`). Without the
+                // index suffix the LazyColumn crashes with a duplicate-key
+                // IllegalArgumentException.
+                itemsIndexed(
+                    items = visibleEvents,
+                    key = { index, ev -> "${ev.timestampMs}/${ev.tag}/${ev.name}#$index" },
+                ) { _, ev -> TelemetryEventRow(ev) }
             }
         }
     }
