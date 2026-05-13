@@ -12,7 +12,8 @@ data class ToolDisplayInfo(
 @Singleton
 class ToolDisplayRegistry @Inject constructor() {
     init {
-        require(INSTANCE == null) { "ToolDisplayRegistry already initialized" }
+        // letta-mobile-rnyg: do not fail on reassignment — tests construct
+        // multiple instances. Last writer wins.
         INSTANCE = this
     }
 
@@ -118,13 +119,16 @@ class ToolDisplayRegistry @Inject constructor() {
 
         /**
          * Static bridge for existing callers. Delegates to the Hilt-managed
-         * singleton. Eager construction is guaranteed by `LettaApplication`,
-         * which holds an `@Inject` reference so Hilt builds the singleton
-         * before any Activity/composable can call this.
+         * singleton. `LettaApplication` eagerly injects the instance so the
+         * production path goes through the Hilt-built singleton; tests and
+         * other callers that reach this before Hilt has built the registry
+         * get a lazily-created default instance (same shape, no @Inject deps).
          */
-        fun resolve(toolName: String, args: String? = null): ToolDisplayInfo =
-            requireNotNull(INSTANCE) {
-                "ToolDisplayRegistry not initialized — LettaApplication must inject it before composition."
-            }.resolve(toolName, args)
+        fun resolve(toolName: String, args: String? = null): ToolDisplayInfo {
+            val instance = INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ToolDisplayRegistry().also { INSTANCE = it }
+            }
+            return instance.resolve(toolName, args)
+        }
     }
 }

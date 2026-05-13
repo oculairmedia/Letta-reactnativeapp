@@ -12,7 +12,9 @@ import javax.inject.Singleton
 @Singleton
 class EncryptedPrefsHelper @Inject constructor() {
     init {
-        require(INSTANCE == null) { "EncryptedPrefsHelper already initialized" }
+        // letta-mobile-rnyg: do not fail on reassignment. Tests (and any
+        // Robolectric/Hilt restart path) may construct multiple instances
+        // across test invocations; the latest construction always wins.
         INSTANCE = this
     }
 
@@ -24,15 +26,17 @@ class EncryptedPrefsHelper @Inject constructor() {
         private var INSTANCE: EncryptedPrefsHelper? = null
 
         /**
-         * Static bridge for existing callers (syf4 migration). Eager
-         * construction is guaranteed by `LettaApplication`, which holds an
-         * `@Inject` reference so Hilt builds this singleton before any
-         * `SettingsRepository`-style constructor reaches the static bridge.
+         * Static bridge for existing callers (syf4 migration). `LettaApplication`
+         * eagerly injects the instance so the production path goes through the
+         * Hilt-built singleton; tests and other callers that reach this before
+         * Hilt has built the helper get a lazily-created default instance.
          */
-        fun getEncryptedPrefs(context: Context): SharedPreferences =
-            requireNotNull(INSTANCE) {
-                "EncryptedPrefsHelper not initialized — LettaApplication must inject it before any SettingsRepository construction."
-            }.getEncryptedPrefs(context)
+        fun getEncryptedPrefs(context: Context): SharedPreferences {
+            val instance = INSTANCE ?: synchronized(this) {
+                INSTANCE ?: EncryptedPrefsHelper().also { INSTANCE = it }
+            }
+            return instance.getEncryptedPrefs(context)
+        }
     }
 
     fun getEncryptedPrefs(context: Context): SharedPreferences {
