@@ -23,8 +23,16 @@ class EncryptedPrefsHelper @Inject constructor() {
         @Volatile
         private var INSTANCE: EncryptedPrefsHelper? = null
 
+        /**
+         * Static bridge for existing callers (syf4 migration). Eager
+         * construction is guaranteed by `LettaApplication`, which holds an
+         * `@Inject` reference so Hilt builds this singleton before any
+         * `SettingsRepository`-style constructor reaches the static bridge.
+         */
         fun getEncryptedPrefs(context: Context): SharedPreferences =
-            INSTANCE!!.getEncryptedPrefs(context)
+            requireNotNull(INSTANCE) {
+                "EncryptedPrefsHelper not initialized — LettaApplication must inject it before any SettingsRepository construction."
+            }.getEncryptedPrefs(context)
     }
 
     fun getEncryptedPrefs(context: Context): SharedPreferences {

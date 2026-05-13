@@ -118,9 +118,13 @@ class ToolDisplayRegistry @Inject constructor() {
 
         /**
          * Static bridge for existing callers. Delegates to the Hilt-managed
-         * singleton. Throws if Hilt has not initialized the instance yet.
+         * singleton. Eager construction is guaranteed by `LettaApplication`,
+         * which holds an `@Inject` reference so Hilt builds the singleton
+         * before any Activity/composable can call this.
          */
         fun resolve(toolName: String, args: String? = null): ToolDisplayInfo =
-            INSTANCE!!.resolve(toolName, args)
+            requireNotNull(INSTANCE) {
+                "ToolDisplayRegistry not initialized — LettaApplication must inject it before composition."
+            }.resolve(toolName, args)
     }
 }

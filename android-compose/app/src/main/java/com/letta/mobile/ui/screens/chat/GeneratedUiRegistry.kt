@@ -54,8 +54,16 @@ class GeneratedUiRegistry @Inject constructor() {
         @Volatile
         private var INSTANCE: GeneratedUiRegistry? = null
 
+        /**
+         * Static bridge for existing callers. Delegates to the Hilt-managed
+         * singleton. Eager construction is guaranteed by `LettaApplication`,
+         * which holds an `@Inject` reference so Hilt builds the singleton
+         * before any Activity/composable can call this.
+         */
         fun resolve(componentName: String): GeneratedUiComponentRenderer? =
-            INSTANCE!!.resolve(componentName)
+            requireNotNull(INSTANCE) {
+                "GeneratedUiRegistry not initialized — LettaApplication must inject it before composition."
+            }.resolve(componentName)
     }
 }
 
