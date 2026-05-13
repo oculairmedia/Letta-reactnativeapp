@@ -8,8 +8,8 @@
 >
     <group
         android:name="group"
-        android:translateX="170"
-        android:translateY="152"
+        android:translateX="166.4"
+        android:translateY="151.78"
         android:scaleX="0.35"
         android:scaleY="0.35"
     >

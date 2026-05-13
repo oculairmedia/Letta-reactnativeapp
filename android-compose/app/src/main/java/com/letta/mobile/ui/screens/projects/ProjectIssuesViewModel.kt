@@ -180,9 +180,30 @@ class ProjectIssuesViewModel @Inject constructor(
 
     fun filteredIssues(): List<ProjectIssueSummary> {
         val current = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
-        val query = current.searchQuery.trim().lowercase()
-        return current.issues.filter { issue ->
-            val matchesStatus = current.selectedStatus == null || issue.status.equals(current.selectedStatus, ignoreCase = true)
+        return current.issues.applyIssueFilter(current.searchQuery, current.selectedStatus)
+    }
+
+    /**
+     * Same search/status filter as [filteredIssues], applied to the
+     * "Ready to work on" cards so they don't show stale results when the user
+     * is searching for something specific.
+     *
+     * Ready work is by definition open / in-progress, so the `closed` status
+     * filter collapses it to an empty list rather than leaving stale data.
+     */
+    fun filteredReadyWork(): List<ProjectIssueSummary> {
+        val current = (_uiState.value as? UiState.Success)?.data ?: return emptyList()
+        if (current.selectedStatus.equals("closed", ignoreCase = true)) return emptyList()
+        return current.readyWork.applyIssueFilter(current.searchQuery, current.selectedStatus)
+    }
+
+    private fun List<ProjectIssueSummary>.applyIssueFilter(
+        searchQuery: String,
+        selectedStatus: String?,
+    ): List<ProjectIssueSummary> {
+        val query = searchQuery.trim().lowercase()
+        return filter { issue ->
+            val matchesStatus = selectedStatus == null || issue.status.equals(selectedStatus, ignoreCase = true)
             val matchesQuery = query.isBlank() ||
                 issue.id.lowercase().contains(query) ||
                 issue.title.lowercase().contains(query) ||

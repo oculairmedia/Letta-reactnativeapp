@@ -1,5 +1,10 @@
 package com.letta.mobile.ui.screens.projects
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -33,12 +39,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -61,6 +69,7 @@ import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerBox
 import com.letta.mobile.ui.components.TextInputDialog
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.screens.chat.ChatMotion
 import com.letta.mobile.ui.theme.LettaSpacing
 import com.letta.mobile.util.formatRelativeTime
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -156,6 +165,26 @@ fun ProjectIssuesScreen(
                 val filteredIssues = remember(state.data.issues, state.data.searchQuery, state.data.selectedStatus) {
                     viewModel.filteredIssues()
                 }
+                val filteredReadyWork = remember(state.data.readyWork, state.data.searchQuery, state.data.selectedStatus) {
+                    viewModel.filteredReadyWork()
+                }
+                val listState = rememberLazyListState()
+                // Track the issue currently at the top of the viewport so the
+                // (collapsed) completed-timeline card can highlight the matching
+                // entry when the user expands it. Items in the LazyColumn use
+                // either the raw `issue.id` (All section) or `"ready-${id}"`
+                // (Ready section); anything else is non-issue chrome.
+                val highlightedIssueId by remember(filteredIssues, filteredReadyWork) {
+                    derivedStateOf {
+                        val visibleKeys = listState.layoutInfo.visibleItemsInfo.asSequence()
+                        visibleKeys
+                            .mapNotNull { it.key as? String }
+                            .map { key -> if (key.startsWith("ready-")) key.removePrefix("ready-") else key }
+                            .firstOrNull { id ->
+                                filteredIssues.any { it.id == id } || filteredReadyWork.any { it.id == id }
+                            }
+                    }
+                }
                 PullToRefreshBox(
                     isRefreshing = state.data.isRefreshing,
                     onRefresh = viewModel::refresh,
@@ -164,6 +193,7 @@ fun ProjectIssuesScreen(
                         .fillMaxSize(),
                 ) {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(LettaSpacing.screenHorizontal),
                         verticalArrangement = Arrangement.spacedBy(LettaSpacing.cardGap),
@@ -187,10 +217,11 @@ fun ProjectIssuesScreen(
                                 isPartial = state.data.analyticsIsPartial,
                                 completionSource = state.data.analyticsCompletionSource,
                                 hasMore = state.data.timelineHasMore,
+                                highlightedIssueId = highlightedIssueId,
                                 onIssueClick = onNavigateToIssue,
                             )
                         }
-                        if (state.data.readyWork.isNotEmpty()) {
+                        if (filteredReadyWork.isNotEmpty()) {
                             item {
                                 Text(
                                     text = stringResource(R.string.screen_project_issues_ready_section),
@@ -198,7 +229,7 @@ fun ProjectIssuesScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                 )
                             }
-                            items(state.data.readyWork, key = { "ready-${it.id}" }) { issue ->
+                            items(filteredReadyWork, key = { "ready-${it.id}" }) { issue ->
                                 ProjectIssueCard(issue = issue, onClick = { onNavigateToIssue(issue.id) })
                             }
                         }
@@ -497,9 +528,21 @@ private fun ProjectIssueCompletedTimelineCard(
     isPartial: Boolean,
     completionSource: String?,
     hasMore: Boolean,
+    highlightedIssueId: String?,
     onIssueClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // letta-mobile: collapsed by default to match the tool-call card pattern
+    // (see ChatToolCallCards). Reusing ChatMotion design tokens for the
+    // chevron rotation + content size animation keeps motion consistent
+    // across the app.
+    var expanded by rememberSaveable(items) { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = ChatMotion.chipCrossfadeSpec,
+        label = "ProjectTimelineChevronRotation",
+    )
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -510,10 +553,42 @@ private fun ProjectIssueCompletedTimelineCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(R.string.screen_project_issues_completed_timeline_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = items.isNotEmpty()) { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.screen_project_issues_completed_timeline_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (items.isNotEmpty()) {
+                    Text(
+                        text = if (expanded) {
+                            stringResource(R.string.action_collapse)
+                        } else {
+                            stringResource(R.string.screen_project_issues_timeline_count, items.size)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        imageVector = LettaIcons.ExpandMore,
+                        contentDescription = if (expanded) {
+                            stringResource(R.string.action_collapse)
+                        } else {
+                            stringResource(R.string.action_expand)
+                        },
+                        modifier = Modifier
+                            .size(20.dp)
+                            .rotate(chevronRotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (isPartial && completionSource == "issue_close_metadata") {
                 IssueMetaChip(stringResource(R.string.screen_project_issues_completion_metadata_partial))
             }
@@ -525,41 +600,57 @@ private fun ProjectIssueCompletedTimelineCard(
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
-                val timelineHeight = ((items.size.coerceAtMost(4) * 96) + 24).dp
-                val pointFillColor = MaterialTheme.colorScheme.tertiary
-                val pointColor = MaterialTheme.colorScheme.tertiaryContainer
-                val pointStrokeColor = MaterialTheme.colorScheme.onTertiaryContainer
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = ChatMotion.expandEnter(),
+                    exit = ChatMotion.expandExit(),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val timelineHeight = ((items.size.coerceAtMost(4) * 96) + 24).dp
+                        val pointFillColor = MaterialTheme.colorScheme.tertiary
+                        val pointColor = MaterialTheme.colorScheme.tertiaryContainer
+                        val pointStrokeColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        // Highlight uses the primary container so it visually
+                        // distinguishes from the tertiary timeline accent
+                        // without clashing.
+                        val highlightPointFill = MaterialTheme.colorScheme.primary
+                        val highlightPointColor = MaterialTheme.colorScheme.primaryContainer
+                        val highlightStroke = MaterialTheme.colorScheme.onPrimaryContainer
 
-                JetLimeColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(timelineHeight),
-                    itemsList = ItemsList(items),
-                    key = { _, item -> item.id },
-                ) { _, item, position ->
-                    JetLimeEvent(
-                        style = JetLimeEventDefaults.eventStyle(
-                            position = position,
-                            pointColor = pointColor,
-                            pointFillColor = pointFillColor,
-                            pointRadius = 10.dp,
-                            pointStrokeColor = pointStrokeColor,
-                            pointStrokeWidth = 1.dp,
-                            pointType = EventPointType.filled(1f),
-                        ),
-                    ) {
-                        ProjectIssueTimelineEvent(
-                            item = item,
-                            onClick = { onIssueClick(item.id) },
-                        )
+                        JetLimeColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(timelineHeight),
+                            itemsList = ItemsList(items),
+                            key = { _, item -> item.id },
+                        ) { _, item, position ->
+                            val isHighlighted = highlightedIssueId == item.id
+                            JetLimeEvent(
+                                style = JetLimeEventDefaults.eventStyle(
+                                    position = position,
+                                    pointColor = if (isHighlighted) highlightPointColor else pointColor,
+                                    pointFillColor = if (isHighlighted) highlightPointFill else pointFillColor,
+                                    pointRadius = if (isHighlighted) 12.dp else 10.dp,
+                                    pointStrokeColor = if (isHighlighted) highlightStroke else pointStrokeColor,
+                                    pointStrokeWidth = if (isHighlighted) 2.dp else 1.dp,
+                                    pointType = EventPointType.filled(1f),
+                                ),
+                            ) {
+                                ProjectIssueTimelineEvent(
+                                    item = item,
+                                    highlighted = isHighlighted,
+                                    onClick = { onIssueClick(item.id) },
+                                )
+                            }
+                        }
+                        if (hasMore) {
+                            Text(
+                                text = stringResource(R.string.screen_project_issues_timeline_more_available),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
-                }
-                if (hasMore) {
-                    Text(
-                        text = stringResource(R.string.screen_project_issues_timeline_more_available),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
@@ -571,14 +662,19 @@ private fun ProjectIssueTimelineEvent(
     item: ProjectIssueTimelineItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 1.dp,
+        color = if (highlighted) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        tonalElevation = if (highlighted) 3.dp else 1.dp,
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
