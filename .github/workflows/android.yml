@@ -130,3 +130,28 @@ jobs:
           name: ${{ matrix.artifact_name }}-${{ github.run_number }}
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
+
+  # Aggregator job: reports a single stable status check that branch
+  # protection can require. The `build-apk` job above runs as a matrix,
+  # so each matrix entry produces its own check context whose name
+  # includes all the matrix values
+  # (e.g. "build-apk (root-debug, :app:assembleRootDebug, ...)").
+  # GitHub branch-protection rules can't require a matrix-expanded
+  # context cleanly -- the names truncate at 100 chars and change if
+  # the matrix definition changes. This wrapper depends on the matrix
+  # and reports as a single `build-apk-pass` context that's stable
+  # against matrix edits and matches the bootstrap-branch-protection
+  # script.
+  build-apk-pass:
+    runs-on: ubuntu-latest
+    needs: build-apk
+    if: always()
+    steps:
+      - name: Verify build-apk matrix succeeded
+        run: |
+          result="${{ needs.build-apk.result }}"
+          if [ "$result" != "success" ]; then
+            echo "build-apk matrix did not succeed (result=$result)"
+            exit 1
+          fi
+          echo "build-apk matrix succeeded"
