@@ -38,15 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -168,13 +160,6 @@ class WsBotClient(
      * inbound frame upgrades them into [activeRoutes].
      */
     private val pendingRoutes = java.util.concurrent.ConcurrentHashMap<String, RequestRoute>()
-
-    private data class RequestRoute(
-        val requestId: String,
-        val channel: SendChannel<RequestSignal>,
-        @Volatile var conversationId: String?,
-        @Volatile var firstFrameSent: Boolean = false,
-    )
 
     @Volatile
     private var openDeferred: CompletableDeferred<Unit>? = null
@@ -684,7 +669,7 @@ class WsBotClient(
 
     private fun handleIncoming(text: String) {
         val message = try {
-            parseIncoming(text)
+            parseIncoming(json, text)
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to parse WebSocket message: ${text.take(160)}", e)
             return
@@ -899,116 +884,6 @@ class WsBotClient(
         }
     }
 
-    private fun parseIncoming(text: String): WsInboundMessage {
-        val element = json.parseToJsonElement(text)
-        val obj = element as? JsonObject ?: throw SerializationException("Expected JSON object")
-        val type = obj["type"]?.jsonPrimitive?.content ?: throw SerializationException("Missing type")
-
-        return when (type) {
-            "session_init" -> json.decodeFromJsonElement(WsSessionInit.serializer(), element)
-            "stream" -> json.decodeFromJsonElement(WsStreamEventMessage.serializer(), element)
-            "result" -> json.decodeFromJsonElement(WsResultMessage.serializer(), element)
-            "error" -> json.decodeFromJsonElement(WsErrorMessage.serializer(), element)
-            else -> throw SerializationException("Unknown WebSocket message type: $type")
-        }
-    }
-
-    private fun normalizeWebSocketUrl(
-        baseUrl: String,
-        progressiveToolCalls: Boolean = false,
-    ): String {
-        val uri = URI(baseUrl.trim())
-        val scheme = when (uri.scheme?.lowercase()) {
-            "http" -> "ws"
-            "https" -> "wss"
-            "ws", "wss" -> uri.scheme.lowercase()
-            else -> throw IllegalArgumentException("Unsupported baseUrl scheme: ${uri.scheme}")
-        }
-        val path = uri.path.orEmpty().trimEnd('/').let { currentPath ->
-            if (currentPath.endsWith(WS_PATH)) currentPath else "$currentPath$WS_PATH"
-        }
-        // letta-mobile-flk.2: append `progressive_tool_calls=1` if the
-        // caller opted in. Merge with any existing query rather than
-        // clobbering, so a baseUrl carrying its own query params (e.g.
-        // a debug tracer flag) is preserved. Skip if the flag is
-        // already present so this is idempotent.
-        val mergedQuery = mergeQuery(uri.query, progressiveToolCalls)
-        return URI(scheme, uri.userInfo, uri.host, uri.port, path, mergedQuery, uri.fragment).toString()
-    }
-
-    private fun mergeQuery(existing: String?, progressiveToolCalls: Boolean): String? {
-        if (!progressiveToolCalls) return existing
-        val flag = "progressive_tool_calls=1"
-        if (existing.isNullOrBlank()) return flag
-        // Idempotent: don't append twice.
-        val parts = existing.split('&')
-        val alreadyPresent = parts.any { it.equals(flag, ignoreCase = true) ||
-            it.startsWith("progressive_tool_calls=", ignoreCase = true) }
-        return if (alreadyPresent) existing else "$existing&$flag"
-    }
-
-    private fun normalizeHttpBaseUrl(baseUrl: String): String {
-        val uri = URI(baseUrl.trim())
-        val scheme = when (uri.scheme?.lowercase()) {
-            "ws" -> "http"
-            "wss" -> "https"
-            "http", "https" -> uri.scheme.lowercase()
-            else -> throw IllegalArgumentException("Unsupported baseUrl scheme: ${uri.scheme}")
-        }
-        val path = uri.path.orEmpty().trimEnd('/').removeSuffix(WS_PATH).ifBlank { "" }
-        return URI(scheme, uri.userInfo, uri.host, uri.port, path.ifBlank { null }, null, null).toString().trimEnd('/')
-    }
-
-    private fun BotChatRequest.outboundContent(json: Json): String =
-        contentItems?.takeIf { it.isNotEmpty() }?.let { json.encodeToString(ListSerializer(BotMessageContentItem.serializer()), it) }
-            ?: message
-
-    private fun List<BotStreamChunk>.collectFinalResponse(): BotChatResponse {
-        val assistantText = buildString {
-            for (chunk in this@collectFinalResponse) {
-                if (chunk.done) continue
-                if (chunk.event == null || chunk.event == BotStreamEvent.ASSISTANT) {
-                    append(chunk.text.orEmpty())
-                }
-            }
-        }
-        val terminal = lastOrNull { it.done } ?: lastOrNull()
-        return BotChatResponse(
-            response = assistantText,
-            conversationId = terminal?.conversationId,
-            agentId = terminal?.agentId,
-        )
-    }
-
-    private fun String.toGatewayErrorCode(): BotGatewayErrorCode =
-        runCatching { BotGatewayErrorCode.valueOf(this) }.getOrDefault(BotGatewayErrorCode.STREAM_ERROR)
-
-    private fun WsStreamEventMessage.toChunk(
-        conversationId: String?,
-        agentId: String?,
-    ): BotStreamChunk = BotStreamChunk(
-        text = content,
-        // letta-mobile-flk.5: prefer the per-frame conversation_id when
-        // the gateway provides it. Newer lettabot builds echo the active
-        // Letta conv id on every chunk so mid-stream conversation swaps
-        // (after auto-recovery from a stuck conv) are observable BEFORE
-        // the terminal `result` frame; older builds populate only the
-        // result frame, so we fall back to the cached
-        // `activeConversationId` to preserve the previous behavior.
-        conversationId = this.conversationId ?: conversationId,
-        agentId = agentId,
-        event = event,
-        toolName = toolName,
-        toolCallId = toolCallId,
-        toolInput = toolInput,
-        toolCalls = toolCalls,
-        isError = isError,
-        requestId = requestId,
-        uuid = uuid,
-        oldConversationId = oldConversationId,
-        done = false,
-    )
-
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             socketOpen = true
@@ -1081,108 +956,8 @@ class WsBotClient(
         }
     }
 
-    private sealed interface RequestSignal {
-        data class Message(val message: WsInboundMessage) : RequestSignal
-        data class Failure(val throwable: Throwable) : RequestSignal
-    }
-
-    private sealed interface WsInboundMessage
-
-    @Serializable
-    private data class WsSessionStart(
-        val type: String = "session_start",
-        @SerialName("agent_id") val agentId: String,
-        @SerialName("conversation_id") val conversationId: String? = null,
-        @SerialName("force_new") val forceNew: Boolean = false,
-    )
-
-    @Serializable
-    private data class WsClientMessage(
-        val type: String = "message",
-        val content: String,
-        @SerialName("request_id") val requestId: String,
-        val source: WsSource,
-    )
-
-    @Serializable
-    private data class WsSource(
-        val channel: String,
-        val chatId: String,
-    )
-
-    @Serializable
-    private data class WsAbortMessage(
-        val type: String = "abort",
-        @SerialName("request_id") val requestId: String,
-    )
-
-    @Serializable
-    private data class WsSessionCloseMessage(
-        val type: String = "session_close",
-    )
-
-    @Serializable
-    private data class WsSessionInit(
-        val type: String,
-        @SerialName("agent_id") val agentId: String,
-        @SerialName("conversation_id") val conversationId: String,
-        @SerialName("session_id") val sessionId: String,
-    ) : WsInboundMessage
-
-    @Serializable
-    private data class WsStreamEventMessage(
-        val type: String,
-        val event: BotStreamEvent,
-        val content: String? = null,
-        @SerialName("tool_name") val toolName: String? = null,
-        @SerialName("tool_call_id") val toolCallId: String? = null,
-        @SerialName("tool_input") val toolInput: JsonElement? = null,
-        @SerialName("tool_calls")
-        @Serializable(with = BotToolCallListSerializer::class)
-        val toolCalls: List<ToolCall>? = null,
-        @SerialName("is_error") val isError: Boolean = false,
-        val uuid: String? = null,
-        @SerialName("request_id") val requestId: String? = null,
-        /**
-         * letta-mobile-flk.5: present when the gateway echoes the active
-         * Letta conversation id on each per-chunk frame, OR when the
-         * gateway emits an explicit `conversation_swap` event (in which
-         * case this carries the *new* conversation id). Falling back to
-         * the connection-level `activeConversationId` when absent
-         * preserves bug-for-bug behavior with older gateway builds.
-         */
-        @SerialName("conversation_id") val conversationId: String? = null,
-        /**
-         * letta-mobile-flk.5: present only on
-         * `event == CONVERSATION_SWAP` — the conversation id the gateway
-         * abandoned. Allows the receiver to migrate stranded optimistic
-         * locals from the old timeline before re-pointing the observer.
-         */
-        @SerialName("old_conversation_id") val oldConversationId: String? = null,
-    ) : WsInboundMessage
-
-    @Serializable
-    private data class WsResultMessage(
-        val type: String,
-        val success: Boolean,
-        @SerialName("conversation_id") val conversationId: String? = null,
-        @SerialName("request_id") val requestId: String? = null,
-        @SerialName("duration_ms") val durationMs: Long? = null,
-        val error: String? = null,
-        val aborted: Boolean = false,
-    ) : WsInboundMessage
-
-    @Serializable
-    private data class WsErrorMessage(
-        val type: String,
-        val code: String,
-        val message: String,
-        @SerialName("request_id") val requestId: String? = null,
-    ) : WsInboundMessage
-
     companion object {
         private const val TAG = "WsBotClient"
-        private const val WS_PATH = "/api/v1/agent-gateway"
         private const val DEFAULT_STREAM_RECEIVE_TIMEOUT_MS = 300_000L
         private val DEFAULT_RECONNECT_DELAYS_MS = listOf(1_000L, 2_000L, 5_000L, 10_000L, 30_000L)
         private const val DEFAULT_MAX_RECONNECT_ATTEMPTS = 6
