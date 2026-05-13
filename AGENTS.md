@@ -108,6 +108,31 @@ bd close <id>
 - Do **not** report letta-mobile work to Meridian
 - Use the `bd` CLI for all issue management
 
+## Versioning and Releases
+
+`versionName` and `versionCode` are **derived at build time** — never hand-edit them in `android-compose/app/build.gradle.kts`.
+
+- **Source of truth**: the git tag `vX.Y.Z`.
+- **`versionName`** = tag minus the `v` prefix (e.g. `v0.1.0` → `0.1.0`). Local / PR / untagged builds fall back to `git describe --tags --match 'v[0-9]*' --dirty` (e.g. `0.1.0-3-gab12cd-dirty`).
+- **`versionCode`** = `MAJOR * 10000 + MINOR * 100 + PATCH`. Examples: `0.1.0 → 100`, `1.2.3 → 10203`, `10.0.0 → 100000`. Suffixes (`-rc.1`, `-3-gab12cd`, `-dirty`) are stripped before the math, so `v0.2.0-rc.1` and `v0.2.0` produce the **same** `versionCode`. Tag the GA release separately to bump.
+- **Override** (rare — for one-off builds): `./gradlew assembleRelease -PversionNameOverride=0.1.0-hotfix`.
+
+### Cutting a release
+
+```bash
+git checkout main && git pull
+git tag -a v0.1.0 -m "release: 0.1.0"
+git push origin v0.1.0
+```
+
+The `.github/workflows/release.yml` workflow picks up the tag, builds the signed play-release APK, creates a GitHub Release with auto-generated notes, attaches `letta-mobile-v0.1.0.apk`. Mistakes are reversible with `git push --delete origin <tag>` + `gh release delete`.
+
+### Rules for agents
+
+- **Never** edit `versionCode` or `versionName` in `build.gradle.kts`. Both lines are computed values; manual edits will be overwritten on the next build.
+- **Never** push a tag from the command line as part of a feature PR. Tags are cut from `main` after a PR merges, not from the feature branch.
+- **Pre-releases**: use a hyphen-suffixed tag (`v0.2.0-rc.1`) — `softprops/action-gh-release` auto-marks the GitHub Release as a pre-release based on the hyphen.
+
 ## Material Design System Rules
 
 Use these rules for all new UI work and UI refactors in this repo. The app already uses Material 3 broadly; the goal is to use it **systematically**.
