@@ -628,7 +628,23 @@ fun AppNavGraph(
             CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                 AgentScaffold(
                     initialProjectStartAction = route.projectStartAction,
-                    onNavigateBack = { navController.popBackStack() },
+                    // letta-mobile: when AgentChatRoute is the cold-start
+                    // landing (lastChatSelection or fallbackAgentId picked
+                    // it as the startDestination), the back stack is empty
+                    // — popBackStack() returns false and would exit the
+                    // app. Fall back to the conversations list so back-
+                    // from-default-chat takes the user somewhere useful
+                    // instead. For the drilled-in case (chat opened from
+                    // another screen) popBackStack succeeds and the
+                    // existing behaviour is unchanged.
+                    onNavigateBack = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(ConversationsRoute) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                     onNavigateToSettings = { agentId ->
                         navController.navigate(EditAgentRoute(agentId))
                     },
