@@ -41,13 +41,19 @@ open class ProjectApi @Inject constructor(
     private val apiClient: LettaApiClient,
 ) {
     /**
-     * letta-mobile-2ixd: lightweight capability probe for the projects API.
-     * Returns true when the connected backend serves `/api/projects` with a
-     * 2xx response (or anything that isn't a definitive 404 / 501 / 405),
-     * false when the server tells us the endpoint isn't supported, and
-     * true (the assume-supported fallback) on transient errors so a flaky
-     * network doesn't silently hide the feature. CapabilityRepository
-     * caches this per-config so we don't probe on every recomposition.
+     * letta-mobile-2ixd: capability probe for the projects API. Status code
+     * alone isn't enough — some servers (e.g. the letta-code admin shim)
+     * stub `/api/projects` to return `200 []` so the endpoint exists in
+     * name but doesn't actually serve a project catalog. The empty array
+     * can't be deserialized into [ProjectCatalog] (which requires a
+     * `projects` field), so use successful deserialization as the
+     * supported signal:
+     *
+     *   - 404 / 405 / 501 → unsupported (definitive)
+     *   - 2xx with parseable [ProjectCatalog] body → supported
+     *   - 2xx with un-parseable body (e.g. shim's `[]`) → unsupported
+     *   - any other status / network error → assume supported, so a
+     *     flaky network doesn't silently hide a working feature
      */
     open suspend fun probeAvailability(): Boolean {
         val client = apiClient.getClient()
@@ -56,11 +62,10 @@ open class ProjectApi @Inject constructor(
             val response = client.get("$baseUrl/api/projects?limit=1")
             when (response.status.value) {
                 404, 405, 501 -> false
+                in 200..299 -> runCatching { response.body<ProjectCatalog>() }.isSuccess
                 else -> true
             }
         } catch (e: Exception) {
-            // Network / parse / other — assume supported to avoid hiding a
-            // working feature behind transient failures.
             true
         }
     }

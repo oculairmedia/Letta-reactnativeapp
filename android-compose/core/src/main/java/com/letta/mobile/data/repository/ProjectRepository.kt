@@ -31,6 +31,19 @@ class ProjectRepository @Inject constructor(
         refreshProjectsLocked()
     }
 
+    /**
+     * letta-mobile-2ixd: drop the in-memory project cache. Called by
+     * CapabilityRepository when the active-backend probe says
+     * `/api/projects` isn't supported on the new server — otherwise the
+     * UI keeps showing the previous backend's project list (e.g.
+     * docling-api, gpt-researcher from a vanilla Letta session) on a
+     * shim that stubs the endpoint to `[]`.
+     */
+    fun clearCache() {
+        _projects.value = emptyList()
+        lastRefreshAtMillis = 0L
+    }
+
     private suspend fun refreshProjectsLocked(): ProjectCatalog {
         val catalog = projectApi.listProjects().sanitize()
         _projects.value = catalog.projects
