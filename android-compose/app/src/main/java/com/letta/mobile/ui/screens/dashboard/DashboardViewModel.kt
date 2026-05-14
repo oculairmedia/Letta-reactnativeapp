@@ -385,11 +385,26 @@ class DashboardViewModel @Inject constructor(
                 // Throttle to N-wide parallelism so we don't saturate the HTTP
                 // client with 100 GET /runs/*/steps requests — that blocks other
                 // screens (chat hydrate, conversation list) from getting through.
+                //
+                // letta-mobile-6mqg: catch per-run so a single failing /steps
+                // call (e.g. a stale run id 404 after backend switch, or the
+                // 'run not in background mode' reject from earlier Letta
+                // servers) doesn't propagate through the structured-
+                // concurrency channel and crash the app on Main.immediate.
+                // Each failure contributes an empty step list to the
+                // summary instead of killing the whole batch.
                 val steps = recentRuns
                     .chunked(DASHBOARD_STEPS_CONCURRENCY)
                     .flatMap { batch ->
-                        batch.map { run -> async { runRepository.getRunSteps(run.id) } }
-                            .awaitAll()
+                        batch.map { run ->
+                            async {
+                                runCatching { runRepository.getRunSteps(run.id) }
+                                    .getOrElse { error ->
+                                        Log.w("DashboardVM", "getRunSteps(${run.id}) failed", error)
+                                        emptyList()
+                                    }
+                            }
+                        }.awaitAll()
                     }
                     .flatten()
                 _uiState.value = _uiState.value.copy(
