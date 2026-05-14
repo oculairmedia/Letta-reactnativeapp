@@ -12,16 +12,30 @@
 # What this enforces on `main`:
 #   - Direct pushes are rejected; changes must arrive via a PR.
 #   - PRs must be up-to-date with main before merging (strict).
-#   - Required status checks must pass: test, build-apk.
+#   - Required status checks must pass: test, build-apk-pass.
 #   - Linear history only -- squash-merge or rebase-merge, no merge commits.
 #   - Force-push and branch deletion are blocked.
-#   - 0 required approving reviews (solo dev). Bump this when adding reviewers.
+#   - No approving-review requirement (solo dev). When a second contributor
+#     joins, switch `required_pull_request_reviews` to a non-null block with
+#     `required_approving_review_count` set to >= 1.
 #   - Admin bypass is allowed (enforce_admins=false) for emergency hotfixes.
+#
+# History notes:
+#   - `required_pull_request_reviews` MUST be `null` for true "no review"
+#     semantics. Setting `{required_approving_review_count: 0}` STILL
+#     requires an approving review (count is a minimum, not an
+#     "if-required" toggle) and creates a solo-dev deadlock since GitHub
+#     forbids self-approval. See the first run of bootstrap on 2026-05-13:
+#     PR #42 couldn't merge until the rule was corrected.
+#   - The required status check is `build-apk-pass` (a single aggregator
+#     job in .github/workflows/android.yml), NOT the matrix-expanded
+#     `build-apk (variant, ...)` contexts. The matrix names truncate at
+#     100 chars and change shape if the matrix definition is edited.
 set -euo pipefail
 
 REPO="${REPO:-oculairmedia/letta-mobile}"
 BRANCH="${BRANCH:-main}"
-CHECKS=(test build-apk)
+CHECKS=(test build-apk-pass)
 
 contexts=$(printf '"%s",' "${CHECKS[@]}")
 contexts="[${contexts%,}]"
@@ -33,11 +47,7 @@ body=$(cat <<EOF
     "contexts": $contexts
   },
   "enforce_admins": false,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 0,
-    "dismiss_stale_reviews": false,
-    "require_code_owner_reviews": false
-  },
+  "required_pull_request_reviews": null,
   "restrictions": null,
   "allow_force_pushes": false,
   "allow_deletions": false,
