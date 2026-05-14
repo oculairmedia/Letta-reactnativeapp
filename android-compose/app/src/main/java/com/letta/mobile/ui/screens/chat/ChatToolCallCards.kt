@@ -1,8 +1,11 @@
 package com.letta.mobile.ui.screens.chat
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +46,7 @@ import com.letta.mobile.data.tooloutput.ToolOutputParser
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LocalChatFontScale
+import com.letta.mobile.ui.theme.LocalChatIsPinching
 import com.letta.mobile.ui.theme.chatBubbleSender
 import com.letta.mobile.ui.theme.chatTypography
 import com.letta.mobile.ui.theme.listItemSupporting
@@ -234,113 +238,173 @@ internal fun ToolCallCard(
                 }
             }
 
-            if (showDetails) {
-                ToolCallExpandedSummary(
+            // letta-mobile-2o63: animate the expand/collapse with the same
+            // ChatMotion ramp + SizeTransform(clip = true) used by
+            // ToolOutputRenderer and RunBlock. The previous bare
+            // `if (showDetails) { ... }` cut produced a hard pop. The
+            // SizeTransform clip prevents the un-collapsing content from
+            // overshooting its bounds during the transition, which keeps the
+            // LazyColumn's scroll anchor stable (the same trade-off
+            // ToolOutputRenderer relies on; see letta-mobile-3wjn). Pinch
+            // gestures skip the wrapper so multi-touch height interpolations
+            // don't cascade across bubbles.
+            val isPinching = LocalChatIsPinching.current
+            if (isPinching) {
+                ToolCallExpandedBodyContent(
+                    visible = showDetails,
                     toolCall = toolCall,
                     argumentSummary = argumentSummary,
                     resultPreview = resultPreview,
                     isError = isError,
                     fontScale = fontScale,
+                    codeStyle = codeStyle,
+                    display = display,
+                    executionTimeText = executionTimeText,
+                    displayResult = displayResult,
                 )
-            }
-
-            // Expanded content. Keep manual detail expansion static so LazyColumn
-            // does not animate the whole timeline around the user's scroll anchor.
-            if (showDetails) {
-                Column(modifier = Modifier.padding(top = 4.dp)) {
-                    // Tool name and timing
-                    Text(
-                        text = "Tool: ${toolCall.name}",
-                        style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+            } else {
+                AnimatedContent(
+                    targetState = showDetails,
+                    modifier = Modifier.fillMaxWidth(),
+                    transitionSpec = {
+                        (ChatMotion.expandEnter() togetherWith ChatMotion.expandExit())
+                            .using(SizeTransform(clip = true) { _, _ -> ChatMotion.contentSizeSpec })
+                    },
+                    contentAlignment = Alignment.TopStart,
+                    label = "ToolCallCardExpanded",
+                ) { expandedNow ->
+                    ToolCallExpandedBodyContent(
+                        visible = expandedNow,
+                        toolCall = toolCall,
+                        argumentSummary = argumentSummary,
+                        resultPreview = resultPreview,
+                        isError = isError,
+                        fontScale = fontScale,
+                        codeStyle = codeStyle,
+                        display = display,
+                        executionTimeText = executionTimeText,
+                        displayResult = displayResult,
                     )
-                    executionTimeText?.let { time ->
-                        Text(
-                            text = "Execution time: $time",
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
-                        )
-                    }
-                    // Detail line (extracted from arguments)
-                    display.detailLine?.let { detail ->
-                        Text(
-                            text = detail,
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    // Arguments
-                    if (toolCall.arguments.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Arguments",
-                            style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                        )
-                        Text(
-                            text = toolCall.arguments,
-                            style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 6,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    // Result — inner collapsible (letta-mobile-mge5.19).
-                    // Default collapsed: show the result-label row with a
-                    // chevron + first-line preview. Tap expands to full.
-                    displayResult?.takeIf { it.isNotBlank() }?.let { result ->
-                        var resultExpanded by remember(toolCall.result) { mutableStateOf(false) }
-                        val resultChevronRotation by animateFloatAsState(
-                            targetValue = if (resultExpanded) 180f else 0f,
-                            animationSpec = ChatMotion.chipCrossfadeSpec,
-                            label = "ToolOutputChevronRotation",
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { resultExpanded = !resultExpanded },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = if (isError) "Error" else "Output",
-                                style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
-                                color = if (isError) {
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                            val lineCount = result.count { it == '\n' } + 1
-                            if (lineCount > 1 || result.length > 80) {
-                                Text(
-                                    text = if (resultExpanded) "collapse" else "${lineCount} line${if (lineCount == 1) "" else "s"}",
-                                    style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-                            Icon(
-                                imageVector = LettaIcons.ExpandMore,
-                                contentDescription = if (resultExpanded) "Collapse output" else "Expand output",
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .rotate(resultChevronRotation),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                            )
-                        }
-                        ToolOutputRenderer(
-                            raw = result,
-                            expanded = resultExpanded,
-                            isError = isError,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ToolCallExpandedBodyContent(
+    visible: Boolean,
+    toolCall: UiToolCall,
+    argumentSummary: ToolArgumentSummary?,
+    resultPreview: String?,
+    isError: Boolean,
+    fontScale: Float,
+    codeStyle: androidx.compose.ui.text.TextStyle,
+    display: ToolDisplayInfo,
+    executionTimeText: String?,
+    displayResult: String?,
+) {
+    if (!visible) return
+    Column {
+        ToolCallExpandedSummary(
+            toolCall = toolCall,
+            argumentSummary = argumentSummary,
+            resultPreview = resultPreview,
+            isError = isError,
+            fontScale = fontScale,
+        )
+        Column(modifier = Modifier.padding(top = 4.dp)) {
+            // Tool name and timing
+            Text(
+                text = "Tool: ${toolCall.name}",
+                style = MaterialTheme.typography.chatBubbleSender.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+            )
+            executionTimeText?.let { time ->
+                Text(
+                    text = "Execution time: $time",
+                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
+                )
+            }
+            // Detail line (extracted from arguments)
+            display.detailLine?.let { detail ->
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // Arguments
+            if (toolCall.arguments.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Arguments",
+                    style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                )
+                Text(
+                    text = toolCall.arguments,
+                    style = MaterialTheme.typography.listItemSupporting.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // Result — inner collapsible (letta-mobile-mge5.19).
+            // Default collapsed: show the result-label row with a
+            // chevron + first-line preview. Tap expands to full.
+            displayResult?.takeIf { it.isNotBlank() }?.let { result ->
+                var resultExpanded by remember(toolCall.result) { mutableStateOf(false) }
+                val resultChevronRotation by animateFloatAsState(
+                    targetValue = if (resultExpanded) 180f else 0f,
+                    animationSpec = ChatMotion.chipCrossfadeSpec,
+                    label = "ToolOutputChevronRotation",
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { resultExpanded = !resultExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (isError) "Error" else "Output",
+                        style = MaterialTheme.typography.sectionTitle.copy(fontFamily = codeStyle.fontFamily).scaledBy(fontScale),
+                        color = if (isError) {
+                            MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    val lineCount = result.count { it == '\n' } + 1
+                    if (lineCount > 1 || result.length > 80) {
+                        Text(
+                            text = if (resultExpanded) "collapse" else "${lineCount} line${if (lineCount == 1) "" else "s"}",
+                            style = MaterialTheme.typography.labelSmall.scaledBy(fontScale),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Icon(
+                        imageVector = LettaIcons.ExpandMore,
+                        contentDescription = if (resultExpanded) "Collapse output" else "Expand output",
+                        modifier = Modifier
+                            .size(14.dp)
+                            .rotate(resultChevronRotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    )
+                }
+                ToolOutputRenderer(
+                    raw = result,
+                    expanded = resultExpanded,
+                    isError = isError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
