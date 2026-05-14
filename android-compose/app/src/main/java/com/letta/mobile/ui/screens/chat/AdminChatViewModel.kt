@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -384,7 +385,12 @@ class AdminChatViewModel @Inject constructor(
             // they fall through to the existing create-on-send path.
             if (!explicitNewChat && agentId.isNotBlank()) {
                 viewModelScope.launch {
-                    val flagEnabled = settingsRepository.observeResumeRecentConversation().first()
+                    // Use firstOrNull so a mocked SettingsRepository returning
+                    // emptyFlow() (in unit tests) doesn't throw at VM init.
+                    // Unknown-flag treated as "skip resume" — preserves pre-h2b8
+                    // fresh-route semantics for tests. Real SettingsRepository
+                    // always emits via the BuildConfig.DEBUG default.
+                    val flagEnabled = settingsRepository.observeResumeRecentConversation().firstOrNull() ?: false
                     if (!flagEnabled) return@launch
                     Telemetry.event(
                         "AdminChatVM", "resumeRecent.attempted",
