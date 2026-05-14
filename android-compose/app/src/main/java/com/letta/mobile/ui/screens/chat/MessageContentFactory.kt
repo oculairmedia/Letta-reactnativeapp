@@ -103,7 +103,17 @@ private fun AssistantResponseText(
     }
     val hasTable = remember(text) { text.containsMarkdownTable() }
 
-    if (!isStreaming && !hasStreamed && !hasTable) {
+    // Gate every "use the streaming renderer / smoother" decision on real
+    // text growth, not just the bare `isStreaming` flag. The flag flickers
+    // true the moment the user taps Send (before the new user Local is
+    // appended), and any path that engages the smoother during that window
+    // wipes the prior message's `displayed` back to "" and replays it.
+    // `useStreamingRenderer` is the single decision point — short-circuit
+    // and smoother gating both flow from it so the renderer choice stays
+    // stable across the flicker.
+    val useStreamingRenderer = (isStreaming && textHasGrown) || hasStreamed
+
+    if (!useStreamingRenderer && !hasTable) {
         MarkdownText(
             text = text,
             textColor = textColor,
@@ -112,11 +122,10 @@ private fun AssistantResponseText(
         return
     }
 
-    val shouldSmoothText = isStreaming || hasStreamed
-    val smoothedText = if (shouldSmoothText) {
+    val smoothedText = if (useStreamingRenderer) {
         rememberSmoothedStreamingText(
             rawText = text,
-            isStreaming = isStreaming,
+            isStreaming = isStreaming && textHasGrown,
         )
     } else {
         text
