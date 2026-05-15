@@ -69,7 +69,7 @@ internal class ClientModeSendCoordinator(
         text: String,
         attachments: List<MessageContentPart.Image> = emptyList(),
         explicitConversationId: String?,
-    ) {
+    ): Job {
         streamJob?.cancel()
         isStreamInFlight = true
         streamStartedAtElapsedMs = android.os.SystemClock.elapsedRealtime()
@@ -89,7 +89,7 @@ internal class ClientModeSendCoordinator(
         val outboundText = buildClientModeOutboundText(text, attachments)
         val initialPriorConversationId = explicitConversationId ?: currentClientModeConversationId()
         clearComposerAfterSend()
-        streamJob = scope.launch {
+        val job = scope.launch {
             val priorConversationId = initialPriorConversationId
             currentConversationTracker.setCurrent(priorConversationId)
             if (priorConversationId != null) {
@@ -354,6 +354,8 @@ internal class ClientModeSendCoordinator(
                 }
             }
         }
+        streamJob = job
+        return job
     }
 
     private fun resetPreConversationBuffer() {

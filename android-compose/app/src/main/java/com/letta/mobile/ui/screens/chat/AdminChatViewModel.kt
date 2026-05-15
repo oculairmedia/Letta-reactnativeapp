@@ -21,6 +21,10 @@ import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.ui.theme.ChatBackground
+import com.letta.mobile.ui.screens.chat.send.ChatSendContext
+import com.letta.mobile.ui.screens.chat.send.ChatSendStrategySelector
+import com.letta.mobile.ui.screens.chat.send.ClientModeChatSendStrategy
+import com.letta.mobile.ui.screens.chat.send.TimelineChatSendStrategy
 import com.letta.mobile.util.Telemetry
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -276,8 +280,20 @@ class AdminChatViewModel @Inject constructor(
         setClientModeConversationId = ::setClientModeConversationId,
         startTimelineObserver = ::startTimelineObserver,
         stopTimelineObserver = ::stopTimelineObserver,
-        sendMessageViaClientMode = ::sendMessageViaClientMode,
-        sendMessageViaTimeline = { sendMessageViaTimeline(it) },
+        sendMessageViaClientMode = { message ->
+            clientModeChatSendStrategy.send(
+                text = message,
+                attachments = emptyList(),
+                context = chatSendContext(isClientModeEnabled = true),
+            )
+        },
+        sendMessageViaTimeline = { message ->
+            timelineChatSendStrategy.send(
+                text = message,
+                attachments = emptyList(),
+                context = chatSendContext(isClientModeEnabled = false),
+            )
+        },
         markFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight = true },
     )
     private val clientModeSendCoordinator = ClientModeSendCoordinator(
@@ -315,6 +331,18 @@ class AdminChatViewModel @Inject constructor(
             activeConversationId = { chatConversationCoordinator.activeConversationId },
             setActiveConversationId = chatConversationCoordinator::setActiveConversationId,
             startTimelineObserver = ::startTimelineObserver,
+        )
+    }
+    private val timelineChatSendStrategy: TimelineChatSendStrategy by lazy {
+        TimelineChatSendStrategy(timelineSendCoordinator)
+    }
+    private val clientModeChatSendStrategy: ClientModeChatSendStrategy by lazy {
+        ClientModeChatSendStrategy(clientModeSendCoordinator)
+    }
+    private val chatSendStrategySelector: ChatSendStrategySelector by lazy {
+        ChatSendStrategySelector(
+            timelineStrategy = timelineChatSendStrategy,
+            clientModeStrategy = clientModeChatSendStrategy,
         )
     }
     private val chatHistoryPager: ChatHistoryPager by lazy {
@@ -636,41 +664,26 @@ class AdminChatViewModel @Inject constructor(
         text: String,
         attachments: List<com.letta.mobile.data.model.MessageContentPart.Image>,
     ) {
-        val isClientMode = shouldUseClientModeForCurrentRoute
-        Telemetry.event(
-            "AdminChatVM", "sendMessage.route",
-            "via" to if (isClientMode) "client_mode" else "timeline",
-            "length" to text.length,
-            "attachments" to attachments.size,
-        )
+        val context = chatSendContext()
         // letta-mobile-flk.6 debug: log the route + freshness predicates so
         // we can correlate device taps with the lettabot gateway's
         // Auto-resuming vs Forced-new outcome. Remove once verified.
         android.util.Log.i(
             "AdminChatViewModel",
-            "flk6.sendMessage agent=$agentId via=${if (isClientMode) "client_mode" else "timeline"} " +
+            "flk6.sendMessage agent=$agentId via=${if (context.isClientModeEnabled) "client_mode" else "timeline"} " +
                 "isFreshRoute=$isFreshRoute explicitConv=$explicitConversationId " +
                 "clientModeConv=${currentClientModeConversationId()} " +
                 "active=${chatConversationCoordinator.activeConversationId}",
         )
-        if (isClientMode) {
-            sendMessageViaClientMode(text, attachments)
-            return
-        }
-        sendMessageViaTimeline(text, attachments)
+        chatSendStrategySelector.send(text, attachments, context)
     }
 
-
-    private fun sendMessageViaClientMode(
-        text: String,
-        attachments: List<MessageContentPart.Image> = emptyList(),
-    ) {
-        clientModeSendCoordinator.send(
-            text = text,
-            attachments = attachments,
-            explicitConversationId = explicitConversationId,
-        )
-    }
+    private fun chatSendContext(
+        isClientModeEnabled: Boolean = shouldUseClientModeForCurrentRoute,
+    ) = ChatSendContext(
+        isClientModeEnabled = isClientModeEnabled,
+        explicitConversationId = explicitConversationId,
+    )
 
     private fun currentClientModeConversationId(): String? =
         savedStateHandle.get<String>(CLIENT_MODE_CONVERSATION_ID_KEY)?.takeIf { it.isNotBlank() }
@@ -715,11 +728,6 @@ class AdminChatViewModel @Inject constructor(
      * automatically. Returns immediately after enqueueing the send — all
      * visible state transitions flow through the single sync loop.
      */
-    private fun sendMessageViaTimeline(
-        text: String,
-        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image> = emptyList(),
-    ) = timelineSendCoordinator.send(text, attachments)
-
     /**
      * Subscribe to the [TimelineRepository]'s StateFlow for the given
      * conversation and mirror its events into [_uiState.messages].
