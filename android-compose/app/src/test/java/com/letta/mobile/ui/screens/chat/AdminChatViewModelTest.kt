@@ -31,6 +31,8 @@ import com.letta.mobile.data.repository.FolderRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.StreamState
+import com.letta.mobile.data.transport.ChannelTransport
+import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.testutil.FakeBlockApi
 import com.letta.mobile.testutil.FakeFolderApi
 import com.letta.mobile.testutil.TestData
@@ -93,6 +95,7 @@ class AdminChatViewModelTest {
     private lateinit var notificationDeliveryCoordinator: com.letta.mobile.channel.NotificationDeliveryCoordinator
     private lateinit var notificationReplyHandler: com.letta.mobile.bot.channel.NotificationReplyHandler
     private lateinit var shimBackendDetector: ShimBackendDetector
+    private lateinit var wsChatBridge: WsChatBridge
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var clientModeEnabledFlow: MutableStateFlow<Boolean>
     private var messages: List<AppMessage> = emptyList()
@@ -218,6 +221,7 @@ class AdminChatViewModelTest {
         notificationDeliveryCoordinator = mockk(relaxed = true)
         notificationReplyHandler = mockk(relaxed = true)
         shimBackendDetector = mockk(relaxed = true)
+        wsChatBridge = mockk(relaxed = true)
         clientModeEnabledFlow = MutableStateFlow(false)
         activeConversationIds.clear()
 
@@ -226,12 +230,12 @@ class AdminChatViewModelTest {
         every { shimBackendDetector.cachedActiveIsShimBackend() } returns false
         coEvery { shimBackendDetector.refreshActive() } returns false
         coEvery { shimBackendDetector.refresh(any()) } returns false
+        every { wsChatBridge.state } returns MutableStateFlow(ChannelTransport.State.Idle)
+        every { wsChatBridge.events } returns emptyFlow()
 
         every { settingsRepository.getChatBackgroundKey() } returns flowOf("default")
         every { settingsRepository.getChatFontScale() } returns flowOf(1f)
         every { settingsRepository.observeClientModeEnabled() } returns clientModeEnabledFlow
-        every { settingsRepository.activeConfig } returns MutableStateFlow(null)
-        every { settingsRepository.activeConfigChanges } returns emptyFlow()
         every { settingsRepository.favoriteAgentId } returns MutableStateFlow<String?>(null)
         every { settingsRepository.getPinnedAgentIds() } returns MutableStateFlow<Set<String>>(emptySet())
         every {
@@ -314,6 +318,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
     }
 
@@ -1804,6 +1809,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -1941,6 +1947,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
 
         val project = vm.projectContext
@@ -2116,6 +2123,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -2159,6 +2167,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -2212,6 +2221,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -2254,6 +2264,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -2290,6 +2301,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
 
         assertTrue(vm.tryHandleSlashCommand("/bug"))
@@ -2322,6 +2334,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
 
@@ -3055,6 +3068,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
         vm.sendMessage("hi")
@@ -3097,6 +3111,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
         vm.sendMessage("hi")
@@ -3149,6 +3164,7 @@ class AdminChatViewModelTest {
             notificationDeliveryCoordinator,
             notificationReplyHandler,
             shimBackendDetector,
+            wsChatBridge,
         )
         advanceUntilIdle()
         // Second advance to flush any lingering scoped coroutines
