@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.blocks
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -441,7 +443,7 @@ private fun BlockDetailDialog(
                 HorizontalDivider()
                 Text(
                     text = block.value,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
                 if (agents.isNotEmpty()) {
                     HorizontalDivider()

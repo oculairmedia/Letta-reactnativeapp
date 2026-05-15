@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.editagent
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,7 +103,7 @@ internal fun SearchPickerField(
                     text = if (supporting.isNotBlank() && supporting != title) supporting else " ",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LettaCodeFont,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -266,7 +268,7 @@ internal fun ModelPickerCard(
                 Text(
                     text = handle,
                     style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LettaCodeFont,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.components
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.util.Patterns
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -406,7 +408,7 @@ private fun MarkdownTextRaw(
             typography = markdownTypography(
                 text = MaterialTheme.typography.bodyMedium.copy(color = textColor),
                 code = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LettaCodeFont,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
                 h1 = MaterialTheme.typography.titleLarge.copy(color = textColor),

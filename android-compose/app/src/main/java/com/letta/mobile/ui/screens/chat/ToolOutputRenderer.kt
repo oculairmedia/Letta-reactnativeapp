@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
@@ -346,7 +348,7 @@ private fun DiffOutputSurface(block: ToolOutputBlock.Diff) {
                 limited.files.forEach { file ->
                     Text(
                         text = file.newPath ?: file.oldPath ?: stringResource(R.string.screen_chat_tool_output_diff_file),
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace)
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = LettaCodeFont)
                             .scaledBy(LocalChatFontScale.current),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
                         modifier = Modifier.fillMaxWidth(),
@@ -466,7 +468,7 @@ private fun MonospaceText(
     Text(
         text = text,
         style = MaterialTheme.typography.listItemSupporting
-            .copy(fontFamily = MaterialTheme.chatTypography.codeBlock.fontFamily ?: FontFamily.Monospace)
+            .copy(fontFamily = MaterialTheme.chatTypography.codeBlock.fontFamily ?: LettaCodeFont)
             .scaledBy(LocalChatFontScale.current),
         color = color,
         maxLines = maxLines,

@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.theme
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -116,13 +118,13 @@ fun LettaChatTheme(
             messageBody = materialTypography.bodyMedium.scaledBy(fontScale),
             roleLabel = materialTypography.chatBubbleSender.copy(letterSpacing = 0.4.sp).scaledBy(fontScale),
             codeBlock = TextStyle(
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
             ).scaledBy(fontScale),
             toolLabel = materialTypography.labelMedium.scaledBy(fontScale),
             toolDetail = materialTypography.labelSmall.copy(
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
             ).scaledBy(fontScale),
             timestamp = materialTypography.labelSmall.copy(
                 color = colorScheme.onSurfaceVariant.copy(alpha = 0.68f),

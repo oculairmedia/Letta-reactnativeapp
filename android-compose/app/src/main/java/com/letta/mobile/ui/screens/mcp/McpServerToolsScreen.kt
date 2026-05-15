@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.mcp
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -309,7 +311,7 @@ private fun ToolRunDialog(
                             onValueChange = { rawArgs = it },
                             minLines = 6,
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                         )
                     }
                 },
@@ -347,7 +349,7 @@ private fun ToolExecutionResultDialog(
                             headlineContent = {
                                 Text(
                                     text = it.toString(),
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                                 )
                             },
                         )
@@ -361,7 +363,7 @@ private fun ToolExecutionResultDialog(
                             headlineContent = {
                                 Text(
                                     text = stdout.joinToString("\n"),
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                                 )
                             },
                         )
@@ -375,7 +377,7 @@ private fun ToolExecutionResultDialog(
                             headlineContent = {
                                 Text(
                                     text = stderr.joinToString("\n"),
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                                     color = MaterialTheme.colorScheme.error,
                                 )
                             },

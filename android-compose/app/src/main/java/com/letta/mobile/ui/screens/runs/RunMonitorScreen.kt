@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.runs
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -283,7 +285,7 @@ private fun RunCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = run.id,
-                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = LettaCodeFont),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

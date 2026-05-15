@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.tools
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,7 +55,7 @@ fun CreateToolDialog(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8,
                 maxLines = 15,
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
             )
         }
     }

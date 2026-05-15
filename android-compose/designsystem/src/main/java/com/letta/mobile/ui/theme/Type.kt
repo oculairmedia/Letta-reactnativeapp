@@ -15,6 +15,22 @@ val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Bold),
 )
 
+/**
+ * letta-mobile-pcir: bundled monospace family used by every code-block
+ * surface (markdown fences, JSON editors, agent IDs, telemetry,
+ * tool-call payloads). Replaces `FontFamily.Monospace`, whose Android
+ * fallback is missing Unicode box-drawing glyphs (`┌─┐│└─┘├┤┬┴┼`) — so
+ * ASCII art and tree diagrams collapse onto a non-monospace fallback
+ * font and lose column alignment.
+ *
+ * JetBrains Mono v2.304 (SIL OFL 1.1, license bundled at
+ * `designsystem/THIRD_PARTY_LICENSES/JetBrainsMono-OFL.txt`).
+ */
+val LettaCodeFont: FontFamily = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_bold, FontWeight.Bold),
+)
+
 val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = InterFontFamily,
