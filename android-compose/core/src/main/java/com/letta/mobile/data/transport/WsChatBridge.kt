@@ -93,6 +93,10 @@ sealed interface WsTimelineEvent {
         val turnId: String,
         val agentId: String,
         val conversationId: String,
+        // lcp-99a: shim pre-creates the Run before emitting turn_started, so
+        // this is always non-null. Mobile can safely treat null upstream as a
+        // shim regression.
+        val runId: String,
     ) : WsTimelineEvent
 
     /**
@@ -124,6 +128,11 @@ sealed interface WsTimelineEvent {
         val turnId: String,
         val runId: String,
         val status: String, // "completed" | "cancelled" | "failed"
+        // lcp-srk: lossy=true when the shim dropped at least one frame at
+        // its backpressure gate; mobile reconciles from disk only on lossy
+        // turns. dropCount is informational telemetry.
+        val lossy: Boolean = false,
+        val dropCount: Long = 0L,
     ) : WsTimelineEvent
 
     data class Error(
@@ -141,9 +150,14 @@ private fun ServerFrame.toTimelineEvent(): WsTimelineEvent? = when (this) {
         turnId = turnId,
         agentId = agentId,
         conversationId = conversationId,
+        runId = runId,
     )
     is ServerFrame.TurnDone -> WsTimelineEvent.TurnDone(
-        turnId = turnId, runId = runId, status = status,
+        turnId = turnId,
+        runId = runId,
+        status = status,
+        lossy = lossy,
+        dropCount = dropCount,
     )
     is ServerFrame.StopReason -> WsTimelineEvent.StopReason(
         turnId = turnId, runId = runId, stopReason = stopReason,

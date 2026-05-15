@@ -288,11 +288,13 @@ class ChannelTransport @Inject constructor() {
             }
 
             is ServerFrame.TurnStarted -> {
-                // Spec §2.2: turn_started doesn't carry run_id — the
-                // worker pool creates the Run after this frame is
-                // emitted. Clear the captured run_id so we don't
-                // accidentally cancel the previous turn.
-                currentRunId.set(null)
+                // lcp-99a: the shim now pre-creates the Run synchronously
+                // before emitting turn_started, so run_id is always present
+                // on the very first frame of the turn. Capture it eagerly
+                // so cancel() works from the first frame the device sees,
+                // without the "between turn_started and first run-bearing
+                // frame" dead zone.
+                currentRunId.set(frame.runId)
             }
 
             is ServerFrame.TurnDone -> {

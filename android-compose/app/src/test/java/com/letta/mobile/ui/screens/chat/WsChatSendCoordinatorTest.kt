@@ -95,8 +95,162 @@ class WsChatSendCoordinatorTest {
     }
 
     @Test
-    fun `turn done reconciles immediately against external default conversation id`() = runTest {
-        val events = MutableSharedFlow<WsTimelineEvent>()
+    fun `usage statistics writes tokens to ui state once per turn`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent"))
+        WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+        // Let the coordinator's init-launched event collector subscribe to the
+        // shared flow before we emit; otherwise replayless emits land before
+        // anyone is listening.
+        advanceUntilIdle()
+
+        events.emit(
+            WsTimelineEvent.UsageStatistics(
+                turnId = "turn-1",
+                runId = "run-1",
+                promptTokens = 42L,
+                completionTokens = 17L,
+                totalTokens = 59L,
+                cachedInputTokens = 5L,
+                reasoningTokens = 3L,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(42, uiState.value.promptTokens)
+        assertEquals(17, uiState.value.completionTokens)
+        assertEquals(59, uiState.value.totalTokens)
+
+        // Defensive first-wins: a second usage frame for the same turn is dropped.
+        events.emit(
+            WsTimelineEvent.UsageStatistics(
+                turnId = "turn-1",
+                runId = "run-1",
+                promptTokens = 999L,
+                completionTokens = 999L,
+                totalTokens = 999L,
+                cachedInputTokens = 0L,
+                reasoningTokens = 0L,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(42, uiState.value.promptTokens)
+        assertEquals(17, uiState.value.completionTokens)
+        assertEquals(59, uiState.value.totalTokens)
+    }
+
+    @Test
+    fun `turn started resets per turn first wins state`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent"))
+        WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+        advanceUntilIdle()
+
+        events.emit(
+            WsTimelineEvent.UsageStatistics(
+                turnId = "turn-1", runId = "run-1",
+                promptTokens = 10L, completionTokens = 5L, totalTokens = 15L,
+                cachedInputTokens = 0L, reasoningTokens = 0L,
+            )
+        )
+        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed"))
+        events.emit(WsTimelineEvent.TurnStarted(turnId = "turn-2", agentId = "agent-1", conversationId = "conv-default-agent-1", runId = "run-2"))
+        events.emit(
+            WsTimelineEvent.UsageStatistics(
+                turnId = "turn-2", runId = "run-2",
+                promptTokens = 100L, completionTokens = 50L, totalTokens = 150L,
+                cachedInputTokens = 0L, reasoningTokens = 0L,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(100, uiState.value.promptTokens)
+        assertEquals(50, uiState.value.completionTokens)
+        assertEquals(150, uiState.value.totalTokens)
+    }
+
+    @Test
+    fun `turn done failed surfaces an error message`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
+        WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+        advanceUntilIdle()
+
+        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "failed"))
+        advanceUntilIdle()
+
+        assertEquals("Turn failed", uiState.value.error)
+        assertEquals(false, uiState.value.isStreaming)
+        assertEquals(false, uiState.value.isAgentTyping)
+    }
+
+    @Test
+    fun `turn done cancelled does not set error banner`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
+        WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+        advanceUntilIdle()
+
+        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "cancelled"))
+        advanceUntilIdle()
+
+        assertEquals(null, uiState.value.error)
+        assertEquals(false, uiState.value.isStreaming)
+        assertEquals(false, uiState.value.isAgentTyping)
+    }
+
+    @Test
+    fun `clean turn done skips reconcile when shim reports lossy false`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
         val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
         val timelineRepository = mockk<TimelineRepository>(relaxed = true)
         val otid = slot<String>()
@@ -117,10 +271,46 @@ class WsChatSendCoordinatorTest {
         )
 
         coordinator.send("hello").join()
-        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed"))
+        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed", lossy = false))
         advanceUntilIdle()
 
-        coVerify {
+        coVerify(exactly = 0) {
+            timelineRepository.reconcileExternalTransportSend(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `lossy turn done forces a reconcile against external default conversation id`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
+        val otid = slot<String>()
+        coEvery {
+            timelineRepository.appendExternalTransportLocal("conv-default-agent-1", "hello", capture(otid), emptyList())
+        } answers { otid.captured }
+        val coordinator = WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = timelineRepository,
+            uiState = MutableStateFlow(ChatUiState(agentName = "Agent")),
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+
+        coordinator.send("hello").join()
+        events.emit(
+            WsTimelineEvent.TurnDone(
+                turnId = "turn-1", runId = "run-1", status = "completed",
+                lossy = true, dropCount = 3L,
+            )
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
             timelineRepository.reconcileExternalTransportSend(
                 conversationId = "conv-default-agent-1",
                 agentId = "agent-1",
@@ -128,6 +318,47 @@ class WsChatSendCoordinatorTest {
                 otid = otid.captured,
             )
         }
+    }
+
+    @Test
+    fun `failed turn surfaces buffered error message from preceding error frame`() = runTest {
+        val events = MutableSharedFlow<WsTimelineEvent>(replay = 64)
+        val wsChatBridge = mockBridge(sendAccepted = true, eventFlow = events)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
+        WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+        )
+        advanceUntilIdle()
+
+        events.emit(
+            WsTimelineEvent.Error(
+                code = "worker_exit",
+                message = "Worker died",
+                turnId = "turn-1",
+                runId = "run-1",
+            )
+        )
+        // After the error frame alone, UI should NOT have flipped yet — the
+        // contract pairs error + turn_done(failed) in lock-step.
+        advanceUntilIdle()
+        assertEquals(true, uiState.value.isStreaming)
+        assertEquals(null, uiState.value.error)
+
+        events.emit(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "failed"))
+        advanceUntilIdle()
+
+        assertEquals("Worker died", uiState.value.error)
+        assertEquals(false, uiState.value.isStreaming)
+        assertEquals(false, uiState.value.isAgentTyping)
     }
 
     private fun settingsRepository(): () -> LettaConfig? = {

@@ -32,6 +32,17 @@ internal class WsChatSendCoordinator(
 ) {
     @Volatile private var activeWsConversationId: String? = null
     @Volatile private var activeWsOtid: String? = null
+    // letta-mobile-i8iw: lcp-cv3 contract — stop_reason and usage_statistics
+    // are first-wins per turn on the shim. We capture once and drop later
+    // duplicates defensively (drop with telemetry rather than overwriting).
+    @Volatile private var activeWsTurnId: String? = null
+    @Volatile private var stopReasonForTurn: String? = null
+    @Volatile private var usageRecordedForTurn: Boolean = false
+    // lcp-axv: failed turns emit `error` THEN `turn_done(status="failed")`
+    // in lock-step. We buffer the error message and only flip UI state when
+    // TurnDone arrives, so the "agent typing" indicator clears in sync with
+    // the actual end-of-turn signal.
+    @Volatile private var bufferedErrorMessage: String? = null
 
     init {
         scope.launch {
@@ -124,6 +135,10 @@ internal class WsChatSendCoordinator(
         when (event) {
             is WsTimelineEvent.TurnStarted -> {
                 activeWsConversationId = event.conversationId
+                activeWsTurnId = event.turnId
+                stopReasonForTurn = null
+                usageRecordedForTurn = false
+                bufferedErrorMessage = null
                 setActiveConversationId(event.conversationId)
                 startTimelineObserver(event.conversationId)
                 uiState.value = uiState.value.copy(
@@ -137,24 +152,115 @@ internal class WsChatSendCoordinator(
                 val conversationId = activeWsConversationId ?: activeConversationId() ?: return
                 timelineRepository.ingestExternalTransportMessage(conversationId, event.message)
             }
-            is WsTimelineEvent.TurnDone -> {
-                val conversationId = activeWsConversationId ?: defaultShimConversationId(agentId)
-                activeWsOtid?.let { otid ->
-                    timelineRepository.reconcileExternalTransportSend(
-                        conversationId = conversationId,
-                        agentId = agentId,
-                        externalConversationId = defaultShimConversationId(agentId),
-                        otid = otid,
+            is WsTimelineEvent.StopReason -> {
+                // lcp-cv3 §end-of-turn ordering: stop_reason is first-wins on
+                // the shim. Defensive guard — log duplicates rather than overwrite.
+                val previous = stopReasonForTurn
+                if (previous != null) {
+                    Telemetry.event(
+                        "AdminChatVM", "ws.stopReason.duplicate",
+                        "previous" to previous,
+                        "received" to event.stopReason,
+                        "turnId" to event.turnId,
+                    )
+                } else {
+                    stopReasonForTurn = event.stopReason
+                    Telemetry.event(
+                        "AdminChatVM", "ws.stopReason",
+                        "value" to event.stopReason,
+                        "turnId" to event.turnId,
+                        "runId" to event.runId,
                     )
                 }
-                activeWsOtid = null
-                uiState.value = uiState.value.copy(isStreaming = false, isAgentTyping = false)
             }
-            is WsTimelineEvent.Error -> {
+            is WsTimelineEvent.UsageStatistics -> {
+                // lcp-cv3 §end-of-turn ordering: usage_statistics is first-wins
+                // on the shim. Multi-step turns may produce per-step usage; the
+                // run-level record reflects the first. Drop subsequent ones.
+                if (usageRecordedForTurn) {
+                    Telemetry.event(
+                        "AdminChatVM", "ws.usage.duplicate",
+                        "turnId" to event.turnId,
+                    )
+                } else {
+                    usageRecordedForTurn = true
+                    uiState.value = uiState.value.copy(
+                        promptTokens = event.promptTokens.toInt(),
+                        completionTokens = event.completionTokens.toInt(),
+                        totalTokens = event.totalTokens.toInt(),
+                    )
+                    Telemetry.event(
+                        "AdminChatVM", "ws.usage",
+                        "prompt" to event.promptTokens,
+                        "completion" to event.completionTokens,
+                        "total" to event.totalTokens,
+                        "turnId" to event.turnId,
+                        "runId" to event.runId,
+                    )
+                }
+            }
+            is WsTimelineEvent.TurnDone -> {
+                val conversationId = activeWsConversationId ?: defaultShimConversationId(agentId)
+                // lcp-srk: reconcile from disk only when the shim signals it
+                // dropped frames. Clean turns can skip the round-trip.
+                if (event.lossy) {
+                    Telemetry.event(
+                        "AdminChatVM", "ws.turnDone.lossy",
+                        "dropCount" to event.dropCount,
+                        "turnId" to event.turnId,
+                        "runId" to event.runId,
+                    )
+                    activeWsOtid?.let { otid ->
+                        timelineRepository.reconcileExternalTransportSend(
+                            conversationId = conversationId,
+                            agentId = agentId,
+                            externalConversationId = defaultShimConversationId(agentId),
+                            otid = otid,
+                        )
+                    }
+                }
+                // lcp-axv: error-then-turn_done arrives in lock-step on failed
+                // turns. Prefer the buffered error message from the preceding
+                // Error frame when status="failed"; fall back to a generic
+                // string if upstream skipped the error frame. Cancellation is
+                // user-initiated and explicitly never sets an error banner.
+                val nextError = when (event.status) {
+                    "completed" -> uiState.value.error
+                    "cancelled" -> uiState.value.error
+                    "failed" -> bufferedErrorMessage ?: "Turn failed"
+                    else -> bufferedErrorMessage ?: "Turn ended unexpectedly (${event.status})"
+                }
                 uiState.value = uiState.value.copy(
-                    error = event.message.ifBlank { event.code },
                     isStreaming = false,
                     isAgentTyping = false,
+                    error = nextError,
+                )
+                Telemetry.event(
+                    "AdminChatVM", "ws.turnDone",
+                    "status" to event.status,
+                    "turnId" to event.turnId,
+                    "runId" to event.runId,
+                    "stopReason" to (stopReasonForTurn ?: ""),
+                    "lossy" to event.lossy,
+                )
+                activeWsOtid = null
+                activeWsTurnId = null
+                stopReasonForTurn = null
+                usageRecordedForTurn = false
+                bufferedErrorMessage = null
+            }
+            is WsTimelineEvent.Error -> {
+                // lcp-axv: stash the error and wait for the immediately-
+                // following TurnDone to flip the UI. Surfacing the error
+                // here would race with TurnDone and could leave isStreaming
+                // / isAgentTyping stuck if TurnDone is delayed.
+                bufferedErrorMessage = event.message.ifBlank { event.code }
+                Telemetry.event(
+                    "AdminChatVM", "ws.error.buffered",
+                    "code" to event.code,
+                    "message" to (event.message),
+                    "turnId" to (event.turnId ?: ""),
+                    "runId" to (event.runId ?: ""),
                 )
             }
             is WsTimelineEvent.Disconnected -> {
@@ -164,8 +270,6 @@ internal class WsChatSendCoordinator(
                     isAgentTyping = false,
                 )
             }
-            is WsTimelineEvent.StopReason,
-            is WsTimelineEvent.UsageStatistics -> Unit
         }
     }
 
