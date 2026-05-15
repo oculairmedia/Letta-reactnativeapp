@@ -75,6 +75,11 @@ class AdminChatViewModel @Inject constructor(
     private val notificationReplyHandler: NotificationReplyHandler,
     private val shimBackendDetector: ShimBackendDetector,
     private val wsChatBridge: WsChatBridge,
+    // Exposed (val, not private val) so ChatScreen can hand the same caps to
+    // the picker that the composer enforces (lcp-dlj). Default keeps test
+    // construction terse — Hilt always injects the bound value at runtime.
+    val attachmentLimits: com.letta.mobile.data.attachment.AttachmentLimits =
+        com.letta.mobile.data.attachment.AttachmentLimits.Default,
 ) : ViewModel() {
     companion object {
         private const val MESSAGE_SYNC_INTERVAL_MS = 5_000L
@@ -176,7 +181,7 @@ class AdminChatViewModel @Inject constructor(
         return state
     }
 
-    private val composerController = ChatComposerController()
+    private val composerController = ChatComposerController(limits = attachmentLimits)
     private val chatBannerController = ChatBannerController(_uiState, composerController)
     val composerState: StateFlow<ChatComposerState> = composerController.state
     val inputText: StateFlow<String> = composerState

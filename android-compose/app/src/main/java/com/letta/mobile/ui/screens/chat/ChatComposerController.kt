@@ -1,6 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
 import androidx.compose.runtime.Immutable
+import com.letta.mobile.data.attachment.AttachmentLimits
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.util.Telemetry
 import kotlinx.collections.immutable.ImmutableList
@@ -11,10 +12,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/** Upper bound on composer image attachments per message. */
+/**
+ * Legacy aliases for [AttachmentLimits.Default]. Prefer the injected
+ * [AttachmentLimits] for per-call configurability.
+ */
+@Deprecated(
+    "Read from injected AttachmentLimits.maxAttachmentCount instead.",
+    ReplaceWith("AttachmentLimits.Default.maxAttachmentCount"),
+)
 const val MAX_COMPOSER_ATTACHMENTS = 4
 
-/** Upper bound on per-message total base64 payload (approximate — ~8 MB). */
+@Deprecated(
+    "Read from injected AttachmentLimits.maxTotalBase64Bytes instead.",
+    ReplaceWith("AttachmentLimits.Default.maxTotalBase64Bytes"),
+)
 const val MAX_COMPOSER_TOTAL_BYTES = 8 * 1024 * 1024
 
 @Immutable
@@ -62,6 +73,7 @@ class ChatComposerController(
     private val telemetry: ChatComposerTelemetry = ChatComposerTelemetry { name, attrs ->
         Telemetry.event("AdminChatVM", name, *attrs)
     },
+    private val limits: AttachmentLimits = AttachmentLimits.Default,
 ) {
     private val _state = MutableStateFlow(ChatComposerState())
     val state: StateFlow<ChatComposerState> = _state.asStateFlow()
@@ -85,29 +97,30 @@ class ChatComposerController(
     }
 
     /**
-     * Stage a new image attachment in the composer. Enforces [MAX_COMPOSER_ATTACHMENTS]
-     * count cap and [MAX_COMPOSER_TOTAL_BYTES] cumulative base64 size cap. Returns
-     * true on success; false if a cap was hit.
+     * Stage a new image attachment in the composer. Enforces the
+     * [AttachmentLimits.maxAttachmentCount] count cap and
+     * [AttachmentLimits.maxTotalBase64Bytes] cumulative base64 size
+     * cap. Returns true on success; false if a cap was hit.
      */
     fun addAttachment(image: MessageContentPart.Image): Boolean {
         val current = _state.value.pendingAttachments
-        if (current.size >= MAX_COMPOSER_ATTACHMENTS) {
+        if (current.size >= limits.maxAttachmentCount) {
             telemetry.event(
                 "attachment.rejected",
                 "reason" to "count_cap",
                 "current" to current.size,
-                "max" to MAX_COMPOSER_ATTACHMENTS,
+                "max" to limits.maxAttachmentCount,
             )
-            setError("Attachment limit reached ($MAX_COMPOSER_ATTACHMENTS max).")
+            setError("Attachment limit reached (${limits.maxAttachmentCount} max).")
             return false
         }
         val newTotal = current.sumOf { it.base64.length } + image.base64.length
-        if (newTotal > MAX_COMPOSER_TOTAL_BYTES) {
+        if (newTotal > limits.maxTotalBase64Bytes) {
             telemetry.event(
                 "attachment.rejected",
                 "reason" to "size_cap",
                 "newTotal" to newTotal,
-                "max" to MAX_COMPOSER_TOTAL_BYTES,
+                "max" to limits.maxTotalBase64Bytes,
             )
             setError("Attachments too large — downscale or remove some before sending.")
             return false
