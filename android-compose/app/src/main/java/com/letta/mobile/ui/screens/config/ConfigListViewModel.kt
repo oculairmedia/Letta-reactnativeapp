@@ -62,8 +62,15 @@ class ConfigListViewModel @Inject constructor(
 
     private val _actionError = MutableStateFlow<String?>(null)
 
+    // letta-mobile-rl0d: must be Immediate, not ContextClock. viewModelScope
+    // uses Dispatchers.Main.immediate which carries no MonotonicFrameClock,
+    // so ContextClock crashes with "A MonotonicFrameClock is not available
+    // in this CoroutineContext" the first time anyone navigates to a screen
+    // that injects this VM (e.g. BackendSwitcherSheet). Immediate recomposes
+    // on every state change with no clock dependency — the right choice for
+    // a non-UI presenter that derives state from flows.
     val uiState: StateFlow<UiState<ConfigListUiState>> =
-        viewModelScope.launchMolecule(mode = RecompositionMode.ContextClock) {
+        viewModelScope.launchMolecule(mode = RecompositionMode.Immediate) {
             present()
         }
 
