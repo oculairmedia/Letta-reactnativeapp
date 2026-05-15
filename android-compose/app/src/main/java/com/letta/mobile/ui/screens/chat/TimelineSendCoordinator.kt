@@ -5,6 +5,7 @@ import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.timeline.TimelineRepository
 import com.letta.mobile.util.Telemetry
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -27,8 +28,8 @@ internal class TimelineSendCoordinator(
     fun send(
         text: String,
         attachments: List<MessageContentPart.Image> = emptyList(),
-    ) {
-        scope.launch {
+    ): Job {
+        return scope.launch {
             val enqueueTimer = Telemetry.startTimer("AdminChatVM", "send.enqueue")
             clearComposerAfterSend()
             uiState.value = uiState.value.copy(
