@@ -159,6 +159,12 @@ sealed interface ServerFrame {
         override val ts: String,
     ) : ServerFrame
 
+    /**
+     * lcp-99a: the shim pre-creates the Run synchronously before emitting
+     * turn_started, so `run_id` is always present from the very first
+     * frame of the turn. Mobile may treat null as a shim regression and
+     * crash-loud rather than fall back.
+     */
     @Serializable
     data class TurnStarted(
         override val v: Int = 1,
@@ -168,8 +174,15 @@ sealed interface ServerFrame {
         @SerialName("agent_id") val agentId: String,
         @SerialName("conversation_id") val conversationId: String,
         @SerialName("turn_id") val turnId: String,
+        @SerialName("run_id") val runId: String,
     ) : ServerFrame
 
+    /**
+     * lcp-srk: `lossy` flips true if at least one frame was dropped at
+     * the shim's backpressure gate (default 1 MB bufferedAmount). Mobile
+     * should reconcile from disk only when `lossy == true`. `dropCount`
+     * is informational telemetry — don't branch on its value.
+     */
     @Serializable
     data class TurnDone(
         override val v: Int = 1,
@@ -179,6 +192,8 @@ sealed interface ServerFrame {
         @SerialName("turn_id") val turnId: String,
         @SerialName("run_id") val runId: String,
         val status: String, // "completed" | "cancelled" | "failed"
+        val lossy: Boolean = false,
+        @SerialName("drop_count") val dropCount: Long = 0L,
     ) : ServerFrame
 
     /**

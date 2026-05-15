@@ -91,7 +91,7 @@ class WsFrameMapperTest : WordSpec({
                 ServerFrame.Welcome(id = "f", ts = "t", serverId = "S", sessionId = "sess")
             ).shouldBeNull()
             WsFrameMapper.toLettaMessage(
-                ServerFrame.TurnStarted(id = "f", ts = "t", agentId = "a", conversationId = "c", turnId = "T")
+                ServerFrame.TurnStarted(id = "f", ts = "t", agentId = "a", conversationId = "c", turnId = "T", runId = "R")
             ).shouldBeNull()
             WsFrameMapper.toLettaMessage(
                 ServerFrame.StopReason(id = "f", ts = "t", turnId = "T", runId = "R", stopReason = "end_turn")
