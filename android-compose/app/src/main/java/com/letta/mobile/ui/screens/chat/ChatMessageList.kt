@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.chat
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -626,7 +628,7 @@ private fun DebugMessageCard(
                     }
                 },
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LettaCodeFont,
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

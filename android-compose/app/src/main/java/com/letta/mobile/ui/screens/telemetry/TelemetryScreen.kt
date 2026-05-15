@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.telemetry
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -187,13 +189,13 @@ private fun TelemetryEventRow(ev: Telemetry.Event) {
             Text(
                 formatTime(ev.timestampMs),
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 "${ev.tag}/${ev.name}",
                 fontSize = 13.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
                 fontWeight = FontWeight.Medium,
                 color = levelColor,
                 modifier = Modifier.weight(1f),
@@ -203,7 +205,7 @@ private fun TelemetryEventRow(ev: Telemetry.Event) {
                 Text(
                     "${duration}ms",
                     fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LettaCodeFont,
                     fontWeight = FontWeight.Bold,
                     color = durationColor(duration),
                 )
@@ -213,7 +215,7 @@ private fun TelemetryEventRow(ev: Telemetry.Event) {
             Text(
                 ev.attrs.entries.joinToString("  ") { (k, v) -> "$k=$v" },
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -221,7 +223,7 @@ private fun TelemetryEventRow(ev: Telemetry.Event) {
             Text(
                 "${t.javaClass.simpleName}: ${t.message ?: ""}",
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LettaCodeFont,
                 color = MaterialTheme.colorScheme.error,
             )
         }

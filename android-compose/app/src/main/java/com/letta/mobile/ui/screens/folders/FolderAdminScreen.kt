@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.folders
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -312,7 +314,7 @@ private fun FolderDetailDialog(
             CardGroup {
                 item(
                     headlineContent = { Text(stringResource(R.string.screen_folders_id_label, "")) },
-                    supportingContent = { Text(folder.id, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) },
+                    supportingContent = { Text(folder.id, style = MaterialTheme.typography.bodySmall, fontFamily = LettaCodeFont) },
                 )
                 folder.description?.let { description ->
                     item(

@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.messagebatches
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -226,7 +228,7 @@ private fun MessageBatchCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = batch.id,
-                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = LettaCodeFont),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

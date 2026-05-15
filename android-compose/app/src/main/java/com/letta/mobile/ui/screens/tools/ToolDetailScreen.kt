@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.tools
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -560,7 +562,7 @@ private fun EditToolDialog(
                     supportingText = { Text(stringResource(R.string.screen_tool_detail_source_code_helper)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 8,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             }
         },
@@ -643,7 +645,7 @@ private fun ToolCodeSection(
 
                     Text(
                         text = content,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                         maxLines = if (expanded) Int.MAX_VALUE else 8,
                         overflow = TextOverflow.Ellipsis,
                         color = if (expanded) {

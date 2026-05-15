@@ -411,6 +411,13 @@
     <string name="screen_agent_edit_remove_tag">Remove tag</string>
     <string name="screen_agent_edit_section_label">Section</string>
     <string name="screen_agent_edit_sections_title">Sections</string>
+    <string name="screen_agent_edit_section_basics">Basics</string>
+    <string name="screen_agent_edit_section_models">Models</string>
+    <string name="screen_agent_edit_section_memory">Memory</string>
+    <string name="screen_agent_edit_section_tools">Tools</string>
+    <string name="screen_agent_edit_section_runtime">Runtime</string>
+    <string name="screen_agent_edit_section_advanced">Advanced</string>
+    <string name="screen_agent_edit_jump_to_section">Jump to section</string>
     <string name="screen_agent_edit_identity_section">Identity</string>
     <string name="screen_agent_edit_validation_warning">Validation warning</string>
     <string name="screen_agent_edit_validation_warning_count">%1$d sections with warnings</string>

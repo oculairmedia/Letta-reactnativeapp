@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.editagent
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -143,7 +145,7 @@ internal fun ToolRulesSection(
                         placeholder = { Text(stringResource(R.string.screen_agent_edit_tool_rules_placeholder)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                     )
                 }
             },
@@ -368,7 +370,7 @@ internal fun PrimaryModelAdvancedSection(
                     placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             },
         )
@@ -412,7 +414,7 @@ internal fun PrimaryModelAdvancedSection(
                     placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             },
         )
@@ -425,7 +427,7 @@ internal fun PrimaryModelAdvancedSection(
                     placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             },
         )
@@ -438,7 +440,7 @@ internal fun PrimaryModelAdvancedSection(
                     placeholder = { Text(stringResource(R.string.screen_agent_edit_json_object_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             },
         )
@@ -577,7 +579,7 @@ internal fun AdvancedCompactionSection(
                     placeholder = { Text(stringResource(R.string.screen_agent_edit_compaction_model_settings_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 )
             },
         )

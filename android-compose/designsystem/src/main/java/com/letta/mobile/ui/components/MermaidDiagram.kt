@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.components
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -359,7 +361,7 @@ private fun MermaidErrorFallback(
             )
             Text(
                 text = source,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = LettaCodeFont),
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.padding(top = 8.dp),
             )

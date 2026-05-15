@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.identities
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -592,7 +594,7 @@ private fun AgentAttachDialog(
                                     Text(
                                         text = agent.id.value,
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = FontFamily.Monospace,
+                                        fontFamily = LettaCodeFont,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,

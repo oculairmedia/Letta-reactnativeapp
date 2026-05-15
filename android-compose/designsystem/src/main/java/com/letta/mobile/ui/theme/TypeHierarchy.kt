@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.theme
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -16,7 +18,7 @@ val Typography.listItemMetadata: TextStyle
 
 val Typography.listItemMetadataMonospace: TextStyle
     get() = labelMedium.copy(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = LettaCodeFont,
         fontWeight = FontWeight.SemiBold,
     )
 

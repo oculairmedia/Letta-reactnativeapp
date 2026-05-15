@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.jobs
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -240,7 +242,7 @@ private fun JobCard(
             ) {
                 Text(
                     text = job.id,
-                    style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = FontFamily.Monospace),
+                    style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = LettaCodeFont),
                     modifier = Modifier.weight(1f),
                 )
                 if (job.isTerminalStatus()) {
