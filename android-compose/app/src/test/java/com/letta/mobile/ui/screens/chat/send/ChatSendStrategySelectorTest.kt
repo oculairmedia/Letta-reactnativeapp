@@ -11,7 +11,8 @@ class ChatSendStrategySelectorTest {
     fun `selects client mode strategy when client mode is enabled`() {
         val timeline = RecordingStrategy()
         val clientMode = RecordingStrategy()
-        val selector = ChatSendStrategySelector(timeline, clientMode)
+        val ws = RecordingStrategy()
+        val selector = ChatSendStrategySelector(timeline, clientMode, ws)
 
         val selected = selector.select(ChatSendContext(isClientModeEnabled = true, explicitConversationId = "conv-1"))
 
@@ -22,7 +23,8 @@ class ChatSendStrategySelectorTest {
     fun `selects timeline strategy when client mode is disabled`() {
         val timeline = RecordingStrategy()
         val clientMode = RecordingStrategy()
-        val selector = ChatSendStrategySelector(timeline, clientMode)
+        val ws = RecordingStrategy()
+        val selector = ChatSendStrategySelector(timeline, clientMode, ws)
 
         val selected = selector.select(ChatSendContext(isClientModeEnabled = false, explicitConversationId = null))
 
@@ -30,10 +32,47 @@ class ChatSendStrategySelectorTest {
     }
 
     @Test
+    fun `selects ws strategy when shim backend is active and client mode is disabled`() {
+        val timeline = RecordingStrategy()
+        val clientMode = RecordingStrategy()
+        val ws = RecordingStrategy()
+        val selector = ChatSendStrategySelector(timeline, clientMode, ws)
+
+        val selected = selector.select(
+            ChatSendContext(
+                isClientModeEnabled = false,
+                explicitConversationId = null,
+                isShimBackend = true,
+            )
+        )
+
+        assertSame(ws, selected)
+    }
+
+    @Test
+    fun `client mode takes precedence over shim backend`() {
+        val timeline = RecordingStrategy()
+        val clientMode = RecordingStrategy()
+        val ws = RecordingStrategy()
+        val selector = ChatSendStrategySelector(timeline, clientMode, ws)
+
+        val selected = selector.select(
+            ChatSendContext(
+                isClientModeEnabled = true,
+                explicitConversationId = null,
+                isShimBackend = true,
+            )
+        )
+
+        assertSame(clientMode, selected)
+    }
+
+    @Test
     fun `send delegates payload and context to selected strategy`() {
         val timeline = RecordingStrategy()
         val clientMode = RecordingStrategy()
-        val selector = ChatSendStrategySelector(timeline, clientMode)
+        val ws = RecordingStrategy()
+        val selector = ChatSendStrategySelector(timeline, clientMode, ws)
         val image = MessageContentPart.Image(base64 = "abc", mediaType = "image/png")
         val context = ChatSendContext(isClientModeEnabled = true, explicitConversationId = "conv-1")
 
