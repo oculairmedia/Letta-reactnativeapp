@@ -3,18 +3,26 @@ package com.letta.mobile.ui.screens.editagent
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.padding
@@ -70,13 +78,43 @@ fun EditAgentScreen(
     var showCloneDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    // letta-mobile-mpr4: section-jump Index. Title tap opens a sheet
+    // that lists every section; selecting one animateScrollToItems the
+    // shared LazyListState in EditAgentContent.
+    var showSectionIndex by remember { mutableStateOf(false) }
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            val agentName = (uiState as? UiState.Success)?.data?.name?.takeIf { it.isNotBlank() }
             LargeFlexibleTopAppBar(
-                title = {},
+                title = {
+                    if (agentName != null) {
+                        // letta-mobile-mpr4: tap title to open the
+                        // section-jump Index. Chevron advertises that
+                        // it's interactive — without it the affordance
+                        // is invisible.
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.clickable { showSectionIndex = true },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = agentName,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                            Icon(
+                                LettaIcons.ExpandMore,
+                                contentDescription = stringResource(R.string.screen_agent_edit_jump_to_section),
+                            )
+                        }
+                    }
+                },
                 colors = LettaTopBarDefaults.largeTopAppBarColors(),
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
@@ -173,7 +211,20 @@ fun EditAgentScreen(
                     onResetMessages = { showResetDialog = true },
                     onDeleteAgent = { showDeleteDialog = true },
                     contentPadding = paddingValues,
+                    lazyListState = lazyListState,
                 )
+
+                if (showSectionIndex) {
+                    SectionIndexSheet(
+                        onDismiss = { showSectionIndex = false },
+                        onSelect = { targetKey ->
+                            showSectionIndex = false
+                            coroutineScope.launch {
+                                lazyListState.animateScrollToKey(targetKey)
+                            }
+                        },
+                    )
+                }
 
                 // ActionSheet
                 ActionSheet(
@@ -281,6 +332,96 @@ fun EditAgentScreen(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SectionIndexSheet(
+    onDismiss: () -> Unit,
+    onSelect: (anchorKey: String) -> Unit,
+) {
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val entries = listOf(
+        SectionAnchors.BASICS to R.string.screen_agent_edit_section_basics,
+        SectionAnchors.MODELS to R.string.screen_agent_edit_section_models,
+        SectionAnchors.MEMORY to R.string.screen_agent_edit_section_memory,
+        SectionAnchors.TOOLS to R.string.screen_agent_edit_section_tools,
+        SectionAnchors.RUNTIME to R.string.screen_agent_edit_section_runtime,
+        SectionAnchors.ADVANCED to R.string.screen_agent_edit_section_advanced,
+        SectionAnchors.DANGER to R.string.screen_create_project_danger_zone_title,
+    )
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(R.string.screen_agent_edit_jump_to_section),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            entries.forEach { (anchorKey, labelRes) ->
+                val isDanger = anchorKey == SectionAnchors.DANGER
+                androidx.compose.material3.ListItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(anchorKey) },
+                    headlineContent = {
+                        Text(
+                            text = stringResource(labelRes),
+                            color = if (isDanger) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    },
+                )
+            }
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+/**
+ * letta-mobile-mpr4: scroll a [LazyListState] to the item that matches
+ * [targetKey]. If the item is currently visible, animate to it
+ * directly; otherwise, sweep forward in chunks until it appears (or we
+ * hit the end of the list). LazyListState exposes keys only for
+ * visible items, so a sweep is unavoidable for off-screen targets —
+ * the agent config has ~21 items so two or three sweep iterations
+ * cover any jump.
+ */
+private suspend fun androidx.compose.foundation.lazy.LazyListState.animateScrollToKey(
+    targetKey: Any,
+) {
+    val visible = layoutInfo.visibleItemsInfo
+    val direct = visible.firstOrNull { it.key == targetKey }?.index
+    if (direct != null) {
+        animateScrollToItem(direct)
+        return
+    }
+    val total = layoutInfo.totalItemsCount
+    if (total == 0) return
+
+    var lastSeenIndex = visible.lastOrNull()?.index ?: 0
+    var safety = 0
+    while (lastSeenIndex < total - 1 && safety < 16) {
+        val nextStart = (lastSeenIndex + 1).coerceAtMost(total - 1)
+        scrollToItem(nextStart)
+        val found = layoutInfo.visibleItemsInfo.firstOrNull { it.key == targetKey }?.index
+        if (found != null) {
+            animateScrollToItem(found)
+            return
+        }
+        val newLast = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: break
+        if (newLast <= lastSeenIndex) break
+        lastSeenIndex = newLast
+        safety++
+    }
+}
 
 private fun shareAgentExport(context: Context, exportData: String): Boolean {
     val shareIntent = Intent(Intent.ACTION_SEND).apply {

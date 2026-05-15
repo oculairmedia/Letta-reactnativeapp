@@ -1,5 +1,7 @@
 package com.letta.mobile.ui.screens.editagent
 
+import com.letta.mobile.ui.theme.LettaCodeFont
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -128,6 +130,8 @@ internal fun EditAgentContent(
     onDeleteAgent: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    lazyListState: androidx.compose.foundation.lazy.LazyListState =
+        androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
     val context = LocalContext.current
     val snackbar = LocalSnackbarDispatcher.current
@@ -190,6 +194,7 @@ internal fun EditAgentContent(
         modifier = modifier
             .fillMaxSize()
             .testTag(EditAgentTestTags.CONTENT_LIST),
+        state = lazyListState,
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
@@ -213,7 +218,7 @@ internal fun EditAgentContent(
                     Text(
                         text = state.agentId,
                         style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LettaCodeFont,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (state.agentType.isNotBlank()) {
@@ -243,6 +248,12 @@ internal fun EditAgentContent(
         // letta-mobile-cygd: tab gating removed; all sections render
         // sequentially so the user can scroll the entire agent config
         // without bouncing through the section picker.
+        // letta-mobile-mpr4: each section gets a stickyHeader so the
+        // current section name pins to the top while its content
+        // scrolls under it.
+        stickyHeader(key = SectionAnchors.BASICS) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_basics))
+        }
         run {
             // ── Identity ──
             item(key = "identity") {
@@ -344,6 +355,9 @@ internal fun EditAgentContent(
         }
 
         // ── Models ──
+        stickyHeader(key = SectionAnchors.MODELS) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_models))
+        }
         run {
             // ── Model ──
             item(key = "model") {
@@ -445,6 +459,9 @@ internal fun EditAgentContent(
         }
 
         // ── Advanced ──
+        stickyHeader(key = SectionAnchors.ADVANCED) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_advanced))
+        }
         run {
             item(key = "primary_model_advanced") {
                 PrimaryModelAdvancedSection(
@@ -469,6 +486,9 @@ internal fun EditAgentContent(
         }
 
         // ── Memory ──
+        stickyHeader(key = SectionAnchors.MEMORY) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_memory))
+        }
         run {
             item(key = "advanced_compaction") {
                 AdvancedCompactionSection(
@@ -518,6 +538,9 @@ internal fun EditAgentContent(
         }
 
         // ── Tools ──
+        stickyHeader(key = SectionAnchors.TOOLS) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_tools))
+        }
         run {
             item(key = "tool_environment") {
                 ToolEnvironmentSection(
@@ -590,6 +613,9 @@ internal fun EditAgentContent(
         }
 
         // ── Runtime ──
+        stickyHeader(key = SectionAnchors.RUNTIME) {
+            EditAgentSectionHeader(stringResource(R.string.screen_agent_edit_section_runtime))
+        }
         run {
             item(key = "client_mode") {
                 EditAgentClientModeSection(
@@ -608,6 +634,12 @@ internal fun EditAgentContent(
         // single, unmistakable spot at the bottom of the scroll surface
         // (errorContainer styling). Confirm dialogs are still owned by
         // EditAgentScreen, hooked via onResetMessages / onDeleteAgent.
+        stickyHeader(key = SectionAnchors.DANGER) {
+            EditAgentSectionHeader(
+                title = stringResource(R.string.screen_create_project_danger_zone_title),
+                isDanger = true,
+            )
+        }
         item(key = "danger_zone") {
             DangerZoneSection(
                 onResetMessages = onResetMessages,
@@ -707,6 +739,62 @@ internal fun EditAgentContent(
     // All sections render inline above. The hasValidationWarning helper
     // is kept below for future re-introduction of an aggregate warning
     // banner.
+}
+
+/**
+ * letta-mobile-mpr4: stable keys for each section's stickyHeader.
+ *
+ * Used as both the LazyColumn item key (so Compose can identify the
+ * header across recompositions) AND as the lookup key when the title-
+ * tap Index sheet asks `EditAgentScreen` to scroll the list to a
+ * specific section. Strings rather than an enum so we can include
+ * "danger" without polluting [EditAgentConfigTab], which still drives
+ * validation reporting elsewhere.
+ */
+object SectionAnchors {
+    const val BASICS: String = "section_header_basics"
+    const val MODELS: String = "section_header_models"
+    const val MEMORY: String = "section_header_memory"
+    const val TOOLS: String = "section_header_tools"
+    const val RUNTIME: String = "section_header_runtime"
+    const val ADVANCED: String = "section_header_advanced"
+    const val DANGER: String = "section_header_danger"
+}
+
+/**
+ * letta-mobile-mpr4: visual treatment for the in-list section pin.
+ * Stays at the top of the LazyColumn viewport while the user scrolls
+ * the section's contents; swaps out for the next section's pin as the
+ * user crosses into it. Danger Zone variant uses the error palette so
+ * the destructive section stays self-evident.
+ */
+@Composable
+private fun EditAgentSectionHeader(
+    title: String,
+    isDanger: Boolean = false,
+) {
+    val container = if (isDanger) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val content = if (isDanger) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = container,
+        contentColor = content,
+        tonalElevation = 1.dp,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
 }
 
 @Composable
