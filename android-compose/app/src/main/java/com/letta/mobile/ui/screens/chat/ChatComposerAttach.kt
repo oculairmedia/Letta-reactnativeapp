@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.exifinterface.media.ExifInterface
+import com.letta.mobile.data.attachment.AttachmentLimits
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.util.Telemetry
 import kotlinx.coroutines.Dispatchers
@@ -22,17 +23,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-/** Max long edge we send to the server in pixels. */
-internal const val MAX_IMAGE_EDGE_PX = 1568
-
-/** Target JPEG quality after downscale. */
-internal const val JPEG_QUALITY = 85
-
 /**
- * Hook up a PhotoPicker launcher that reads a picked URI from MediaStore,
- * decodes it, honours EXIF rotation, downscales to [MAX_IMAGE_EDGE_PX], re-encodes
- * as JPEG q=[JPEG_QUALITY], and hands a Base64-encoded [MessageContentPart.Image]
- * to [onPicked].
+ * Hook up a PhotoPicker launcher that reads a picked URI from
+ * MediaStore, decodes it, honours EXIF rotation, downscales to
+ * [AttachmentLimits.maxLongestEdgePx], re-encodes as JPEG with a
+ * quality-fallback loop bounded by [AttachmentLimits.maxRawBytesPerImage]
+ * and the [AttachmentLimits.minJpegQuality] floor, and hands a
+ * Base64-encoded [MessageContentPart.Image] to [onPicked].
  *
  * Returns a `() -> Unit` that launches the picker when invoked.
  */
@@ -40,6 +37,7 @@ internal const val JPEG_QUALITY = 85
 fun rememberImageAttachmentPicker(
     onPicked: (MessageContentPart.Image) -> Unit,
     onError: (String) -> Unit = {},
+    limits: AttachmentLimits = AttachmentLimits.Default,
 ): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -68,7 +66,7 @@ fun rememberImageAttachmentPicker(
         scope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    loadAndNormalize(context, uri)
+                    loadAndNormalize(context, uri, limits)
                 }
             }.fold(
                 onSuccess = {
@@ -115,7 +113,11 @@ fun rememberImageAttachmentPicker(
 }
 
 @VisibleForTesting
-internal fun loadAndNormalize(context: Context, uri: Uri): MessageContentPart.Image {
+internal fun loadAndNormalize(
+    context: Context,
+    uri: Uri,
+    limits: AttachmentLimits = AttachmentLimits.Default,
+): MessageContentPart.Image {
     val input = context.contentResolver.openInputStream(uri)
         ?: error("openInputStream returned null for $uri")
     val bytes = input.use { it.readBytes() }
@@ -141,11 +143,55 @@ internal fun loadAndNormalize(context: Context, uri: Uri): MessageContentPart.Im
         bitmap
     }
 
-    val scaled = scaleToMaxEdge(rotated, MAX_IMAGE_EDGE_PX)
-    val out = ByteArrayOutputStream(128 * 1024)
-    scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
-    val base64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+    val scaled = scaleToMaxEdge(rotated, limits.maxLongestEdgePx)
+    val encoded = encodeUnderByteCap(scaled, limits)
+    val base64 = android.util.Base64.encodeToString(encoded, android.util.Base64.NO_WRAP)
     return MessageContentPart.Image(base64 = base64, mediaType = "image/jpeg")
+}
+
+/**
+ * lcp-dlj: re-encode a downscaled bitmap as JPEG, stepping the
+ * quality down through [AttachmentLimits.jpegQualityFallbackLadder]
+ * until the output fits under [AttachmentLimits.maxRawBytesPerImage].
+ * If even the floor encoding doesn't fit, returns the floor bytes
+ * — the shim ultimately enforces its own hard cap and surfaces a
+ * `protocol_violation` we can recover from. Marked internal /
+ * VisibleForTesting so the ladder logic is testable without a
+ * MediaStore round-trip.
+ */
+@VisibleForTesting
+internal fun encodeUnderByteCap(
+    bitmap: Bitmap,
+    limits: AttachmentLimits,
+): ByteArray {
+    val ladder = limits.jpegQualityFallbackLadder()
+    var lastBytes: ByteArray = ByteArray(0)
+    for ((i, quality) in ladder.withIndex()) {
+        val out = ByteArrayOutputStream(128 * 1024)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        lastBytes = out.toByteArray()
+        if (lastBytes.size <= limits.maxRawBytesPerImage) {
+            if (i > 0) {
+                Telemetry.event(
+                    "ChatComposerAttach",
+                    "attach.qualityFallback",
+                    "finalQuality" to quality,
+                    "stepIndex" to i,
+                    "bytes" to lastBytes.size,
+                    "cap" to limits.maxRawBytesPerImage,
+                )
+            }
+            return lastBytes
+        }
+    }
+    Telemetry.event(
+        "ChatComposerAttach",
+        "attach.qualityFloorExceeded",
+        "minQuality" to limits.minJpegQuality,
+        "bytes" to lastBytes.size,
+        "cap" to limits.maxRawBytesPerImage,
+    )
+    return lastBytes
 }
 
 private fun scaleToMaxEdge(src: Bitmap, maxEdge: Int): Bitmap {

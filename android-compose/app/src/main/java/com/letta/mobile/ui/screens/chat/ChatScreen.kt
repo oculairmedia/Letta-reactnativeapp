@@ -179,6 +179,7 @@ fun ChatScreen(
                 val launchPicker = rememberImageAttachmentPicker(
                     onPicked = { viewModel.addAttachment(it) },
                     onError = { viewModel.reportComposerError(it) },
+                    limits = viewModel.attachmentLimits,
                 )
                 ChatComposer(
                     inputText = composerState.inputText,

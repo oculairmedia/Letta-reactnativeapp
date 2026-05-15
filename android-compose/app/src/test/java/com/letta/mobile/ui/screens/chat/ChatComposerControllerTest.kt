@@ -151,6 +151,36 @@ class ChatComposerControllerTest {
         assertNull(controller.state.value.error)
     }
 
+    @Test
+    fun `attachment count cap honours injected limits override (lcp-dlj)`() {
+        val customLimits = com.letta.mobile.data.attachment.AttachmentLimits(
+            maxAttachmentCount = 2,
+        )
+        val controller = ChatComposerController(telemetry = noTelemetry, limits = customLimits)
+
+        assertTrue(controller.addAttachment(image(base64 = "one")))
+        assertTrue(controller.addAttachment(image(base64 = "two")))
+        assertFalse(controller.addAttachment(image(base64 = "three")))
+
+        assertEquals(2, controller.state.value.pendingAttachments.size)
+        assertEquals("Attachment limit reached (2 max).", controller.state.value.error)
+    }
+
+    @Test
+    fun `attachment size cap honours injected limits override (lcp-dlj)`() {
+        val customLimits = com.letta.mobile.data.attachment.AttachmentLimits(
+            maxTotalBase64Bytes = 16,
+        )
+        val controller = ChatComposerController(telemetry = noTelemetry, limits = customLimits)
+
+        assertFalse(controller.addAttachment(image(base64 = "x".repeat(17))))
+        assertTrue(controller.state.value.pendingAttachments.isEmpty())
+        assertEquals(
+            "Attachments too large — downscale or remove some before sending.",
+            controller.state.value.error,
+        )
+    }
+
     private fun image(
         base64: String = "ZmFrZQ==",
         mediaType: String = "image/png",
