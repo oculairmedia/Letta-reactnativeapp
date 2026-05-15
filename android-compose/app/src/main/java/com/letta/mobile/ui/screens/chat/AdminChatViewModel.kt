@@ -31,8 +31,10 @@ import com.letta.mobile.ui.screens.chat.send.ChatSendContext
 import com.letta.mobile.ui.screens.chat.send.ChatSendStrategySelector
 import com.letta.mobile.ui.screens.chat.send.ClientModeChatSendStrategy
 import com.letta.mobile.ui.screens.chat.send.TimelineChatSendStrategy
+import com.letta.mobile.ui.screens.chat.send.WsChatSendStrategy
 import com.letta.mobile.ui.screens.chat.session.ChatSessionInitializer
 import com.letta.mobile.ui.screens.chat.state.ChatBannerController
+import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
@@ -72,6 +74,7 @@ class AdminChatViewModel @Inject constructor(
     private val notificationDeliveryCoordinator: NotificationDeliveryCoordinator,
     private val notificationReplyHandler: NotificationReplyHandler,
     private val shimBackendDetector: ShimBackendDetector,
+    private val wsChatBridge: WsChatBridge,
 ) : ViewModel() {
     companion object {
         private const val MESSAGE_SYNC_INTERVAL_MS = 5_000L
@@ -357,6 +360,23 @@ class AdminChatViewModel @Inject constructor(
     private val timelineChatSendStrategy: TimelineChatSendStrategy by lazy {
         TimelineChatSendStrategy(timelineSendCoordinator)
     }
+    private val wsChatSendCoordinator: WsChatSendCoordinator by lazy {
+        WsChatSendCoordinator(
+            scope = viewModelScope,
+            agentId = agentId,
+            activeConfig = { settingsRepository.activeConfig.value },
+            wsChatBridge = wsChatBridge,
+            timelineRepository = timelineRepository,
+            uiState = _uiState,
+            clearComposerAfterSend = { composerController.clearAfterSend() },
+            activeConversationId = { chatConversationCoordinator.activeConversationId },
+            setActiveConversationId = chatConversationCoordinator::setActiveConversationId,
+            startTimelineObserver = ::startTimelineObserver,
+        )
+    }
+    private val wsChatSendStrategy: WsChatSendStrategy by lazy {
+        WsChatSendStrategy(wsChatSendCoordinator)
+    }
     private val clientModeChatSendStrategy: ClientModeChatSendStrategy by lazy {
         ClientModeChatSendStrategy(clientModeSendCoordinator)
     }
@@ -364,6 +384,7 @@ class AdminChatViewModel @Inject constructor(
         ChatSendStrategySelector(
             timelineStrategy = timelineChatSendStrategy,
             clientModeStrategy = clientModeChatSendStrategy,
+            wsStrategy = wsChatSendStrategy,
         )
     }
     private val chatHistoryPager: ChatHistoryPager by lazy {
@@ -537,7 +558,13 @@ class AdminChatViewModel @Inject constructor(
             )
             return
         }
+        val context = chatSendContext()
         viewModelScope.launch {
+            if (context.isShimBackend && !context.isClientModeEnabled) {
+                chatBannerController.clearStreamingAfterInterrupt()
+                chatSendStrategySelector.cancel(context)
+                return@launch
+            }
             val runIds = activeRunIds().takeIf { it.isNotEmpty() }
             chatBannerController.clearStreamingAfterInterrupt()
             runCatching {
@@ -614,7 +641,7 @@ class AdminChatViewModel @Inject constructor(
         // Auto-resuming vs Forced-new outcome. Remove once verified.
         android.util.Log.i(
             "AdminChatViewModel",
-            "flk6.sendMessage agent=$agentId via=${if (context.isClientModeEnabled) "client_mode" else "timeline"} " +
+            "flk6.sendMessage agent=$agentId via=${context.debugRouteName()} " +
                 "isFreshRoute=$isFreshRoute explicitConv=$explicitConversationId " +
                 "clientModeConv=${currentClientModeConversationId()} " +
                 "active=${chatConversationCoordinator.activeConversationId}",
@@ -629,6 +656,12 @@ class AdminChatViewModel @Inject constructor(
         explicitConversationId = explicitConversationId,
         isShimBackend = isShimBackend.value,
     )
+
+    private fun ChatSendContext.debugRouteName(): String = when {
+        isClientModeEnabled -> "client_mode"
+        isShimBackend -> "ws"
+        else -> "timeline"
+    }
 
     private fun currentClientModeConversationId(): String? =
         savedStateHandle.get<String>(CLIENT_MODE_CONVERSATION_ID_KEY)?.takeIf { it.isNotBlank() }
