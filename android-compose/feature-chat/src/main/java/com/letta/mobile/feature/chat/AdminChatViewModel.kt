@@ -14,9 +14,8 @@ import com.letta.mobile.bot.channel.NotificationReplyHandler
 import com.letta.mobile.data.channel.NotificationDelivery
 import com.letta.mobile.data.health.ShimBackendDetector
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.MessageContentPart
-import com.letta.mobile.data.model.MessageType
+import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.toBackendLabel
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
@@ -49,7 +48,6 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
@@ -231,7 +229,6 @@ internal class AdminChatViewModel @Inject constructor(
 
     private val runExpansionState = ChatRunExpansionState(routeArgs.savedStateHandle(), _uiState)
 
-    private val pendingToolsMap = java.util.concurrent.ConcurrentHashMap<String, PendingToolCall>()
     fun toggleRunCollapsed(runId: String) = runExpansionState.toggleRunCollapsed(runId)
 
     fun toggleReasoningExpanded(messageId: String) = runExpansionState.toggleReasoningExpanded(messageId)
@@ -308,6 +305,13 @@ internal class AdminChatViewModel @Inject constructor(
         },
         markFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight = true },
     )
+    private val chatApprovalController = ChatApprovalController(
+        scope = viewModelScope,
+        coordinator = chatApprovalCoordinator,
+        uiState = _uiState,
+        bannerController = chatBannerController,
+        activeConversationId = { chatConversationCoordinator.activeConversationId },
+    )
     private val clientModeSendCoordinator = ClientModeSendCoordinator(
         scope = viewModelScope,
         agentId = agentId,
@@ -328,7 +332,7 @@ internal class AdminChatViewModel @Inject constructor(
         showConversationSwap = chatBannerController::showClientModeConversationSwap,
         startTimelineObserver = ::startTimelineObserver,
         stopTimelineObserver = ::stopTimelineObserver,
-        refreshContextWindow = ::refreshContextWindow,
+        refreshContextWindow = { projectChatCoordinator.refreshContextWindow() },
         collapseCompletedRunsIfStreamingFinished = ::collapseCompletedRunsIfStreamingFinished,
     )
     private val timelineSendCoordinator: TimelineSendCoordinator by lazy {
@@ -402,6 +406,7 @@ internal class AdminChatViewModel @Inject constructor(
         setComposerError = chatBannerController::showComposerError,
         sendMessage = ::sendMessage,
     )
+    val projectBindings: ChatProjectBindings = projectChatCoordinator
     private val chatSessionInitializer by lazy {
         ChatSessionInitializer(
             scope = viewModelScope,
@@ -422,10 +427,10 @@ internal class AdminChatViewModel @Inject constructor(
             observeLastChatSelection = ::observeLastChatSelection,
             seedAgentNameFromMemoryCache = ::seedAgentNameFromMemoryCache,
             observeAgentNameCache = ::observeAgentNameCache,
-            refreshClientModeLocation = ::refreshClientModeLocation,
-            loadProjectAgents = ::loadProjectAgents,
-            loadProjectBrief = ::loadProjectBrief,
-            loadRecentBugReports = ::loadRecentBugReports,
+            refreshClientModeLocation = { projectChatCoordinator.refreshClientModeLocation() },
+            loadProjectAgents = { projectChatCoordinator.loadProjectAgents() },
+            loadProjectBrief = { projectChatCoordinator.loadProjectBrief() },
+            loadRecentBugReports = { projectChatCoordinator.loadRecentBugReports() },
             resolveConversationAndLoad = ::resolveConversationAndLoad,
         )
     }
@@ -481,26 +486,6 @@ internal class AdminChatViewModel @Inject constructor(
         }
         chatSessionInitializer.run()
     }
-
-    fun refreshClientModeLocation() = projectChatCoordinator.refreshClientModeLocation()
-
-    fun sendClientModeLocationChange(path: String) = projectChatCoordinator.sendClientModeLocationChange(path)
-
-    fun openClientModeLocationPicker() = projectChatCoordinator.openClientModeLocationPicker()
-
-    fun closeClientModeLocationPicker() = projectChatCoordinator.closeClientModeLocationPicker()
-
-    fun browseClientModeLocation(path: String?) = projectChatCoordinator.browseClientModeLocation(path)
-
-    fun selectClientModeLocation(path: String) = projectChatCoordinator.selectClientModeLocation(path)
-
-    fun refreshContextWindow() = projectChatCoordinator.refreshContextWindow()
-
-    fun loadProjectAgents() = projectChatCoordinator.loadProjectAgents()
-
-    fun loadRecentBugReports() = projectChatCoordinator.loadRecentBugReports()
-
-    fun submitStructuredBugReport(draft: ProjectBugReportDraft) = projectChatCoordinator.submitStructuredBugReport(draft)
 
     fun tryHandleSlashCommand(text: String): Boolean =
         ChatSlashCommandParser.parse(
@@ -575,13 +560,6 @@ internal class AdminChatViewModel @Inject constructor(
         .distinct()
         .take(1)
 
-    fun loadProjectBrief() = projectChatCoordinator.loadProjectBrief()
-
-    fun saveProjectBriefSection(
-        key: ProjectBriefSectionKey,
-        content: String,
-    ) = projectChatCoordinator.saveProjectBriefSection(key, content)
-
     private fun resolveConversationAndLoad(
         useClientModeForResolve: Boolean = clientModeEnabled.value,
     ) = chatConversationCoordinator.resolveConversationAndLoad(useClientModeForResolve)
@@ -623,7 +601,7 @@ internal class AdminChatViewModel @Inject constructor(
 
     private fun sendMessagePayload(
         text: String,
-        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image>,
+        attachments: List<MessageContentPart.Image>,
     ) {
         val context = chatSendContext()
         // letta-mobile-flk.6 debug: log the route + freshness predicates so
@@ -681,7 +659,7 @@ internal class AdminChatViewModel @Inject constructor(
         chatBannerController.dismissClientModeConversationSwap()
     }
 
-    fun addAttachment(image: com.letta.mobile.data.model.MessageContentPart.Image): Boolean =
+    fun addAttachment(image: MessageContentPart.Image): Boolean =
         composerController.addAttachment(image)
 
     fun removeAttachment(index: Int) {
@@ -711,48 +689,7 @@ internal class AdminChatViewModel @Inject constructor(
         toolCallIds: List<String>,
         approve: Boolean,
         reason: String? = null,
-    ) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                isStreaming = true,
-                isAgentTyping = true,
-                activeApprovalRequestId = requestId,
-            )
-
-            when (val result = chatApprovalCoordinator.submitApproval(
-                activeConversationId = chatConversationCoordinator.activeConversationId,
-                requestId = requestId,
-                toolCallIds = toolCallIds,
-                approve = approve,
-                reason = reason,
-            )) {
-                ChatApprovalResult.Submitted -> {
-                    // Don't reload - approval response will come via streaming
-                    _uiState.value = _uiState.value.copy(
-                        isStreaming = false,
-                        isAgentTyping = false,
-                        activeApprovalRequestId = null,
-                    )
-                }
-                ChatApprovalResult.MissingActiveConversation -> {
-                    _uiState.value = _uiState.value.copy(
-                        isStreaming = false,
-                        isAgentTyping = false,
-                        activeApprovalRequestId = null,
-                    )
-                    chatBannerController.showError("No active conversation available for approval")
-                }
-                is ChatApprovalResult.Failed -> {
-                    _uiState.value = _uiState.value.copy(
-                        isStreaming = false,
-                        isAgentTyping = false,
-                        activeApprovalRequestId = null,
-                    )
-                    chatBannerController.showError(result.message)
-                }
-            }
-        }
-    }
+    ) = chatApprovalController.submitApproval(requestId, toolCallIds, approve, reason)
 
     fun resetMessages() {
         if (shouldUseClientModeForCurrentRoute) {

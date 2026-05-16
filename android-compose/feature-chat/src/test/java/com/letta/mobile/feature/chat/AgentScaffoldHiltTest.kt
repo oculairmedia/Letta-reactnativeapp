@@ -62,6 +62,7 @@ class AgentScaffoldHiltTest {
     private val availableAgentsFlow = MutableStateFlow(emptyList<com.letta.mobile.data.model.Agent>())
 
     private lateinit var viewModel: AdminChatViewModel
+    private lateinit var projectBindings: ChatProjectBindings
     private lateinit var conversationRepository: ConversationRepository
 
     private fun conversation(id: String, summary: String): Conversation = Conversation(
@@ -75,6 +76,7 @@ class AgentScaffoldHiltTest {
     @Before
     fun setup() {
         viewModel = mockk(relaxed = true)
+        projectBindings = mockk(relaxed = true)
         conversationRepository = mockk(relaxed = true)
         every { viewModel.uiState } returns uiFlow
         every { viewModel.chatBackground } returns bgFlow
@@ -84,6 +86,7 @@ class AgentScaffoldHiltTest {
         every { viewModel.favoriteAgentId } returns MutableStateFlow<String?>(null)
         every { viewModel.pinnedAgentIds } returns MutableStateFlow(emptySet())
         every { viewModel.activeBackendLabel } returns MutableStateFlow<String?>("letta.test")
+        every { viewModel.projectBindings } returns projectBindings
         every { viewModel.agentId } returns "agent-hilt-1"
         every { viewModel.conversationId } returns null
         every { viewModel.projectContext } returns null
@@ -153,7 +156,7 @@ class AgentScaffoldHiltTest {
         }
 
         composeRule.onNodeWithTag(AgentScaffoldTestTags.MENU_BUTTON).performClick()
-        verify(exactly = 1) { viewModel.refreshContextWindow() }
+        verify(exactly = 1) { projectBindings.refreshContextWindow() }
         composeRule.onNodeWithTag(AgentScaffoldTestTags.DRAWER_CONTENT).assertIsDisplayed()
     }
 
