@@ -160,6 +160,18 @@ private fun AssistantResponseText(
     // final parsed-subtree/spacing handoff flash; hydrated messages still use MarkdownText because
     // hasStreamed is false for them. Once caught up after stream end, hide the cursor while keeping
     // the stable streaming layout.
+    //
+    // letta-mobile-9hcg follow-up: hold StreamingMarkdownText in
+    // "isStreaming" mode until the outer StreamingDisplayTextSmoother
+    // catches up. StreamingMarkdownText gates `animateContentSize` on
+    // its isStreaming arg — true skips the 260ms tween (layout grows
+    // directly), false enables the tween. Dropping into the tween
+    // branch while the smoother is still revealing produces the fast/
+    // choppy "second phase": every backlogCatchupRate tick reveals
+    // new chars → the column tween-restarts → 260ms tweens stack.
+    // Keep streaming mode active until smoothedText == text, then the
+    // final settle animates cleanly.
+    val effectivelyStreaming = isStreaming || smoothedText != text
     StreamingMarkdownText(
         text = smoothedText,
         textColor = textColor,
@@ -169,7 +181,7 @@ private fun AssistantResponseText(
         cursorAlpha = cursorAlpha,
         deferUnstableMarkdown = showCursor,
         stabilizeTables = hasStreamed || hasTable,
-        isStreaming = isStreaming,
+        isStreaming = effectivelyStreaming,
         modifier = modifier,
     )
 }
