@@ -28,6 +28,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
@@ -83,25 +86,25 @@ fun ChatMessageList(
     // 2-finger event in a gesture until the user lifts.
     var isPinching by remember { mutableStateOf(false) }
 
-    // letta-mobile-d9zy.1 follow-up: realtime pinch-to-zoom.
+    // letta-mobile-d9zy.1 v3: GPU-layer pinch with commit-on-lift only.
     //
-    // The prior implementation kept the visible scale on a
-    // Modifier.graphicsLayer while a 100 ms LaunchedEffect committed
-    // intermediate font-scale checkpoints when the GPU-layer drift
-    // exceeded 5%. The intent was crisp text + smooth frames, but each
-    // checkpoint forced a full chat re-theme + remeasure in the same
-    // frame as the GPU-layer reset, and the two layers didn't land
-    // atomically — every checkpoint produced a sub-frame jump that
-    // the user perceived as gesture jitter.
-    //
-    // Switching to direct realtime rendering: each pointer frame
-    // mutates `activeFontScale` (via onActiveFontScaleChange) and
-    // Compose handles the rest. LazyColumn only measures the ~10
-    // visible items per frame and each Text re-measure on font change
-    // is ~1 ms, so the gesture comfortably fits the 16 ms budget on
-    // a Pixel-class device. No GPU layer trickery, no commit-and-
-    // reset choreography — text is always crisp at the current scale.
-    // The final 2 % snap and persistence still happen on lift.
+    // History:
+    //   - v1 (hybrid): graphicsLayer for visual + 100 ms LaunchedEffect
+    //     committing intermediate font scales. Sub-frame mismatch between
+    //     the two layers produced gesture jitter.
+    //   - v2 (realtime): direct activeFontScale write every pointer frame.
+    //     LocalDensity changes per frame → every visible Text re-measures
+    //     → on a chat with rich markdown / tool cards the layout pass
+    //     exceeds 16 ms and the gesture feels like the chat is
+    //     re-reorganizing on every frame.
+    //   - v3 (this): graphicsLayer scales the visible content during the
+    //     gesture (zero recomposition / zero remeasure — pure GPU
+    //     compositor work), and the font scale is committed exactly
+    //     once on lift. The text gets slightly soft at extreme zoom
+    //     (1.6x) during the gesture, but it's smooth and predictable;
+    //     on lift the layout reflows once and is crisp at the new scale.
+
+    var transientPinchScale by remember { mutableFloatStateOf(1f) }
 
     LaunchedEffect(pinchTick) {
         if (pinchTick > 0) {
@@ -110,8 +113,6 @@ fun ChatMessageList(
             showFontIndicator = false
         }
     }
-
-    val currentOnActiveFontScaleChange by rememberUpdatedState(onActiveFontScaleChange)
 
     val autoScrollSignature by rememberUpdatedState(newestMessageAutoScrollSignature(state.messages))
 
@@ -185,15 +186,12 @@ fun ChatMessageList(
         modifier = modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                // letta-mobile-d9zy.1 follow-up: realtime pinch-to-zoom.
-                // Each pointer frame multiplies the live scale by the
-                // gesture's incremental zoom and pushes it straight to
-                // activeFontScale. Compose recomposes, the LazyColumn
-                // remeasures the ~10 visible items, and the new
-                // layout draws — all in well under 16 ms on Pixel-
-                // class devices. No GPU-layer staging, no mid-gesture
-                // commit choreography. Final 2 % snap + persistence
-                // happens once on lift.
+                // letta-mobile-d9zy.1 v3: graphicsLayer carries the visible
+                // scale during the gesture; we commit the font scale exactly
+                // once on lift. No mid-gesture text reflow → no per-frame
+                // measurement work → no "chat reorganizing on every frame".
+                // Trade-off: at extreme zoom (1.6x) text is slightly soft
+                // until lift snaps it to the new committed scale.
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     var gesturePinching = false
@@ -212,18 +210,23 @@ fun ChatMessageList(
                             if (zoom != 1f) {
                                 event.changes.forEach { it.consume() }
                                 liveScale = (liveScale * zoom).coerceIn(0.7f, 1.6f)
-                                currentOnActiveFontScaleChange(liveScale)
+                                // Visual-only update: drives graphicsLayer
+                                // via mutableFloatStateOf. No recomposition
+                                // outside this scope; no Text re-measure.
+                                transientPinchScale = liveScale / activeFontScale
                             }
                         }
                     } while (event.changes.any { it.pressed })
                     if (gesturePinching) {
-                        // Snap to 2 % step on lift and persist. Quantization
-                        // happens once on commit — not on every frame.
+                        // Snap to 2 % step on lift and commit. Single
+                        // reflow of the chat tree happens here, not
+                        // mid-gesture.
                         val step = 0.02f
                         val snapped = (round(liveScale / step) * step)
                             .coerceIn(0.7f, 1.6f)
                         onActiveFontScaleChange(snapped)
                         onFontScaleChange(snapped)
+                        transientPinchScale = 1f
                         pinchTick = System.nanoTime()
                         isPinching = false
                     }
@@ -244,10 +247,20 @@ fun ChatMessageList(
                     vertical = 8.dp,
                 ),
                 reverseLayout = true,
-                // letta-mobile-d9zy.1 follow-up: no graphicsLayer scale
-                // here anymore. Realtime pinch updates activeFontScale
-                // directly per pointer frame; the visible scale IS the
-                // committed font scale at all times.
+                // letta-mobile-d9zy.1 v3: graphicsLayer scales the list
+                // visually during pinch. transientPinchScale is the
+                // RELATIVE scale on top of the committed activeFontScale
+                // (1.0f at rest; growing while the user pinches; reset
+                // back to 1.0f when the gesture lifts and the font
+                // commit reflows the text). At rest it's exactly 1f and
+                // graphicsLayer is a no-op (Compose elides identity
+                // transforms). transformOrigin centred so pinch feels
+                // close to the user's focal point.
+                modifier = Modifier.graphicsLayer {
+                    scaleX = transientPinchScale
+                    scaleY = transientPinchScale
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
+                },
             ) {
                 item(key = "typing") {
                     AnimatedVisibility(
