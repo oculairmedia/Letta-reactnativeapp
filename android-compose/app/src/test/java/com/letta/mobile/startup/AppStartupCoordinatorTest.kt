@@ -10,10 +10,16 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
 
 class AppStartupCoordinatorTest {
     private val application = mockk<Application>(relaxed = true)
+
+    @Before
+    fun setUp() {
+        Telemetry.clear()
+    }
 
     @After
     fun tearDown() {
@@ -67,6 +73,9 @@ class AppStartupCoordinatorTest {
                     "client mode init",
                 ),
                 actions.calls,
+            )
+            assertTrue(
+                Telemetry.snapshot().none { it.throwable is CancellationException },
             )
         }
     }
