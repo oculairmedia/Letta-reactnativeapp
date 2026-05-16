@@ -2181,7 +2181,7 @@ class AdminChatViewModelTest {
         )
         advanceUntilIdle()
 
-        vm.saveProjectBriefSection(ProjectBriefSectionKey.Description, "Updated brief")
+        vm.projectBindings.saveProjectBriefSection(ProjectBriefSectionKey.Description, "Updated brief")
         advanceUntilIdle()
 
         assertEquals("updateAgentBlock:agent-1:project_description", fakeBlockApi.calls.last())
@@ -2352,7 +2352,7 @@ class AdminChatViewModelTest {
         )
         advanceUntilIdle()
 
-        vm.submitStructuredBugReport(
+        vm.projectBindings.submitStructuredBugReport(
             ProjectBugReportDraft(
                 title = "Crash on sync",
                 description = "App crashes after project sync finishes.",

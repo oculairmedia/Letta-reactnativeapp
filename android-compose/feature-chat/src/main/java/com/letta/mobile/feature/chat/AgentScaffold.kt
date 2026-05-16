@@ -186,6 +186,7 @@ internal fun AgentScaffoldContent(
     val availableAgents by viewModel.availableAgents.collectAsStateWithLifecycle()
     val favoriteAgentId by viewModel.favoriteAgentId.collectAsStateWithLifecycle()
     val activeBackendLabel by viewModel.activeBackendLabel.collectAsStateWithLifecycle()
+    val projectBindings = viewModel.projectBindings
     val pinnedAgentIds by viewModel.pinnedAgentIds.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
     var chatMode by rememberSaveable { mutableStateOf("interactive") }
@@ -269,7 +270,7 @@ internal fun AgentScaffoldContent(
                     clientModeLocation = uiState.clientModeLocation,
                     onOpenLocationPicker = {
                         scope.launch { drawerState.close() }
-                        viewModel.openClientModeLocationPicker()
+                        projectBindings.openClientModeLocationPicker()
                     },
                     conversations = drawerConversations,
                     currentConversationId = conversationId,
@@ -289,7 +290,7 @@ internal fun AgentScaffoldContent(
                         scope.launch { drawerState.close() }
                         viewModel.resetMessages()
                     },
-                    onRefreshContextWindow = viewModel::refreshContextWindow,
+                    onRefreshContextWindow = projectBindings::refreshContextWindow,
                     onClose = { scope.launch { drawerState.close() } },
                     modifier = Modifier.testTag(AgentScaffoldTestTags.DRAWER_CONTENT),
                 )
@@ -389,7 +390,7 @@ internal fun AgentScaffoldContent(
                             )
                         }
                         IconButton(onClick = {
-                            viewModel.refreshContextWindow()
+                            projectBindings.refreshContextWindow()
                             scope.launch {
                                 drawerState.open()
                                 runCatching { drawerConversationRepo.refreshConversations(agentId) }
@@ -424,9 +425,9 @@ internal fun AgentScaffoldContent(
                         bugReports = uiState.bugReports,
                         expanded = isProjectInfoExpanded,
                         onExpandedChange = { isProjectInfoExpanded = it },
-                        onRetryAgents = viewModel::loadProjectAgents,
-                        onRetryBrief = viewModel::loadProjectBrief,
-                        onSaveBriefSection = viewModel::saveProjectBriefSection,
+                        onRetryAgents = projectBindings::loadProjectAgents,
+                        onRetryBrief = projectBindings::loadProjectBrief,
+                        onSaveBriefSection = projectBindings::saveProjectBriefSection,
                         onCreateBugReport = { showBugReportSheet = true },
                         modifier = Modifier.testTag(AgentScaffoldTestTags.PROJECT_CONTEXT_CARD),
                     )
@@ -485,7 +486,7 @@ internal fun AgentScaffoldContent(
             state = uiState.bugReports,
             onDismiss = { showBugReportSheet = false },
             onSubmit = {
-                viewModel.submitStructuredBugReport(it)
+                projectBindings.submitStructuredBugReport(it)
                 showBugReportSheet = false
             },
         )
