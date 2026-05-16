@@ -12,8 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
@@ -106,30 +108,55 @@ fun LettaChatTheme(
         )
     }
 
-    // letta-mobile-5e0f.r2: ChatTypography is memoized by (materialTypography,
-    // colorScheme, fontScale). Identical fontScale (e.g. across multiple
-    // pointer frames where the value didn't change) returns the SAME instance,
-    // so downstream readers skip recomposition. Different fontScale builds
-    // a new instance (cheap — six TextStyle allocations) but ALL allocations
-    // happen here exactly once per distinct fontScale value, not per Text
-    // composable like .scaledBy(LocalChatFontScale.current) used to.
-    val chatTypography = remember(materialTypography, colorScheme, fontScale) {
+    // letta-mobile-9hcg follow-up: unified font-scale propagation.
+    //
+    // Previously chatTypography pre-scaled each TextStyle by fontScale AND
+    // MarkdownText separately overrode LocalDensity.fontScale internally.
+    // Two channels for the same input meant the user-bubble path
+    // (MarkdownText → LocalDensity override) and the active-tail path
+    // (chatTypography.scaledBy → TextStyle.fontSize) recomposed through
+    // different chains, so per-pointer-frame fontScale changes during a
+    // pinch gesture produced sub-frame mismatches where the active tail
+    // had committed at scale N+1 while the committed markdown blocks
+    // were still at scale N. The user perceives this as the same
+    // flicker that happens at conversation-load-in.
+    //
+    // Single channel: install the scaled Density at the theme root so
+    // EVERY sp → px conversion inside the chat tree picks it up. The
+    // chatTypography styles stay at base size; the Density does the
+    // multiplication. MarkdownText drops its internal override.
+    // App-level callers that previously did `.scaledBy(fontScale)`
+    // manually MUST drop that — otherwise they'd double-scale (theme
+    // density × manual factor).
+    val chatTypography = remember(materialTypography, colorScheme) {
         ChatTypography(
-            messageBody = materialTypography.bodyMedium.scaledBy(fontScale),
-            roleLabel = materialTypography.chatBubbleSender.copy(letterSpacing = 0.4.sp).scaledBy(fontScale),
+            messageBody = materialTypography.bodyMedium,
+            roleLabel = materialTypography.chatBubbleSender.copy(letterSpacing = 0.4.sp),
             codeBlock = TextStyle(
                 fontFamily = LettaCodeFont,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
-            ).scaledBy(fontScale),
-            toolLabel = materialTypography.labelMedium.scaledBy(fontScale),
+            ),
+            toolLabel = materialTypography.labelMedium,
             toolDetail = materialTypography.labelSmall.copy(
                 fontFamily = LettaCodeFont,
-            ).scaledBy(fontScale),
+            ),
             timestamp = materialTypography.labelSmall.copy(
                 color = colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
-            ).scaledBy(fontScale),
+            ),
         )
+    }
+
+    val baseDensity = LocalDensity.current
+    val scaledDensity = remember(baseDensity, fontScale) {
+        if (fontScale == 1f) {
+            baseDensity
+        } else {
+            Density(
+                density = baseDensity.density,
+                fontScale = baseDensity.fontScale * fontScale,
+            )
+        }
     }
 
     CompositionLocalProvider(
@@ -138,6 +165,7 @@ fun LettaChatTheme(
         LocalChatShapes provides ChatShapes(),
         LocalChatDimens provides ChatDimens(),
         LocalChatFontScale provides fontScale,
+        LocalDensity provides scaledDensity,
         content = content,
     )
 }

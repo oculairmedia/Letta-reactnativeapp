@@ -349,7 +349,7 @@ private fun DiffOutputSurface(block: ToolOutputBlock.Diff) {
                     Text(
                         text = file.newPath ?: file.oldPath ?: stringResource(R.string.screen_chat_tool_output_diff_file),
                         style = MaterialTheme.typography.labelSmall.copy(fontFamily = LettaCodeFont)
-                            .scaledBy(LocalChatFontScale.current),
+                            ,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -469,7 +469,7 @@ private fun MonospaceText(
         text = text,
         style = MaterialTheme.typography.listItemSupporting
             .copy(fontFamily = MaterialTheme.chatTypography.codeBlock.fontFamily ?: LettaCodeFont)
-            .scaledBy(LocalChatFontScale.current),
+            ,
         color = color,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
@@ -482,7 +482,7 @@ private fun MonospaceText(
 private fun ToolOutputLimitNotice(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelSmall.scaledBy(LocalChatFontScale.current),
+        style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
     )
 }

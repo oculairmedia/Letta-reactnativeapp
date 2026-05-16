@@ -17,17 +17,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.coil3.Coil3ImageTransformerImpl
@@ -44,7 +41,6 @@ import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.SyntaxThemes
 import org.intellij.markdown.ast.ASTNode
 import com.letta.mobile.ui.icons.LettaIcons
-import com.letta.mobile.ui.theme.LocalChatFontScale
 
 @Composable
 fun MarkdownText(
@@ -327,7 +323,6 @@ private fun MarkdownTextRaw(
 ) {
     // Auto-linkify bare URLs before passing to the markdown renderer
     val linkedText = remember(text) { autolinkBareUrls(text) }
-    val fontScale = LocalChatFontScale.current
     val isDarkTheme = isSystemInDarkTheme()
 
     val highlightsBuilder = remember(isDarkTheme) {
@@ -381,66 +376,57 @@ private fun MarkdownTextRaw(
         )
     }
 
-    // Override LocalDensity to scale all sp values for the Markdown library.
-    // This works because sp → px conversion uses Density.fontScale, so changing
-    // it effectively scales all text rendered inside the provider — including
-    // the library's internal rendering that ignores external typography changes.
-    val currentDensity = LocalDensity.current
-    val scaledDensity = remember(currentDensity, fontScale) {
-        Density(
-            density = currentDensity.density,
-            fontScale = currentDensity.fontScale * fontScale,
-        )
-    }
-
-    CompositionLocalProvider(LocalDensity provides scaledDensity) {
-        Markdown(
-            content = linkedText,
-            modifier = modifier.fillMaxWidth(),
-            components = components,
-            extendedSpans = extendedSpans,
-            imageTransformer = Coil3ImageTransformerImpl,
-            colors = markdownColor(
-                text = textColor,
-                codeBackground = MaterialTheme.colorScheme.surfaceVariant,
-                dividerColor = MaterialTheme.colorScheme.outlineVariant,
+    // letta-mobile-9hcg follow-up: density override removed. LettaChatTheme
+    // now installs the scaled density at the theme root so every sp → px
+    // conversion in the chat tree resolves through a single channel
+    // (LocalDensity.fontScale). Reinstating the override here would
+    // double-scale the markdown subtree.
+    Markdown(
+        content = linkedText,
+        modifier = modifier.fillMaxWidth(),
+        components = components,
+        extendedSpans = extendedSpans,
+        imageTransformer = Coil3ImageTransformerImpl,
+        colors = markdownColor(
+            text = textColor,
+            codeBackground = MaterialTheme.colorScheme.surfaceVariant,
+            dividerColor = MaterialTheme.colorScheme.outlineVariant,
+        ),
+        typography = markdownTypography(
+            text = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            // letta-mobile-pcir: code style for fenced blocks. Tuned for
+            // ASCII-art alignment:
+            //   - JetBrains Mono via LettaCodeFont (full Unicode coverage
+            //     including box-drawing glyphs).
+            //   - bodySmall (12sp) instead of labelSmall (11sp) — at 11sp
+            //     subpixel rounding makes adjacent column widths visibly
+            //     drift even with a true monospace font.
+            //   - letterSpacing = 0 so glyph-to-glyph advance stays a
+            //     constant em-width.
+            //   - liga/calt off via fontFeatureSettings — JetBrains Mono
+            //     ligates `=>`, `==`, `!=`, `->`, etc. into composite
+            //     glyphs that don't keep monospace cell width and visibly
+            //     break ASCII art that uses these sequences.
+            code = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = LettaCodeFont,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.sp,
+                fontFeatureSettings = "liga 0, calt 0",
             ),
-            typography = markdownTypography(
-                text = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-                // letta-mobile-pcir: code style for fenced blocks. Tuned for
-                // ASCII-art alignment:
-                //   - JetBrains Mono via LettaCodeFont (full Unicode coverage
-                //     including box-drawing glyphs).
-                //   - bodySmall (12sp) instead of labelSmall (11sp) — at 11sp
-                //     subpixel rounding makes adjacent column widths visibly
-                //     drift even with a true monospace font.
-                //   - letterSpacing = 0 so glyph-to-glyph advance stays a
-                //     constant em-width.
-                //   - liga/calt off via fontFeatureSettings — JetBrains Mono
-                //     ligates `=>`, `==`, `!=`, `->`, etc. into composite
-                //     glyphs that don't keep monospace cell width and visibly
-                //     break ASCII art that uses these sequences.
-                code = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = LettaCodeFont,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 0.sp,
-                    fontFeatureSettings = "liga 0, calt 0",
-                ),
-                h1 = MaterialTheme.typography.titleLarge.copy(color = textColor),
-                h2 = MaterialTheme.typography.titleMedium.copy(color = textColor),
-                h3 = MaterialTheme.typography.titleSmall.copy(color = textColor),
-                h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-                h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-                h6 = MaterialTheme.typography.bodySmall.copy(color = textColor),
-                quote = MaterialTheme.typography.bodyMedium.copy(
-                    color = textColor.copy(alpha = 0.7f),
-                ),
-                bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-                list = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-                ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            h1 = MaterialTheme.typography.titleLarge.copy(color = textColor),
+            h2 = MaterialTheme.typography.titleMedium.copy(color = textColor),
+            h3 = MaterialTheme.typography.titleSmall.copy(color = textColor),
+            h4 = MaterialTheme.typography.bodyLarge.copy(color = textColor),
+            h5 = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            h6 = MaterialTheme.typography.bodySmall.copy(color = textColor),
+            quote = MaterialTheme.typography.bodyMedium.copy(
+                color = textColor.copy(alpha = 0.7f),
             ),
-        )
-    }
+            bullet = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            list = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+            ordered = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+        ),
+    )
 }
 
 @Composable

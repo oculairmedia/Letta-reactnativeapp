@@ -90,12 +90,12 @@ object SummaryCardRenderer : GeneratedUiComponentRenderer {
             modifier = modifier,
         ) {
             model?.body?.takeIf { it.isNotBlank() }?.let {
-                Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
+                Text(text = it, style = MaterialTheme.typography.bodyMedium)
             }
             model?.items?.takeIf { it.isNotEmpty() }?.forEach { item ->
                 Text(
                     text = "• $item",
-                    style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -127,14 +127,14 @@ object MetricCardRenderer : GeneratedUiComponentRenderer {
             model?.value?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.headlineSmall.scaledBy(fontScale),
+                    style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
             model?.supportingText?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -166,7 +166,7 @@ object SuggestionChipsRenderer : GeneratedUiComponentRenderer {
             model?.body?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -214,7 +214,7 @@ internal fun GeneratedUiCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall.scaledBy(fontScale),
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             content()
@@ -226,11 +226,11 @@ internal fun GeneratedUiCard(
 private fun GeneratedUiFallback(component: UiGeneratedComponent) {
     val fontScale = LocalChatFontScale.current
     component.fallbackText?.takeIf { it.isNotBlank() }?.let {
-        Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
+        Text(text = it, style = MaterialTheme.typography.bodyMedium)
     }
     Text(
         text = component.propsJson,
-        style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }

@@ -525,11 +525,11 @@ private fun GeneratedUiFallbackCard(component: com.letta.mobile.data.model.UiGen
     val fontScale = LocalChatFontScale.current
     GeneratedUiCard(title = component.name) {
         component.fallbackText?.takeIf { it.isNotBlank() }?.let {
-            Text(text = it, style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale))
+            Text(text = it, style = MaterialTheme.typography.bodyMedium)
         }
         Text(
             text = component.propsJson,
-            style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
