@@ -37,6 +37,7 @@ import com.letta.mobile.feature.chat.route.ChatRouteArgs
 import com.letta.mobile.feature.chat.session.ChatSessionInitializer
 import com.letta.mobile.feature.chat.state.ChatBannerController
 import com.letta.mobile.data.transport.A2uiActionDispatchResult
+import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,6 +47,7 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -496,6 +498,7 @@ internal class AdminChatViewModel @Inject constructor(
             }
         }
         observeA2uiEvents()
+        observeTransportState()
         chatSessionInitializer.run()
     }
 
@@ -514,8 +517,41 @@ internal class AdminChatViewModel @Inject constructor(
                                 .takeLast(MAX_A2UI_DEBUG_FRAMES)
                                 .toImmutableList()
                         },
+                        a2uiFrameCount = current.a2uiFrameCount + event.messages.size,
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Derives the [ChatTransport] surfaced in the top-bar chip from the
+     * shim-backend flag and the underlying ChannelTransport state.
+     *
+     * Non-shim backends stay on REST regardless of WS state. Shim
+     * backends report whichever phase the WS bridge is in; the
+     * Connected variant carries the A2UI negotiation directly off the
+     * hello-frame response so the chip can show whether A2UI was
+     * accepted (and which catalog) without a second probe.
+     */
+    private fun observeTransportState() {
+        viewModelScope.launch {
+            combine(isShimBackend, wsChatBridge.state) { isShim, wsState ->
+                if (!isShim) return@combine ChatTransport.Rest
+                when (wsState) {
+                    is ChannelTransport.State.Idle -> ChatTransport.WsIdle
+                    is ChannelTransport.State.Connecting -> ChatTransport.WsConnecting
+                    is ChannelTransport.State.Connected -> ChatTransport.WsConnected(
+                        a2uiEnabled = wsState.a2uiNegotiation?.a2uiEnabled == true,
+                        catalog = wsState.a2uiNegotiation?.negotiatedCatalog,
+                    )
+                    is ChannelTransport.State.Disconnected -> ChatTransport.WsDisconnected(
+                        code = wsState.code,
+                        reason = wsState.reason,
+                    )
+                }
+            }.distinctUntilChanged().collect { transport ->
+                _uiState.update { it.copy(transport = transport) }
             }
         }
     }
