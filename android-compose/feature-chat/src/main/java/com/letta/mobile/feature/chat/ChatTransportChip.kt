@@ -43,7 +43,13 @@ internal fun ChatTransportChip(
     modifier: Modifier = Modifier,
 ) {
     val (label, container, content) = chipStyle(transport, a2uiFrameCount)
-    val description = "Chat transport: $label"
+    val description = when (transport) {
+        is ChatTransport.WsDisconnected -> {
+            val closeKind = if (transport.code == 1000) "clean close" else "abnormal close"
+            "Chat transport: $label, $closeKind"
+        }
+        else -> "Chat transport: $label"
+    }
     Box(
         modifier = modifier
             .semantics { contentDescription = description }
