@@ -206,10 +206,12 @@ private fun ServerFrame.toTimelineEvent(): WsTimelineEvent? = when (this) {
         WsTimelineEvent.MessageDelta(it)
     }
     // Welcome carries connection metadata, not chat content; surface via state.
-    // Ping / A2UI / Unknown are silent for chat consumers.
+    // Ping / A2UI frames / capabilities / acks / Unknown are silent for chat consumers.
     is ServerFrame.Welcome,
     is ServerFrame.Ping,
     is ServerFrame.A2ui,
+    is ServerFrame.A2uiCapabilities,
+    is ServerFrame.UserActionAck,
     is ServerFrame.Unknown -> null
 }
 

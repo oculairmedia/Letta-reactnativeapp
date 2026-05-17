@@ -301,9 +301,9 @@ private fun JsonObject.assertToolApprovalAction(
     decision: String,
     scope: String,
 ) {
-    assertEquals("userAction", stringValue("type"))
-    assertEquals("tool_approval_response", stringValue("actionName"))
-    assertEquals(surfaceId, stringValue("surfaceId"))
+    assertEquals("user_action", stringValue("type"))
+    assertEquals("tool_approval_response", stringValue("name"))
+    assertEquals(surfaceId, stringValue("surface_id"))
     val context = this["context"]!!.jsonObject
     assertEquals(callId, context.stringValue("callId"))
     assertEquals(decision, context.stringValue("decision"))
@@ -349,7 +349,7 @@ private class A2uiShimServer {
                             val obj = json.parseToJsonElement(text).jsonObject
                             when (obj.stringValue("type")) {
                                 "hello" -> webSocket.send(welcomeFrame())
-                                "userAction" -> {
+                                "user_action" -> {
                                     actionCounter += 1
                                     actions.trySend(obj)
                                     webSocket.send(confirmationFrame())
@@ -409,9 +409,10 @@ private class A2uiShimServer {
     ): String {
         val affordancesJson = affordances.joinToString(prefix = "[", postfix = "]") { """"$it"""" }
         return """
-            {"v":1,"type":"a2ui","id":"a2ui-$surfaceId","ts":"2026-05-17T00:00:01Z",
+            {"v":1,"type":"a2ui_frame","id":"a2ui-$surfaceId","ts":"2026-05-17T00:00:01Z",
              "agent_id":"agent-e2e","conversation_id":"conv-e2e","turn_id":"turn-e2e","run_id":"run-e2e",
-             "messages":[
+             "ok":true,
+             "a2ui":[
                {"version":"v0.9","createSurface":{
                  "surfaceId":"$surfaceId",
                  "catalogId":"com.letta.mobile:tool-approval/v1"
