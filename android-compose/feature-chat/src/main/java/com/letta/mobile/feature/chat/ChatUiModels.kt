@@ -1,11 +1,14 @@
 package com.letta.mobile.feature.chat
 
 import com.letta.mobile.bot.repository.ClientModeDirectoryEntry
+import com.letta.mobile.data.a2ui.A2uiSurfaceState
 import com.letta.mobile.data.model.ParsedSearchMessage
 import com.letta.mobile.data.model.ProjectBugReport
 import com.letta.mobile.data.model.UiMessage
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 
 @androidx.compose.runtime.Immutable
@@ -24,6 +27,16 @@ internal data class PendingToolCall(
     val id: String,
     val name: String,
     val startedAt: Long = System.currentTimeMillis(),
+)
+
+@androidx.compose.runtime.Immutable
+internal data class A2uiDebugFrameUi(
+    val id: String,
+    val transport: String,
+    val messageType: String,
+    val surfaceId: String?,
+    val conversationId: String?,
+    val requestId: String?,
 )
 
 internal enum class ProjectBriefSectionKey {
@@ -186,6 +199,8 @@ internal data class ChatUiState(
     val isSearchActive: Boolean = false,
     val isSearching: Boolean = false,
     val searchResults: ImmutableList<ParsedSearchMessage> = persistentListOf(),
+    val a2uiDebugFrames: ImmutableList<A2uiDebugFrameUi> = persistentListOf(),
+    val a2uiSurfaces: ImmutableMap<String, A2uiSurfaceState> = persistentMapOf(),
     /**
      * Surfaced when the LettaBot harness substituted a fresh conversation ID for
      * the one we requested (i.e. our requested conv was unrecoverable on the

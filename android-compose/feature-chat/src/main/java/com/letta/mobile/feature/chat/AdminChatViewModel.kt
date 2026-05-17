@@ -11,6 +11,8 @@ import com.letta.mobile.bot.chat.ClientModeChatSender
 import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.bot.repository.ClientModeAgentLocationRepository
 import com.letta.mobile.bot.channel.NotificationReplyHandler
+import com.letta.mobile.data.a2ui.A2uiFrameEvent
+import com.letta.mobile.data.a2ui.A2uiSurfaceManager
 import com.letta.mobile.data.channel.NotificationDelivery
 import com.letta.mobile.data.health.ShimBackendDetector
 import com.letta.mobile.data.model.Agent
@@ -38,6 +40,7 @@ import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -89,6 +92,7 @@ internal class AdminChatViewModel @Inject constructor(
         // round-trip on every chat open. Matches the cadence
         // ChatSessionResolver uses in its own callers.
         private const val RESUME_CACHE_MAX_AGE_MS = 60_000L
+        private const val MAX_A2UI_DEBUG_FRAMES = 12
     }
 
     val agentId: String = routeArgs.agentId
@@ -151,6 +155,7 @@ internal class AdminChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         ChatUiState(agentName = initialAgentName.orEmpty())
     )
+    private val a2uiSurfaceManager = A2uiSurfaceManager()
     val uiState: StateFlow<ChatUiState> by lazy(LazyThreadSafetyMode.NONE) {
         viewModelScope.launchMolecule(mode = Immediate) {
             present()
@@ -488,7 +493,40 @@ internal class AdminChatViewModel @Inject constructor(
                 shimBackendDetector.refresh(config)
             }
         }
+        observeA2uiEvents()
         chatSessionInitializer.run()
+    }
+
+    private fun observeA2uiEvents() {
+        viewModelScope.launch {
+            wsChatBridge.a2uiEvents.collect { event ->
+                a2uiSurfaceManager.apply(event)
+                val frames = event.toDebugFrames()
+                _uiState.update { current ->
+                    current.copy(
+                        a2uiSurfaces = a2uiSurfaceManager.surfaces.value.toPersistentMap(),
+                        a2uiDebugFrames = if (frames.isEmpty()) {
+                            current.a2uiDebugFrames
+                        } else {
+                            (current.a2uiDebugFrames + frames)
+                                .takeLast(MAX_A2UI_DEBUG_FRAMES)
+                                .toImmutableList()
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun A2uiFrameEvent.toDebugFrames(): List<A2uiDebugFrameUi> = messages.mapIndexed { index, message ->
+        A2uiDebugFrameUi(
+            id = listOfNotNull(frameId, requestId, message.surfaceId, index.toString()).joinToString(":"),
+            transport = transport,
+            messageType = message.messageType,
+            surfaceId = message.surfaceId.takeIf { it.isNotBlank() },
+            conversationId = conversationId,
+            requestId = requestId,
+        )
     }
 
     fun tryHandleSlashCommand(text: String): Boolean =
