@@ -68,7 +68,10 @@
       "Bash(xargs cat)",
       "Bash(adb -s 192.168.50.235:5555 uninstall com.letta.mobile)",
       "Bash(adb -s 192.168.50.235:5555 install /opt/stacks/letta-mobile/android-compose/app/build/outputs/apk/root/debug/app-root-debug.apk)",
-      "Bash(adb *)"
+      "Bash(adb *)",
+      "Bash(gh pr *)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 git -C /opt/stacks/letta-mobile push origin feat/resume-recent-chat-h2b8)",
+      "Bash(bd create *)"
     ]
   }
 }
