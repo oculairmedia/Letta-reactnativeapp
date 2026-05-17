@@ -120,7 +120,7 @@ internal fun ChatMessageItem(
     modifier: Modifier = Modifier,
 ) {
     val isUser = message.role == "user"
-    val showAvatar = false
+    val showAvatar = groupPosition == GroupPosition.First || groupPosition == GroupPosition.None
     val context = LocalContext.current
     val copyLabel = stringResource(R.string.action_copy)
     val copyText = remember(message) { buildMessageCopyText(message) }
@@ -186,8 +186,23 @@ internal fun ChatMessageItem(
         return
     }
 
+    val spineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
+    val spineModifier = if (!isUser && !message.isReasoning) {
+        Modifier.drawBehind {
+            val x = 12.dp.toPx()
+            drawLine(
+                color = spineColor,
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 1.5.dp.toPx(),
+            )
+        }
+    } else {
+        Modifier
+    }
+
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(spineModifier),
         horizontalAlignment = avatarAlignment,
     ) {
         if (showAvatar) {
