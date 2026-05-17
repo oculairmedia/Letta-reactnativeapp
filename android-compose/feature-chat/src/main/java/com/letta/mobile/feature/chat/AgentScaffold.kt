@@ -363,6 +363,10 @@ internal fun AgentScaffoldContent(
                                     modifier = Modifier.size(LettaIconSizing.Inline),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                ChatTransportChip(
+                                    transport = uiState.transport,
+                                    a2uiFrameCount = uiState.a2uiFrameCount,
+                                )
                             }
                         }
                     },

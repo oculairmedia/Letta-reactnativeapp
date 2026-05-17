@@ -156,6 +156,34 @@ internal data class ContextWindowUiState(
         get() = if (maxTokens > 0) ((currentTokens.toFloat() / maxTokens.toFloat()) * 100).toInt().coerceIn(0, 100) else 0
 }
 
+/**
+ * Chat transport indicator surfaced in the top app bar so we can verify
+ * at a glance whether the current session is on the REST+SSE path or the
+ * /shim/v1/mobile WebSocket path. A2UI rendering only fires on the WS
+ * path (the splitter lives server-side in the WS host); rendering tests
+ * against a REST-bound agent silently produce blank blocks. See
+ * letta-mobile-cbjh.
+ */
+internal sealed interface ChatTransport {
+    @androidx.compose.runtime.Immutable
+    data object Rest : ChatTransport
+
+    @androidx.compose.runtime.Immutable
+    data object WsIdle : ChatTransport
+
+    @androidx.compose.runtime.Immutable
+    data object WsConnecting : ChatTransport
+
+    @androidx.compose.runtime.Immutable
+    data class WsConnected(
+        val a2uiEnabled: Boolean,
+        val catalog: String?,
+    ) : ChatTransport
+
+    @androidx.compose.runtime.Immutable
+    data class WsDisconnected(val code: Int, val reason: String) : ChatTransport
+}
+
 internal sealed interface ConversationState {
     @androidx.compose.runtime.Immutable
     data object Loading : ConversationState
@@ -201,6 +229,8 @@ internal data class ChatUiState(
     val searchResults: ImmutableList<ParsedSearchMessage> = persistentListOf(),
     val a2uiDebugFrames: ImmutableList<A2uiDebugFrameUi> = persistentListOf(),
     val a2uiSurfaces: ImmutableMap<String, A2uiSurfaceState> = persistentMapOf(),
+    val transport: ChatTransport = ChatTransport.Rest,
+    val a2uiFrameCount: Int = 0,
     /**
      * Surfaced when the LettaBot harness substituted a fresh conversation ID for
      * the one we requested (i.e. our requested conv was unrecoverable on the
