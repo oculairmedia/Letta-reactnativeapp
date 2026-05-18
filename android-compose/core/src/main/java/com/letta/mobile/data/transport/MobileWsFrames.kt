@@ -7,12 +7,14 @@ import com.letta.mobile.data.a2ui.A2uiHandshakeAck
 import com.letta.mobile.data.a2ui.A2uiMessage
 import com.letta.mobile.data.a2ui.A2uiThemeHints
 import com.letta.mobile.data.a2ui.decodeA2uiMessages
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -268,6 +270,34 @@ sealed interface ServerFrame {
     ) : ServerFrame
 
     /**
+     * Server outcome for a client `user_action` (lcp-uo5.14). Unlike
+     * [UserActionAck], this is UX-facing: it tells mobile whether the
+     * action was matched to a tool approval, injected as chat input,
+     * recorded for later, rejected, or failed. [frameId] correlates to
+     * the outbound [UserActionFrame.id].
+     */
+    @Serializable
+    data class UserActionOutcome(
+        override val v: Int = 1,
+        val type: String = "user_action_outcome",
+        override val id: String,
+        override val ts: String,
+        @OptIn(ExperimentalSerializationApi::class)
+        @JsonNames("frame_id")
+        val frameId: String,
+        val outcome: String,
+        @OptIn(ExperimentalSerializationApi::class)
+        @JsonNames("action_id")
+        val actionId: String? = null,
+        val reason: String? = null,
+        val idempotent: Boolean = false,
+        @SerialName("agent_id") val agentId: String? = null,
+        @SerialName("conversation_id") val conversationId: String? = null,
+        @SerialName("turn_id") val turnId: String? = null,
+        @SerialName("run_id") val runId: String? = null,
+    ) : ServerFrame
+
+    /**
      * Spec §7: `code` ∈ invalid_token | protocol_violation |
      * agent_not_found | conversation_not_found | run_not_found |
      * internal_error. `turn_id` / `run_id` are populated only for
@@ -496,6 +526,7 @@ object ServerFrameSerializer : JsonContentPolymorphicSerializer<ServerFrame>(Ser
             "a2ui_frame" -> A2uiFrameDeserializer
             "a2ui_capabilities" -> ServerFrame.A2uiCapabilities.serializer()
             "user_action_ack" -> ServerFrame.UserActionAck.serializer()
+            "user_action_outcome" -> ServerFrame.UserActionOutcome.serializer()
             else -> UnknownFrameDeserializer
         }
     }

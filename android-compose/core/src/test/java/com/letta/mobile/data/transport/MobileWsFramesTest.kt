@@ -196,6 +196,45 @@ class MobileWsFramesTest : WordSpec({
             parsed.reason shouldBe null
         }
 
+        "lcp-uo5.14 user_action_outcome — parses all outcome values and frameId correlation" {
+            val outcomes = listOf(
+                "matched_approval",
+                "injected_as_input",
+                "recorded_only",
+                "rejected",
+                "error",
+            )
+
+            outcomes.forEach { outcome ->
+                val payload = """
+                    {"v":1,"type":"user_action_outcome","id":"out-$outcome","ts":"t",
+                     "frameId":"frame-$outcome","action_id":"action-$outcome",
+                     "outcome":"$outcome","reason":"reason-$outcome","idempotent":true,
+                     "agent_id":"agent-1","conversation_id":"conv-1"}
+                """.trimIndent()
+                val parsed = json.decodeFromString(ServerFrameSerializer, payload)
+                parsed.shouldBeInstanceOf<ServerFrame.UserActionOutcome>()
+                parsed.frameId shouldBe "frame-$outcome"
+                parsed.actionId shouldBe "action-$outcome"
+                parsed.outcome shouldBe outcome
+                parsed.reason shouldBe "reason-$outcome"
+                parsed.idempotent shouldBe true
+                parsed.agentId shouldBe "agent-1"
+                parsed.conversationId shouldBe "conv-1"
+            }
+        }
+
+        "lcp-uo5.14 user_action_outcome — accepts snake_case frame_id fallback" {
+            val payload = """
+                {"v":1,"type":"user_action_outcome","id":"out-1","ts":"t",
+                 "frame_id":"frame-snake","outcome":"injected_as_input"}
+            """.trimIndent()
+            val parsed = json.decodeFromString(ServerFrameSerializer, payload)
+            parsed.shouldBeInstanceOf<ServerFrame.UserActionOutcome>()
+            parsed.frameId shouldBe "frame-snake"
+            parsed.outcome shouldBe "injected_as_input"
+        }
+
         "spec §4.7 stop_reason — inner field is `stop_reason`, NOT `reason`" {
             val payload = """
                 {"v":1,"type":"stop_reason","id":"f","ts":"t",
