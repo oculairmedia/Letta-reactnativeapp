@@ -35,7 +35,7 @@ import javax.inject.Singleton
 
 sealed interface A2uiActionDispatchResult {
     data class Sent(val frameId: String) : A2uiActionDispatchResult
-    data object Queued : A2uiActionDispatchResult
+    data class Queued(val frameId: String) : A2uiActionDispatchResult
     data object Failed : A2uiActionDispatchResult
 }
 
@@ -148,7 +148,7 @@ class ChannelTransport @Inject constructor() {
     private val socketMutex = Mutex()
     private var listenerJob: Job? = null
     private val pendingA2uiActionLock = Any()
-    private val pendingA2uiActions = ArrayDeque<A2uiAction>()
+    private val pendingA2uiActions = ArrayDeque<UserActionFrame>()
 
     // letta-mobile-ns5l: tracks who triggered the close so onClosed can
     // log initiator alongside the wire code. Set true in disconnect()
@@ -416,8 +416,8 @@ class ChannelTransport @Inject constructor() {
     fun sendA2uiAction(action: A2uiAction): A2uiActionDispatchResult {
         val socket = socketRef.get()
         val stateNow = state.value
+        val frame = action.toUserActionFrame()
         if (stateNow is State.Connected && socket != null) {
-            val frame = action.toUserActionFrame()
             val ok = socket.sendFrame(frame)
             if (ok) {
                 Log.i(
@@ -430,40 +430,40 @@ class ChannelTransport @Inject constructor() {
                 TAG,
                 "user_action sendFrame returned false; queueing surfaceId=${action.surfaceId} event=${action.name}",
             )
-            return enqueueA2uiAction(action)
+            return enqueueA2uiAction(frame)
         }
         Log.w(
             TAG,
             "user_action no live socket (state=${stateNow::class.simpleName} socketNull=${socket == null}); " +
                 "queueing surfaceId=${action.surfaceId} event=${action.name}",
         )
-        return enqueueA2uiAction(action)
+        return enqueueA2uiAction(frame)
     }
 
-    private fun enqueueA2uiAction(action: A2uiAction): A2uiActionDispatchResult =
+    private fun enqueueA2uiAction(frame: UserActionFrame): A2uiActionDispatchResult =
         synchronized(pendingA2uiActionLock) {
             if (pendingA2uiActions.size >= MAX_PENDING_A2UI_ACTIONS) {
                 A2uiActionDispatchResult.Failed
             } else {
-                pendingA2uiActions.addLast(action)
-                A2uiActionDispatchResult.Queued
+                pendingA2uiActions.addLast(frame)
+                A2uiActionDispatchResult.Queued(frame.id)
             }
         }
 
-    private fun requeueA2uiActionFirst(action: A2uiAction) {
+    private fun requeueA2uiActionFirst(frame: UserActionFrame) {
         synchronized(pendingA2uiActionLock) {
-            pendingA2uiActions.addFirst(action)
+            pendingA2uiActions.addFirst(frame)
         }
     }
 
     private fun drainPendingA2uiActions() {
         while (true) {
-            val action = synchronized(pendingA2uiActionLock) {
+            val frame = synchronized(pendingA2uiActionLock) {
                 if (pendingA2uiActions.isEmpty()) null else pendingA2uiActions.removeFirst()
             } ?: return
             val socket = socketRef.get()
-            if (state.value !is State.Connected || socket == null || !socket.sendFrame(action.toUserActionFrame())) {
-                requeueA2uiActionFirst(action)
+            if (state.value !is State.Connected || socket == null || !socket.sendFrame(frame)) {
+                requeueA2uiActionFirst(frame)
                 return
             }
         }
@@ -476,6 +476,9 @@ class ChannelTransport @Inject constructor() {
             name = name,
             surfaceId = surfaceId,
             context = context,
+            runId = runId,
+            turnId = turnId,
+            actionId = actionId,
         )
 
     companion object {

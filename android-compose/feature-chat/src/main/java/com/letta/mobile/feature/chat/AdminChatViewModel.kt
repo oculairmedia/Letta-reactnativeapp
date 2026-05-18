@@ -654,7 +654,8 @@ internal class AdminChatViewModel @Inject constructor(
             is A2uiActionDispatchResult.Sent -> {
                 pendingA2uiActions[result.frameId] = PendingA2uiAction(action = action)
             }
-            A2uiActionDispatchResult.Queued -> {
+            is A2uiActionDispatchResult.Queued -> {
+                pendingA2uiActions[result.frameId] = PendingA2uiAction(action = action)
                 chatBannerController.showComposerError("Action queued until the chat connection returns")
             }
             A2uiActionDispatchResult.Failed -> {
