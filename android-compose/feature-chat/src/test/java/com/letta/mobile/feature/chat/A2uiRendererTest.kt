@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -25,6 +26,7 @@ import com.letta.mobile.data.a2ui.A2uiUpdateDataModelPayload
 import com.letta.mobile.data.a2ui.decodeA2uiMessages
 import com.letta.mobile.ui.a2ui.A2uiAction
 import com.letta.mobile.ui.a2ui.A2uiRenderer
+import com.letta.mobile.ui.a2ui.A2uiSurfaceRenderer
 import com.letta.mobile.ui.a2ui.A2uiTestTags
 import com.letta.mobile.ui.test.setLettaTestContent
 import kotlinx.serialization.json.JsonPrimitive
@@ -484,6 +486,33 @@ class A2uiRendererTest {
         } finally {
             composeRule.mainClock.autoAdvance = true
         }
+    }
+
+    @Test
+    fun buttonLocalSubmittingStateClearsWhenActionResolutionTokenChanges() {
+        val manager = bookingFormSurfaceManager()
+        val resolutionToken = mutableIntStateOf(0)
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiSurfaceRenderer(
+                surface = manager.surface(SurfaceId),
+                actionResolutionToken = resolutionToken.intValue,
+                onAction = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Submit").performClick()
+        composeRule.onNodeWithTag(A2uiTestTags.ButtonProgress).assertIsDisplayed()
+        composeRule.onNodeWithText("Submit").assertIsNotEnabled()
+
+        composeRule.runOnIdle {
+            resolutionToken.intValue += 1
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Submit").assertIsEnabled()
+        composeRule.onNodeWithText("submitting...").assertDoesNotExist()
+        composeRule.onNodeWithTag(A2uiTestTags.ButtonProgress).assertDoesNotExist()
     }
 
     @Test

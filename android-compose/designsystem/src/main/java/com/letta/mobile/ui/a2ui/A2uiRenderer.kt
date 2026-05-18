@@ -105,6 +105,7 @@ fun A2uiSurfaceRenderer(
     surface: A2uiSurfaceState?,
     modifier: Modifier = Modifier,
     onAction: (A2uiAction) -> Unit = {},
+    actionResolutionToken: Int = 0,
 ) {
     if (surface == null) {
         A2uiSkeletonCard(modifier = modifier.testTag(A2uiTestTags.SurfaceMissing))
@@ -134,6 +135,7 @@ fun A2uiSurfaceRenderer(
         onAction = onAction,
         surfaceSubmitting = submitting,
         onPendingActionDelta = ::updatePendingActionCount,
+        actionResolutionToken = actionResolutionToken,
     )
 }
 
@@ -161,6 +163,7 @@ private fun A2uiComponentNode(
     onAction: (A2uiAction) -> Unit,
     surfaceSubmitting: Boolean,
     onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
 ) {
     if (component.id in visited || visited.size > MaxRenderDepth) {
         A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
@@ -192,6 +195,7 @@ private fun A2uiComponentNode(
             onAction = onAction,
             surfaceSubmitting = surfaceSubmitting,
             onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
         )
         "Row" -> A2uiRow(
             component = component,
@@ -201,6 +205,7 @@ private fun A2uiComponentNode(
             onAction = onAction,
             surfaceSubmitting = surfaceSubmitting,
             onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
         )
         "Card" -> A2uiCard(
             component = component,
@@ -210,6 +215,7 @@ private fun A2uiComponentNode(
             onAction = onAction,
             surfaceSubmitting = surfaceSubmitting,
             onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
         )
         "Button" -> A2uiButton(
             component = component,
@@ -217,6 +223,7 @@ private fun A2uiComponentNode(
             modifier = modifier,
             onAction = onAction,
             onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
         )
         else -> A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
     }
@@ -788,6 +795,7 @@ private fun A2uiColumn(
     onAction: (A2uiAction) -> Unit,
     surfaceSubmitting: Boolean,
     onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
 ) {
     val children = component.children
     Column(
@@ -809,6 +817,7 @@ private fun A2uiColumn(
                     onAction = onAction,
                     surfaceSubmitting = surfaceSubmitting,
                     onPendingActionDelta = onPendingActionDelta,
+                    actionResolutionToken = actionResolutionToken,
                 )
             }
         }
@@ -824,6 +833,7 @@ private fun A2uiRow(
     onAction: (A2uiAction) -> Unit,
     surfaceSubmitting: Boolean,
     onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
 ) {
     val children = component.children
     Row(
@@ -847,6 +857,7 @@ private fun A2uiRow(
                     onAction = onAction,
                     surfaceSubmitting = surfaceSubmitting,
                     onPendingActionDelta = onPendingActionDelta,
+                    actionResolutionToken = actionResolutionToken,
                 )
             }
         }
@@ -862,6 +873,7 @@ private fun A2uiCard(
     onAction: (A2uiAction) -> Unit,
     surfaceSubmitting: Boolean,
     onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -887,6 +899,7 @@ private fun A2uiCard(
                         onAction = onAction,
                         surfaceSubmitting = surfaceSubmitting,
                         onPendingActionDelta = onPendingActionDelta,
+                        actionResolutionToken = actionResolutionToken,
                     )
                 }
             }
@@ -901,6 +914,7 @@ private fun A2uiButton(
     modifier: Modifier = Modifier,
     onAction: (A2uiAction) -> Unit,
     onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
 ) {
     val label = component.resolveButtonLabel(surface)
     val action = component.action(surface)
@@ -912,6 +926,13 @@ private fun A2uiButton(
         delay(A2uiButtonLocalTimeoutMillis)
         inFlight = false
         onPendingActionDelta(-1)
+    }
+
+    LaunchedEffect(actionResolutionToken) {
+        if (actionResolutionToken > 0 && inFlight) {
+            inFlight = false
+            onPendingActionDelta(-1)
+        }
     }
 
     Button(
