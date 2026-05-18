@@ -241,6 +241,7 @@ internal data class ChatUiState(
     val a2uiSurfaces: ImmutableMap<String, A2uiSurfaceState> = persistentMapOf(),
     val a2uiResolvedActionCounters: ImmutableMap<String, Int> = persistentMapOf(),
     val a2uiActionSnackbar: A2uiActionSnackbarUi? = null,
+    val a2uiThinkingDelayMessage: String? = null,
     val transport: ChatTransport = ChatTransport.Rest,
     val a2uiFrameCount: Int = 0,
     /**
