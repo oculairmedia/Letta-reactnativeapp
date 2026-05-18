@@ -58,6 +58,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
@@ -102,6 +104,8 @@ internal class AdminChatViewModel @Inject constructor(
         // ChatSessionResolver uses in its own callers.
         private const val RESUME_CACHE_MAX_AGE_MS = 60_000L
         private const val MAX_A2UI_DEBUG_FRAMES = 12
+        private const val A2UI_THINKING_TIMEOUT_MS = 60_000L
+        private const val A2UI_THINKING_DELAY_MESSAGE = "Response delayed — check your connection"
         private const val TAG = "AdminChatViewModel"
     }
 
@@ -167,6 +171,8 @@ internal class AdminChatViewModel @Inject constructor(
     )
     private val a2uiSurfaceManager = A2uiSurfaceManager()
     private val pendingA2uiActions = mutableMapOf<String, PendingA2uiAction>()
+    private var a2uiThinkingTimeoutJob: Job? = null
+    private var a2uiThinkingStartMessageCount: Int? = null
     private var nextA2uiSnackbarId = 0L
     val uiState: StateFlow<ChatUiState> by lazy(LazyThreadSafetyMode.NONE) {
         viewModelScope.launchMolecule(mode = Immediate) {
@@ -285,6 +291,8 @@ internal class AdminChatViewModel @Inject constructor(
         activeReplyStreams = notificationReplyHandler.activeReplyStreams,
         uiState = _uiState,
         isClientModeStreamInFlight = { clientModeSendCoordinator.isStreamInFlight },
+        a2uiThinkingStartMessageCount = { a2uiThinkingStartMessageCount },
+        clearA2uiThinkingOnResponse = ::clearA2uiThinkingOnResponse,
         isFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight },
         clearFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight = false },
         collapseCompletedRunsIfStreamingFinished = ::collapseCompletedRunsIfStreamingFinished,
@@ -600,6 +608,49 @@ internal class AdminChatViewModel @Inject constructor(
                 a2uiActionSnackbar = outcome.toSnackbar(pending.action),
             )
         }
+        if (outcome.expectsFollowUpTurn()) {
+            startA2uiThinkingIndicator()
+        }
+    }
+
+    private fun WsTimelineEvent.UserActionOutcome.expectsFollowUpTurn(): Boolean = outcome.lowercase() in setOf(
+        "injected_as_input",
+        "matched_approval",
+    )
+
+    private fun startA2uiThinkingIndicator() {
+        a2uiThinkingTimeoutJob?.cancel()
+        a2uiThinkingStartMessageCount = _uiState.value.messages.size
+        _uiState.update {
+            it.copy(
+                isStreaming = true,
+                isAgentTyping = true,
+                a2uiThinkingDelayMessage = null,
+            )
+        }
+        a2uiThinkingTimeoutJob = viewModelScope.launch {
+            delay(A2UI_THINKING_TIMEOUT_MS)
+            if (a2uiThinkingStartMessageCount != null) {
+                a2uiThinkingStartMessageCount = null
+                _uiState.update {
+                    it.copy(
+                        isStreaming = false,
+                        isAgentTyping = false,
+                        a2uiThinkingDelayMessage = A2UI_THINKING_DELAY_MESSAGE,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun clearA2uiThinkingOnResponse() {
+        a2uiThinkingStartMessageCount = null
+        a2uiThinkingTimeoutJob?.cancel()
+        a2uiThinkingTimeoutJob = null
+    }
+
+    fun markA2uiThinkingDelayMessageShown() {
+        _uiState.update { it.copy(a2uiThinkingDelayMessage = null) }
     }
 
     private data class PendingA2uiAction(
@@ -701,6 +752,7 @@ internal class AdminChatViewModel @Inject constructor(
 
     fun interruptRun() {
         if (!_uiState.value.isStreaming) return
+        clearA2uiThinkingOnResponse()
         val elapsedSinceClientModeStart = android.os.SystemClock.elapsedRealtime() -
             clientModeSendCoordinator.streamStartedAtElapsedMs
         if (clientModeSendCoordinator.isStreamInFlight && elapsedSinceClientModeStart in 0..750) {
@@ -903,6 +955,7 @@ internal class AdminChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        a2uiThinkingTimeoutJob?.cancel()
         currentConversationTracker.setCurrent(null)
         super.onCleared()
     }

@@ -62,6 +62,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -361,11 +362,54 @@ class AdminChatViewModelTest {
                 runId = "run-1",
             )
         )
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals("Approved", vm.uiState.value.a2uiActionSnackbar?.message)
         assertEquals(SnackbarDuration.Short, vm.uiState.value.a2uiActionSnackbar?.duration)
         assertEquals(1, vm.uiState.value.a2uiResolvedActionCounters["surface-1"])
+        assertTrue(vm.uiState.value.isStreaming)
+        assertTrue(vm.uiState.value.isAgentTyping)
+        vm.interruptRun()
+    }
+
+    @Test
+    fun a2uiUserActionOutcomeTimeoutShowsDelayedResponseMessage() = runTest {
+        val wsEvents = Channel<WsTimelineEvent>(Channel.BUFFERED)
+        every { wsChatBridge.events } returns wsEvents.consumeAsFlow()
+        every { wsChatBridge.sendA2uiAction(any()) } returns A2uiActionDispatchResult.Sent("frame-1")
+        val vm = createViewModel(conversationId = "conv-1")
+
+        vm.submitA2uiAction(
+            A2uiAction(
+                name = "a2ui.test.send",
+                surfaceId = "surface-1",
+                context = JsonObject(emptyMap()),
+            )
+        )
+        wsEvents.trySend(
+            WsTimelineEvent.UserActionOutcome(
+                frameId = "frame-1",
+                outcome = "injected_as_input",
+                actionId = "action-1",
+                reason = null,
+                idempotent = false,
+                agentId = "agent-1",
+                conversationId = "conv-1",
+                turnId = "turn-1",
+                runId = "run-1",
+            )
+        )
+        runCurrent()
+
+        assertTrue(vm.uiState.value.isStreaming)
+        assertTrue(vm.uiState.value.isAgentTyping)
+
+        advanceTimeBy(60_000L)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.isStreaming)
+        assertFalse(vm.uiState.value.isAgentTyping)
+        assertEquals("Response delayed — check your connection", vm.uiState.value.a2uiThinkingDelayMessage)
     }
 
     @Test
