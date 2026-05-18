@@ -16,19 +16,27 @@ import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShimBackendDetectorTest {
+    @Before
+    fun setUp() {
+        unmockkAll()
+    }
+
     @After
     fun tearDown() {
         clearAllMocks()
+        unmockkAll()
     }
 
     @Test
