@@ -51,6 +51,7 @@ import com.letta.mobile.ui.components.FloatingBanner
 import com.letta.mobile.ui.components.MessageSkeletonList
 import com.letta.mobile.ui.components.StarterPrompts
 import com.letta.mobile.ui.components.ThinkingShader
+import com.letta.mobile.ui.components.rememberReducedMotionEnabled
 import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -90,6 +91,7 @@ internal fun ChatScreen(
         var floatingBannerMessage by remember { mutableStateOf("") }
         val snackbarDispatcher = LocalSnackbarDispatcher.current
         val density = LocalDensity.current
+        val reducedMotion = rememberReducedMotionEnabled()
         val windowSizeClass = LocalWindowSizeClass.current
         val imeBottomPx = WindowInsets.ime.getBottom(density)
         val navBottomPx = WindowInsets.navigationBars.getBottom(density)
@@ -124,6 +126,12 @@ internal fun ChatScreen(
             viewModel.markA2uiActionSnackbarShown(snackbar.id)
         }
 
+        LaunchedEffect(state.a2uiThinkingDelayMessage) {
+            val message = state.a2uiThinkingDelayMessage ?: return@LaunchedEffect
+            floatingBannerMessage = message
+            viewModel.markA2uiThinkingDelayMessageShown()
+        }
+
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -147,7 +155,7 @@ internal fun ChatScreen(
             // for a gentle build.
             val thinkingAlpha by animateFloatAsState(
                 targetValue = if (state.isStreaming) 1f else 0f,
-                animationSpec = tween(durationMillis = 900, easing = EaseInOutCubic),
+                animationSpec = tween(durationMillis = if (reducedMotion) 0 else 900, easing = EaseInOutCubic),
                 label = "thinkingAlpha",
             )
             if (thinkingAlpha > 0.001f) {
@@ -159,6 +167,7 @@ internal fun ChatScreen(
                     // the muted role-label tone.
                     tint = MaterialTheme.colorScheme.tertiary,
                     bgColor = MaterialTheme.colorScheme.surface,
+                    animate = !reducedMotion,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .alpha(thinkingAlpha),
