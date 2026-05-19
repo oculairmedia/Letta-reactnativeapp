@@ -584,6 +584,74 @@ class A2uiRendererTest {
     }
 
     @Test
+    fun choicePickerRendersAndWritesOptionValueToBoundDataModelPath() {
+        val manager = choicePickerSurfaceManager(root = "bound-picker")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.ChoicePicker).assertIsDisplayed()
+        composeRule.onNodeWithText("Bound feel").assertIsDisplayed()
+        composeRule.onNodeWithText("Glitchy").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "glitchy",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/feel")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun unboundChoicePickerRoutesSelectionIntoSyntheticDataModelPathForDollarReferenceResolution() {
+        val manager = choicePickerSurfaceManager(root = "choiceForm")
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithText("Clean").performClick()
+        composeRule.onNodeWithText("Submit").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "clean",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/feel-picker")!!.jsonPrimitive.content,
+            )
+            val action = actions.single()
+            assertEquals("submit_feel", action.name)
+            assertEquals("clean", action.context["feel"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun choicePickerIsDisabledWhileSiblingActionIsSubmitting() {
+        val manager = choicePickerSurfaceManager(root = "choiceSubmitForm")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Submit").performClick()
+        composeRule.onNodeWithTag(A2uiTestTags.ButtonProgress).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.ChoicePicker).assertIsNotEnabled()
+
+        composeRule.runOnIdle {
+            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/feel-picker"))
+        }
+    }
+
+    @Test
     fun formWidgetsAreDisabledWhileSiblingActionIsSubmitting() {
         val manager = formWidgetSurfaceManager(root = "form")
 
@@ -686,6 +754,77 @@ class A2uiRendererTest {
         composeRule.runOnIdle {
             assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/localCount"))
         }
+    }
+
+    @Test
+    fun linearProgressReflectsBoundValueUpdatesAndLabel() {
+        val manager = progressWidgetSurfaceManager(root = "downloadProgress", downloadProgress = 0.25)
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("Downloading model").assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.LinearProgress).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Linear progress 25%").assertIsDisplayed()
+        composeRule.onNodeWithText("25%").assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            manager.applyMessage(
+                A2uiMessage.UpdateDataModel(
+                    updateDataModel = A2uiUpdateDataModelPayload(
+                        surfaceId = SurfaceId,
+                        path = "/download/progress",
+                        value = JsonPrimitive(0.75),
+                    ),
+                )
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Linear progress 75%").assertIsDisplayed()
+        composeRule.onNodeWithText("75%").assertIsDisplayed()
+    }
+
+    @Test
+    fun circularProgressReflectsBoundValueUpdates() {
+        val manager = progressWidgetSurfaceManager(root = "scanProgress", scanProgress = 0.4)
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("Scanning files").assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.CircularProgress).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Circular progress 40%").assertIsDisplayed()
+        composeRule.onNodeWithText("40%").assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            manager.applyMessage(
+                A2uiMessage.UpdateDataModel(
+                    updateDataModel = A2uiUpdateDataModelPayload(
+                        surfaceId = SurfaceId,
+                        path = "/scan/progress",
+                        value = JsonPrimitive(1.0),
+                    ),
+                )
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Circular progress 100%").assertIsDisplayed()
+        composeRule.onNodeWithText("100%").assertIsDisplayed()
+    }
+
+    @Test
+    fun progressWidgetsUseIndeterminateModeWhenBindingIsMissingOrNonNumeric() {
+        val manager = progressWidgetSurfaceManager(root = "indeterminateProgress", scanProgress = "waiting")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithContentDescription("Linear progress indeterminate").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Circular progress indeterminate").assertIsDisplayed()
+        composeRule.onAllNodesWithText("0%").assertCountEquals(0)
     }
 
     @Test
@@ -1445,6 +1584,7 @@ class A2uiRendererTest {
             actions.assertToolApprovalAction(callId, decision = decision, scope = scope)
         }
     }
+
 }
 
 @Composable
@@ -1678,6 +1818,39 @@ private fun formWidgetSurfaceManager(root: String): A2uiSurfaceManager {
     return manager
 }
 
+private fun choicePickerSurfaceManager(root: String): A2uiSurfaceManager {
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(
+                """
+                [
+                  {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                  {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"$root","components":[
+                    {"id":"choiceForm","component":"Column","children":["feel-picker","submit"],"spacing":"sm"},
+                    {"id":"choiceSubmitForm","component":"Column","children":["feel-picker","submit"],"spacing":"sm"},
+                    {"id":"feel-picker","component":"ChoicePicker","label":"Render feel?","options":[
+                      {"label":"Clean","value":"clean"},
+                      {"label":"Glitchy","value":"glitchy"},
+                      {"label":"Slow","value":"slow"}
+                    ]},
+                    {"id":"bound-picker","component":"ChoicePicker","label":"Bound feel","value":{"path":"/feel"},"options":[
+                      {"label":"Clean","value":"clean"},
+                      {"label":"Glitchy","value":"glitchy"},
+                      {"label":"Slow","value":"slow"}
+                    ]},
+                    {"id":"submit","component":"Button","label":{"literalString":"Submit"},"action":{"name":"submit_feel","context":{"feel":"${'$'}feel-picker.value"}}}
+                  ]}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/feel","value":"clean"}}
+                ]
+                """.trimIndent(),
+            ),
+        )
+    )
+    return manager
+}
+
 private fun numericWidgetSurfaceManager(root: String): A2uiSurfaceManager {
     val manager = A2uiSurfaceManager()
     manager.applyMessages(
@@ -1701,6 +1874,45 @@ private fun numericWidgetSurfaceManager(root: String): A2uiSurfaceManager {
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/temperature","value":1.0}},
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/quantity","value":2}},
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/rating","value":1.0}}
+                ]
+                """.trimIndent(),
+            ),
+        )
+    )
+    return manager
+}
+
+private fun progressWidgetSurfaceManager(
+    root: String,
+    downloadProgress: Double? = null,
+    scanProgress: Any? = null,
+): A2uiSurfaceManager {
+    fun patch(path: String, value: Any?): String = when (value) {
+        null -> ""
+        is Number -> """
+                  ,{"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"$path","value":$value}}
+        """.trimIndent()
+        is String -> """
+                  ,{"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"$path","value":"$value"}}
+        """.trimIndent()
+        else -> ""
+    }
+
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(
+                """
+                [
+                  {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                  {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"$root","components":[
+                    {"id":"indeterminateProgress","component":"Column","children":["downloadProgress","scanProgress"],"spacing":"sm"},
+                    {"id":"downloadProgress","component":"LinearProgress","label":{"literalString":"Downloading model"},"progress":{"path":"/download/progress"}},
+                    {"id":"scanProgress","component":"CircularProgress","label":{"literalString":"Scanning files"},"progress":{"path":"/scan/progress"}}
+                  ]}}
+                  ${patch("/download/progress", downloadProgress)}
+                  ${patch("/scan/progress", scanProgress)}
                 ]
                 """.trimIndent(),
             ),
@@ -1910,6 +2122,34 @@ private fun listViewSurfaceManager(includeItems: Boolean = true): A2uiSurfaceMan
                     ]}}
                   ]}}
                   $itemsPatch
+                ]
+                """.trimIndent(),
+            ),
+        )
+    )
+    return manager
+}
+
+
+
+private fun progressSurfaceManager(root: String): A2uiSurfaceManager {
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(
+                """
+                [
+                  {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                  {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"$root","components":[
+                    {"id":"progressForm","component":"Column","children":["downloadProgress","uploadProgress","indeterminateLinear","indeterminateCircular"],"spacing":"sm"},
+                    {"id":"downloadProgress","component":"LinearProgress","label":{"literalString":"Download"},"progress":{"path":"/downloadProgress"}},
+                    {"id":"uploadProgress","component":"CircularProgress","label":{"literalString":"Upload"},"progress":{"path":"/uploadProgress"}},
+                    {"id":"indeterminateLinear","component":"LinearProgress","label":{"literalString":"Processing"}},
+                    {"id":"indeterminateCircular","component":"CircularProgress","label":{"literalString":"Loading"}}
+                  ]}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/downloadProgress","value":0.35}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/uploadProgress","value":0.75}}
                 ]
                 """.trimIndent(),
             ),
