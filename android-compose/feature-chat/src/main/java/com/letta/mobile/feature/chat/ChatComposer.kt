@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.letta.mobile.feature.chat.R
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,6 +51,11 @@ private val ChatComposerAttachIconSize = 18.dp
 private val ChatComposerInputHorizontalPadding = 8.dp
 private val ChatComposerInputVerticalPadding = 6.dp
 private val ChatComposerInputItemSpacing = 6.dp
+
+internal object ChatComposerTestTags {
+    const val AttachmentThumbnailImage = "chat-composer-attachment-thumbnail-image"
+    const val AttachmentThumbnailPlaceholder = "chat-composer-attachment-thumbnail-placeholder"
+}
 
 /**
  * The chat input composer: text bar + staged attachment thumbnails + attach
@@ -238,8 +244,16 @@ private fun AttachmentThumbnail(
                 Image(
                     bitmap = imageBitmap,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(ChatComposerTestTags.AttachmentThumbnailImage),
                     contentScale = ContentScale.Crop,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(ChatComposerTestTags.AttachmentThumbnailPlaceholder),
                 )
             }
         }
