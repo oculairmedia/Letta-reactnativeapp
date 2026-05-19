@@ -13,12 +13,15 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.semantics.SemanticsActions
 import com.letta.mobile.data.a2ui.A2uiBindingResolver
 import com.letta.mobile.data.a2ui.A2uiDataModel
 import com.letta.mobile.data.a2ui.A2uiDeleteSurfacePayload
@@ -604,6 +607,103 @@ class A2uiRendererTest {
     }
 
     @Test
+    fun sliderWritesIntegralStepAsLongToBoundDataModelPath() {
+        val manager = numericWidgetSurfaceManager(root = "volumeSlider")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.Slider).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Slider)
+            .performSemanticsAction(SemanticsActions.SetProgress) { setProgress -> setProgress(8f) }
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "8",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/volume")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun sliderWritesFractionalStepAsDoubleToBoundDataModelPath() {
+        val manager = numericWidgetSurfaceManager(root = "temperatureSlider")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.Slider).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Slider)
+            .performSemanticsAction(SemanticsActions.SetProgress) { setProgress -> setProgress(1.5f) }
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "1.5",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/temperature")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun stepperWritesIntegralAndFractionalStepsToBoundDataModelPaths() {
+        val manager = numericWidgetSurfaceManager(root = "numericForm")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onAllNodesWithTag(A2uiTestTags.StepperIncrement)[0].performClick()
+        composeRule.onAllNodesWithTag(A2uiTestTags.StepperIncrement)[1].performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                "3",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/quantity")!!.jsonPrimitive.content,
+            )
+            assertEquals(
+                "1.5",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/rating")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun stepperUsesLocalStateWhenUnbound() {
+        val manager = numericWidgetSurfaceManager(root = "localStepper")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("1").assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.StepperIncrement).performClick()
+        composeRule.onNodeWithText("2").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/localCount"))
+        }
+    }
+
+    @Test
+    fun numericWidgetsAreDisabledWhileSiblingActionIsSubmitting() {
+        val manager = numericWidgetSurfaceManager(root = "submitForm")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Submit").performClick()
+        composeRule.onNodeWithTag(A2uiTestTags.ButtonProgress).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Slider).assertIsNotEnabled()
+        composeRule.onAllNodesWithTag(A2uiTestTags.StepperIncrement)[0].assertIsNotEnabled()
+    }
+
+    @Test
     fun buttonActionResolvesBoundContextAgainstCurrentDataModel() {
         val manager = bookingFormSurfaceManager()
         val actions = mutableListOf<A2uiAction>()
@@ -1002,6 +1102,37 @@ private fun formWidgetSurfaceManager(root: String): A2uiSurfaceManager {
                     {"key":"salad","label":"Salad"},
                     {"key":"pasta","label":"Pasta"}
                   ]}}
+                ]
+                """.trimIndent(),
+            ),
+        )
+    )
+    return manager
+}
+
+private fun numericWidgetSurfaceManager(root: String): A2uiSurfaceManager {
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(
+                """
+                [
+                  {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                  {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"$root","components":[
+                    {"id":"numericForm","component":"Column","children":["quantityStepper","ratingStepper"],"spacing":"sm"},
+                    {"id":"submitForm","component":"Column","children":["volumeSlider","quantityStepper","submit"],"spacing":"sm"},
+                    {"id":"volumeSlider","component":"Slider","label":{"literalString":"Volume"},"value":{"path":"/volume"},"min":0,"max":10,"step":1},
+                    {"id":"temperatureSlider","component":"Slider","label":{"literalString":"Temperature"},"value":{"path":"/temperature"},"min":0,"max":2,"step":0.5},
+                    {"id":"quantityStepper","component":"Stepper","label":{"literalString":"Quantity"},"value":{"path":"/quantity"},"min":0,"max":5,"step":1},
+                    {"id":"ratingStepper","component":"Stepper","label":{"literalString":"Rating"},"value":{"path":"/rating"},"min":0,"max":2,"step":0.5},
+                    {"id":"localStepper","component":"Stepper","label":{"literalString":"Local count"},"value":1,"min":0,"max":3,"step":1},
+                    {"id":"submit","component":"Button","label":{"literalString":"Submit"},"action":{"name":"submit_numeric"}}
+                  ]}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/volume","value":4}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/temperature","value":1.0}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/quantity","value":2}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/rating","value":1.0}}
                 ]
                 """.trimIndent(),
             ),

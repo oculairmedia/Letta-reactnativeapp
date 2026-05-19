@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -94,6 +95,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 @Composable
 fun A2uiRenderer(
@@ -163,6 +165,10 @@ object A2uiTestTags {
     const val Checkbox = "a2ui_checkbox"
     const val Switch = "a2ui_switch"
     const val Radio = "a2ui_radio"
+    const val Slider = "a2ui_slider"
+    const val Stepper = "a2ui_stepper"
+    const val StepperDecrement = "a2ui_stepper_decrement"
+    const val StepperIncrement = "a2ui_stepper_increment"
     const val Divider = "a2ui_divider"
     const val ToolApprovalCard = "a2ui_tool_approval_card"
     const val ToolApprovalSensitiveValue = "a2ui_tool_approval_sensitive_value"
@@ -325,6 +331,20 @@ private fun A2uiComponentNodeContent(
             kind = A2uiBooleanInputKind.Switch,
         )
         "Radio" -> A2uiRadio(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "Slider" -> A2uiSlider(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "Stepper" -> A2uiStepper(
             component = component,
             surface = surface,
             modifier = modifier,
@@ -1442,6 +1462,131 @@ private fun A2uiComponent.resolveControlLabel(surface: A2uiSurfaceState, renderS
     resolveBindingText(raw["label"] ?: raw["text"] ?: raw["title"], surface, renderScope)
 
 @Composable
+private fun A2uiSlider(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    surfaceSubmitting: Boolean,
+    renderScope: A2uiRenderScope,
+) {
+    val binding = component.raw["value"]
+    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val range = component.numericRange()
+    val boundValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
+    var localValue by remember(component.id) { mutableStateOf(boundValue) }
+    val value = if (path != null) boundValue else localValue
+    val label = component.resolveControlLabel(surface, renderScope)
+
+    fun update(next: Double) {
+        val stepped = range.coerce(next)
+        if (path != null) {
+            surface.dataModel.applyPatch(path = path, value = stepped.numericJsonPrimitive(range.integralStep))
+        } else {
+            localValue = stepped
+        }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            label?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = value.numericDisplay(range.integralStep),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = range.coerce(value).toFloat(),
+            onValueChange = { update(it.toDouble()) },
+            modifier = Modifier.testTag(A2uiTestTags.Slider),
+            enabled = !surfaceSubmitting,
+            valueRange = range.min.toFloat()..range.max.toFloat(),
+            steps = range.sliderSteps,
+        )
+    }
+}
+
+@Composable
+private fun A2uiStepper(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    surfaceSubmitting: Boolean,
+    renderScope: A2uiRenderScope,
+) {
+    val binding = component.raw["value"]
+    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val range = component.numericRange()
+    val boundValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
+    var localValue by remember(component.id) { mutableStateOf(boundValue) }
+    val value = if (path != null) boundValue else localValue
+    val label = component.resolveControlLabel(surface, renderScope)
+
+    fun update(next: Double) {
+        val stepped = range.coerce(next)
+        if (path != null) {
+            surface.dataModel.applyPatch(path = path, value = stepped.numericJsonPrimitive(range.integralStep))
+        } else {
+            localValue = stepped
+        }
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(A2uiTestTags.Stepper),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        label?.let {
+            Text(
+                text = it,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (surfaceSubmitting) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
+        OutlinedButton(
+            onClick = { update(value - range.step) },
+            enabled = !surfaceSubmitting && value > range.min,
+            modifier = Modifier.testTag(A2uiTestTags.StepperDecrement),
+        ) {
+            Text("−")
+        }
+        Text(
+            text = value.numericDisplay(range.integralStep),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        OutlinedButton(
+            onClick = { update(value + range.step) },
+            enabled = !surfaceSubmitting && value < range.max,
+            modifier = Modifier.testTag(A2uiTestTags.StepperIncrement),
+        ) {
+            Text("+")
+        }
+    }
+}
+
+@Composable
 private fun A2uiComponent.resolveRadioOptions(
     surface: A2uiSurfaceState,
     renderScope: A2uiRenderScope,
@@ -1634,6 +1779,35 @@ private fun A2uiComponent.inputValue(
         JsonPrimitive(value)
     }
 
+@Composable
+private fun A2uiComponent.resolveNumericInputValue(
+    surface: A2uiSurfaceState,
+    binding: JsonElement?,
+    renderScope: A2uiRenderScope,
+    defaultValue: Double,
+): Double = resolveInputValue(surface, binding, renderScope).toDoubleOrNull() ?: defaultValue
+
+private fun A2uiComponent.numericRange(): A2uiNumericRange {
+    val min = raw.doubleValue("min", "minimum") ?: 0.0
+    val rawMax = raw.doubleValue("max", "maximum") ?: 100.0
+    val max = rawMax.takeIf { it > min } ?: (min + 1.0)
+    val rawStep = raw.doubleValue("step") ?: 1.0
+    val step = rawStep.takeIf { it > 0.0 } ?: 1.0
+    return A2uiNumericRange(min = min, max = max, step = step)
+}
+
+private fun A2uiNumericRange.coerce(value: Double): Double {
+    val constrained = value.coerceIn(min, max)
+    val snapped = min + (((constrained - min) / step).roundToInt() * step)
+    return snapped.coerceIn(min, max)
+}
+
+private fun Double.numericJsonPrimitive(integral: Boolean): JsonPrimitive =
+    if (integral) JsonPrimitive(roundToInt().toLong()) else JsonPrimitive(this)
+
+private fun Double.numericDisplay(integral: Boolean): String =
+    if (integral) roundToInt().toString() else toString().trimEnd('0').trimEnd('.')
+
 private fun A2uiComponent.dateTimePlaceholder(
     enableDate: Boolean,
     enableTime: Boolean,
@@ -1725,6 +1899,15 @@ private data class A2uiRadioOption(
     val key: String,
     val label: String,
 )
+
+private data class A2uiNumericRange(
+    val min: Double,
+    val max: Double,
+    val step: Double,
+) {
+    val integralStep: Boolean = step % 1.0 == 0.0
+    val sliderSteps: Int = (((max - min) / step).roundToInt() - 1).coerceAtLeast(0)
+}
 
 private data class ToolApprovalArgument(
     val key: String,
@@ -1825,6 +2008,9 @@ private fun JsonObject.intValue(vararg keys: String): Int? =
 
 private fun JsonObject.dpValue(vararg keys: String): Dp? =
     stringValue(*keys)?.toFloatOrNull()?.coerceIn(0f, 64f)?.dp
+
+private fun JsonObject.doubleValue(vararg keys: String): Double? =
+    stringValue(*keys)?.toDoubleOrNull()
 
 private fun JsonObject.booleanValue(vararg keys: String): Boolean? =
     stringValue(*keys)?.toBooleanStrictOrNull()
