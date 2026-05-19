@@ -329,7 +329,15 @@ class ProjectHomeViewModel @Inject constructor(
         _uiState.value = UiState.Success(current.copy(syncingProjectId = project.identifier))
         viewModelScope.launch {
             runCatching { projectRepository.triggerSync(project.identifier) }
-                .onSuccess { _events.trySend(ProjectHomeUiEvent.ShowMessage(it.message ?: "Sync triggered")) }
+                .onSuccess {
+                    _events.trySend(ProjectHomeUiEvent.ShowMessage(it.message ?: "Sync triggered"))
+                    // Fallback: when no SSE stream is wired the sync:completed event will
+                    // never arrive, so refresh and clear the syncing flag here.
+                    if (vibesyncEventStreamRepository == null) {
+                        loadProjects(forceRefresh = true)
+                        updateSuccess { state -> state.copy(syncingProjectId = null) }
+                    }
+                }
                 .onFailure { error ->
                     updateSuccess { it.copy(syncingProjectId = null) }
                     _events.trySend(ProjectHomeUiEvent.ShowMessage(error.message ?: "Failed to trigger sync"))

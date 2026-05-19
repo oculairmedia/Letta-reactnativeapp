@@ -21,6 +21,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,6 +130,8 @@ class ProjectIssuesViewModel @Inject constructor(
     private val _events = Channel<ProjectIssuesUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    private var loadIssuesJob: Job? = null
+
     init {
         observeVibesyncEvents()
         loadIssues()
@@ -236,7 +239,10 @@ class ProjectIssuesViewModel @Inject constructor(
     }
 
     private fun loadIssues(forceRefresh: Boolean = false) {
-        viewModelScope.launch {
+        // Cancel any in-flight load so a stale response can't overwrite the fresh
+        // post-sync data when events fire faster than the network round-trip.
+        loadIssuesJob?.cancel()
+        loadIssuesJob = viewModelScope.launch {
             val current = (_uiState.value as? UiState.Success)?.data
             if (current == null) {
                 _uiState.value = UiState.Loading

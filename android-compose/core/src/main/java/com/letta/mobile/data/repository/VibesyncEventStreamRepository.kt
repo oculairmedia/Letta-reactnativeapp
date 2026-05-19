@@ -72,7 +72,9 @@ open class VibesyncEventStreamRepository @Inject constructor(
         val client = apiClient.getClient()
         val baseUrl = apiClient.getBaseUrl().trimEnd('/')
         val response = client.get("$baseUrl/api/events/stream")
-        if (response.status.value !in 200..299) return
+        if (response.status.value !in 200..299) {
+            throw IllegalStateException("Vibesync event stream failed with HTTP ${response.status.value}")
+        }
         val channel = response.body<ByteReadChannel>()
         SseParser.parseRawEvents(channel).collect { raw ->
             routeRawEvent(raw.event, raw.data, raw.id)?.let { _events.emit(it) }

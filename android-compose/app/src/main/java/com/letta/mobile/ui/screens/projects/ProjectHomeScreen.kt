@@ -594,14 +594,14 @@ private fun ProjectActionSheetHeader(
                     onClick = {},
                     label = {
                         val suffix = status.provisionedAt?.let { " · ${formatRelativeTime(it)}" }.orEmpty()
-                        Text("Beads ${status.status}$suffix")
+                        Text(stringResource(R.string.screen_projects_beads_status_chip, status.status, suffix))
                     },
                 )
             }
             pmAgent?.let { agent ->
                 AssistChip(
                     onClick = { onPmAgentClick(agent.agentId) },
-                    label = { Text("PM agent ${agent.name ?: agent.agentId}") },
+                    label = { Text(stringResource(R.string.screen_projects_pm_agent_chip, agent.name ?: agent.agentId)) },
                 )
             }
             if (syncInFlight) {

@@ -53,15 +53,30 @@ fun VibesyncDebugScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 CardGroup(title = { Text(stringResource(R.string.screen_vibesync_debug_status_section)) }) {
-                    item(headlineContent = { Text("status") }, supportingContent = { Text(state.data.health?.status.orEmpty()) })
-                    item(headlineContent = { Text("uptime") }, supportingContent = { Text(state.data.health?.uptime?.toString().orEmpty()) })
-                    item(headlineContent = { Text("sseClients") }, supportingContent = { Text(state.data.stats?.sseClients?.toString().orEmpty()) })
-                    item(headlineContent = { Text("database") }, supportingContent = { Text((state.data.health?.database ?: state.data.stats?.database)?.toString().orEmpty()) })
+                    item(headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_status_label)) }, supportingContent = { Text(state.data.health?.status.orEmpty()) })
+                    item(headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_uptime_label)) }, supportingContent = { Text(state.data.health?.uptime?.toString().orEmpty()) })
+                    item(headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_sse_clients_label)) }, supportingContent = { Text(state.data.stats?.sseClients?.toString().orEmpty()) })
+                    item(headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_database_label)) }, supportingContent = { Text((state.data.health?.database ?: state.data.stats?.database)?.toString().orEmpty()) })
                 }
                 CardGroup(title = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_section)) }) {
                     item(
                         headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_refresh)) },
-                        supportingContent = { Text(summaryText(state.data.refreshSummary)) },
+                        supportingContent = {
+                            val summary = state.data.refreshSummary
+                            if (summary != null) {
+                                Text(
+                                    stringResource(
+                                        R.string.screen_vibesync_debug_refresh_summary,
+                                        summary.total,
+                                        summary.updated,
+                                        summary.skipped,
+                                        summary.errors,
+                                    )
+                                )
+                            } else {
+                                Text("")
+                            }
+                        },
                         leadingContent = { Icon(LettaIcons.Refresh, contentDescription = null) },
                     )
                 }
@@ -75,6 +90,3 @@ fun VibesyncDebugScreen(
         }
     }
 }
-
-private fun summaryText(summary: com.letta.mobile.data.model.AgentsMdRefreshSummary?): String =
-    summary?.let { "total=${it.total}, updated=${it.updated}, skipped=${it.skipped}, errors=${it.errors}" }.orEmpty()
