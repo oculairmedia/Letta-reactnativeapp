@@ -61,6 +61,8 @@ val A2UI_DEFAULT_SUPPORTED_WIDGETS: List<String> = listOf(
     "Radio",
     "Slider",
     "Stepper",
+    "Dropdown",
+    "Select",
     "Image",
     A2UI_LIST_VIEW_WIDGET_ID,
     LETTA_TOOL_APPROVAL_WIDGET_ID,

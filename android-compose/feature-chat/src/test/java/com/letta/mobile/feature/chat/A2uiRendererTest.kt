@@ -704,6 +704,76 @@ class A2uiRendererTest {
     }
 
     @Test
+    fun dropdownWritesStaticOptionToBoundDataModelPath() {
+        val manager = dropdownSurfaceManager(root = "seatDropdown")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.Dropdown).assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Aisle").performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                "aisle",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/seat")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun selectRendersItemsPathOptionsAndWritesSelection() {
+        val manager = dropdownSurfaceManager(root = "mealSelect")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.Dropdown).assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Pasta").performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                "pasta",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/meal")!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun dropdownUsesLocalStateWhenUnbound() {
+        val manager = dropdownSurfaceManager(root = "localDropdown")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("Low").assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Dropdown).performClick()
+        composeRule.onNodeWithText("High").performClick()
+        composeRule.onNodeWithText("High").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/priority"))
+        }
+    }
+
+    @Test
+    fun dropdownIsDisabledWhileSiblingActionIsSubmitting() {
+        val manager = dropdownSurfaceManager(root = "dropdownForm")
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = {},
+            )
+        }
+
+        composeRule.onNodeWithText("Submit").performClick()
+        composeRule.onNodeWithTag(A2uiTestTags.ButtonProgress).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Dropdown).assertIsNotEnabled()
+    }
+
+    @Test
     fun buttonActionResolvesBoundContextAgainstCurrentDataModel() {
         val manager = bookingFormSurfaceManager()
         val actions = mutableListOf<A2uiAction>()
@@ -1133,6 +1203,42 @@ private fun numericWidgetSurfaceManager(root: String): A2uiSurfaceManager {
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/temperature","value":1.0}},
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/quantity","value":2}},
                   {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/rating","value":1.0}}
+                ]
+                """.trimIndent(),
+            ),
+        )
+    )
+    return manager
+}
+
+private fun dropdownSurfaceManager(root: String): A2uiSurfaceManager {
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(
+                """
+                [
+                  {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                  {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"$root","components":[
+                    {"id":"dropdownForm","component":"Column","children":["seatDropdown","submit"],"spacing":"sm"},
+                    {"id":"seatDropdown","component":"Dropdown","label":{"literalString":"Seat preference"},"placeholder":{"literalString":"Pick a seat"},"value":{"path":"/seat"},"options":[
+                      {"key":"window","label":{"literalString":"Window"}},
+                      {"key":"aisle","label":{"literalString":"Aisle"}}
+                    ]},
+                    {"id":"mealSelect","component":"Select","label":{"literalString":"Meal preference"},"value":{"path":"/meal"},"items":{"path":"/meals"}},
+                    {"id":"localDropdown","component":"Dropdown","label":{"literalString":"Priority"},"value":{"literalString":"low"},"options":[
+                      {"key":"low","label":"Low"},
+                      {"key":"high","label":"High"}
+                    ]},
+                    {"id":"submit","component":"Button","label":{"literalString":"Submit"},"action":{"name":"submit_dropdown"}}
+                  ]}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/seat","value":"window"}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/meal","value":"salad"}},
+                  {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/meals","value":[
+                    {"key":"salad","label":"Salad"},
+                    {"key":"pasta","label":"Pasta"}
+                  ]}}
                 ]
                 """.trimIndent(),
             ),
