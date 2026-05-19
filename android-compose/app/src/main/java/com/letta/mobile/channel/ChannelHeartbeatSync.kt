@@ -6,9 +6,9 @@ import com.letta.mobile.data.channel.NotificationCandidatePhase
 import com.letta.mobile.data.channel.NotificationCandidateSource
 import com.letta.mobile.data.channel.NotificationDeliveryCandidate
 import com.letta.mobile.data.model.Conversation
-import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -19,7 +19,7 @@ class ChannelHeartbeatSync @Inject constructor(
     private val settingsRepository: ISettingsRepository,
     private val conversationApi: ConversationApi,
     private val messageRepository: MessageRepository,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
     private val syncStateStore: ChannelSyncStateStore,
     private val notificationDeliveryCoordinator: NotificationDeliveryCoordinator,
 ) {

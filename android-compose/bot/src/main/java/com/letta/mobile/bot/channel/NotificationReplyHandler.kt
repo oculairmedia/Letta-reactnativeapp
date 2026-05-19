@@ -7,7 +7,7 @@ import com.letta.mobile.data.channel.NotificationCandidatePhase
 import com.letta.mobile.data.channel.NotificationCandidateSource
 import com.letta.mobile.data.channel.NotificationDelivery
 import com.letta.mobile.data.channel.NotificationDeliveryCandidate
-import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.data.timeline.DeliveryState
 import com.letta.mobile.data.timeline.MessageSource
 import com.letta.mobile.data.timeline.Role
@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 class NotificationReplyHandler @Inject constructor(
     private val clientModeChatSender: ClientModeChatSender,
     private val timelineRepository: TimelineRepository,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
     private val notificationDeliveryProvider: Provider<NotificationDelivery>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

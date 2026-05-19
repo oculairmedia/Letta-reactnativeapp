@@ -8,6 +8,7 @@ import com.letta.mobile.data.local.ConversationRefreshEntity
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.model.ConversationCreateParams
 import com.letta.mobile.data.model.ConversationUpdateParams
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.data.repository.api.IConversationRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ import javax.inject.Singleton
 @Singleton
 class ConversationRepository @Inject constructor(
     private val conversationApi: ConversationApi,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
     private val conversationDao: ConversationDao,
 ) : IConversationRepository {
     private val _conversationsByAgent = MutableStateFlow<Map<String, List<Conversation>>>(emptyMap())
