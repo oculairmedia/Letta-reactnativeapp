@@ -1,5 +1,8 @@
 package com.letta.mobile.ui.a2ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +20,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,14 +35,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
@@ -175,6 +183,11 @@ object A2uiTestTags {
     const val StepperDecrement = "a2ui_stepper_decrement"
     const val StepperIncrement = "a2ui_stepper_increment"
     const val Dropdown = "a2ui_dropdown"
+    const val Chip = "a2ui_chip"
+    const val FilterChip = "a2ui_filter_chip"
+    const val Badge = "a2ui_badge"
+    const val Tabs = "a2ui_tabs"
+    const val Accordion = "a2ui_accordion"
     const val Divider = "a2ui_divider"
     const val ToolApprovalCard = "a2ui_tool_approval_card"
     const val ToolApprovalSensitiveValue = "a2ui_tool_approval_sensitive_value"
@@ -362,6 +375,49 @@ private fun A2uiComponentNodeContent(
             surface = surface,
             modifier = modifier,
             surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "Chip" -> A2uiChip(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            onAction = onAction,
+            surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "FilterChip" -> A2uiFilterChip(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "Badge" -> A2uiBadge(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            renderScope = renderScope,
+        )
+        "Tabs" -> A2uiTabs(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            visited = nextVisited,
+            onAction = onAction,
+            surfaceSubmitting = surfaceSubmitting,
+            onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
+            renderScope = renderScope,
+        )
+        "Accordion" -> A2uiAccordion(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            visited = nextVisited,
+            onAction = onAction,
+            surfaceSubmitting = surfaceSubmitting,
+            onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
             renderScope = renderScope,
         )
         "Image" -> A2uiImage(component = component, surface = surface, modifier = modifier, renderScope = renderScope)
@@ -747,35 +803,39 @@ private fun A2uiTextField(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"] ?: component.raw["text"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val boundValue = component.resolveInputValue(surface, binding, renderScope)
+    val explicitPath = binding.bindingPath()?.let(renderScope::resolvePath)
+    // letta-mobile-lwmo: when the agent omits an explicit value path, route
+    // input through a synthetic data-model slot keyed by component id so
+    // $componentId.value references in user_action contexts can resolve
+    // the typed value. Previously this case wrote to Compose-local state
+    // only (letta-mobile-ykkl), making the value invisible to action
+    // emission. The synthetic path stays under a reserved /_inputs/
+    // namespace to avoid colliding with agent-declared paths.
+    val effectivePath = explicitPath ?: "/_inputs/${component.id}"
+    val literalDefault = component.resolveInputValue(surface, binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
     val label = resolveBindingText(component.raw["label"], surface, renderScope)
     val placeholder = resolveBindingText(component.raw["placeholder"], surface, renderScope)
     val fieldType = component.raw.stringValue("textFieldType", "variant", "type").orEmpty()
     val validation = component.raw.stringValue("validationRegexp")
 
-    // letta-mobile-ykkl: when the payload omits `value: {path: …}` the
-    // field used to be silently controlled by an unchanging data-model
-    // entry — typed characters fired onValueChange but the rendered
-    // value stayed empty, so the field looked unresponsive. Fall back
-    // to local Compose state so unbound fields still echo user input
-    // and remain editable; bound fields keep round-tripping through
-    // the surface dataModel.
-    var localValue by remember(component.id) { mutableStateOf(boundValue) }
-    val value = if (path != null) boundValue else localValue
+    val value = if (explicitPath != null) {
+        // Bound surfaces: existing behavior — read from the observed binding.
+        literalDefault
+    } else {
+        // Unbound surfaces: synthetic data-model slot drives display; literal
+        // binding (if any) is the initial default until the user types.
+        observedAtPath?.let(A2uiBindingResolver::displayText) ?: literalDefault
+    }
     val isError = validation != null && value.isNotBlank() && !value.matchesValidation(validation)
 
     OutlinedTextField(
         value = value,
         onValueChange = { next ->
-            if (path != null) {
-                surface.dataModel.applyPatch(
-                    path = path,
-                    value = component.inputValue(next, fieldType),
-                )
-            } else {
-                localValue = next
-            }
+            surface.dataModel.applyPatch(
+                path = effectivePath,
+                value = component.inputValue(next, fieldType),
+            )
         },
         modifier = modifier
             .fillMaxWidth()
@@ -1474,6 +1534,228 @@ private fun A2uiComponent.resolveButtonLabel(surface: A2uiSurfaceState, renderSc
 private fun A2uiComponent.resolveControlLabel(surface: A2uiSurfaceState, renderScope: A2uiRenderScope): String? =
     resolveBindingText(raw["label"] ?: raw["text"] ?: raw["title"], surface, renderScope)
 
+@Composable
+private fun A2uiChip(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    onAction: (A2uiAction) -> Unit,
+    surfaceSubmitting: Boolean,
+    renderScope: A2uiRenderScope,
+) {
+    val label = component.resolveControlLabel(surface, renderScope)
+    val action = component.action(surface, renderScope)
+    if (label == null) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingText))
+        return
+    }
+
+    AssistChip(
+        onClick = { action?.let(onAction) },
+        enabled = action != null && !surfaceSubmitting,
+        label = { Text(label) },
+        modifier = modifier.testTag(A2uiTestTags.Chip),
+    )
+}
+
+@Composable
+private fun A2uiFilterChip(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    surfaceSubmitting: Boolean,
+    renderScope: A2uiRenderScope,
+) {
+    val binding = component.raw["value"] ?: component.raw["checked"] ?: component.raw["selected"]
+    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val boundSelected = component.resolveInputValue(surface, binding, renderScope).toBooleanStrictOrNull() ?: false
+    val localSelected = rememberA2uiLocalBooleanState("value", boundSelected)
+    val selected = if (path != null) boundSelected else localSelected.value
+    val label = component.resolveControlLabel(surface, renderScope)
+    if (label == null) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingText))
+        return
+    }
+
+    fun update(next: Boolean) {
+        if (path != null) {
+            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
+        } else {
+            localSelected.value = next
+        }
+    }
+
+    FilterChip(
+        selected = selected,
+        onClick = { update(!selected) },
+        enabled = !surfaceSubmitting,
+        label = { Text(label) },
+        modifier = modifier.testTag(A2uiTestTags.FilterChip),
+    )
+}
+
+@Composable
+private fun A2uiBadge(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    renderScope: A2uiRenderScope,
+) {
+    val text = resolveBindingText(
+        component.raw["count"] ?: component.raw["text"] ?: component.raw["label"] ?: component.raw["value"],
+        surface,
+        renderScope,
+    )
+    if (text == null) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingText))
+        return
+    }
+
+    Badge(modifier = modifier.testTag(A2uiTestTags.Badge)) {
+        Text(text)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun A2uiTabs(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    visited: Set<String>,
+    onAction: (A2uiAction) -> Unit,
+    surfaceSubmitting: Boolean,
+    onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
+    renderScope: A2uiRenderScope,
+) {
+    val items = component.resolveTabs(surface, renderScope)
+    if (items.isEmpty()) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
+        return
+    }
+    val defaultIndex = component.defaultTabIndex(items)
+    val selectedIndexState = rememberA2uiLocalIntState("selectedTabIndex", defaultIndex)
+    val selectedIndex = selectedIndexState.value.coerceIn(0, items.lastIndex)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(A2uiTestTags.Tabs),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PrimaryTabRow(selectedTabIndex = selectedIndex) {
+            items.forEachIndexed { index, item ->
+                Tab(
+                    selected = selectedIndex == index,
+                    onClick = { selectedIndexState.value = index },
+                    text = { Text(item.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+            }
+        }
+        Crossfade(targetState = selectedIndex, label = "a2ui-tab-content") { index ->
+            val child = surface.components[items[index].childId]
+            if (child == null) {
+                A2uiSkeletonLine(modifier = Modifier.testTag(A2uiTestTags.MissingComponent))
+            } else {
+                A2uiComponentNode(
+                    component = child,
+                    surface = surface,
+                    visited = visited,
+                    onAction = onAction,
+                    surfaceSubmitting = surfaceSubmitting,
+                    onPendingActionDelta = onPendingActionDelta,
+                    actionResolutionToken = actionResolutionToken,
+                    renderScope = renderScope,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun A2uiAccordion(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    visited: Set<String>,
+    onAction: (A2uiAction) -> Unit,
+    surfaceSubmitting: Boolean,
+    onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
+    renderScope: A2uiRenderScope,
+) {
+    val items = component.resolveAccordionItems(surface, renderScope)
+    if (items.isEmpty()) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
+        return
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .testTag(A2uiTestTags.Accordion),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items.forEach { item ->
+            val expandedState = rememberA2uiLocalBooleanState("expanded_${item.key}", item.defaultOpen)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(component.cornerRadius()),
+                tonalElevation = component.elevation(),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedState.value = !expandedState.value }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = item.title,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = if (expandedState.value) "−" else "+",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    AnimatedVisibility(visible = expandedState.value) {
+                        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                            val child = surface.components[item.childId]
+                            if (child == null) {
+                                A2uiSkeletonLine(modifier = Modifier.testTag(A2uiTestTags.MissingComponent))
+                            } else {
+                                A2uiComponentNode(
+                                    component = child,
+                                    surface = surface,
+                                    visited = visited,
+                                    onAction = onAction,
+                                    surfaceSubmitting = surfaceSubmitting,
+                                    onPendingActionDelta = onPendingActionDelta,
+                                    actionResolutionToken = actionResolutionToken,
+                                    renderScope = renderScope,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun A2uiDropdown(
@@ -1704,6 +1986,58 @@ private fun A2uiComponent.resolveRadioOptions(
 }
 
 @Composable
+private fun A2uiComponent.resolveTabs(
+    surface: A2uiSurfaceState,
+    renderScope: A2uiRenderScope,
+): List<A2uiTabItem> {
+    val itemElements = raw["items"] as? JsonArray ?: raw["tabs"] as? JsonArray ?: return emptyList()
+    return itemElements.mapIndexedNotNull { index, element ->
+        val item = element as? JsonObject ?: return@mapIndexedNotNull null
+        val key = item.stringValue("key", "id", "value") ?: index.toString()
+        val label = resolveBindingText(
+            item["label"] ?: item["title"] ?: item["text"] ?: JsonPrimitive(key),
+            surface,
+            renderScope,
+        ) ?: key
+        val childId = item.stringValue("child", "content", "component", "childId")
+            ?: raw.stringValue("childTemplate", "childTemplateId", "itemTemplate")
+            ?: return@mapIndexedNotNull null
+        A2uiTabItem(key = key, label = label, childId = childId)
+    }
+}
+
+private fun A2uiComponent.defaultTabIndex(items: List<A2uiTabItem>): Int {
+    val default = raw.stringValue("default", "defaultKey", "selected", "value") ?: return 0
+    return default.toIntOrNull()?.coerceIn(0, items.lastIndex)
+        ?: items.indexOfFirst { it.key == default }.takeIf { it >= 0 }
+        ?: 0
+}
+
+@Composable
+private fun A2uiComponent.resolveAccordionItems(
+    surface: A2uiSurfaceState,
+    renderScope: A2uiRenderScope,
+): List<A2uiAccordionItem> {
+    val itemElements = raw["items"] as? JsonArray ?: return emptyList()
+    return itemElements.mapIndexedNotNull { index, element ->
+        val item = element as? JsonObject ?: return@mapIndexedNotNull null
+        val key = item.stringValue("key", "id", "value") ?: index.toString()
+        val title = resolveBindingText(
+            item["title"] ?: item["label"] ?: item["text"] ?: JsonPrimitive(key),
+            surface,
+            renderScope,
+        ) ?: key
+        val childId = item.stringValue("child", "content", "component", "childId") ?: return@mapIndexedNotNull null
+        A2uiAccordionItem(
+            key = key,
+            title = title,
+            childId = childId,
+            defaultOpen = item.booleanValue("defaultOpen", "open", "expanded") ?: false,
+        )
+    }
+}
+
+@Composable
 private fun A2uiComponent.radioOptionFromElement(
     element: JsonElement,
     index: Int,
@@ -1778,7 +2112,22 @@ private fun A2uiComponent.action(surface: A2uiSurfaceState, renderScope: A2uiRen
     val contextSource = (eventBlock?.get("context") ?: eventBlock?.get("data"))
         ?: action["context"]
         ?: action["data"]
-    val context = resolveA2uiActionContext(contextSource?.withScopedPaths(renderScope), surface.dataModel)
+    val resolvedContext = resolveA2uiActionContext(contextSource?.withScopedPaths(renderScope), surface)
+    // letta-mobile-lwmo: form-style surfaces (TextField + Button) lost the
+    // typed value when the agent emitted Button.action with no context
+    // bindings. Two paths to surface the data model to the agent:
+    //   (a) Spec: agent sets createSurface.sendDataModel:true → always attach.
+    //   (b) Safety net: agent's declared context is empty but the surface
+    //       has data → attach anyway so the agent gets the inputs even
+    //       before the shim prompt change ships.
+    val dataModelRoot = surface.dataModel.root
+    val attachDataModel = dataModelRoot is JsonObject && dataModelRoot.isNotEmpty() &&
+        (surface.sendDataModel || resolvedContext.isEmpty())
+    val context = if (attachDataModel) {
+        JsonObject(resolvedContext + ("data_model" to dataModelRoot))
+    } else {
+        resolvedContext
+    }
     val raw = buildJsonObject {
         action.forEach { (key, value) -> put(key, value) }
         put("actionName", name)
@@ -1992,6 +2341,19 @@ private data class A2uiRadioOption(
     val label: String,
 )
 
+private data class A2uiTabItem(
+    val key: String,
+    val label: String,
+    val childId: String,
+)
+
+private data class A2uiAccordionItem(
+    val key: String,
+    val title: String,
+    val childId: String,
+    val defaultOpen: Boolean,
+)
+
 private data class A2uiNumericRange(
     val min: Double,
     val max: Double,
@@ -2109,6 +2471,15 @@ private fun JsonObject.booleanValue(vararg keys: String): Boolean? =
 
 private fun JsonElement?.bindingPath(): String? =
     (this as? JsonObject)?.stringValue("path")
+
+@Composable
+private fun rememberA2uiLocalIntState(
+    key: String,
+    initialValue: Int,
+): MutableState<Int> {
+    val scope = LocalA2uiLocalState.current
+    return scope?.intState(key, initialValue) ?: remember(key) { mutableStateOf(initialValue) }
+}
 
 @Composable
 private fun rememberA2uiLocalBooleanState(
