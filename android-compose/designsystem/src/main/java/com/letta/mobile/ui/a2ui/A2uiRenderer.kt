@@ -25,6 +25,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -169,6 +174,7 @@ object A2uiTestTags {
     const val Stepper = "a2ui_stepper"
     const val StepperDecrement = "a2ui_stepper_decrement"
     const val StepperIncrement = "a2ui_stepper_increment"
+    const val Dropdown = "a2ui_dropdown"
     const val Divider = "a2ui_divider"
     const val ToolApprovalCard = "a2ui_tool_approval_card"
     const val ToolApprovalSensitiveValue = "a2ui_tool_approval_sensitive_value"
@@ -345,6 +351,13 @@ private fun A2uiComponentNodeContent(
             renderScope = renderScope,
         )
         "Stepper" -> A2uiStepper(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            surfaceSubmitting = surfaceSubmitting,
+            renderScope = renderScope,
+        )
+        "Dropdown", "Select" -> A2uiDropdown(
             component = component,
             surface = surface,
             modifier = modifier,
@@ -1460,6 +1473,85 @@ private fun A2uiComponent.resolveButtonLabel(surface: A2uiSurfaceState, renderSc
 @Composable
 private fun A2uiComponent.resolveControlLabel(surface: A2uiSurfaceState, renderScope: A2uiRenderScope): String? =
     resolveBindingText(raw["label"] ?: raw["text"] ?: raw["title"], surface, renderScope)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun A2uiDropdown(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    surfaceSubmitting: Boolean,
+    renderScope: A2uiRenderScope,
+) {
+    val binding = component.raw["value"] ?: component.raw["selected"]
+    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val boundValue = component.resolveInputValue(surface, binding, renderScope)
+    var localValue by remember(component.id) { mutableStateOf(boundValue) }
+    val value = if (path != null) boundValue else localValue
+    val label = component.resolveControlLabel(surface, renderScope)
+    val placeholder = resolveBindingText(component.raw["placeholder"], surface, renderScope)
+    val validation = component.raw.stringValue("validationRegexp")
+    val options = component.resolveRadioOptions(surface, renderScope)
+    val selectedLabel = options.firstOrNull { it.key == value }?.label.orEmpty()
+    val isError = validation != null && value.isNotBlank() && !value.matchesValidation(validation)
+    var expanded by remember(component.id) { mutableStateOf(false) }
+
+    fun update(next: String) {
+        if (path != null) {
+            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
+        } else {
+            localValue = next
+        }
+        expanded = false
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (!surfaceSubmitting) expanded = it },
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                .testTag(A2uiTestTags.Dropdown),
+            label = label?.let { { Text(it) } },
+            placeholder = placeholder?.let { { Text(it) } },
+            readOnly = true,
+            enabled = !surfaceSubmitting,
+            singleLine = true,
+            isError = isError,
+            supportingText = when {
+                surfaceSubmitting -> ({ Text("submitting...") })
+                isError -> ({ Text("Invalid value") })
+                else -> null
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            if (options.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No options", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = {},
+                    enabled = false,
+                )
+            } else {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label) },
+                        onClick = { update(option.key) },
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun A2uiSlider(
