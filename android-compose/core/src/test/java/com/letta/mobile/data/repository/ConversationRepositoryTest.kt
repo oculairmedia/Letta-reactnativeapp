@@ -7,9 +7,8 @@ import com.letta.mobile.data.local.ConversationEntity
 import com.letta.mobile.data.local.ConversationRefreshEntity
 import com.letta.mobile.data.local.LettaDatabase
 import com.letta.mobile.testutil.FakeConversationApi
+import com.letta.mobile.testutil.FakeAgentRepository
 import com.letta.mobile.testutil.TestData
-import io.mockk.coEvery
-import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
@@ -43,10 +42,7 @@ class ConversationRepositoryTest {
             .allowMainThreadQueries()
             .build()
         fakeApi = FakeConversationApi()
-        val agentRepository = mockk<AgentRepository>(relaxed = true)
-        coEvery { agentRepository.checkpointAndRestoreConfig(any(), any()) } coAnswers {
-            secondArg<suspend () -> Unit>().invoke()
-        }
+        val agentRepository = FakeAgentRepository()
         repository = ConversationRepository(fakeApi, agentRepository, database.conversationDao())
     }
 

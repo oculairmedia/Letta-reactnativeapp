@@ -3,8 +3,10 @@ package com.letta.mobile.di
 import com.letta.mobile.channel.NotificationDeliveryCoordinator
 import com.letta.mobile.chat.BuildConfigChatClientVersionProvider
 import com.letta.mobile.data.channel.NotificationDelivery
+import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.data.transport.ChannelTransport
@@ -40,6 +42,10 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindChannelTransport(impl: ChannelTransport): IChannelTransport
+
+    @Binds
+    @Singleton
+    abstract fun bindAgentRepository(impl: AgentRepository): IAgentRepository
 
     @Binds
     @Singleton

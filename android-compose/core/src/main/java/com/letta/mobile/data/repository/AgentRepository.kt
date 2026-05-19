@@ -129,7 +129,7 @@ class AgentRepository @Inject constructor(
         return fullList
     }
 
-    fun getCachedAgent(id: String): Agent? = _agents.value.find { it.id == AgentId(id) }
+    override fun getCachedAgent(id: String): Agent? = _agents.value.find { it.id == AgentId(id) }
 
     fun hasFreshAgents(maxAgeMs: Long): Boolean {
         return _agents.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
@@ -230,7 +230,7 @@ class AgentRepository @Inject constructor(
         }
     }
 
-    suspend fun checkpointAndRestoreConfig(
+    override suspend fun checkpointAndRestoreConfig(
         agentId: String,
         operation: suspend () -> Unit
     ) {
