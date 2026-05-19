@@ -802,6 +802,142 @@ class A2uiRendererTest {
     }
 
     @Test
+    fun unboundTextFieldRoutesTypedValueIntoSyntheticDataModelPathForDollarReferenceResolution() {
+        // letta-mobile-lwmo: the actual on-device repro. The agent's TextField
+        // has no `value: {path: ...}` binding, and the Button's action context
+        // references it via $<id>.value. Before fix, the TextField wrote
+        // typed input only to Compose-local state, so the resolver saw an
+        // empty data model. Now the renderer routes unbound input through
+        // a synthetic /_inputs/<id> slot that the resolver also checks.
+        val manager = A2uiSurfaceManager()
+        manager.applyMessages(
+            decodeA2uiMessages(
+                A2uiProtocolJson.Default,
+                A2uiProtocolJson.Default.parseToJsonElement(
+                    """
+                    [
+                      {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                      {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"form","components":[
+                        {"id":"form","component":"Column","children":["note-field","submit-btn"],"spacing":"sm"},
+                        {"id":"note-field","component":"TextField","label":{"literalString":"Note"},"value":""},
+                        {"id":"submit-btn","component":"Button","label":{"literalString":"Send"},"action":{"name":"log-watch","context":{"note":"${'$'}note-field.value"}}}
+                      ]}}
+                    ]
+                    """.trimIndent(),
+                ),
+            )
+        )
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.TextField).performTextInput("hello")
+        composeRule.onNodeWithText("Send").performClick()
+
+        composeRule.runOnIdle {
+            val action = actions.single()
+            assertEquals("log-watch", action.name)
+            assertEquals("hello", action.context["note"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun buttonResolvesDollarComponentValueReferencesAgainstDataModel() {
+        // letta-mobile-lwmo: the shim's A2UI agent prompt emits context
+        // bindings as $<componentId>.value template strings instead of A2UI
+        // v0.9 binding objects. Without resolution, the agent received the
+        // literal template string. The renderer must look up the component
+        // and resolve via the surface data model.
+        val manager = A2uiSurfaceManager()
+        manager.applyMessages(
+            decodeA2uiMessages(
+                A2uiProtocolJson.Default,
+                A2uiProtocolJson.Default.parseToJsonElement(
+                    """
+                    [
+                      {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                      {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"form","components":[
+                        {"id":"form","component":"Column","children":["note-field","submit-btn"],"spacing":"sm"},
+                        {"id":"note-field","component":"TextField","label":{"literalString":"Note"},"value":{"path":"/note"}},
+                        {"id":"submit-btn","component":"Button","label":{"literalString":"Send"},"action":{"name":"log-watch","context":{"note":"${'$'}note-field.value","reviewer":"${'$'}reviewer.text"}}}
+                      ]}}
+                    ]
+                    """.trimIndent(),
+                ),
+            )
+        )
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.TextField).performTextInput("hello")
+        composeRule.onNodeWithText("Send").performClick()
+
+        composeRule.runOnIdle {
+            val action = actions.single()
+            assertEquals("log-watch", action.name)
+            // $note-field.value → resolved via /note path in the surface data model.
+            assertEquals("hello", action.context["note"]!!.jsonPrimitive.content)
+            // $reviewer.text → component does not exist; resolves to JsonNull
+            // rather than passing the template string through.
+            assertTrue("Missing component reference resolves to null", action.context["reviewer"] is kotlinx.serialization.json.JsonNull)
+        }
+    }
+
+    @Test
+    fun buttonPreservesLiteralStringsThatDoNotMatchComponentValuePattern() {
+        // letta-mobile-lwmo regression guard: literal strings that don't match
+        // the $<id>.<field> pattern (including ones with stray $ characters)
+        // must reach the wire unchanged.
+        val manager = A2uiSurfaceManager()
+        manager.applyMessages(
+            decodeA2uiMessages(
+                A2uiProtocolJson.Default,
+                A2uiProtocolJson.Default.parseToJsonElement(
+                    """
+                    [
+                      {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+                      {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"submit","components":[
+                        {"id":"submit","component":"Button","label":{"literalString":"Send"},"action":{"name":"log-watch","context":{"plain":"hello world","priced":"${'$'}5.00","empty":""}}}
+                      ]}}
+                    ]
+                    """.trimIndent(),
+                ),
+            )
+        )
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithText("Send").performClick()
+
+        composeRule.runOnIdle {
+            val action = actions.single()
+            assertEquals("hello world", action.context["plain"]!!.jsonPrimitive.content)
+            assertEquals("${'$'}5.00", action.context["priced"]!!.jsonPrimitive.content)
+            assertEquals("", action.context["empty"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
     fun buttonWithEmptyDeclaredContextAttachesDataModelFallback() {
         // letta-mobile-lwmo: when the agent declares no context bindings on
         // Button.action (the in-the-wild shape that lost the typed value),
