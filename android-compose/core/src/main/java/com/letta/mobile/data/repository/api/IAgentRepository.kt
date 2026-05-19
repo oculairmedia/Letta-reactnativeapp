@@ -11,7 +11,9 @@ interface IAgentRepository {
     val agents: StateFlow<List<Agent>>
     suspend fun countAgents(): Int
     suspend fun refreshAgents()
+    fun getCachedAgent(id: String): Agent?
     fun getAgent(id: String): Flow<Agent>
+    suspend fun checkpointAndRestoreConfig(agentId: String, operation: suspend () -> Unit)
     suspend fun createAgent(params: AgentCreateParams): Agent
     suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent
     suspend fun deleteAgent(id: String)
