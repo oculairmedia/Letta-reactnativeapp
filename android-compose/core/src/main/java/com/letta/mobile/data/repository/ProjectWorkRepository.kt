@@ -91,6 +91,15 @@ class ProjectWorkRepository @Inject constructor(
         return issue
     }
 
+    fun invalidateProjectCache(projectId: String) {
+        val issueIds = _issuesByProject.value[projectId].orEmpty().map(ProjectIssueSummary::id) +
+            _readyWorkByProject.value[projectId].orEmpty().map(ProjectIssueSummary::id)
+        _readyWorkByProject.update { it - projectId }
+        _issuesByProject.update { it - projectId }
+        _issueAnalyticsByProject.update { it - projectId }
+        _issueDetails.update { current -> current - issueIds.toSet() }
+    }
+
     suspend fun claimIssue(
         issueId: String,
         assignee: String,
