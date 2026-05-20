@@ -3,15 +3,13 @@
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.ConversationRepository
-import com.letta.mobile.data.timeline.TimelineRepository
 import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.data.transport.WsTimelineEvent
+import com.letta.mobile.testutil.FakeTimelineExternalTransportWriter
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,11 +32,7 @@ class WsChatSendCoordinatorTest {
     fun `send dispatches through ws bridge and appends optimistic local with android otid`() = runTest {
         val settingsRepository = settingsRepository()
         val wsChatBridge = mockBridge(sendAccepted = true)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
-        val otid = slot<String>()
-        coEvery {
-            timelineRepository.appendExternalTransportLocal("conv-default-agent-1", "hello", capture(otid), emptyList())
-        } answers { otid.captured }
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         var cleared = false
         var activeConversation: String? = null
         var observedConversation: String? = null
@@ -61,7 +55,8 @@ class WsChatSendCoordinatorTest {
 
         coordinator.send("hello").join()
 
-        assertTrue(otid.captured.startsWith("cm-android-"))
+        val local = timelineRepository.externalLocals.single()
+        assertTrue(local.otid.startsWith("cm-android-"))
         assertTrue(cleared)
         assertEquals("conv-default-agent-1", activeConversation)
         assertEquals("conv-default-agent-1", observedConversation)
@@ -71,7 +66,7 @@ class WsChatSendCoordinatorTest {
                 agentId = "agent-1",
                 conversationId = "conv-default-agent-1",
                 text = "hello",
-                otid = otid.captured,
+                otid = local.otid,
                 attachments = emptyList(),
             )
         }
@@ -80,11 +75,7 @@ class WsChatSendCoordinatorTest {
     @Test
     fun `send with image attachments passes them through to the bridge (lcp-dlj)`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = true)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
-        val otid = slot<String>()
-        coEvery {
-            timelineRepository.appendExternalTransportLocal("conv-default-agent-1", "look", capture(otid), any())
-        } answers { otid.captured }
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         val image = com.letta.mobile.data.model.MessageContentPart.Image(
             base64 = "AAA=",
             mediaType = "image/jpeg",
@@ -106,29 +97,25 @@ class WsChatSendCoordinatorTest {
 
         coordinator.send("look", listOf(image)).join()
 
+        val local = timelineRepository.externalLocals.single()
         verify(exactly = 1) {
             wsChatBridge.send(
                 agentId = "agent-1",
                 conversationId = "conv-default-agent-1",
                 text = "look",
-                otid = otid.captured,
+                otid = local.otid,
                 attachments = listOf(image),
             )
         }
-        coVerify(exactly = 1) {
-            timelineRepository.appendExternalTransportLocal(
-                conversationId = "conv-default-agent-1",
-                content = "look",
-                otid = otid.captured,
-                attachments = listOf(image),
-            )
-        }
+        assertEquals("conv-default-agent-1", local.conversationId)
+        assertEquals("look", local.content)
+        assertEquals(listOf(image), local.attachments)
     }
 
     @Test
     fun `busy send is queued with optimistic local and drains on turn done`() = runTest {
         val wsChatBridge = mockBridge(sendResults = listOf(false, true))
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         var cleared = false
         val uiState = MutableStateFlow(ChatUiState(agentName = "Agent"))
         val coordinator = WsChatSendCoordinator(
@@ -151,9 +138,9 @@ class WsChatSendCoordinatorTest {
         assertNull(uiState.value.error)
         assertTrue(cleared)
         assertTrue(uiState.value.isStreaming)
-        coVerify(exactly = 1) {
-            timelineRepository.appendExternalTransportLocal("conv-1", "hello", any(), emptyList())
-        }
+        assertEquals(1, timelineRepository.externalLocals.size)
+        assertEquals("conv-1", timelineRepository.externalLocals.single().conversationId)
+        assertEquals("hello", timelineRepository.externalLocals.single().content)
 
         coordinator.handleEvent(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed"))
         advanceUntilIdle()
@@ -172,7 +159,7 @@ class WsChatSendCoordinatorTest {
     @Test
     fun `busy send queue drops overflow without appending optimistic local`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = false)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         val uiState = MutableStateFlow(ChatUiState(agentName = "Agent"))
         val coordinator = WsChatSendCoordinator(
             scope = backgroundScope,
@@ -192,13 +179,14 @@ class WsChatSendCoordinatorTest {
         repeat(11) { index -> coordinator.send("message-$index").join() }
 
         assertEquals("WebSocket send queue is full; wait for the current turn to finish", uiState.value.error)
-        coVerify(exactly = 10) { timelineRepository.appendExternalTransportLocal("conv-1", any(), any(), emptyList()) }
+        assertEquals(10, timelineRepository.externalLocals.size)
+        assertTrue(timelineRepository.externalLocals.all { it.conversationId == "conv-1" })
     }
 
     @Test
     fun `disconnect clears queued sends and marks optimistic locals failed`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = false)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
         val coordinator = WsChatSendCoordinator(
             scope = backgroundScope,
@@ -224,7 +212,8 @@ class WsChatSendCoordinatorTest {
         assertEquals("network lost", uiState.value.error)
         assertEquals(false, uiState.value.isStreaming)
         assertEquals(false, uiState.value.isAgentTyping)
-        coVerify(exactly = 2) { timelineRepository.markExternalTransportLocalFailed("conv-1", any()) }
+        assertEquals(2, timelineRepository.failedLocals.size)
+        assertTrue(timelineRepository.failedLocals.all { it.conversationId == "conv-1" })
     }
 
     @Test
@@ -236,7 +225,7 @@ class WsChatSendCoordinatorTest {
             agentId = "agent-1",
             activeConfig = settingsRepository(),
             wsChatBridge = wsChatBridge,
-            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            timelineRepository = FakeTimelineExternalTransportWriter(),
             conversationRepository = stubConversationRepository(),
             uiState = uiState,
             clearComposerAfterSend = {},
@@ -291,7 +280,7 @@ class WsChatSendCoordinatorTest {
             agentId = "agent-1",
             activeConfig = settingsRepository(),
             wsChatBridge = wsChatBridge,
-            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            timelineRepository = FakeTimelineExternalTransportWriter(),
             conversationRepository = stubConversationRepository(),
             uiState = uiState,
             clearComposerAfterSend = {},
@@ -333,7 +322,7 @@ class WsChatSendCoordinatorTest {
             agentId = "agent-1",
             activeConfig = settingsRepository(),
             wsChatBridge = wsChatBridge,
-            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            timelineRepository = FakeTimelineExternalTransportWriter(),
             conversationRepository = stubConversationRepository(),
             uiState = uiState,
             clearComposerAfterSend = {},
@@ -360,7 +349,7 @@ class WsChatSendCoordinatorTest {
             agentId = "agent-1",
             activeConfig = settingsRepository(),
             wsChatBridge = wsChatBridge,
-            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            timelineRepository = FakeTimelineExternalTransportWriter(),
             conversationRepository = stubConversationRepository(),
             uiState = uiState,
             clearComposerAfterSend = {},
@@ -381,11 +370,7 @@ class WsChatSendCoordinatorTest {
     @Test
     fun `clean turn done skips reconcile when shim reports lossy false`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = true)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
-        val otid = slot<String>()
-        coEvery {
-            timelineRepository.appendExternalTransportLocal("conv-default-agent-1", "hello", capture(otid), emptyList())
-        } answers { otid.captured }
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         val coordinator = WsChatSendCoordinator(
             scope = backgroundScope,
             agentId = "agent-1",
@@ -405,19 +390,13 @@ class WsChatSendCoordinatorTest {
         coordinator.handleEvent(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed", lossy = false))
         advanceUntilIdle()
 
-        coVerify(exactly = 0) {
-            timelineRepository.reconcileExternalTransportSend(any(), any(), any(), any())
-        }
+        assertTrue(timelineRepository.reconciledSends.isEmpty())
     }
 
     @Test
     fun `lossy turn done forces a reconcile against external default conversation id`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = true)
-        val timelineRepository = mockk<TimelineRepository>(relaxed = true)
-        val otid = slot<String>()
-        coEvery {
-            timelineRepository.appendExternalTransportLocal("conv-default-agent-1", "hello", capture(otid), emptyList())
-        } answers { otid.captured }
+        val timelineRepository = FakeTimelineExternalTransportWriter()
         val coordinator = WsChatSendCoordinator(
             scope = backgroundScope,
             agentId = "agent-1",
@@ -442,14 +421,16 @@ class WsChatSendCoordinatorTest {
         )
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            timelineRepository.reconcileExternalTransportSend(
+        val local = timelineRepository.externalLocals.single()
+        assertEquals(
+            FakeTimelineExternalTransportWriter.ReconciledSend(
                 conversationId = "conv-default-agent-1",
                 agentId = "agent-1",
                 externalConversationId = "conv-default-agent-1",
-                otid = otid.captured,
-            )
-        }
+                otid = local.otid,
+            ),
+            timelineRepository.reconciledSends.single(),
+        )
     }
 
     @Test
@@ -461,7 +442,7 @@ class WsChatSendCoordinatorTest {
             agentId = "agent-1",
             activeConfig = settingsRepository(),
             wsChatBridge = wsChatBridge,
-            timelineRepository = mockk<TimelineRepository>(relaxed = true),
+            timelineRepository = FakeTimelineExternalTransportWriter(),
             conversationRepository = stubConversationRepository(),
             uiState = uiState,
             clearComposerAfterSend = {},

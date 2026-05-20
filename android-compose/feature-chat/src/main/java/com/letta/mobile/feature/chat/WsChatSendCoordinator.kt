@@ -3,7 +3,7 @@ package com.letta.mobile.feature.chat
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.api.IConversationRepository
-import com.letta.mobile.data.timeline.TimelineRepository
+import com.letta.mobile.data.timeline.api.TimelineExternalTransportWriter
 import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.data.transport.WsTimelineEvent
@@ -24,7 +24,7 @@ internal class WsChatSendCoordinator(
     private val agentId: String,
     private val activeConfig: () -> LettaConfig?,
     private val wsChatBridge: WsChatBridge,
-    private val timelineRepository: TimelineRepository,
+    private val timelineRepository: TimelineExternalTransportWriter,
     private val conversationRepository: IConversationRepository,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val clearComposerAfterSend: () -> Unit,

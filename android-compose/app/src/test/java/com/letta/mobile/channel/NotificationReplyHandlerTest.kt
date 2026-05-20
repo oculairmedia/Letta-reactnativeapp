@@ -8,11 +8,9 @@ import com.letta.mobile.data.channel.NotificationCandidateSource
 import com.letta.mobile.data.channel.NotificationDelivery
 import com.letta.mobile.data.channel.NotificationDeliveryCandidate
 import com.letta.mobile.data.channel.NotificationDeliveryDecision
-import com.letta.mobile.data.timeline.TimelineEvent
-import com.letta.mobile.data.timeline.TimelineRepository
 import com.letta.mobile.testutil.FakeAgentRepository
+import com.letta.mobile.testutil.FakeTimelineClientModeWriter
 import com.letta.mobile.testutil.TestData
-import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -31,7 +29,7 @@ class NotificationReplyHandlerTest {
     @Test
     fun `notification reply stream submits final assistant response to coordinator`() = runTest {
         val chatSender = mockk<ClientModeChatSender>()
-        val timelineRepository = mockk<TimelineRepository>()
+        val timelineRepository = FakeTimelineClientModeWriter()
         val agentRepository = FakeAgentRepository(
             initialAgents = listOf(TestData.agent(id = "agent-1", name = "Ada")),
         )
@@ -40,12 +38,6 @@ class NotificationReplyHandlerTest {
         val captured = slot<NotificationDeliveryCandidate>()
 
         every { coordinator.submit(capture(captured)) } returns NotificationDeliveryDecision.Published("reply-message")
-        coEvery { timelineRepository.appendClientModeLocal(any(), any(), any()) } returns "local-user"
-        coEvery { timelineRepository.upsertClientModeLocalAssistantChunk(any(), any(), any(), any()) } answers {
-            thirdArg<() -> TimelineEvent.Local>().invoke()
-            secondArg()
-        }
-        coEvery { timelineRepository.postHandlerCollapse(any()) } returns Unit
         every { chatSender.streamMessage("agent-1", "hello", "conv-1") } returns flow {
             emit(BotStreamChunk(text = "Final ", conversationId = "conv-1"))
             emit(BotStreamChunk(text = "answer", conversationId = "conv-1"))
@@ -71,5 +63,6 @@ class NotificationReplyHandlerTest {
         assertEquals(NotificationCandidatePhase.Final, captured.captured.phase)
         assertEquals("Final answer", captured.captured.previewText)
         assertTrue(captured.captured.isFinal)
+        assertEquals(listOf("conv-1"), timelineRepository.collapsedConversationIds)
     }
 }
