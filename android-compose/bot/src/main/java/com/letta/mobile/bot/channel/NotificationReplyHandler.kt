@@ -13,7 +13,7 @@ import com.letta.mobile.data.timeline.MessageSource
 import com.letta.mobile.data.timeline.Role
 import com.letta.mobile.data.timeline.TimelineEvent
 import com.letta.mobile.data.timeline.TimelineMessageType
-import com.letta.mobile.data.timeline.TimelineRepository
+import com.letta.mobile.data.timeline.api.TimelineClientModeWriter
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 @Singleton
 class NotificationReplyHandler @Inject constructor(
     private val clientModeChatSender: ClientModeChatSender,
-    private val timelineRepository: TimelineRepository,
+    private val timelineRepository: TimelineClientModeWriter,
     private val agentRepository: IAgentRepository,
     private val notificationDeliveryProvider: Provider<NotificationDelivery>,
 ) {

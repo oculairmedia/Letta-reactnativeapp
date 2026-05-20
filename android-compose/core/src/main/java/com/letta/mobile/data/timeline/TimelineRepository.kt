@@ -1,6 +1,8 @@
 package com.letta.mobile.data.timeline
 
 import com.letta.mobile.data.api.MessageApi
+import com.letta.mobile.data.timeline.api.TimelineClientModeWriter
+import com.letta.mobile.data.timeline.api.TimelineExternalTransportWriter
 import com.letta.mobile.util.Telemetry
 import java.util.LinkedHashMap
 import javax.inject.Inject
@@ -28,7 +30,7 @@ import kotlinx.coroutines.sync.withLock
 open class TimelineRepository @Inject constructor(
     private val messageApi: MessageApi,
     private val pendingLocalStore: PendingLocalStore,
-) {
+) : TimelineClientModeWriter, TimelineExternalTransportWriter {
     internal constructor(
         messageApi: MessageApi,
         pendingLocalStore: PendingLocalStore,
@@ -151,11 +153,16 @@ open class TimelineRepository @Inject constructor(
      * fuzzy-collapse this Local against the Confirmed echo from Letta SSE
      * via [Timeline.collapseClientModeFuzzyMatch].
      */
+    override suspend fun appendClientModeLocal(
+        conversationId: String,
+        content: String,
+        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image>,
+    ): String = getOrCreate(conversationId).appendClientModeLocal(content, attachments)
+
     suspend fun appendClientModeLocal(
         conversationId: String,
         content: String,
-        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image> = emptyList(),
-    ): String = getOrCreate(conversationId).appendClientModeLocal(content, attachments)
+    ): String = appendClientModeLocal(conversationId, content, emptyList())
 
     /**
      * Append an optimistic user bubble for a non-REST transport that supports
@@ -164,15 +171,21 @@ open class TimelineRepository @Inject constructor(
      * the standard LETTA_SERVER source rather than the Client Mode fuzzy-match
      * source.
      */
+    override suspend fun appendExternalTransportLocal(
+        conversationId: String,
+        content: String,
+        otid: String,
+        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image>,
+    ): String = getOrCreate(conversationId).appendExternalTransportLocal(content, otid, attachments)
+
     suspend fun appendExternalTransportLocal(
         conversationId: String,
         content: String,
         otid: String,
-        attachments: List<com.letta.mobile.data.model.MessageContentPart.Image> = emptyList(),
-    ): String = getOrCreate(conversationId).appendExternalTransportLocal(content, otid, attachments)
+    ): String = appendExternalTransportLocal(conversationId, content, otid, emptyList())
 
     /** Ingest a LettaMessage projected from an external live transport. */
-    suspend fun ingestExternalTransportMessage(
+    override suspend fun ingestExternalTransportMessage(
         conversationId: String,
         message: com.letta.mobile.data.model.LettaMessage,
     ) {
@@ -190,7 +203,7 @@ open class TimelineRepository @Inject constructor(
      *  - Reasoning:       `cm-reason-<runId or stable id>`
      *  - Tool call:       `cm-tool-<toolCallId>`
      */
-    suspend fun upsertClientModeLocalAssistantChunk(
+    override suspend fun upsertClientModeLocalAssistantChunk(
         conversationId: String,
         localId: String,
         build: () -> TimelineEvent.Local,
@@ -216,7 +229,7 @@ open class TimelineRepository @Inject constructor(
      * a notification reply handler's WS stream completes. Absorbs any
      * CLIENT_MODE_HARNESS Locals that arrived after the initial SSE reconcile.
      */
-    suspend fun postHandlerCollapse(conversationId: String) {
+    override suspend fun postHandlerCollapse(conversationId: String) {
         val loop = loopsMutex.withLock { loops[conversationId] }
         loop?.postHandlerCollapse()
     }
@@ -234,12 +247,12 @@ open class TimelineRepository @Inject constructor(
      * ChatTimelineObserver's `isStreaming` gate latched and flap the
      * typing indicator on subsequent timeline emits.
      */
-    suspend fun markExternalTransportLocalSent(conversationId: String, otid: String) {
+    override suspend fun markExternalTransportLocalSent(conversationId: String, otid: String) {
         getOrCreate(conversationId).markExternalTransportLocalSent(otid)
     }
 
     /** Mark an externally-queued optimistic user bubble as failed before it was dispatched. */
-    suspend fun markExternalTransportLocalFailed(conversationId: String, otid: String) {
+    override suspend fun markExternalTransportLocalFailed(conversationId: String, otid: String) {
         getOrCreate(conversationId).markExternalTransportLocalFailed(otid)
     }
 
@@ -248,7 +261,7 @@ open class TimelineRepository @Inject constructor(
      * The shim guarantees `turn_done` is emitted after disk stamping, so callers
      * can invoke this immediately when that frame lands.
      */
-    suspend fun reconcileExternalTransportSend(
+    override suspend fun reconcileExternalTransportSend(
         conversationId: String,
         agentId: String,
         externalConversationId: String,
