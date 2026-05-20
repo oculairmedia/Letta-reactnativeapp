@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -75,6 +76,7 @@ import com.letta.mobile.ui.theme.listItemHeadline
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemMetadataMonospace
 import com.letta.mobile.ui.theme.listItemSupporting
+import com.letta.mobile.ui.motion.StaggeredListItem
 import com.letta.mobile.ui.theme.sectionTitle
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.util.formatRelativeTime
@@ -366,19 +368,21 @@ private fun ConversationsContent(
                             section.date != null -> DateSeparator(date = section.date)
                         }
                     }
-                    items(
+                    itemsIndexed(
                         items = section.items,
-                        key = { it.conversation.id }
-                    ) { display ->
-                        ConversationCard(
-                            display = display,
-                            onClick = { onConversationClick(display) },
-                            onOpenAdmin = { onOpenAdmin(display) },
-                            onDelete = { onDeleteConversation(display) },
-                            onRename = { newName -> onRenameConversation(display, newName) },
-                            onTogglePinned = { onTogglePinned(display) },
-                            onFork = { onForkConversation(display) },
-                        )
+                        key = { _, display -> display.conversation.id },
+                    ) { index, display ->
+                        StaggeredListItem(index = index) {
+                            ConversationCard(
+                                display = display,
+                                onClick = { onConversationClick(display) },
+                                onOpenAdmin = { onOpenAdmin(display) },
+                                onDelete = { onDeleteConversation(display) },
+                                onRename = { newName -> onRenameConversation(display, newName) },
+                                onTogglePinned = { onTogglePinned(display) },
+                                onFork = { onForkConversation(display) },
+                            )
+                        }
                     }
                 }
             }

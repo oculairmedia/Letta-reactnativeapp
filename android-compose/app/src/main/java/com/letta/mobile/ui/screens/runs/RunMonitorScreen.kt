@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -87,6 +88,7 @@ import com.letta.mobile.ui.tags.TagDrillInEntityType
 import com.letta.mobile.ui.tags.TagDrillInSource
 import com.letta.mobile.ui.tags.TagDrillInViewModel
 import com.letta.mobile.util.formatRelativeTime
+import com.letta.mobile.ui.motion.StaggeredListItem
 import com.letta.mobile.ui.theme.LettaTheme
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -185,11 +187,13 @@ fun RunMonitorScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(filteredRuns, key = { it.id }) { run ->
-                                RunCard(
-                                    run = run,
-                                    onInspect = { viewModel.inspectRun(run.id) },
-                                )
+                            itemsIndexed(filteredRuns, key = { _, run -> run.id }) { index, run ->
+                                StaggeredListItem(index = index) {
+                                    RunCard(
+                                        run = run,
+                                        onInspect = { viewModel.inspectRun(run.id) },
+                                    )
+                                }
                             }
                         }
                     }
