@@ -842,7 +842,7 @@ private fun StepDetailDialog(
                     )
                 }
                 item(
-                    headlineContent = { Text("Step ID") },
+                    headlineContent = { Text(stringResource(R.string.screen_runs_step_id_title)) },
                     supportingContent = {
                         Text(
                             text = step.id,
@@ -855,13 +855,13 @@ private fun StepDetailDialog(
                 )
                 step.origin?.let { value ->
                     item(
-                        headlineContent = { Text("Origin") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_origin_title)) },
                         supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                     )
                 }
                 step.runId?.let { value ->
                     item(
-                        headlineContent = { Text("Run ID") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_run_id_title)) },
                         supportingContent = {
                             Text(
                                 value,
@@ -875,7 +875,7 @@ private fun StepDetailDialog(
                 }
                 step.agentId?.let { value ->
                     item(
-                        headlineContent = { Text("Agent ID") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_agent_id_title)) },
                         supportingContent = {
                             Text(
                                 value,
@@ -889,13 +889,13 @@ private fun StepDetailDialog(
                 }
                 step.model?.let { value ->
                     item(
-                        headlineContent = { Text("Model") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_model_title)) },
                         supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                     )
                 }
                 step.modelEndpoint?.let { value ->
                     item(
-                        headlineContent = { Text("Model Endpoint") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_model_endpoint_title)) },
                         supportingContent = {
                             Text(
                                 text = value,
@@ -908,25 +908,25 @@ private fun StepDetailDialog(
                 }
                 step.contextWindowLimit?.let { value ->
                     item(
-                        headlineContent = { Text("Context Window") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_context_window_title)) },
                         supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemMetadata) },
                     )
                 }
                 step.stopReason?.let { value ->
                     item(
-                        headlineContent = { Text("Stop Reason") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_stop_reason_title)) },
                         supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                     )
                 }
                 step.feedback?.let { value ->
                     item(
-                        headlineContent = { Text("Feedback") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_feedback_title)) },
                         supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                     )
                 }
                 step.traceId?.let { value ->
                     item(
-                        headlineContent = { Text("Trace ID") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_trace_id_title)) },
                         supportingContent = {
                             Text(
                                 value,
@@ -940,7 +940,7 @@ private fun StepDetailDialog(
                 }
                 step.tid?.let { value ->
                     item(
-                        headlineContent = { Text("Thread ID") },
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_thread_id_title)) },
                         supportingContent = {
                             Text(
                                 value,
@@ -963,25 +963,25 @@ private fun StepDetailDialog(
                 CardGroup(title = { Text(stringResource(R.string.screen_runs_step_section_telemetry_title)) }) {
                     step.promptTokens?.let { value ->
                         item(
-                            headlineContent = { Text("Prompt Tokens") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_prompt_tokens_title)) },
                             supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     step.completionTokens?.let { value ->
                         item(
-                            headlineContent = { Text("Completion Tokens") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_completion_tokens_title)) },
                             supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     step.totalTokens?.let { value ->
                         item(
-                            headlineContent = { Text("Total Tokens") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_total_tokens_title)) },
                             supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     if (step.completionTokensDetails.isNotEmpty()) {
                         item(
-                            headlineContent = { Text("Completion Details") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_completion_details_title)) },
                             supportingContent = {
                                 Text(
                                     text = step.completionTokensDetails.toSortedDisplayString(),
@@ -1001,19 +1001,19 @@ private fun StepDetailDialog(
                 CardGroup(title = { Text(stringResource(R.string.screen_runs_step_metrics_title)) }) {
                     step.providerName?.let { value ->
                         item(
-                            headlineContent = { Text("Provider") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_title)) },
                             supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     step.providerCategory?.let { value ->
                         item(
-                            headlineContent = { Text("Provider Category") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_category_title)) },
                             supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     step.providerId?.let { value ->
                         item(
-                            headlineContent = { Text("Provider ID") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_id_title)) },
                             supportingContent = {
                                 Text(
                                     value,
@@ -1028,55 +1028,55 @@ private fun StepDetailDialog(
                     metrics?.let { m ->
                         m.stepStartNs?.let { v ->
                             item(
-                                headlineContent = { Text("Step Start (ns)") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_start_ns_title)) },
                                 supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
                             )
                         }
                         m.llmRequestStartNs?.let { v ->
                             item(
-                                headlineContent = { Text("LLM Request Start (ns)") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_llm_request_start_title)) },
                                 supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
                             )
                         }
                         m.llmRequestNs?.let { v ->
                             item(
-                                headlineContent = { Text("LLM Request (ns)") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_llm_request_title)) },
                                 supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
                             )
                         }
                         m.toolExecutionNs?.let { v ->
                             item(
-                                headlineContent = { Text("Tool Execution (ns)") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_tool_execution_title)) },
                                 supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
                             )
                         }
                         m.stepNs?.let { v ->
                             item(
-                                headlineContent = { Text("Step Duration (ns)") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_step_duration_title)) },
                                 supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
                             )
                         }
                         m.templateId?.let { v ->
                             item(
-                                headlineContent = { Text("Template") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_template_title)) },
                                 supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
                             )
                         }
                         m.baseTemplateId?.let { v ->
                             item(
-                                headlineContent = { Text("Base Template") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_base_template_title)) },
                                 supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
                             )
                         }
                         m.projectId?.let { v ->
                             item(
-                                headlineContent = { Text("Project") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_project_title)) },
                                 supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
                             )
                         }
                         m.organizationId?.let { v ->
                             item(
-                                headlineContent = { Text("Organization") },
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_organization_title)) },
                                 supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
                             )
                         }
@@ -1089,13 +1089,13 @@ private fun StepDetailDialog(
                 CardGroup(title = { Text(stringResource(R.string.screen_runs_step_section_errors_title)) }) {
                     step.errorType?.let { value ->
                         item(
-                            headlineContent = { Text("Type") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_error_type_title)) },
                             supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
                         )
                     }
                     if (step.errorData.isNotEmpty()) {
                         item(
-                            headlineContent = { Text("Data") },
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_error_data_title)) },
                             supportingContent = {
                                 Text(
                                     text = step.errorData.toSortedDisplayString(),
