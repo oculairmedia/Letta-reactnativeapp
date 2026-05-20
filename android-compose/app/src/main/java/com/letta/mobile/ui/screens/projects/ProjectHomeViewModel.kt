@@ -7,13 +7,14 @@ import com.letta.mobile.data.model.BeadsRemoteStatus
 import com.letta.mobile.data.model.PmAgentMetadata
 import com.letta.mobile.data.api.ProjectAgentApi
 import com.letta.mobile.data.repository.ProjectRepository
-import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.VibesyncEventStreamRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -171,31 +172,60 @@ data class ProjectHomeUiState(
 )
 
 @HiltViewModel
-class ProjectHomeViewModel @Inject constructor(
+class ProjectHomeViewModel private constructor(
     private val projectRepository: ProjectRepository,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val projectAgentApi: ProjectAgentApi? = null,
     private val vibesyncEventStreamRepository: VibesyncEventStreamRepository? = null,
+    private val externalScope: CoroutineScope? = null,
 ) : ViewModel() {
+
+    @Inject
+    constructor(
+        projectRepository: ProjectRepository,
+        settingsRepository: ISettingsRepository,
+        projectAgentApi: ProjectAgentApi? = null,
+        vibesyncEventStreamRepository: VibesyncEventStreamRepository? = null,
+    ) : this(
+        projectRepository = projectRepository,
+        settingsRepository = settingsRepository,
+        projectAgentApi = projectAgentApi,
+        vibesyncEventStreamRepository = vibesyncEventStreamRepository,
+        externalScope = null,
+    )
+
+    internal constructor(
+        projectRepository: ProjectRepository,
+        settingsRepository: ISettingsRepository,
+        coroutineScope: CoroutineScope,
+    ) : this(
+        projectRepository = projectRepository,
+        settingsRepository = settingsRepository,
+        projectAgentApi = null,
+        vibesyncEventStreamRepository = null,
+        externalScope = coroutineScope,
+    )
 
     private val _uiState = MutableStateFlow<UiState<ProjectHomeUiState>>(UiState.Loading)
     val uiState: StateFlow<UiState<ProjectHomeUiState>> = _uiState.asStateFlow()
     private val _events = Channel<ProjectHomeUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
     private var latestPinnedProjectIds: Set<String> = emptySet()
+    private val launchScope: CoroutineScope
+        get() = externalScope ?: viewModelScope
 
     init {
         observePinnedProjects()
         observeVibesyncEvents()
         loadProjects()
         // letta-mobile-ze5l: refetch projects on backend switch.
-        viewModelScope.launch {
+        launchScope.launch {
             settingsRepository.activeConfigChanges.collect { refresh() }
         }
     }
 
     private fun observePinnedProjects() {
-        viewModelScope.launch {
+        launchScope.launch {
             settingsRepository.getPinnedProjectIds().collect { pinnedProjectIds ->
                 applyPinnedProjects(pinnedProjectIds)
             }
@@ -203,7 +233,7 @@ class ProjectHomeViewModel @Inject constructor(
     }
 
     fun loadProjects(forceRefresh: Boolean = false) {
-        viewModelScope.launch {
+        launchScope.launch {
             val current = (_uiState.value as? UiState.Success)?.data
             if (current == null) {
                 _uiState.value = UiState.Loading
@@ -287,12 +317,12 @@ class ProjectHomeViewModel @Inject constructor(
         val project = projectRepository.projects.value.firstOrNull { it.identifier == projectId }
             ?: (_uiState.value as? UiState.Success)?.data?.projects?.firstOrNull { it.identifier == projectId }
             ?: return
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching { projectRepository.getBeadsRemoteStatus(project.identifier) }
                 .onSuccess { status -> updateSuccess { it.copy(beadsRemoteStatusByProject = it.beadsRemoteStatusByProject + (project.identifier to status)) } }
                 .onFailure { android.util.Log.i("ProjectHomeVM", "Beads remote status unavailable", it) }
         }
-        viewModelScope.launch {
+        launchScope.launch {
             val agentApi = projectAgentApi ?: return@launch
             runCatching { agentApi.lookup(project.name) }
                 .onSuccess { agent -> updateSuccess { current ->
@@ -311,7 +341,7 @@ class ProjectHomeViewModel @Inject constructor(
         val current = (_uiState.value as? UiState.Success)?.data ?: return
         val project = current.projects.firstOrNull { it.identifier == current.selectedProjectId } ?: return
         _uiState.value = UiState.Success(current.copy(showProvisionBeadsRemoteDialog = false, isProvisioningBeadsRemote = true))
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching { projectRepository.provisionBeadsRemote(project.identifier, push = true) }
                 .onSuccess { response ->
                     runCatching { projectRepository.getBeadsRemoteStatus(project.identifier) }
@@ -327,7 +357,7 @@ class ProjectHomeViewModel @Inject constructor(
         val current = (_uiState.value as? UiState.Success)?.data ?: return
         val project = current.projects.firstOrNull { it.identifier == current.selectedProjectId } ?: return
         _uiState.value = UiState.Success(current.copy(syncingProjectId = project.identifier))
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching { projectRepository.triggerSync(project.identifier) }
                 .onSuccess {
                     _events.trySend(ProjectHomeUiEvent.ShowMessage(it.message ?: "Sync triggered"))
@@ -348,7 +378,7 @@ class ProjectHomeViewModel @Inject constructor(
     private fun observeVibesyncEvents() {
         val eventRepository = vibesyncEventStreamRepository ?: return
         eventRepository.start()
-        viewModelScope.launch {
+        launchScope.launch {
             eventRepository.events.collect { event ->
                 val projectId = event.projectId ?: return@collect
                 when (event.type) {
@@ -392,7 +422,7 @@ class ProjectHomeViewModel @Inject constructor(
                 ).toImmutableList(),
             )
         )
-        viewModelScope.launch {
+        launchScope.launch {
             settingsRepository.setProjectPinned(project.identifier, !isPinned)
             _events.trySend(
                 ProjectHomeUiEvent.ShowMessage(
@@ -461,7 +491,7 @@ class ProjectHomeViewModel @Inject constructor(
                 isSubmittingManualCreate = true,
             )
         )
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching {
                 projectRepository.createProject(
                     name = draft.name.takeIf { it.isNotBlank() },
@@ -537,7 +567,7 @@ class ProjectHomeViewModel @Inject constructor(
                 isSubmittingProjectSettings = true,
             )
         )
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching {
                 projectRepository.updateProject(
                     identifier = draft.identifier,
@@ -588,7 +618,7 @@ class ProjectHomeViewModel @Inject constructor(
         val current = (_uiState.value as? UiState.Success)?.data ?: return
         val project = currentProject() ?: return
         _uiState.value = UiState.Success(current.copy(showArchiveProjectDialog = false, selectedProjectId = null))
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching {
                 projectRepository.archiveProject(project.identifier)
             }.onSuccess { archived ->
@@ -626,7 +656,7 @@ class ProjectHomeViewModel @Inject constructor(
         val current = (_uiState.value as? UiState.Success)?.data ?: return
         val project = currentProject() ?: return
         _uiState.value = UiState.Success(current.copy(showDeleteProjectDialog = false, selectedProjectId = null))
-        viewModelScope.launch {
+        launchScope.launch {
             runCatching {
                 projectRepository.deleteProject(project.identifier)
             }.onSuccess {
