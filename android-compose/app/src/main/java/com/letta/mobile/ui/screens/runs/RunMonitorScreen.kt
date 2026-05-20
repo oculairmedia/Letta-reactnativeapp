@@ -2,6 +2,11 @@ package com.letta.mobile.ui.screens.runs
 
 import com.letta.mobile.ui.theme.LettaCodeFont
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -14,15 +19,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,6 +39,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,11 +47,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
@@ -53,6 +71,7 @@ import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.StepMetrics
 import com.letta.mobile.data.model.UsageStatistics
 import com.letta.mobile.ui.common.UiState
+import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
@@ -69,8 +88,15 @@ import com.letta.mobile.ui.tags.TagDrillInEntityType
 import com.letta.mobile.ui.tags.TagDrillInSource
 import com.letta.mobile.ui.tags.TagDrillInViewModel
 import com.letta.mobile.util.formatRelativeTime
+import com.letta.mobile.ui.motion.StaggeredListItem
+import com.letta.mobile.ui.theme.LettaTheme
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import com.letta.mobile.ui.icons.LettaIcons
+import java.time.Instant
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,11 +187,13 @@ fun RunMonitorScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(filteredRuns, key = { it.id }) { run ->
-                                RunCard(
-                                    run = run,
-                                    onInspect = { viewModel.inspectRun(run.id) },
-                                )
+                            itemsIndexed(filteredRuns, key = { _, run -> run.id }) { index, run ->
+                                StaggeredListItem(index = index) {
+                                    RunCard(
+                                        run = run,
+                                        onInspect = { viewModel.inspectRun(run.id) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -277,32 +305,84 @@ private fun RunCard(
     run: Run,
     onInspect: () -> Unit,
 ) {
+    val clipboard = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
+    val active = isActiveRunStatus(run.status)
+    val containerColor = runCardContainerColor(run.status)
+
+    val startEpochMs = remember(run.createdAt) { parseInstantMillis(run.createdAt) }
+    val frozenDuration = remember(run.totalDurationNs, run.completedAt, startEpochMs) {
+        val totalNs = run.totalDurationNs
+        val completedAt = run.completedAt
+        when {
+            totalNs != null -> formatElapsedDuration(totalNs / 1_000_000L)
+            startEpochMs != null && completedAt != null -> {
+                val end = parseInstantMillis(completedAt)
+                if (end != null) formatElapsedDuration(end - startEpochMs) else "--:--"
+            }
+            else -> "--:--"
+        }
+    }
+    var liveDuration by remember(run.id, run.status) { mutableStateOf(frozenDuration) }
+    if (active && startEpochMs != null) {
+        LaunchedEffect(run.id, startEpochMs) {
+            while (true) {
+                liveDuration = formatElapsedDuration(System.currentTimeMillis() - startEpochMs)
+                delay(1000L)
+            }
+        }
+    }
+    val durationText = if (active && startEpochMs != null) liveDuration else frozenDuration
+
     Card(
         onClick = onInspect,
         modifier = Modifier.fillMaxWidth(),
-        colors = LettaCardDefaults.listCardColors(),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = run.id,
-                style = MaterialTheme.typography.listItemHeadline.copy(fontFamily = LettaCodeFont),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                run.status?.let { status ->
-                    StatusChip(status = status)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Row 1 — primary: status chip + live/frozen duration
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    run.status?.let { status -> StatusChip(status = status) }
+                    if (run.background == true) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(stringResource(R.string.screen_runs_background_chip)) },
+                        )
+                    }
                 }
-                if (run.background == true) {
-                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.screen_runs_background_chip)) })
-                }
+                Text(
+                    text = durationText,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = LettaCodeFont,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+
+            // Row 2 — supporting: agent id, optional conversation id
             Text(
-                    text = stringResource(R.string.screen_runs_agent_label, run.agentId),
-                    style = MaterialTheme.typography.listItemSupporting,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = stringResource(R.string.screen_runs_agent_label, run.agentId),
+                style = MaterialTheme.typography.listItemSupporting,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
             )
             run.conversationId?.let { conversationId ->
                 Text(
@@ -311,25 +391,92 @@ private fun RunCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            run.createdAt?.let { createdAt ->
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            )
+
+            // Row 3 — metadata: timestamp + low-contrast truncated UUID pill (click-to-copy)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = stringResource(R.string.screen_runs_created_label, formatRelativeTime(createdAt)),
+                    text = run.createdAt
+                        ?.let { stringResource(R.string.screen_runs_created_label, formatRelativeTime(it)) }
+                        .orEmpty(),
                     style = MaterialTheme.typography.listItemMetadata,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
-            }
-            if (run.isTerminalStatus()) {
-                Icon(
-                    imageVector = LettaIcons.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(
+                    text = truncateRunId(run.id),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = LettaCodeFont,
+                        fontSize = 11.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            clipboard.setText(AnnotatedString(run.id))
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
         }
     }
 }
+
+@Composable
+private fun runCardContainerColor(status: String?): androidx.compose.ui.graphics.Color {
+    return when (status?.trim()?.lowercase(Locale.ROOT)) {
+        "error", "failed", "cancelled", "expired" -> MaterialTheme.colorScheme.errorContainer
+        "completed" -> MaterialTheme.colorScheme.secondaryContainer
+        "running", "active", "created", "pending", "processing", "working", "busy" ->
+            MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
+    }
+}
+
+private fun isActiveRunStatus(status: String?): Boolean {
+    val normalized = status?.trim()?.lowercase(Locale.ROOT) ?: return false
+    return normalized in activeRunStatuses
+}
+
+private val activeRunStatuses = setOf(
+    "running", "active", "created", "pending", "processing", "working", "busy",
+)
+
+private fun parseInstantMillis(iso: String?): Long? {
+    if (iso.isNullOrBlank()) return null
+    return try {
+        Instant.parse(iso).toEpochMilli()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun formatElapsedDuration(elapsedMs: Long): String {
+    val totalSeconds = (elapsedMs / 1000L).coerceAtLeast(0L)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds / 60) % 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) "%02d:%02d:%02d".format(hours, minutes, seconds)
+    else "%02d:%02d".format(minutes, seconds)
+}
+
+private fun truncateRunId(id: String): String =
+    if (id.length <= 18) id else id.take(8) + "…" + id.takeLast(8)
 
 @Composable
 private fun RunDetailDialog(
@@ -682,75 +829,343 @@ private fun StepDetailDialog(
         onConfirm = onDismiss,
         onDismiss = onDismiss,
     ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                step.status?.let { Text(stringResource(R.string.screen_runs_status_label, it)) }
-                step.feedback?.let { Text(stringResource(R.string.screen_runs_step_feedback_label, it)) }
-                step.origin?.let { Text(stringResource(R.string.screen_runs_step_origin_label, it)) }
-                step.runId?.let { Text(stringResource(R.string.screen_runs_step_run_label, it)) }
-                step.agentId?.let { Text(stringResource(R.string.screen_runs_agent_label, it)) }
-                step.providerName?.let { Text(stringResource(R.string.screen_runs_step_provider_label, it)) }
-                step.providerCategory?.let { Text(stringResource(R.string.screen_runs_step_provider_category_label, it)) }
-                step.providerId?.let { Text(stringResource(R.string.screen_runs_step_provider_id_label, it)) }
-                step.model?.let { Text(stringResource(R.string.screen_runs_step_model_label, it)) }
-                step.modelEndpoint?.let { Text(stringResource(R.string.screen_runs_step_model_endpoint_label, it)) }
-                step.contextWindowLimit?.let { Text(stringResource(R.string.screen_runs_step_context_window_limit_label, it)) }
-                step.promptTokens?.let { Text(stringResource(R.string.screen_runs_step_prompt_tokens_label, it)) }
-                step.completionTokens?.let { Text(stringResource(R.string.screen_runs_step_completion_tokens_label, it)) }
-                step.totalTokens?.let { Text(stringResource(R.string.screen_runs_step_total_tokens_label, it)) }
-                step.traceId?.let { Text(stringResource(R.string.screen_runs_step_trace_id_label, it)) }
-                step.tid?.let { Text(stringResource(R.string.screen_runs_step_tid_label, it)) }
-                step.stopReason?.let { Text(stringResource(R.string.screen_runs_stop_reason_label, it)) }
-                StepTagRow(tags = step.tags, onTagClick = onTagClick)
-                step.errorType?.let { Text(stringResource(R.string.screen_runs_step_error_type_label, it)) }
-                if (step.completionTokensDetails.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_step_completion_details_label, step.completionTokensDetails.toSortedDisplayString()))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Section 1 — Core Status & Identity
+            CardGroup(title = { Text(stringResource(R.string.screen_runs_step_section_core_title)) }) {
+                step.status?.let { status ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_status_label, "").trim().trimEnd(':')) },
+                        supportingContent = { StatusChip(status = status) },
+                    )
                 }
-                if (step.errorData.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_step_error_data_label, step.errorData.toSortedDisplayString()))
-                }
-                metrics?.let {
-                    Text(stringResource(R.string.screen_runs_step_metrics_title), style = MaterialTheme.typography.labelLarge)
-                    it.organizationId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_organization_label, value)) }
-                    it.providerId?.let { value -> Text(stringResource(R.string.screen_runs_step_provider_id_label, value)) }
-                    it.runId?.let { value -> Text(stringResource(R.string.screen_runs_step_run_label, value)) }
-                    it.agentId?.let { value -> Text(stringResource(R.string.screen_runs_agent_label, value)) }
-                    it.stepStartNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_start_ns_label, value)) }
-                    it.llmRequestStartNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_llm_request_start_label, value)) }
-                    it.llmRequestNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_llm_request_label, value)) }
-                    it.toolExecutionNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_tool_execution_label, value)) }
-                    it.stepNs?.let { value -> Text(stringResource(R.string.screen_runs_step_metrics_step_ns_label, value)) }
-                    it.templateId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_template_label, value)) }
-                    it.baseTemplateId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_base_template_label, value)) }
-                    it.projectId?.let { value -> Text(stringResource(R.string.screen_runs_metrics_project_label, value)) }
-                }
-                trace?.let {
-                    Text(stringResource(R.string.screen_runs_step_trace_title), style = MaterialTheme.typography.labelLarge)
-                    it.createdAt?.let { value -> Text(stringResource(R.string.screen_runs_step_trace_created_label, value)) }
-                    if (it.requestJson.isNotEmpty()) {
-                        Text(stringResource(R.string.screen_runs_step_trace_request_label, it.requestJson.toSortedDisplayString()))
-                    }
-                    if (it.responseJson.isNotEmpty()) {
-                        Text(stringResource(R.string.screen_runs_step_trace_response_label, it.responseJson.toSortedDisplayString()))
-                    }
-                }
-                if (messages.isNotEmpty()) {
-                    Text(stringResource(R.string.screen_runs_step_messages_title), style = MaterialTheme.typography.labelLarge)
-                    messages.takeLast(8).forEach { message ->
+                item(
+                    headlineContent = { Text(stringResource(R.string.screen_runs_step_id_title)) },
+                    supportingContent = {
                         Text(
-                            text = stringResource(R.string.screen_runs_message_entry, message.messageType, messageSummary(message)),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
+                            text = step.id,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                            ),
+                        )
+                    },
+                )
+                step.origin?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_origin_title)) },
+                        supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                step.runId?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_run_id_title)) },
+                        supportingContent = {
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                ),
+                            )
+                        },
+                    )
+                }
+                step.agentId?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_agent_id_title)) },
+                        supportingContent = {
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                ),
+                            )
+                        },
+                    )
+                }
+                step.model?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_model_title)) },
+                        supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                step.modelEndpoint?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_model_endpoint_title)) },
+                        supportingContent = {
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.listItemSupporting,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
+                }
+                step.contextWindowLimit?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_context_window_title)) },
+                        supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                    )
+                }
+                step.stopReason?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_stop_reason_title)) },
+                        supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                step.feedback?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_feedback_title)) },
+                        supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                    )
+                }
+                step.traceId?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_trace_id_title)) },
+                        supportingContent = {
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                ),
+                            )
+                        },
+                    )
+                }
+                step.tid?.let { value ->
+                    item(
+                        headlineContent = { Text(stringResource(R.string.screen_runs_step_thread_id_title)) },
+                        supportingContent = {
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
+
+            // Section 2 — Token Telemetry
+            val hasTelemetry = step.promptTokens != null ||
+                step.completionTokens != null ||
+                step.totalTokens != null ||
+                step.completionTokensDetails.isNotEmpty()
+            if (hasTelemetry) {
+                CardGroup(title = { Text(stringResource(R.string.screen_runs_step_section_telemetry_title)) }) {
+                    step.promptTokens?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_prompt_tokens_title)) },
+                            supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    step.completionTokens?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_completion_tokens_title)) },
+                            supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    step.totalTokens?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_total_tokens_title)) },
+                            supportingContent = { Text(value.toString(), style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    if (step.completionTokensDetails.isNotEmpty()) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_completion_details_title)) },
+                            supportingContent = {
+                                Text(
+                                    text = step.completionTokensDetails.toSortedDisplayString(),
+                                    style = MaterialTheme.typography.listItemSupporting,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                         )
                     }
                 }
             }
+
+            // Provider & Metrics
+            val hasProvider = step.providerName != null || step.providerCategory != null || step.providerId != null
+            if (hasProvider || metrics != null) {
+                CardGroup(title = { Text(stringResource(R.string.screen_runs_step_metrics_title)) }) {
+                    step.providerName?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_title)) },
+                            supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    step.providerCategory?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_category_title)) },
+                            supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    step.providerId?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_provider_id_title)) },
+                            supportingContent = {
+                                Text(
+                                    value,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.sp,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                    metrics?.let { m ->
+                        m.stepStartNs?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_start_ns_title)) },
+                                supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                            )
+                        }
+                        m.llmRequestStartNs?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_llm_request_start_title)) },
+                                supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                            )
+                        }
+                        m.llmRequestNs?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_llm_request_title)) },
+                                supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                            )
+                        }
+                        m.toolExecutionNs?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_tool_execution_title)) },
+                                supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                            )
+                        }
+                        m.stepNs?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_metrics_step_duration_title)) },
+                                supportingContent = { Text(v.toString(), style = MaterialTheme.typography.listItemMetadata) },
+                            )
+                        }
+                        m.templateId?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_template_title)) },
+                                supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
+                            )
+                        }
+                        m.baseTemplateId?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_base_template_title)) },
+                                supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
+                            )
+                        }
+                        m.projectId?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_project_title)) },
+                                supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
+                            )
+                        }
+                        m.organizationId?.let { v ->
+                            item(
+                                headlineContent = { Text(stringResource(R.string.screen_runs_step_organization_title)) },
+                                supportingContent = { Text(v, style = MaterialTheme.typography.listItemSupporting) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Errors
+            if (step.errorType != null || step.errorData.isNotEmpty()) {
+                CardGroup(title = { Text(stringResource(R.string.screen_runs_step_section_errors_title)) }) {
+                    step.errorType?.let { value ->
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_error_type_title)) },
+                            supportingContent = { Text(value, style = MaterialTheme.typography.listItemSupporting) },
+                        )
+                    }
+                    if (step.errorData.isNotEmpty()) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.screen_runs_step_error_data_title)) },
+                            supportingContent = {
+                                Text(
+                                    text = step.errorData.toSortedDisplayString(),
+                                    style = MaterialTheme.typography.listItemSupporting,
+                                    maxLines = 5,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Tags
+            StepTagRow(tags = step.tags, onTagClick = onTagClick)
+
+            // Section 3 — Developer Traces
+            trace?.let { t ->
+                Text(
+                    text = stringResource(R.string.screen_runs_step_trace_section_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                )
+                t.createdAt?.let { createdAt ->
+                    Text(
+                        text = stringResource(R.string.screen_runs_step_trace_created_label, createdAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
+                StepTraceAccordion(
+                    title = stringResource(R.string.screen_runs_step_trace_request_accordion_title),
+                    json = t.requestJson,
+                )
+                StepTraceAccordion(
+                    title = stringResource(R.string.screen_runs_step_trace_response_accordion_title),
+                    json = t.responseJson,
+                )
+            }
+
+            // Recent messages
+            if (messages.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.screen_runs_step_messages_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                )
+                messages.takeLast(8).forEach { message ->
+                    Text(
+                        text = stringResource(R.string.screen_runs_message_entry, message.messageType, messageSummary(message)),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            // Footer — feedback actions
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onSetPositiveFeedback) {
                     Text(stringResource(R.string.screen_runs_step_feedback_positive_action))
                 }
                 TextButton(onClick = onSetNegativeFeedback) {
-                    Text(stringResource(R.string.screen_runs_step_feedback_negative_action), color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = stringResource(R.string.screen_runs_step_feedback_negative_action),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
                 if (step.feedback != null) {
                     TextButton(onClick = onClearFeedback) {
@@ -760,6 +1175,103 @@ private fun StepDetailDialog(
             }
         }
     }
+}
+
+@Composable
+private fun StepTraceAccordion(
+    title: String,
+    json: Map<String, JsonElement>,
+) {
+    val clipboard = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    val pretty = remember(json) { json.toPrettyJsonString() }
+    val truncated = remember(pretty) { truncateJsonForDisplay(pretty) }
+
+    Accordions(
+        title = title,
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        subtitle = stringResource(R.string.screen_runs_step_trace_size_subtitle, truncated.totalLength),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceContainer,
+                    RoundedCornerShape(8.dp),
+                )
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (truncated.isTruncated) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.screen_runs_step_trace_truncation_warning,
+                            STEP_TRACE_DISPLAY_LIMIT,
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(pretty))
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                    ) {
+                        Text(stringResource(R.string.screen_runs_step_trace_copy_full))
+                    }
+                }
+            }
+            SelectionContainer {
+                Text(
+                    text = truncated.displayed,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                )
+            }
+        }
+    }
+}
+
+private const val STEP_TRACE_DISPLAY_LIMIT = 25_000
+
+private data class TruncatedJson(
+    val displayed: String,
+    val isTruncated: Boolean,
+    val totalLength: Int,
+)
+
+private fun truncateJsonForDisplay(json: String): TruncatedJson {
+    return if (json.length > STEP_TRACE_DISPLAY_LIMIT) {
+        val overflow = json.length - STEP_TRACE_DISPLAY_LIMIT
+        TruncatedJson(
+            displayed = json.take(STEP_TRACE_DISPLAY_LIMIT) + "\n\n… [TRUNCATED — $overflow more chars] …",
+            isTruncated = true,
+            totalLength = json.length,
+        )
+    } else {
+        TruncatedJson(displayed = json, isTruncated = false, totalLength = json.length)
+    }
+}
+
+private val stepTracePrettyJson = Json {
+    prettyPrint = true
+    prettyPrintIndent = "  "
+}
+
+private fun Map<String, JsonElement>.toPrettyJsonString(): String =
+    if (isEmpty()) "{}" else stepTracePrettyJson.encodeToString(JsonObject.serializer(), JsonObject(this))
 
 @Composable
 private fun StepTagRow(
@@ -814,4 +1326,51 @@ private fun messageSummary(message: LettaMessage): String {
 
 private fun Run.isTerminalStatus(): Boolean {
     return status in setOf("completed", "failed", "cancelled", "expired")
+}
+
+@PreviewLightDark
+@Composable
+private fun PreviewRunCardRunning() {
+    LettaTheme(dynamicColor = false) {
+        Surface {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RunCard(
+                    run = Run(
+                        id = "run-01HXYZK7QJ4R3M8WJ0NABCDEF9G",
+                        agentId = "agent-research-01",
+                        status = "running",
+                        background = false,
+                        conversationId = "conv-7d4c2e1f",
+                        createdAt = Instant.now().minusSeconds(73).toString(),
+                    ),
+                    onInspect = {},
+                )
+                RunCard(
+                    run = Run(
+                        id = "run-01HXYZK7QJ4R3M8WJ0NABCDEFFAILED",
+                        agentId = "agent-coder-02",
+                        status = "failed",
+                        createdAt = Instant.now().minusSeconds(3725).toString(),
+                        completedAt = Instant.now().minusSeconds(3600).toString(),
+                        totalDurationNs = 125_000_000_000L,
+                    ),
+                    onInspect = {},
+                )
+                RunCard(
+                    run = Run(
+                        id = "run-01HXYZK7QJ4R3M8WJ0NABCDEFCOMPLETED",
+                        agentId = "agent-summarizer-09",
+                        status = "completed",
+                        createdAt = Instant.now().minusSeconds(86400).toString(),
+                        completedAt = Instant.now().minusSeconds(86340).toString(),
+                        totalDurationNs = 59_000_000_000L,
+                    ),
+                    onInspect = {},
+                )
+            }
+        }
+    }
 }

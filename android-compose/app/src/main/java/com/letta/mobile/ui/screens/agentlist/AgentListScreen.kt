@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.foundation.lazy.itemsIndexed as lazyItemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -97,6 +98,7 @@ import com.letta.mobile.ui.common.LocalSnackbarDispatcher
 import com.letta.mobile.ui.screens.tools.ToolPickerDialog
 import com.letta.mobile.ui.icons.LettaIconSizing
 import com.letta.mobile.ui.icons.LettaIcons
+import com.letta.mobile.ui.motion.StaggeredListItem
 import com.letta.mobile.ui.theme.listItemHeadline
 import com.letta.mobile.ui.theme.listItemMetadata
 import com.letta.mobile.ui.theme.listItemSupporting
@@ -379,18 +381,23 @@ fun AgentListScreen(
                                     }
                                 }
 
-                                lazyItems(gridAgents, key = { it.id.value }) { agent ->
-                                    AgentCard(
-                                        agent = agent,
-                                        isFavorite = agent.id.value == uiState.favoriteAgentId,
-                                        isPinned = agent.id.value in uiState.pinnedAgentIds,
-                                        onClick = { selectAgent(agent.id.value, agent.name) },
-                                        onLongPress = { onNavigateToEditAgent(agent.id.value) },
-                                        onDelete = { viewModel.deleteAgent(agent.id.value) },
-                                        onToggleFavorite = { viewModel.toggleFavorite(agent.id.value) },
-                                        onTogglePinned = { viewModel.togglePinned(agent.id.value) },
-                                        contextualActionsEnabled = !isShareMode,
-                                    )
+                                lazyItemsIndexed(
+                                    items = gridAgents,
+                                    key = { _, agent -> agent.id.value },
+                                ) { index, agent ->
+                                    StaggeredListItem(index = index) {
+                                        AgentCard(
+                                            agent = agent,
+                                            isFavorite = agent.id.value == uiState.favoriteAgentId,
+                                            isPinned = agent.id.value in uiState.pinnedAgentIds,
+                                            onClick = { selectAgent(agent.id.value, agent.name) },
+                                            onLongPress = { onNavigateToEditAgent(agent.id.value) },
+                                            onDelete = { viewModel.deleteAgent(agent.id.value) },
+                                            onToggleFavorite = { viewModel.toggleFavorite(agent.id.value) },
+                                            onTogglePinned = { viewModel.togglePinned(agent.id.value) },
+                                            contextualActionsEnabled = !isShareMode,
+                                        )
+                                    }
                                 }
                             }
                         }
