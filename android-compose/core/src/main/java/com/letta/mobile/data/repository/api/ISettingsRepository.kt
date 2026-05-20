@@ -21,10 +21,19 @@ import kotlinx.coroutines.flow.StateFlow
 interface ISettingsRepository {
     val activeConfig: StateFlow<LettaConfig?>
     val activeConfigChanges: Flow<LettaConfig>
+    val favoriteAgentId: StateFlow<String?>
+    val adminAgentId: StateFlow<String?>
     fun getActiveConfig(): Flow<LettaConfig?>
     fun observeClientModeEnabled(): Flow<Boolean>
     fun observeClientModeBaseUrl(): Flow<String>
     fun getClientModeApiKey(): String?
+    fun getPinnedAgentIds(): Flow<Set<String>>
+    fun setFavoriteAgentId(agentId: String?)
+    suspend fun setAgentPinned(agentId: String, pinned: Boolean)
     fun getPinnedProjectIds(): Flow<Set<String>>
     suspend fun setProjectPinned(projectId: String, pinned: Boolean)
+    fun getPinnedShortcutOrder(): Flow<List<String>>
+    suspend fun setPinnedShortcutOrder(order: List<String>)
+    suspend fun addPinnedShortcut(name: String)
+    suspend fun removePinnedShortcut(name: String)
 }

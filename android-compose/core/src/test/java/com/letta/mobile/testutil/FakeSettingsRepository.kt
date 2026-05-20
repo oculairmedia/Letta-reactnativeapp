@@ -37,11 +37,24 @@ class FakeSettingsRepository(
     val pinnedProjectIds: MutableStateFlow<Set<String>> =
         MutableStateFlow(emptySet())
 
+    val pinnedAgentIds: MutableStateFlow<Set<String>> =
+        MutableStateFlow(emptySet())
+
+    val pinnedShortcutOrder: MutableStateFlow<List<String>> =
+        MutableStateFlow(emptyList())
+
+    private val favoriteAgentIdState = MutableStateFlow<String?>(null)
+    private val adminAgentIdState = MutableStateFlow<String?>(null)
+
     var apiKey: String? = initialClientModeApiKey
 
     override val activeConfig: StateFlow<LettaConfig?> = activeConfigState.asStateFlow()
 
     override val activeConfigChanges: Flow<LettaConfig> = emptyFlow()
+
+    override val favoriteAgentId: StateFlow<String?> = favoriteAgentIdState.asStateFlow()
+
+    override val adminAgentId: StateFlow<String?> = adminAgentIdState.asStateFlow()
 
     override fun getActiveConfig(): Flow<LettaConfig?> = activeConfigState
 
@@ -51,6 +64,20 @@ class FakeSettingsRepository(
 
     override fun getClientModeApiKey(): String? = apiKey
 
+    override fun getPinnedAgentIds(): Flow<Set<String>> = pinnedAgentIds
+
+    override fun setFavoriteAgentId(agentId: String?) {
+        favoriteAgentIdState.value = agentId
+    }
+
+    override suspend fun setAgentPinned(agentId: String, pinned: Boolean) {
+        pinnedAgentIds.value = if (pinned) {
+            pinnedAgentIds.value + agentId
+        } else {
+            pinnedAgentIds.value - agentId
+        }
+    }
+
     override fun getPinnedProjectIds(): Flow<Set<String>> = pinnedProjectIds
 
     override suspend fun setProjectPinned(projectId: String, pinned: Boolean) {
@@ -59,5 +86,21 @@ class FakeSettingsRepository(
         } else {
             pinnedProjectIds.value - projectId
         }
+    }
+
+    override fun getPinnedShortcutOrder(): Flow<List<String>> = pinnedShortcutOrder
+
+    override suspend fun setPinnedShortcutOrder(order: List<String>) {
+        pinnedShortcutOrder.value = order
+    }
+
+    override suspend fun addPinnedShortcut(name: String) {
+        if (name !in pinnedShortcutOrder.value) {
+            pinnedShortcutOrder.value = pinnedShortcutOrder.value + name
+        }
+    }
+
+    override suspend fun removePinnedShortcut(name: String) {
+        pinnedShortcutOrder.value = pinnedShortcutOrder.value - name
     }
 }
