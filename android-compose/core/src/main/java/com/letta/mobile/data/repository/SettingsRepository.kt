@@ -73,10 +73,10 @@ class SettingsRepository @Inject constructor(
         .drop(1)
 
     private val _favoriteAgentId = MutableStateFlow<String?>(null)
-    val favoriteAgentId: StateFlow<String?> = _favoriteAgentId.asStateFlow()
+    override val favoriteAgentId: StateFlow<String?> = _favoriteAgentId.asStateFlow()
 
     private val _adminAgentId = MutableStateFlow<String?>(null)
-    val adminAgentId: StateFlow<String?> = _adminAgentId.asStateFlow()
+    override val adminAgentId: StateFlow<String?> = _adminAgentId.asStateFlow()
 
     private val _lastChatSelection = MutableStateFlow<LastChatSelection?>(null)
     val lastChatSelection: StateFlow<LastChatSelection?> = _lastChatSelection.asStateFlow()
@@ -217,7 +217,7 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    fun setFavoriteAgentId(agentId: String?) {
+    override fun setFavoriteAgentId(agentId: String?) {
         _favoriteAgentId.update { agentId }
         if (agentId != null) {
             encryptedPrefs.edit().putString(Keys.FAVORITE_AGENT_ID.name, agentId).apply()
@@ -318,11 +318,11 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    fun getPinnedAgentIds(): Flow<Set<String>> = dataStore.data.map { prefs ->
+    override fun getPinnedAgentIds(): Flow<Set<String>> = dataStore.data.map { prefs ->
         prefs[Keys.PINNED_AGENT_IDS] ?: emptySet()
     }
 
-    suspend fun setAgentPinned(agentId: String, pinned: Boolean) {
+    override suspend fun setAgentPinned(agentId: String, pinned: Boolean) {
         dataStore.edit { prefs ->
             val current = prefs[Keys.PINNED_AGENT_IDS] ?: emptySet()
             prefs[Keys.PINNED_AGENT_IDS] = if (pinned) {
@@ -421,7 +421,7 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    fun getPinnedShortcutOrder(): Flow<List<String>> = dataStore.data.map { prefs ->
+    override fun getPinnedShortcutOrder(): Flow<List<String>> = dataStore.data.map { prefs ->
         val raw = prefs[Keys.PINNED_SHORTCUT_ORDER]
         if (raw != null) {
             try {
@@ -443,13 +443,13 @@ class SettingsRepository @Inject constructor(
         )
     }
 
-    suspend fun setPinnedShortcutOrder(order: List<String>) {
+    override suspend fun setPinnedShortcutOrder(order: List<String>) {
         dataStore.edit { prefs ->
             prefs[Keys.PINNED_SHORTCUT_ORDER] = json.encodeToString(order)
         }
     }
 
-    suspend fun addPinnedShortcut(name: String) {
+    override suspend fun addPinnedShortcut(name: String) {
         dataStore.edit { prefs ->
             val current = prefs[Keys.PINNED_SHORTCUT_ORDER]?.let {
                 try { json.decodeFromString<List<String>>(it) } catch (_: Exception) { emptyList() }
@@ -460,7 +460,7 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun removePinnedShortcut(name: String) {
+    override suspend fun removePinnedShortcut(name: String) {
         dataStore.edit { prefs ->
             val current = prefs[Keys.PINNED_SHORTCUT_ORDER]?.let {
                 try { json.decodeFromString<List<String>>(it) } catch (_: Exception) { emptyList() }
