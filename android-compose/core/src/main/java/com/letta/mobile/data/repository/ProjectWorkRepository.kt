@@ -97,12 +97,12 @@ class ProjectWorkRepository @Inject constructor(
         // refresh and reintroduce stale entries we just cleared.
         refreshMutex.withLock {
             analyticsRefreshMutex.withLock {
-                val issueIds = _issuesByProject.value[projectId].orEmpty().map(ProjectIssueSummary::id) +
-                    _readyWorkByProject.value[projectId].orEmpty().map(ProjectIssueSummary::id)
                 _readyWorkByProject.update { it - projectId }
                 _issuesByProject.update { it - projectId }
                 _issueAnalyticsByProject.update { it - projectId }
-                _issueDetails.update { current -> current - issueIds.toSet() }
+                _issueDetails.update { current ->
+                    current.filterValues { detail -> detail.projectId != projectId }
+                }
             }
         }
     }
