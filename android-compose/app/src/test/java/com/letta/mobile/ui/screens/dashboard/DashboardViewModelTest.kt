@@ -1,7 +1,5 @@
 package com.letta.mobile.ui.screens.dashboard
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.Conversation
@@ -12,22 +10,21 @@ import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ConversationCountEstimate
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.RunRepository
-import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.testutil.FakeRunApi
 import com.letta.mobile.testutil.TestData
-import com.letta.mobile.util.EncryptedPrefsHelper
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -42,19 +39,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import org.junit.jupiter.api.Tag
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
 @OptIn(ExperimentalCoroutinesApi::class)
 @Tag("integration")
 class DashboardViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var settingsRepository: SettingsRepository
+    private lateinit var settingsRepository: ISettingsRepository
     private lateinit var agentRepository: AgentRepository
     private lateinit var conversationsRepository: AllConversationsRepository
     private lateinit var toolRepository: ToolRepository
@@ -66,13 +58,13 @@ class DashboardViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val sharedPreferences = context.getSharedPreferences("dashboard-view-model-test", Context.MODE_PRIVATE)
-        sharedPreferences.edit().clear().commit()
-        mockkObject(EncryptedPrefsHelper)
-        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
-
-        settingsRepository = SettingsRepository(context)
+        settingsRepository = mockk(relaxed = true)
+        every { settingsRepository.activeConfig } returns MutableStateFlow(null)
+        every { settingsRepository.activeConfigChanges } returns emptyFlow()
+        every { settingsRepository.favoriteAgentId } returns MutableStateFlow(null)
+        every { settingsRepository.adminAgentId } returns MutableStateFlow(null)
+        every { settingsRepository.getPinnedAgentIds() } returns flowOf(emptySet())
+        every { settingsRepository.getPinnedShortcutOrder() } returns flowOf(emptyList())
 
         agentRepository = mockk(relaxed = true)
         every {
@@ -135,7 +127,7 @@ class DashboardViewModelTest {
 
     @After
     fun tearDown() {
-        unmockkObject(EncryptedPrefsHelper)
+        clearAllMocks()
         Dispatchers.resetMain()
     }
 

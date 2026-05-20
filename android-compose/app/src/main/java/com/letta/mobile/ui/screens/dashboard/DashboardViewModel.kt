@@ -13,9 +13,9 @@ import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.RunRepository
-import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
@@ -74,7 +74,7 @@ class DashboardViewModel @Inject constructor(
     private val allConversationsRepository: AllConversationsRepository,
     private val toolRepository: ToolRepository,
     private val blockRepository: IBlockRepository,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val messageRepository: MessageRepository,
     private val runRepository: RunRepository,
 ) : ViewModel() {
