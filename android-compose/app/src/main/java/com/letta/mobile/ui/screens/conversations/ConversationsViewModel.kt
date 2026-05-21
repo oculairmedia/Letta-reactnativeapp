@@ -9,8 +9,8 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.api.IConversationRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -58,7 +58,7 @@ class ConversationsViewModel @Inject constructor(
     private val conversationRepository: IConversationRepository,
     private val agentRepository: AgentRepository,
     private val messageRepository: MessageRepository,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
 ) : ViewModel() {
     companion object {
         private const val LIST_CACHE_TTL_MS = 30_000L
