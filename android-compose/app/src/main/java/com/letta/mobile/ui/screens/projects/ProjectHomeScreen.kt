@@ -67,6 +67,7 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.FormItem
 import com.letta.mobile.ui.components.LettaCardDefaults
@@ -142,6 +143,7 @@ fun ProjectHomeScreen(
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
             val searchQuery = (uiState as? UiState.Success)?.data?.searchQuery ?: ""
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -204,6 +206,15 @@ fun ProjectHomeScreen(
                     }
                 },
             )
+            ExpandableSearchField(
+                query = searchQuery,
+                onQueryChange = viewModel::updateSearchQuery,
+                onClear = { viewModel.updateSearchQuery("") },
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_projects_search_hint),
+                autoFocus = false,
+            )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(

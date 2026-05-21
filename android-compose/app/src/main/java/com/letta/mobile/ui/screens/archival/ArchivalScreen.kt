@@ -18,6 +18,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -67,6 +68,7 @@ fun ArchivalScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -89,6 +91,14 @@ fun ArchivalScreen(
                 colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
                 scrollBehavior = scrollBehavior,
             )
+            ExpandableSearchField(
+                query = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty(),
+                onQueryChange = viewModel::search,
+                onClear = { viewModel.search("") },
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_archival_search_hint),
+            )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
