@@ -29,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -117,6 +118,7 @@ fun RunMonitorScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -139,6 +141,14 @@ fun RunMonitorScreen(
                 colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
                 scrollBehavior = scrollBehavior,
             )
+            ExpandableSearchField(
+                query = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty(),
+                onQueryChange = viewModel::updateSearchQuery,
+                onClear = { viewModel.updateSearchQuery("") },
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_runs_search_hint),
+            )
+            }
         },
     ) { paddingValues ->
         when (val state = uiState) {

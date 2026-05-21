@@ -51,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.letta.mobile.R
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LettaInputBar
 import com.letta.mobile.ui.components.ShimmerBox
@@ -211,6 +212,7 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -256,6 +258,14 @@ fun HomeScreen(
                 colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
                 scrollBehavior = scrollBehavior,
             )
+            ExpandableSearchField(
+                query = uiState.searchQuery,
+                onQueryChange = viewModel::updateSearchQuery,
+                onClear = viewModel::clearSearch,
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_home_search_placeholder),
+            )
+            }
         },
     ) { paddingValues ->
         HomeContent(

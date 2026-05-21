@@ -65,6 +65,7 @@ import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.MultiFieldInputDialog
 import com.letta.mobile.ui.components.DateSeparator
 import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.LoadingIndicator
@@ -114,7 +115,7 @@ fun ConversationsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAgentPickerDialog by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
-    var isSearchExpanded by rememberSaveable { mutableStateOf(true) }
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
     var isAppBarCollapsed by remember { mutableStateOf(false) }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -130,6 +131,7 @@ fun ConversationsScreen(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -243,6 +245,15 @@ fun ConversationsScreen(
                     }
                 }
             )
+            ExpandableSearchField(
+                query = uiState.searchQuery,
+                onQueryChange = viewModel::updateSearchQuery,
+                onClear = { viewModel.updateSearchQuery("") },
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_conversations_search_hint),
+                autoFocus = false,
+            )
+            }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAgentPickerDialog = true }) {

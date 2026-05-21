@@ -72,6 +72,7 @@ import com.letta.mobile.ui.components.ActionSheetItem
 import com.letta.mobile.ui.components.CardGroup
 import com.letta.mobile.ui.components.EmptyState
 import com.letta.mobile.ui.components.ErrorContent
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.ShimmerBox
@@ -119,6 +120,7 @@ fun ProjectIssuesScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
         topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
             LargeFlexibleTopAppBar(
                 title = {
                     ExpandableTitleSearch(
@@ -159,6 +161,14 @@ fun ProjectIssuesScreen(
                     }
                 },
             )
+            ExpandableSearchField(
+                query = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty(),
+                onQueryChange = viewModel::updateSearchQuery,
+                onClear = { viewModel.updateSearchQuery("") },
+                expanded = isSearchExpanded,
+                placeholder = stringResource(R.string.screen_project_issues_search_hint),
+            )
+            }
         },
     ) { paddingValues ->
         when (val state = uiState) {
