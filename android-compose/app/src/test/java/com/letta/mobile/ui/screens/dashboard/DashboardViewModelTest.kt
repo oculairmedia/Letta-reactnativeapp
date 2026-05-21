@@ -12,8 +12,8 @@ import com.letta.mobile.data.repository.MessageRepository
 import com.letta.mobile.data.repository.RunRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
-import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.testutil.FakeRunApi
+import com.letta.mobile.testutil.FakeSettingsRepository
 import com.letta.mobile.testutil.TestData
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -24,7 +24,6 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -46,7 +45,7 @@ import org.junit.jupiter.api.Tag
 class DashboardViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var settingsRepository: ISettingsRepository
+    private lateinit var settingsRepository: FakeSettingsRepository
     private lateinit var agentRepository: AgentRepository
     private lateinit var conversationsRepository: AllConversationsRepository
     private lateinit var toolRepository: ToolRepository
@@ -58,13 +57,7 @@ class DashboardViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        settingsRepository = mockk(relaxed = true)
-        every { settingsRepository.activeConfig } returns MutableStateFlow(null)
-        every { settingsRepository.activeConfigChanges } returns emptyFlow()
-        every { settingsRepository.favoriteAgentId } returns MutableStateFlow(null)
-        every { settingsRepository.adminAgentId } returns MutableStateFlow(null)
-        every { settingsRepository.getPinnedAgentIds() } returns flowOf(emptySet())
-        every { settingsRepository.getPinnedShortcutOrder() } returns flowOf(emptyList())
+        settingsRepository = FakeSettingsRepository()
 
         agentRepository = mockk(relaxed = true)
         every {

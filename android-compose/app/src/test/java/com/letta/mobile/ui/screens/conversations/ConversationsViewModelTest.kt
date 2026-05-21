@@ -8,14 +8,13 @@ import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.testutil.FakeMessageApi
 import com.letta.mobile.testutil.FakeAgentApi
 import com.letta.mobile.testutil.FakeConversationApi
+import com.letta.mobile.testutil.FakeSettingsRepository
 import com.letta.mobile.testutil.TestData
 import io.mockk.mockk
-import io.mockk.every
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,10 +42,9 @@ class ConversationsViewModelTest {
     private lateinit var fakeConvRepo: FakeConversationRepository
     private lateinit var fakeAgentRepo: FakeAgentRepository
     private lateinit var fakeMessageRepo: FakeMessageRepository
-    private lateinit var settingsRepository: SettingsRepository
+    private lateinit var settingsRepository: FakeSettingsRepository
     private lateinit var viewModel: ConversationsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
-    private val pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
 
     @Before
     fun setup() {
@@ -55,8 +53,7 @@ class ConversationsViewModelTest {
         fakeAgentRepo = FakeAgentRepository()
         fakeConvRepo = FakeConversationRepository(fakeAgentRepo)
         fakeMessageRepo = FakeMessageRepository()
-        settingsRepository = mockk(relaxed = true)
-        every { settingsRepository.getPinnedConversationIds() } returns pinnedConversationIds
+        settingsRepository = FakeSettingsRepository()
         viewModel = ConversationsViewModel(
             fakeAllRepo,
             fakeConvRepo,
