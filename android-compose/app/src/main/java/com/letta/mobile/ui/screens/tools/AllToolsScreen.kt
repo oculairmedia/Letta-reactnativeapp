@@ -31,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -104,6 +105,13 @@ fun AllToolsScreen(
                             Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
                         }
                     },
+                )
+                ExpandableSearchField(
+                    query = (uiState as? UiState.Success)?.data?.searchQuery.orEmpty(),
+                    onQueryChange = viewModel::updateSearchQuery,
+                    onClear = { viewModel.updateSearchQuery("") },
+                    expanded = isSearchExpanded,
+                    placeholder = stringResource(R.string.screen_tools_search_hint),
                 )
 
                 val allToolTags = remember(uiState) {

@@ -50,6 +50,7 @@ import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.EmptyState
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import com.letta.mobile.ui.components.LettaCardDefaults
 import com.letta.mobile.ui.components.highlightSearchMatches
@@ -151,6 +152,7 @@ internal fun FullScreenModelPickerDialog(
         Scaffold(
             containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
             topBar = {
+                Column(modifier = Modifier.fillMaxWidth()) {
                 LargeFlexibleTopAppBar(
                     title = {
                         ExpandableTitleSearch(
@@ -170,6 +172,14 @@ internal fun FullScreenModelPickerDialog(
                     },
                     colors = LettaTopBarDefaults.largeTopAppBarColors(),
                 )
+                ExpandableSearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onClear = { query = "" },
+                    expanded = searchExpanded,
+                    placeholder = placeholder,
+                )
+                }
             },
         ) { paddingValues ->
             if (groupedModels.isEmpty()) {
@@ -314,6 +324,7 @@ internal fun FullScreenToolPickerDialog(
         Scaffold(
             containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
             topBar = {
+                Column(modifier = Modifier.fillMaxWidth()) {
                 LargeFlexibleTopAppBar(
                     title = {
                         ExpandableTitleSearch(
@@ -338,6 +349,14 @@ internal fun FullScreenToolPickerDialog(
                     },
                     colors = LettaTopBarDefaults.largeTopAppBarColors(),
                 )
+                ExpandableSearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onClear = { query = "" },
+                    expanded = searchExpanded,
+                    placeholder = stringResource(R.string.screen_models_search_hint),
+                )
+                }
             },
         ) { paddingValues ->
             if (filteredTools.isEmpty()) {
@@ -436,6 +455,7 @@ internal fun FullScreenBlockPickerDialog(
         Scaffold(
             containerColor = LettaTopBarDefaults.scaffoldContainerColor(),
             topBar = {
+                Column(modifier = Modifier.fillMaxWidth()) {
                 LargeFlexibleTopAppBar(
                     title = {
                         ExpandableTitleSearch(
@@ -463,6 +483,14 @@ internal fun FullScreenBlockPickerDialog(
                     },
                     colors = LettaTopBarDefaults.largeTopAppBarColors(),
                 )
+                ExpandableSearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onClear = { query = "" },
+                    expanded = searchExpanded,
+                    placeholder = stringResource(R.string.screen_models_search_hint),
+                )
+                }
             },
         ) { paddingValues ->
             val filteredBlocks = remember(availableBlocks, excludedBlockIds, query) {

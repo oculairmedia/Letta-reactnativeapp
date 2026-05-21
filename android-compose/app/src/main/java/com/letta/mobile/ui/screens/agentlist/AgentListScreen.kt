@@ -37,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import com.letta.mobile.ui.components.ExpandableSearchField
 import com.letta.mobile.ui.components.ExpandableTitleSearch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -223,6 +224,13 @@ fun AgentListScreen(
                             }
                         }
                     }
+                )
+                ExpandableSearchField(
+                    query = uiState.searchQuery,
+                    onQueryChange = viewModel::updateSearchQuery,
+                    onClear = { viewModel.updateSearchQuery("") },
+                    expanded = isSearchExpanded,
+                    placeholder = stringResource(R.string.screen_agents_search_hint),
                 )
 
                 SingleChoiceSegmentedButtonRow(
