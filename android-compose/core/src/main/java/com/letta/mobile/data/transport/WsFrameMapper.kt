@@ -84,6 +84,12 @@ object WsFrameMapper {
         is ServerFrame.CronDeleteResponse,
         is ServerFrame.CronDeleteAllResponse,
         is ServerFrame.CronsUpdated,
+        // letta-mobile-2rkdj: subscribe envelopes are routing-only —
+        // SubscribeFrameMessage's inner BridgeFrame is re-routed
+        // through the live handler in ChannelTransport, and
+        // SubscribeDone is metadata for cursor cleanup.
+        is ServerFrame.SubscribeFrameMessage,
+        is ServerFrame.SubscribeDone,
         is ServerFrame.Unknown -> null
     }
 

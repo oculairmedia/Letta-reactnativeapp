@@ -39,7 +39,10 @@ class FakeChannelTransport(
     var sendResult: Boolean = true
     var cancelResult: Boolean = true
     var byeResult: Boolean = true
+    var subscribeResult: Boolean = true
     var a2uiActionResult: A2uiActionDispatchResult = A2uiActionDispatchResult.Sent("fake-action")
+
+    val subscribeCalls = mutableListOf<SubscribeCall>()
 
     private val cronListResponses = mutableMapOf<CronListCall, ArrayDeque<ServerFrame.CronListResponse>>()
     private val cronAddResponses = ArrayDeque<ServerFrame.CronAddResponse>()
@@ -96,6 +99,11 @@ class FakeChannelTransport(
     }
 
     override fun sendA2uiAction(action: A2uiAction): A2uiActionDispatchResult = a2uiActionResult
+
+    override fun subscribe(runId: String, cursor: Long): Boolean {
+        subscribeCalls += SubscribeCall(runId, cursor)
+        return subscribeResult
+    }
 
     override suspend fun sendCronList(
         agentId: String?,
@@ -164,6 +172,11 @@ class FakeChannelTransport(
         return cronDeleteAllResponses[agentId]?.removeFirstOrNull()
             ?: error("No fake cron_delete_all response queued for $agentId")
     }
+
+    data class SubscribeCall(
+        val runId: String,
+        val cursor: Long,
+    )
 
     data class CronListCall(
         val agentId: String?,

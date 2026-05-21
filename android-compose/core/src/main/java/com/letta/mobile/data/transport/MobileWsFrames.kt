@@ -65,6 +65,7 @@ fun ClientFrame.encodeJson(json: Json): String = when (this) {
     is SendMessageFrame -> json.encodeToString(SendMessageFrame.serializer(), this)
     is UserActionFrame -> json.encodeToString(UserActionFrame.serializer(), this)
     is CancelFrame -> json.encodeToString(CancelFrame.serializer(), this)
+    is SubscribeFrame -> json.encodeToString(SubscribeFrame.serializer(), this)
     is ByeFrame -> json.encodeToString(ByeFrame.serializer(), this)
     is PongFrame -> json.encodeToString(PongFrame.serializer(), this)
     is CronListFrame -> json.encodeToString(CronListFrame.serializer(), this)
@@ -168,6 +169,25 @@ data class CancelFrame(
     override val id: String,
     override val ts: String,
     @SerialName("run_id") val runId: String,
+) : ClientFrame
+
+/**
+ * Spec §3.4 + §11: replay + live-tail a Run's frame log. Used to resume
+ * a turn after disconnect or to observe a run started by another client.
+ *
+ * `cursor` is the last `seq` the client has already received; the server
+ * emits only frames with `seq > cursor`. Pass `0` for a full replay.
+ * Server responds with `subscribe_frame` per missed frame, then
+ * `subscribe_done` once the run reaches terminal status. letta-mobile-2rkdj.
+ */
+@Serializable
+data class SubscribeFrame(
+    override val v: Int = 1,
+    override val type: String = "subscribe",
+    override val id: String,
+    override val ts: String,
+    @SerialName("run_id") val runId: String,
+    val cursor: Long = 0L,
 ) : ClientFrame
 
 @Serializable
@@ -566,6 +586,46 @@ sealed interface ServerFrame {
         val stderr: List<String>? = null,
     ) : ServerFrame
 
+    /**
+     * letta-mobile-2rkdj — Spec §11/§3.4: a single replayed (or
+     * live-tailed) entry from a Run's `frames.jsonl`, emitted in
+     * response to a [com.letta.mobile.data.transport.SubscribeFrame].
+     *
+     * `seq` is the cursor value to persist; on next reconnect, pass
+     * `cursor: seq` to resume after this frame.
+     *
+     * `frame` is the raw original BridgeFrame the host emitted at
+     * write time — same `message_type` discriminator as live frames.
+     * Callers unwrap and route it through the normal handler so
+     * replayed and live frames take the same code path.
+     */
+    data class SubscribeFrameMessage(
+        override val v: Int = 1,
+        val type: String = "subscribe_frame",
+        override val id: String,
+        override val ts: String,
+        @SerialName("run_id") val runId: String,
+        val seq: Long,
+        val frame: JsonObject,
+    ) : ServerFrame
+
+    /**
+     * letta-mobile-2rkdj — Spec §11/§3.4: terminal envelope for a
+     * subscription. Emitted once the Run reaches a terminal status
+     * AND the live-tail has caught up. Client should drop any
+     * persisted cursor for this run.
+     */
+    @Serializable
+    data class SubscribeDone(
+        override val v: Int = 1,
+        val type: String = "subscribe_done",
+        override val id: String,
+        override val ts: String,
+        @SerialName("run_id") val runId: String,
+        @SerialName("last_seq") val lastSeq: Long,
+        val status: String,
+    ) : ServerFrame
+
     // ─── Cron server frames (letta-mobile-d52f.1) ───────────────────
     //
     // `request_id` echoes the client's outbound request so the repo
@@ -708,6 +768,8 @@ object ServerFrameSerializer : JsonContentPolymorphicSerializer<ServerFrame>(Ser
             "tool_return_message" -> ServerFrame.ToolReturnMessage.serializer()
             "a2ui_frame" -> A2uiFrameDeserializer
             "a2ui_capabilities" -> ServerFrame.A2uiCapabilities.serializer()
+            "subscribe_frame" -> SubscribeFrameDeserializer
+            "subscribe_done" -> ServerFrame.SubscribeDone.serializer()
             "user_action_ack" -> ServerFrame.UserActionAck.serializer()
             "user_action_outcome" -> ServerFrame.UserActionOutcome.serializer()
             "cron_list_response" -> ServerFrame.CronListResponse.serializer()
@@ -755,6 +817,43 @@ private object A2uiFrameDeserializer : kotlinx.serialization.KSerializer<ServerF
         encoder: kotlinx.serialization.encoding.Encoder,
         value: ServerFrame,
     ): Unit = error("ServerFrame.A2ui is inbound-only; encoding it is never valid")
+}
+
+/**
+ * letta-mobile-2rkdj: hand-written deserializer for the `subscribe_frame`
+ * envelope (§11). The wrapper carries `run_id` + `seq` + an opaque `frame`
+ * object whose shape is whatever BridgeFrame the shim recorded. We keep
+ * the inner `frame` as a raw [JsonObject] so the caller can re-decode it
+ * with [ServerFrameSerializer] and route it through the same handler as
+ * a live frame — replayed and live frames must take the same code path.
+ */
+private object SubscribeFrameDeserializer : kotlinx.serialization.KSerializer<ServerFrame> {
+    override val descriptor: kotlinx.serialization.descriptors.SerialDescriptor =
+        kotlinx.serialization.descriptors.buildClassSerialDescriptor("ServerFrame.SubscribeFrameMessage")
+
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): ServerFrame {
+        val jsonDecoder = decoder as? kotlinx.serialization.json.JsonDecoder
+            ?: error("SubscribeFrameDeserializer requires a JsonDecoder")
+        val element = jsonDecoder.decodeJsonElement().jsonObject
+        val frameField = element["frame"]
+        val innerFrame = (frameField as? JsonObject)
+            ?: error("subscribe_frame envelope missing object-shaped 'frame' field")
+        return ServerFrame.SubscribeFrameMessage(
+            v = element["v"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1,
+            id = element["id"]?.jsonPrimitive?.content.orEmpty(),
+            ts = element["ts"]?.jsonPrimitive?.content.orEmpty(),
+            runId = element["run_id"]?.jsonPrimitive?.content
+                ?: error("subscribe_frame envelope missing 'run_id'"),
+            seq = element["seq"]?.jsonPrimitive?.content?.toLongOrNull()
+                ?: error("subscribe_frame envelope missing numeric 'seq'"),
+            frame = innerFrame,
+        )
+    }
+
+    override fun serialize(
+        encoder: kotlinx.serialization.encoding.Encoder,
+        value: ServerFrame,
+    ): Unit = error("ServerFrame.SubscribeFrameMessage is inbound-only; encoding it is never valid")
 }
 
 /**

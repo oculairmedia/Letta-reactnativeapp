@@ -363,6 +363,26 @@ class ChannelTransport internal constructor(
         )
     }
 
+    /**
+     * letta-mobile-2rkdj — see [IChannelTransport.subscribe].
+     * Re-subscribing to a run_id we're already subscribed to
+     * REPLACES the prior subscription server-side (per spec §3.4),
+     * so callers can safely re-issue with a fresh cursor.
+     */
+    override fun subscribe(runId: String, cursor: Long): Boolean {
+        if (runId.isEmpty()) return false
+        val socket = socketRef.get() ?: return false
+        if (state.value !is State.Connected) return false
+        return socket.sendFrame(
+            SubscribeFrame(
+                id = UUID.randomUUID().toString(),
+                ts = nowIso(),
+                runId = runId,
+                cursor = cursor,
+            )
+        )
+    }
+
     // ─── Cron WS helpers (letta-mobile-d52f.1, sister to lcp-d5g) ────
     //
     // Each helper generates a request_id, sends the frame, and suspends
@@ -628,6 +648,43 @@ class ChannelTransport internal constructor(
                 frame.cronRequestIdOrNull()?.let { rid ->
                     pendingCronRequests.remove(rid)?.complete(frame)
                 }
+            }
+
+            is ServerFrame.SubscribeFrameMessage -> {
+                // letta-mobile-2rkdj: unwrap the replayed/live-tailed
+                // BridgeFrame and re-route it through the same handler
+                // path as a live frame so replayed and live take the
+                // same code path (spec §11). Also broadcast the
+                // wrapper itself so cursor-aware observers can persist
+                // {run_id, seq} for the next resume.
+                val innerText = frame.frame.toString()
+                runCatching {
+                    json.decodeFromString(ServerFrameSerializer, innerText)
+                }.onSuccess { inner ->
+                    handleInbound(innerText)
+                    Log.d(
+                        TAG,
+                        "subscribe_frame unwrapped runId=${frame.runId} seq=${frame.seq} " +
+                            "innerType=${inner::class.java.simpleName}",
+                    )
+                }.onFailure { t ->
+                    Log.w(
+                        TAG,
+                        "subscribe_frame inner decode failed runId=${frame.runId} seq=${frame.seq}: ${t.message}",
+                        t,
+                    )
+                }
+            }
+
+            is ServerFrame.SubscribeDone -> {
+                // letta-mobile-2rkdj: terminal envelope. Cursor-aware
+                // observers should drop any persisted {run_id, last_seq}
+                // entry for this run when they see this. Phase 1b will
+                // wire that persistence layer.
+                Log.i(
+                    TAG,
+                    "subscribe_done runId=${frame.runId} lastSeq=${frame.lastSeq} status=${frame.status}",
+                )
             }
 
             else -> {
