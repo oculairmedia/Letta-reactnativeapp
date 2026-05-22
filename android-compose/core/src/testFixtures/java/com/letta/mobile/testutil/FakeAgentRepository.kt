@@ -55,7 +55,7 @@ class FakeAgentRepository(
     }
 
     override suspend fun getContextWindow(agentId: String, conversationId: String?): ContextWindowOverview {
-        calls += "getContextWindow:$agentId:${conversationId.orEmpty()}"
+        calls += "getContextWindow:$agentId:${conversationId ?: "<null>"}"
         return ContextWindowOverview()
     }
 
