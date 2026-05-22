@@ -26,6 +26,7 @@ interface ISettingsRepository {
     val adminAgentId: StateFlow<String?>
     fun getActiveConfig(): Flow<LettaConfig?>
     fun observeClientModeEnabled(): Flow<Boolean>
+    fun observeResumeRecentConversation(): Flow<Boolean>
     fun observeClientModeBaseUrl(): Flow<String>
     fun getClientModeApiKey(): String?
     fun getPinnedAgentIds(): Flow<Set<String>>

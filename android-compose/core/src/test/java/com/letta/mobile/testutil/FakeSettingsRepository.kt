@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.emptyFlow
 class FakeSettingsRepository(
     initialActiveConfig: LettaConfig? = null,
     initialClientModeEnabled: Boolean = false,
+    initialResumeRecentConversation: Boolean = false,
     initialClientModeBaseUrl: String = "",
     initialClientModeApiKey: String? = null,
 ) : ISettingsRepository {
@@ -30,6 +31,9 @@ class FakeSettingsRepository(
 
     val clientModeEnabled: MutableStateFlow<Boolean> =
         MutableStateFlow(initialClientModeEnabled)
+
+    val resumeRecentConversation: MutableStateFlow<Boolean> =
+        MutableStateFlow(initialResumeRecentConversation)
 
     val clientModeBaseUrl: MutableStateFlow<String> =
         MutableStateFlow(initialClientModeBaseUrl)
@@ -62,6 +66,8 @@ class FakeSettingsRepository(
     override fun getActiveConfig(): Flow<LettaConfig?> = activeConfigState
 
     override fun observeClientModeEnabled(): Flow<Boolean> = clientModeEnabled
+
+    override fun observeResumeRecentConversation(): Flow<Boolean> = resumeRecentConversation
 
     override fun observeClientModeBaseUrl(): Flow<String> = clientModeBaseUrl
 

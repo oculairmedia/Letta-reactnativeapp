@@ -548,7 +548,7 @@ class SettingsRepository @Inject constructor(
      * builds opt in automatically; release flips when the behaviour has
      * soaked. Stored value (when present) wins over the default.
      */
-    fun observeResumeRecentConversation(): Flow<Boolean> = dataStore.data.map { prefs ->
+    override fun observeResumeRecentConversation(): Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[Keys.RESUME_RECENT_CONVERSATION] ?: BuildConfig.DEBUG
     }
 
