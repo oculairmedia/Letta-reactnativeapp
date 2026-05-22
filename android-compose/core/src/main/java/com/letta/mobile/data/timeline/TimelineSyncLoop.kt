@@ -164,13 +164,23 @@ class TimelineSyncLoop(
     // so a later Phase 3 bead can flip the source of truth once trusted.
     // BUFFER_SIZE 64 mirrors the loop's _events buffer; tryEmit never drops
     // in normal load (production tops out at a handful of frames/s).
+    //
+    // letta-mobile-bmgro (oc8j Phase 3a): holderHydrationSeed is the
+    // re-base channel. The holder's scan starts from whatever Timeline this
+    // flow emits, restarting on each new emission. `hydrate()` writes its
+    // post-reduce Timeline into this seed AFTER setting _state.value, so
+    // the holder catches up to the imperative path's post-hydrate state and
+    // parity telemetry (matched=true/false in streamSubscriber.foldedViaHolder)
+    // becomes meaningful. No source-of-truth change yet — that's Phase 3b
+    // (letta-mobile-3dl85).
     private val holderFramesIn = MutableSharedFlow<LettaMessage>(extraBufferCapacity = 64)
+    private val holderHydrationSeed = MutableStateFlow(Timeline(conversationId))
     @Suppress("UnusedPrivateMember") // kept alive for its Molecule scope + parity observer below
     private val holder = com.letta.mobile.data.timeline.experimental.ConversationStateHolder(
         conversationId = conversationId,
         scope = loopScope,
         frames = holderFramesIn.asSharedFlow(),
-        initial = Timeline(conversationId),
+        hydrationSeed = holderHydrationSeed,
     )
 
     private val ingestNotificationDispatcher = TimelineIngestNotificationDispatcher(
@@ -247,6 +257,14 @@ class TimelineSyncLoop(
                     diskRecords = diskRecords,
                 ).also { result ->
                     _state.value = result.timeline
+                    // letta-mobile-bmgro (oc8j Phase 3a): rebase the Molecule
+                    // holder's fold onto the same post-hydrate Timeline so
+                    // parity telemetry (matched=true) becomes informative.
+                    // Re-emission restarts the holder's scan with empty
+                    // pendingToolReturns — matches the imperative path,
+                    // whose pending map is loop-local and not reset on
+                    // re-hydrate (rare; cold-start is the dominant case).
+                    holderHydrationSeed.value = result.timeline
                 }
             }
             _events.emit(TimelineSyncEvent.Hydrated(hydrated.visibleEventCount))
