@@ -7,12 +7,10 @@ import com.letta.mobile.data.health.ServerHealthRepository
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.testutil.FakeServerHealthRepository
+import com.letta.mobile.testutil.InMemorySecureSettingsStore
 import com.letta.mobile.testutil.TestData
-import com.letta.mobile.util.EncryptedPrefsHelper
+import com.letta.mobile.testutil.createTestPreferencesDataStore
 import com.letta.mobile.ui.common.UiState
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,11 +44,7 @@ class ConfigListViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         val appContext = ApplicationProvider.getApplicationContext<Context>()
-        val sharedPreferences = appContext.getSharedPreferences("config-list-view-model-test", Context.MODE_PRIVATE)
-        sharedPreferences.edit().clear().commit()
-        mockkObject(EncryptedPrefsHelper)
-        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
-        fakeRepo = FakeSettingsRepo(appContext)
+        fakeRepo = FakeSettingsRepo()
         // letta-mobile-aaxy: stub ServerHealthRepository instead of
         // constructing the real one. The real repo spins up a background
         // IO coroutine that fires real HTTP probes against the synthetic
@@ -63,7 +57,6 @@ class ConfigListViewModelTest {
 
     @After
     fun tearDown() {
-        unmockkObject(EncryptedPrefsHelper)
         Dispatchers.resetMain()
     }
 
@@ -108,7 +101,10 @@ class ConfigListViewModelTest {
         viewModel.uiState.test { assertTrue(awaitItem() is UiState.Error) }
     }
 
-    private class FakeSettingsRepo(context: Context) : SettingsRepository(context) {
+    private class FakeSettingsRepo : SettingsRepository(
+        dataStore = createTestPreferencesDataStore(),
+        secureSettingsStore = InMemorySecureSettingsStore(),
+    ) {
         private val _configs = MutableStateFlow<List<LettaConfig>>(emptyList())
         private val _activeConfig = MutableStateFlow<LettaConfig?>(null)
         override val configs: StateFlow<List<LettaConfig>> = _configs.asStateFlow()

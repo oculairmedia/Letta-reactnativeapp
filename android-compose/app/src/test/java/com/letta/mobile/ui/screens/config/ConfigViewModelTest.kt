@@ -1,14 +1,13 @@
 package com.letta.mobile.ui.screens.config
 
-import android.content.Context
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
-import androidx.test.core.app.ApplicationProvider
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
 import com.letta.mobile.data.repository.SettingsRepository
-import com.letta.mobile.util.EncryptedPrefsHelper
+import com.letta.mobile.testutil.InMemorySecureSettingsStore
+import com.letta.mobile.testutil.createTestPreferencesDataStore
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,9 +19,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -46,12 +42,7 @@ class ConfigViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        val appContext = ApplicationProvider.getApplicationContext<Context>()
-        val sharedPreferences = appContext.getSharedPreferences("config-view-model-test", Context.MODE_PRIVATE)
-        sharedPreferences.edit().clear().commit()
-        mockkObject(EncryptedPrefsHelper)
-        every { EncryptedPrefsHelper.getEncryptedPrefs(any()) } returns sharedPreferences
-        fakeRepository = FakeSettingsRepository(appContext)
+        fakeRepository = FakeSettingsRepository()
         // letta-mobile-cdlk: ConfigViewModel now reads ConfigRoute(createNew)
         // from SavedStateHandle. Empty handle is fine for the existing edit-
         // active-config test cases (createNew defaults to false when the
@@ -61,7 +52,6 @@ class ConfigViewModelTest {
 
     @After
     fun tearDown() {
-        unmockkObject(EncryptedPrefsHelper)
         Dispatchers.resetMain()
     }
 
@@ -372,7 +362,10 @@ class ConfigViewModelTest {
         assertEquals("token-with-spaces", savedConfig?.accessToken)
     }
 
-    private class FakeSettingsRepository(context: Context) : SettingsRepository(context) {
+    private class FakeSettingsRepository : SettingsRepository(
+        dataStore = createTestPreferencesDataStore(),
+        secureSettingsStore = InMemorySecureSettingsStore(),
+    ) {
         private val _activeConfig = MutableStateFlow<LettaConfig?>(null)
         override val activeConfig: StateFlow<LettaConfig?> = _activeConfig.asStateFlow()
 
