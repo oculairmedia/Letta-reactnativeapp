@@ -40,6 +40,12 @@ interface IMessageRepository : IConversationInspectorMessageRepository {
         reason: String? = null,
     )
 
+    /**
+     * Reset all messages for an agent (agent-scoped, not conversation-scoped).
+     *
+     * Keep this contract aligned with MessageApi.resetMessages(agentId); do not
+     * add a conversation-id overload unless there is a real conversation-scoped
+     * API path behind it.
+     */
     suspend fun resetMessages(agentId: String)
-    suspend fun resetMessages(agentId: String, conversationId: String)
 }

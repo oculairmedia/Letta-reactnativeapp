@@ -924,11 +924,7 @@ internal class AdminChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
-                val convId = chatConversationCoordinator.activeConversationId ?: run {
-                    chatBannerController.showNoActiveConversationToReset()
-                    return@launch
-                }
-                messageRepository.resetMessages(agentId, convId)
+                messageRepository.resetMessages(agentId)
                 _uiState.value = _uiState.value.copy(messages = persistentListOf())
             } catch (e: Exception) {
                 android.util.Log.w("AdminChatViewModel", "Failed to reset messages", e)

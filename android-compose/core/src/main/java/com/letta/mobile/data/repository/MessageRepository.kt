@@ -462,8 +462,4 @@ open class MessageRepository @Inject constructor(
     override suspend fun resetMessages(agentId: String) {
         messageApi.resetMessages(agentId)
     }
-
-    override suspend fun resetMessages(agentId: String, conversationId: String) {
-        messageApi.resetMessages(agentId)
-    }
 }
