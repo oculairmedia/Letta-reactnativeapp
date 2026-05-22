@@ -73,7 +73,7 @@ import com.letta.mobile.feature.chat.R
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentId
 import com.letta.mobile.data.model.Conversation
-import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.repository.api.IConversationRepository
 import com.letta.mobile.ui.components.Accordions
 import com.letta.mobile.ui.components.ActionSheet
 import com.letta.mobile.ui.components.ActionSheetItem

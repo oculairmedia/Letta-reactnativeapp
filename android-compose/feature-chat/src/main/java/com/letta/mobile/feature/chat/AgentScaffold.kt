@@ -93,7 +93,7 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.AgentId
 import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.model.ParsedSearchMessage
-import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.repository.api.IConversationRepository
 import com.letta.mobile.util.formatRelativeTime
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.ConnectionState
@@ -172,7 +172,7 @@ internal fun AgentScaffoldContent(
     onNavigateToArchival: ((String) -> Unit)? = null,
     onNavigateToTools: (() -> Unit)? = null,
     onSwitchConversation: ((String, String?, String?) -> Unit)? = null,
-    conversationRepository: ConversationRepository? = null,
+    conversationRepository: IConversationRepository? = null,
     viewModel: AdminChatViewModel,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)

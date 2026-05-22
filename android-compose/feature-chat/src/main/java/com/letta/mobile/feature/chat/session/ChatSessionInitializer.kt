@@ -1,7 +1,7 @@
 package com.letta.mobile.feature.chat.session
 
 import com.letta.mobile.data.channel.CurrentConversationTracker
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.feature.chat.ChatConversationCoordinator
 import com.letta.mobile.feature.chat.ChatRunExpansionState
 import com.letta.mobile.feature.chat.ChatSessionResolver
@@ -22,7 +22,7 @@ internal class ChatSessionInitializer(
     private val explicitNewChat: Boolean,
     private val resumeCacheMaxAgeMs: Long,
     private val projectContext: ProjectChatContext?,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val sessionResolver: ChatSessionResolver,
     private val conversationCoordinator: ChatConversationCoordinator,
     private val clientModeCoordinator: ClientModeSendCoordinator,
