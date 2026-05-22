@@ -279,25 +279,28 @@ internal fun deriveCustomColors(colorScheme: ColorScheme): CustomColors {
         stateColor = colorScheme.error,
         seedColor = colorScheme.primary,
     )
-    val harmonizedErrorContainer = HctColorHarmonizer.harmonize(
-        stateColor = colorScheme.errorContainer,
+    val harmonizedErrorContainer = HctColorHarmonizer.harmonizeContainer(
+        containerColor = colorScheme.errorContainer,
         seedColor = colorScheme.primary,
+        contentColor = colorScheme.onErrorContainer,
     )
     val harmonizedWarning = HctColorHarmonizer.harmonize(
         stateColor = colorScheme.tertiary,
         seedColor = colorScheme.primary,
     )
-    val harmonizedWarningContainer = HctColorHarmonizer.harmonize(
-        stateColor = colorScheme.tertiaryContainer,
+    val harmonizedWarningContainer = HctColorHarmonizer.harmonizeContainer(
+        containerColor = colorScheme.tertiaryContainer,
         seedColor = colorScheme.primary,
+        contentColor = colorScheme.onTertiaryContainer,
     )
     val harmonizedSuccess = HctColorHarmonizer.harmonize(
         stateColor = colorScheme.primary,
         seedColor = colorScheme.primary,
     )
-    val harmonizedSuccessContainer = HctColorHarmonizer.harmonize(
-        stateColor = colorScheme.primaryContainer,
+    val harmonizedSuccessContainer = HctColorHarmonizer.harmonizeContainer(
+        containerColor = colorScheme.primaryContainer,
         seedColor = colorScheme.primary,
+        contentColor = colorScheme.onPrimaryContainer,
     )
     val freshAccent = Color.hsl(
         complementaryHsl.hue,

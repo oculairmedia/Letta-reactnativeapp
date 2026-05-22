@@ -140,7 +140,11 @@ class ThemeColorsTest {
             custom.harmonizedWarning,
         )
         assertEquals(
-            HctColorHarmonizer.harmonize(Color(0xFFEEDDCC), Color(0xFF00897B)),
+            HctColorHarmonizer.harmonizeContainer(
+                containerColor = Color(0xFFEEDDCC),
+                seedColor = Color(0xFF00897B),
+                contentColor = Color(0xFF332211),
+            ),
             custom.warningContainerColor,
         )
     }
@@ -192,7 +196,11 @@ class ThemeColorsTest {
         val custom = deriveCustomColors(scheme)
         assertEquals(Color(0xFF410002), custom.errorTextColor)
         assertEquals(
-            HctColorHarmonizer.harmonize(Color(0xFFFFDAD6), Color(0xFF00897B)),
+            HctColorHarmonizer.harmonizeContainer(
+                containerColor = Color(0xFFFFDAD6),
+                seedColor = Color(0xFF00897B),
+                contentColor = Color(0xFF410002),
+            ),
             custom.errorContainerColor,
         )
         assertEquals(Color(0xFF00897B), custom.successColor)
