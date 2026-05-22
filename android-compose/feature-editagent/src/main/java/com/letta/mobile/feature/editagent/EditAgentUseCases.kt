@@ -6,10 +6,10 @@ import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.CompactionSettings
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.ModelSettings
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.BlockRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import kotlinx.coroutines.CancellationException
@@ -23,10 +23,10 @@ import kotlinx.serialization.json.jsonObject
 
 internal class EditAgentUseCases(
     private val agentId: String,
-    private val agentRepository: AgentRepository,
-    private val blockRepository: BlockRepository,
+    private val agentRepository: IAgentRepository,
+    private val blockRepository: IBlockRepository,
     private val messageRepository: MessageRepository,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val uiState: MutableStateFlow<UiState<EditAgentUiState>>,
     private val originalBlocks: Map<String, EditableBlock>,
     private val originalEmbedding: String,

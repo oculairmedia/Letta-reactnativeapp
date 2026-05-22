@@ -10,8 +10,8 @@ import com.letta.mobile.data.model.ProjectIssueAnalyticsParams
 import com.letta.mobile.data.model.ProjectIssueDetail
 import com.letta.mobile.data.model.ProjectIssueListParams
 import com.letta.mobile.data.model.ProjectIssueSummary
-import com.letta.mobile.data.repository.ProjectWorkRepository
-import com.letta.mobile.data.repository.VibesyncEventStreamRepository
+import com.letta.mobile.data.repository.api.IProjectWorkRepository
+import com.letta.mobile.data.repository.api.IVibesyncEventStreamRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.navigation.ProjectIssueDetailRoute
 import com.letta.mobile.ui.navigation.ProjectIssuesRoute
@@ -119,8 +119,8 @@ sealed interface ProjectIssuesUiEvent {
 @HiltViewModel
 class ProjectIssuesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val projectWorkRepository: ProjectWorkRepository,
-    private val vibesyncEventStreamRepository: VibesyncEventStreamRepository? = null,
+    private val projectWorkRepository: IProjectWorkRepository,
+    private val vibesyncEventStreamRepository: IVibesyncEventStreamRepository? = null,
 ) : ViewModel() {
     private val route = savedStateHandle.toRoute<ProjectIssuesRoute>()
 
@@ -370,7 +370,7 @@ class ProjectIssuesViewModel @Inject constructor(
 @HiltViewModel
 class ProjectIssueDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val projectWorkRepository: ProjectWorkRepository,
+    private val projectWorkRepository: IProjectWorkRepository,
 ) : ViewModel() {
     private val route = savedStateHandle.toRoute<ProjectIssueDetailRoute>()
 

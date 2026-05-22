@@ -11,8 +11,8 @@ import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.StepFeedbackUpdateParams
 import com.letta.mobile.data.model.StepMetrics
 import com.letta.mobile.data.model.UsageStatistics
-import com.letta.mobile.data.repository.RunRepository
-import com.letta.mobile.data.repository.StepRepository
+import com.letta.mobile.data.repository.api.IRunRepository
+import com.letta.mobile.data.repository.api.IStepRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,8 +44,8 @@ data class RunMonitorUiState(
 
 @HiltViewModel
 class RunMonitorViewModel @Inject constructor(
-    private val runRepository: RunRepository,
-    private val stepRepository: StepRepository,
+    private val runRepository: IRunRepository,
+    private val stepRepository: IStepRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<RunMonitorUiState>>(UiState.Loading)

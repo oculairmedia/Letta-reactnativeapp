@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.ToolCreateParams
-import com.letta.mobile.data.repository.McpServerRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IMcpServerRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,8 +32,8 @@ data class AllToolsUiState(
 
 @HiltViewModel
 class AllToolsViewModel @Inject constructor(
-    private val toolRepository: ToolRepository,
-    private val mcpServerRepository: McpServerRepository,
+    private val toolRepository: IToolRepository,
+    private val mcpServerRepository: IMcpServerRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<AllToolsUiState>>(UiState.Loading)

@@ -6,8 +6,8 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Identity
 import com.letta.mobile.data.model.IdentityCreateParams
 import com.letta.mobile.data.model.IdentityUpdateParams
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.IdentityRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IIdentityRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,8 +31,8 @@ data class IdentityListUiState(
 
 @HiltViewModel
 class IdentityListViewModel @Inject constructor(
-    private val identityRepository: IdentityRepository,
-    private val agentRepository: AgentRepository,
+    private val identityRepository: IIdentityRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<IdentityListUiState>>(UiState.Loading)

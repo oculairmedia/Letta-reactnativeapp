@@ -8,7 +8,7 @@ import com.letta.mobile.data.model.FolderCreateParams
 import com.letta.mobile.data.model.FolderUpdateParams
 import com.letta.mobile.data.model.OrganizationSourcesStats
 import com.letta.mobile.data.model.Passage
-import com.letta.mobile.data.repository.FolderRepository
+import com.letta.mobile.data.repository.api.IFolderRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,7 +35,7 @@ data class FolderAdminUiState(
 
 @HiltViewModel
 class FolderAdminViewModel @Inject constructor(
-    private val folderRepository: FolderRepository,
+    private val folderRepository: IFolderRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<FolderAdminUiState>>(UiState.Loading)

@@ -4,9 +4,9 @@ import com.letta.mobile.bot.repository.ClientModeAgentLocationRepository
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.ProjectBugReport
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.BlockRepository
-import com.letta.mobile.data.repository.BugReportRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.IBugReportRepository
 import com.letta.mobile.util.mapErrorToUserMessage
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -25,9 +25,9 @@ internal class ProjectChatCoordinator(
     private val uiState: MutableStateFlow<ChatUiState>,
     private val clientModeEnabled: StateFlow<Boolean>,
     private val clientModeAgentLocationRepository: ClientModeAgentLocationRepository,
-    private val agentRepository: AgentRepository,
-    private val blockRepository: BlockRepository,
-    private val bugReportRepository: BugReportRepository,
+    private val agentRepository: IAgentRepository,
+    private val blockRepository: IBlockRepository,
+    private val bugReportRepository: IBugReportRepository,
     private val projectAgentActivityLoader: ProjectAgentActivityLoader,
     private val conversationId: () -> String?,
     private val setComposerError: (String) -> Unit,

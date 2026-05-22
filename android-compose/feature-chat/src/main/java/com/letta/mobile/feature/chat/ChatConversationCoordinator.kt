@@ -4,7 +4,7 @@ import com.letta.mobile.data.channel.CurrentConversationTracker
 import com.letta.mobile.data.mapper.toUiMessages
 import com.letta.mobile.data.model.AppMessage
 import com.letta.mobile.data.model.UiMessage
-import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.util.Telemetry
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -35,7 +35,7 @@ internal class ChatConversationCoordinator(
     private val setRouteConversationId: (String?) -> Unit,
     private val isFreshRoute: Boolean,
     private val chatSessionResolver: ChatSessionResolver,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
     private val currentConversationTracker: CurrentConversationTracker,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val pendingClientModeBootstrapMessages: () -> kotlinx.collections.immutable.ImmutableList<UiMessage>,

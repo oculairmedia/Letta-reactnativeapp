@@ -9,10 +9,10 @@ import com.letta.mobile.data.model.EmbeddingModel
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.Tool
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.ModelRepository
-import com.letta.mobile.data.repository.SettingsRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IModelRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -49,10 +49,10 @@ data class AgentListUiState(
 
 @HiltViewModel
 class AgentListViewModel @Inject constructor(
-    private val agentRepository: AgentRepository,
-    private val settingsRepository: SettingsRepository,
-    private val toolRepository: ToolRepository,
-    private val modelRepository: ModelRepository,
+    private val agentRepository: IAgentRepository,
+    private val settingsRepository: ISettingsRepository,
+    private val toolRepository: IToolRepository,
+    private val modelRepository: IModelRepository,
 ) : ViewModel() {
     companion object {
         private const val LIST_CACHE_TTL_MS = 30_000L

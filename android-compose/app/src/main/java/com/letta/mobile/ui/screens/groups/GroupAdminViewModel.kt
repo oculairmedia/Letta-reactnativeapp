@@ -7,7 +7,7 @@ import com.letta.mobile.data.model.GroupCreateParams
 import com.letta.mobile.data.model.GroupUpdateParams
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.MessageCreateRequest
-import com.letta.mobile.data.repository.GroupRepository
+import com.letta.mobile.data.repository.api.IGroupRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +32,7 @@ data class GroupAdminUiState(
 
 @HiltViewModel
 class GroupAdminViewModel @Inject constructor(
-    private val groupRepository: GroupRepository,
+    private val groupRepository: IGroupRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<GroupAdminUiState>>(UiState.Loading)

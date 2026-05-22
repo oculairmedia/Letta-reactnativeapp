@@ -6,8 +6,8 @@ import com.letta.mobile.data.api.ApiException
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.ScheduleCreateParams
 import com.letta.mobile.data.model.ScheduledMessage
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.ScheduleRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IScheduleRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,8 +32,8 @@ data class ScheduleListUiState(
 
 @HiltViewModel
 class ScheduleListViewModel @Inject constructor(
-    private val agentRepository: AgentRepository,
-    private val scheduleRepository: ScheduleRepository,
+    private val agentRepository: IAgentRepository,
+    private val scheduleRepository: IScheduleRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ScheduleListUiState>>(UiState.Loading)

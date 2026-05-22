@@ -7,8 +7,8 @@ import com.letta.mobile.data.model.Archive
 import com.letta.mobile.data.model.ArchiveCreateParams
 import com.letta.mobile.data.model.ArchiveUpdateParams
 import com.letta.mobile.data.model.EmbeddingConfig
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.ArchiveRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IArchiveRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,8 +33,8 @@ data class ArchiveAdminUiState(
 
 @HiltViewModel
 class ArchiveAdminViewModel @Inject constructor(
-    private val archiveRepository: ArchiveRepository,
-    private val agentRepository: AgentRepository,
+    private val archiveRepository: IArchiveRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ArchiveAdminUiState>>(UiState.Loading)

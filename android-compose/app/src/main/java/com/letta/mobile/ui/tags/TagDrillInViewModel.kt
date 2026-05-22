@@ -6,9 +6,9 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Step
 import com.letta.mobile.data.model.StepListParams
 import com.letta.mobile.data.model.Tool
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.StepRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IStepRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.ui.screens.templates.BUILTIN_TEMPLATES
 import com.letta.mobile.ui.screens.templates.StarterAgentTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,9 +54,9 @@ data class TagDrillInUiState(
 
 @HiltViewModel
 class TagDrillInViewModel @Inject constructor(
-    private val agentRepository: AgentRepository,
-    private val toolRepository: ToolRepository,
-    private val stepRepository: StepRepository,
+    private val agentRepository: IAgentRepository,
+    private val toolRepository: IToolRepository,
+    private val stepRepository: IStepRepository,
 ) : ViewModel() {
     private companion object {
         const val CACHE_TTL_MS = 30_000L

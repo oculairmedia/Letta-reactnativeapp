@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Provider
 import com.letta.mobile.data.model.ProviderCreateParams
 import com.letta.mobile.data.model.ProviderUpdateParams
-import com.letta.mobile.data.repository.ProviderRepository
+import com.letta.mobile.data.repository.api.IProviderRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +29,7 @@ data class ProviderAdminUiState(
 
 @HiltViewModel
 class ProviderAdminViewModel @Inject constructor(
-    private val providerRepository: ProviderRepository,
+    private val providerRepository: IProviderRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ProviderAdminUiState>>(UiState.Loading)

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Job
 import com.letta.mobile.data.model.JobListParams
-import com.letta.mobile.data.repository.JobRepository
+import com.letta.mobile.data.repository.api.IJobRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,7 +28,7 @@ data class JobMonitorUiState(
 
 @HiltViewModel
 class JobMonitorViewModel @Inject constructor(
-    private val jobRepository: JobRepository,
+    private val jobRepository: IJobRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<JobMonitorUiState>>(UiState.Loading)

@@ -1,7 +1,7 @@
 package com.letta.mobile.feature.chat
 
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.ConversationRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IConversationRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -9,8 +9,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 internal class ChatSessionResolver(
-    private val agentRepository: AgentRepository,
-    private val conversationRepository: ConversationRepository,
+    private val agentRepository: IAgentRepository,
+    private val conversationRepository: IConversationRepository,
     private val backgroundRefreshScope: CoroutineScope? = null,
 ) {
     fun cachedAgentName(agentId: String): String? {

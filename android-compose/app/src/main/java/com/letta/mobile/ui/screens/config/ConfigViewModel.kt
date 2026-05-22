@@ -7,7 +7,7 @@ import androidx.navigation.toRoute
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.navigation.ConfigRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,7 +37,7 @@ data class ConfigUiState(
 @HiltViewModel
 class ConfigViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
 ) : ViewModel() {
 
     companion object {

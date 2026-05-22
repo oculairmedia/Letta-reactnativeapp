@@ -8,7 +8,7 @@ import com.letta.mobile.data.model.AgentId
 import com.letta.mobile.data.model.Block
 import com.letta.mobile.data.model.BlockCreateParams
 import com.letta.mobile.data.model.BlockUpdateParams
-import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.Telemetry
@@ -37,7 +37,7 @@ data class BlockLibraryUiState(
 @HiltViewModel
 class BlockLibraryViewModel @Inject constructor(
     private val blockRepository: IBlockRepository,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<BlockLibraryUiState>>(UiState.Loading)

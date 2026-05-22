@@ -4,7 +4,7 @@ import com.letta.mobile.bot.protocol.BotAgentInfo
 import com.letta.mobile.bot.protocol.WsBotClient
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
@@ -16,7 +16,7 @@ import kotlinx.coroutines.withTimeout
  * project start path or a user-sent location-change instruction.
  */
 class ClientModeAgentLocationRepository @Inject constructor(
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
 ) {
     suspend fun getLocation(agentId: String): ClientModeAgentLocation? {
         val (baseUrl, apiKey) = clientModeConnection() ?: return null

@@ -1,12 +1,17 @@
 package com.letta.mobile.testutil
 
+import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
+import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.data.repository.LastChatSelection
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 
 /**
  * Hand-written test double for [ISettingsRepository] — see
@@ -28,6 +33,9 @@ class FakeSettingsRepository(
 
     val activeConfigState: MutableStateFlow<LettaConfig?> =
         MutableStateFlow(initialActiveConfig)
+
+    val configsState: MutableStateFlow<List<LettaConfig>> =
+        MutableStateFlow(initialActiveConfig?.let(::listOf).orEmpty())
 
     val clientModeEnabled: MutableStateFlow<Boolean> =
         MutableStateFlow(initialClientModeEnabled)
@@ -52,18 +60,59 @@ class FakeSettingsRepository(
 
     private val favoriteAgentIdState = MutableStateFlow<String?>(null)
     private val adminAgentIdState = MutableStateFlow<String?>(null)
+    private val lastChatSelectionState = MutableStateFlow<LastChatSelection?>(null)
+    private val themeState = MutableStateFlow(AppTheme.SYSTEM)
+    private val themePresetState = MutableStateFlow(ThemePreset.DEFAULT)
+    private val dynamicColorState = MutableStateFlow(true)
+    private val chatBackgroundKeyState = MutableStateFlow("default")
+    private val chatFontScaleState = MutableStateFlow(1f)
+    private val enableProjectsState = MutableStateFlow(false)
 
     var apiKey: String? = initialClientModeApiKey
 
+    override val configs: StateFlow<List<LettaConfig>> = configsState.asStateFlow()
+
     override val activeConfig: StateFlow<LettaConfig?> = activeConfigState.asStateFlow()
 
-    override val activeConfigChanges: Flow<LettaConfig> = emptyFlow()
+    override val activeConfigChanges: Flow<LettaConfig> = activeConfigState
+        .filterNotNull()
+        .distinctUntilChanged { old, new -> old.id == new.id }
+        .drop(1)
 
     override val favoriteAgentId: StateFlow<String?> = favoriteAgentIdState.asStateFlow()
 
     override val adminAgentId: StateFlow<String?> = adminAgentIdState.asStateFlow()
 
+    override val lastChatSelection: StateFlow<LastChatSelection?> = lastChatSelectionState.asStateFlow()
+
     override fun getActiveConfig(): Flow<LettaConfig?> = activeConfigState
+
+    override suspend fun saveConfig(config: LettaConfig) {
+        configsState.value = configsState.value.filterNot { it.id == config.id } + config
+    }
+
+    override suspend fun setActiveConfigId(id: String) {
+        activeConfigState.value = configsState.value.firstOrNull { it.id == id }
+    }
+
+    override suspend fun deleteConfig(id: String) {
+        configsState.value = configsState.value.filterNot { it.id == id }
+        if (activeConfigState.value?.id == id) {
+            activeConfigState.value = null
+        }
+    }
+
+    override suspend fun clearAllData() {
+        configsState.value = emptyList()
+        activeConfigState.value = null
+        lastChatSelectionState.value = null
+    }
+
+    override fun getTheme(): Flow<AppTheme> = themeState
+
+    override fun getThemePreset(): Flow<ThemePreset> = themePresetState
+
+    override fun getDynamicColor(): Flow<Boolean> = dynamicColorState
 
     override fun observeClientModeEnabled(): Flow<Boolean> = clientModeEnabled
 
@@ -72,6 +121,14 @@ class FakeSettingsRepository(
     override fun observeClientModeBaseUrl(): Flow<String> = clientModeBaseUrl
 
     override fun getClientModeApiKey(): String? = apiKey
+
+    override fun setLastChatSelection(agentId: String, agentName: String?, conversationId: String?) {
+        lastChatSelectionState.value = LastChatSelection(
+            agentId = agentId,
+            agentName = agentName,
+            conversationId = conversationId,
+        )
+    }
 
     override fun getPinnedAgentIds(): Flow<Set<String>> = pinnedAgentIds
 
@@ -160,5 +217,45 @@ class FakeSettingsRepository(
 
     override suspend fun removePinnedAgentName(id: String) {
         pinnedAgentNames.value = pinnedAgentNames.value - id
+    }
+
+    override fun getChatBackgroundKey(): Flow<String> = chatBackgroundKeyState
+
+    override suspend fun setChatBackgroundKey(key: String) {
+        chatBackgroundKeyState.value = key
+    }
+
+    override fun getChatFontScale(): Flow<Float> = chatFontScaleState
+    override suspend fun setChatFontScale(scale: Float) {
+        chatFontScaleState.value = scale
+    }
+
+    override fun getEnableProjects(): Flow<Boolean> = enableProjectsState
+    override suspend fun setClientModeEnabled(enabled: Boolean) {
+        clientModeEnabled.value = enabled
+    }
+
+    override suspend fun setClientModeBaseUrl(baseUrl: String) {
+        clientModeBaseUrl.value = baseUrl
+    }
+
+    override fun setClientModeApiKey(apiKey: String?) {
+        this.apiKey = apiKey
+    }
+
+    override suspend fun setTheme(theme: AppTheme) {
+        themeState.value = theme
+    }
+
+    override suspend fun setThemePreset(themePreset: ThemePreset) {
+        themePresetState.value = themePreset
+    }
+
+    override suspend fun setDynamicColor(enabled: Boolean) {
+        dynamicColorState.value = enabled
+    }
+
+    override suspend fun setEnableProjects(enabled: Boolean) {
+        enableProjectsState.value = enabled
     }
 }

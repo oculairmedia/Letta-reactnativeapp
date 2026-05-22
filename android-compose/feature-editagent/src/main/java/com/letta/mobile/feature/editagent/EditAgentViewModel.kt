@@ -5,12 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.ImportedAgentsResponse
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.BlockRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.ModelRepository
-import com.letta.mobile.data.repository.SettingsRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IModelRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.bot.connection.ClientModeConnectionState
 import com.letta.mobile.bot.connection.ClientModeConnectionTester
@@ -31,12 +31,12 @@ import javax.inject.Inject
 @HiltViewModel
 internal class EditAgentViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val agentRepository: AgentRepository,
-    private val blockRepository: BlockRepository,
+    private val agentRepository: IAgentRepository,
+    private val blockRepository: IBlockRepository,
     private val messageRepository: MessageRepository,
-    private val modelRepository: ModelRepository,
-    private val toolRepository: ToolRepository,
-    private val settingsRepository: SettingsRepository,
+    private val modelRepository: IModelRepository,
+    private val toolRepository: IToolRepository,
+    private val settingsRepository: ISettingsRepository,
     private val clientModeConnectionTester: ClientModeConnectionTester,
 ) : ViewModel() {
 

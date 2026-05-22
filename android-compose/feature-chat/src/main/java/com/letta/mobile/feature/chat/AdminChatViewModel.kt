@@ -22,13 +22,13 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.model.toBackendLabel
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.BlockRepository
-import com.letta.mobile.data.repository.BugReportRepository
-import com.letta.mobile.data.repository.ConversationRepository
-import com.letta.mobile.data.repository.FolderRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.IBugReportRepository
+import com.letta.mobile.data.repository.api.IConversationRepository
+import com.letta.mobile.data.repository.api.IFolderRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.feature.chat.send.ChatSendContext
 import com.letta.mobile.feature.chat.send.ChatSendStrategySelector
@@ -74,12 +74,12 @@ internal class AdminChatViewModel @Inject constructor(
     private val routeArgs: ChatRouteArgs,
     private val messageRepository: MessageRepository,
     private val timelineRepository: com.letta.mobile.data.timeline.TimelineRepository,
-    private val agentRepository: AgentRepository,
-    private val blockRepository: BlockRepository,
-    private val bugReportRepository: BugReportRepository,
-    private val folderRepository: FolderRepository,
-    private val conversationRepository: ConversationRepository,
-    private val settingsRepository: SettingsRepository,
+    private val agentRepository: IAgentRepository,
+    private val blockRepository: IBlockRepository,
+    private val bugReportRepository: IBugReportRepository,
+    private val folderRepository: IFolderRepository,
+    private val conversationRepository: IConversationRepository,
+    private val settingsRepository: ISettingsRepository,
     private val internalBotClient: InternalBotClient,
     private val clientModeChatSender: ClientModeChatSender,
     private val clientModeAgentLocationRepository: ClientModeAgentLocationRepository,

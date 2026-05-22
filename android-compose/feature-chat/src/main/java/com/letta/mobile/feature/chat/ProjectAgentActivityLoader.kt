@@ -3,14 +3,14 @@ package com.letta.mobile.feature.chat
 import com.letta.mobile.bot.protocol.BotAgentInfo
 import com.letta.mobile.bot.protocol.InternalBotClient
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.FolderRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IFolderRepository
 import kotlinx.coroutines.flow.first
 
 internal class ProjectAgentActivityLoader(
     private val internalBotClient: InternalBotClient,
-    private val agentRepository: AgentRepository,
-    private val folderRepository: FolderRepository,
+    private val agentRepository: IAgentRepository,
+    private val folderRepository: IFolderRepository,
 ) {
     suspend fun load(
         project: ProjectChatContext,

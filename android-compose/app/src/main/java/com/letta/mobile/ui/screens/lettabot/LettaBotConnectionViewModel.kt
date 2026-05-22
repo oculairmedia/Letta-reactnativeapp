@@ -2,7 +2,7 @@ package com.letta.mobile.ui.screens.lettabot
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.bot.connection.ClientModeConnectionState
 import com.letta.mobile.bot.connection.ClientModeConnectionTester
@@ -42,7 +42,7 @@ data class LettaBotConnectionUiState(
  */
 @HiltViewModel
 class LettaBotConnectionViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val connectionTester: ClientModeConnectionTester,
 ) : ViewModel() {
 

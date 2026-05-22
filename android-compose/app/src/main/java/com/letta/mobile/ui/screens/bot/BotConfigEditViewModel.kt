@@ -17,7 +17,7 @@ import com.letta.mobile.bot.core.ConversationMode
 import com.letta.mobile.bot.skills.BotSkill
 import com.letta.mobile.bot.skills.BotSkillRegistry
 import com.letta.mobile.data.model.Agent
-import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.util.Telemetry
 import com.letta.mobile.domain.AgentSearch
 import com.letta.mobile.ui.navigation.BotConfigEditRoute
@@ -34,7 +34,7 @@ import javax.inject.Inject
 class BotConfigEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val configStore: BotConfigStore,
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
     private val agentSearch: AgentSearch,
     private val skillRegistry: BotSkillRegistry,
 ) : ViewModel() {
