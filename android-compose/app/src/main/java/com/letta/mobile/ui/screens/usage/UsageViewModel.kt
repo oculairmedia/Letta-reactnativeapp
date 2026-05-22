@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Run
 import com.letta.mobile.data.model.StepListParams
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.RunRepository
-import com.letta.mobile.data.repository.StepRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IRunRepository
+import com.letta.mobile.data.repository.api.IStepRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,9 +43,9 @@ data class UsageUiState(
 
 @HiltViewModel
 class UsageViewModel @Inject constructor(
-    private val stepRepository: StepRepository,
-    private val runRepository: RunRepository,
-    private val agentRepository: AgentRepository,
+    private val stepRepository: IStepRepository,
+    private val runRepository: IRunRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<UsageUiState>>(UiState.Loading)

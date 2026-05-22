@@ -11,10 +11,10 @@ import com.letta.mobile.data.model.BlockUpdateParams
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.ModelSettings
 import com.letta.mobile.data.model.Tool
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.BlockRepository
-import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.IMessageRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,10 +53,10 @@ data class AgentSettingsUiState(
 @HiltViewModel
 class AgentSettingsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val agentRepository: AgentRepository,
-    private val blockRepository: BlockRepository,
-    private val messageRepository: MessageRepository,
-    private val settingsRepository: SettingsRepository,
+    private val agentRepository: IAgentRepository,
+    private val blockRepository: IBlockRepository,
+    private val messageRepository: IMessageRepository,
+    private val settingsRepository: ISettingsRepository,
     private val clientModeConnectionTester: ClientModeConnectionTester,
 ) : ViewModel() {
 

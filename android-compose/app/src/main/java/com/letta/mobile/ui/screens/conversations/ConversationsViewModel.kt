@@ -6,10 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.repository.ConversationInspectorMessage
 import com.letta.mobile.data.model.Conversation
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.AllConversationsRepository
-import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IAllConversationsRepository
 import com.letta.mobile.data.repository.api.IConversationRepository
+import com.letta.mobile.data.repository.api.IMessageRepository
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -54,10 +54,10 @@ private data class ConversationListLoadResult(
 
 @HiltViewModel
 class ConversationsViewModel @Inject constructor(
-    private val allConversationsRepository: AllConversationsRepository,
+    private val allConversationsRepository: IAllConversationsRepository,
     private val conversationRepository: IConversationRepository,
-    private val agentRepository: AgentRepository,
-    private val messageRepository: MessageRepository,
+    private val agentRepository: IAgentRepository,
+    private val messageRepository: IMessageRepository,
     private val settingsRepository: ISettingsRepository,
 ) : ViewModel() {
     companion object {

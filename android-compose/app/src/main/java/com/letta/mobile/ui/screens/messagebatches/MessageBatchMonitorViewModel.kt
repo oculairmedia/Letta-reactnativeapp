@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.BatchMessage
 import com.letta.mobile.data.model.Job
-import com.letta.mobile.data.repository.MessageRepository
+import com.letta.mobile.data.repository.api.IMessageRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +29,7 @@ data class MessageBatchMonitorUiState(
 
 @HiltViewModel
 class MessageBatchMonitorViewModel @Inject constructor(
-    private val messageRepository: MessageRepository,
+    private val messageRepository: IMessageRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<MessageBatchMonitorUiState>>(UiState.Loading)

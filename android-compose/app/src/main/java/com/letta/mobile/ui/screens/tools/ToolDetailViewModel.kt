@@ -8,8 +8,8 @@ import com.letta.mobile.data.model.Agent
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.ToolSchemaGenerateParams
 import com.letta.mobile.data.model.ToolUpdateParams
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,8 +26,8 @@ import javax.inject.Inject
 class ToolDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val toolApi: ToolApi,
-    private val toolRepository: ToolRepository,
-    private val agentRepository: AgentRepository,
+    private val toolRepository: IToolRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
     companion object {
         private const val AGENT_ATTACHMENT_CACHE_TTL_MS = 30_000L

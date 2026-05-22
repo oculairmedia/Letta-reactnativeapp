@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.Passage
-import com.letta.mobile.data.repository.PassageRepository
+import com.letta.mobile.data.repository.api.IPassageRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -29,7 +29,7 @@ data class ArchivalUiState(
 @HiltViewModel
 class ArchivalViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val passageRepository: PassageRepository,
+    private val passageRepository: IPassageRepository,
 ) : ViewModel() {
 
     private val agentId: String = requireNotNull(savedStateHandle.get<String>("agentId")) {

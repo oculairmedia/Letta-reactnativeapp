@@ -6,9 +6,9 @@ import com.letta.mobile.data.model.ProjectSummary
 import com.letta.mobile.data.model.BeadsRemoteStatus
 import com.letta.mobile.data.model.PmAgentMetadata
 import com.letta.mobile.data.api.ProjectAgentApi
-import com.letta.mobile.data.repository.ProjectRepository
-import com.letta.mobile.data.repository.VibesyncEventStreamRepository
+import com.letta.mobile.data.repository.api.IProjectRepository
 import com.letta.mobile.data.repository.api.ISettingsRepository
+import com.letta.mobile.data.repository.api.IVibesyncEventStreamRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -173,19 +173,19 @@ data class ProjectHomeUiState(
 
 @HiltViewModel
 class ProjectHomeViewModel private constructor(
-    private val projectRepository: ProjectRepository,
+    private val projectRepository: IProjectRepository,
     private val settingsRepository: ISettingsRepository,
     private val projectAgentApi: ProjectAgentApi? = null,
-    private val vibesyncEventStreamRepository: VibesyncEventStreamRepository? = null,
+    private val vibesyncEventStreamRepository: IVibesyncEventStreamRepository? = null,
     private val externalScope: CoroutineScope? = null,
 ) : ViewModel() {
 
     @Inject
     constructor(
-        projectRepository: ProjectRepository,
+        projectRepository: IProjectRepository,
         settingsRepository: ISettingsRepository,
         projectAgentApi: ProjectAgentApi? = null,
-        vibesyncEventStreamRepository: VibesyncEventStreamRepository? = null,
+        vibesyncEventStreamRepository: IVibesyncEventStreamRepository? = null,
     ) : this(
         projectRepository = projectRepository,
         settingsRepository = settingsRepository,
@@ -195,7 +195,7 @@ class ProjectHomeViewModel private constructor(
     )
 
     internal constructor(
-        projectRepository: ProjectRepository,
+        projectRepository: IProjectRepository,
         settingsRepository: ISettingsRepository,
         coroutineScope: CoroutineScope,
     ) : this(

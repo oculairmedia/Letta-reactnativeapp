@@ -3,7 +3,7 @@ package com.letta.mobile.ui.screens.templates
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.AgentCreateParams
-import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -59,7 +59,7 @@ internal val BUILTIN_TEMPLATES = persistentListOf(
 
 @HiltViewModel
 class TemplatesViewModel @Inject constructor(
-    private val agentRepository: AgentRepository,
+    private val agentRepository: IAgentRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<TemplatesUiState>>(UiState.Loading)

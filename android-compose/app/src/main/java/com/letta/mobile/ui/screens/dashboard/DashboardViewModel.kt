@@ -9,12 +9,12 @@ import com.letta.mobile.data.model.MessageSearchRequest
 import com.letta.mobile.data.model.ParsedSearchMessage
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.model.toParsed
-import com.letta.mobile.data.repository.AgentRepository
-import com.letta.mobile.data.repository.AllConversationsRepository
-import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.RunRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IAgentRepository
+import com.letta.mobile.data.repository.api.IAllConversationsRepository
+import com.letta.mobile.data.repository.api.IRunRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.data.repository.api.IBlockRepository
+import com.letta.mobile.data.repository.api.IMessageRepository
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -95,13 +95,13 @@ data class DashboardUiState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val agentRepository: AgentRepository,
-    private val allConversationsRepository: AllConversationsRepository,
-    private val toolRepository: ToolRepository,
+    private val agentRepository: IAgentRepository,
+    private val allConversationsRepository: IAllConversationsRepository,
+    private val toolRepository: IToolRepository,
     private val blockRepository: IBlockRepository,
     private val settingsRepository: ISettingsRepository,
-    private val messageRepository: MessageRepository,
-    private val runRepository: RunRepository,
+    private val messageRepository: IMessageRepository,
+    private val runRepository: IRunRepository,
 ) : ViewModel() {
     private data class SearchSnapshot(
         val query: String,

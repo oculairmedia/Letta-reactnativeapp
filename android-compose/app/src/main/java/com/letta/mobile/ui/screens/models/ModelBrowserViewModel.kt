@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letta.mobile.data.model.EmbeddingModel
 import com.letta.mobile.data.model.LlmModel
-import com.letta.mobile.data.repository.ModelRepository
+import com.letta.mobile.data.repository.api.IModelRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
@@ -31,7 +31,7 @@ enum class ModelTab { LLM, EMBEDDING }
 
 @HiltViewModel
 class ModelBrowserViewModel @Inject constructor(
-    private val modelRepository: ModelRepository,
+    private val modelRepository: IModelRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<ModelBrowserUiState>>(UiState.Loading)

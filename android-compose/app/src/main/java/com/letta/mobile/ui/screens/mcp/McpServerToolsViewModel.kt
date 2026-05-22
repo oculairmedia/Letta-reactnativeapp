@@ -8,7 +8,7 @@ import com.letta.mobile.data.model.McpServerResyncResult
 import com.letta.mobile.data.model.McpToolExecuteParams
 import com.letta.mobile.data.model.McpToolExecutionResult
 import com.letta.mobile.data.model.Tool
-import com.letta.mobile.data.repository.McpServerRepository
+import com.letta.mobile.data.repository.api.IMcpServerRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,7 +44,7 @@ data class McpServerToolsUiState(
 @HiltViewModel
 class McpServerToolsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val mcpServerRepository: McpServerRepository,
+    private val mcpServerRepository: IMcpServerRepository,
 ) : ViewModel() {
 
     private val serverId: String = requireNotNull(savedStateHandle.get<String>("serverId")) {

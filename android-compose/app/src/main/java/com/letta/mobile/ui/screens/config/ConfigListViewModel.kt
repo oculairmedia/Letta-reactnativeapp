@@ -12,7 +12,7 @@ import com.letta.mobile.channel.ChatPushAlarmScheduler
 import com.letta.mobile.data.health.ServerHealthRepository
 import com.letta.mobile.data.health.IServerHealthRepository
 import com.letta.mobile.data.model.LettaConfig
-import com.letta.mobile.data.repository.SettingsRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -56,7 +56,7 @@ data class ConfigListUiState(
  */
 @HiltViewModel
 class ConfigListViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: ISettingsRepository,
     private val healthRepository: IServerHealthRepository,
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {

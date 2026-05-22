@@ -6,8 +6,8 @@ import com.letta.mobile.data.model.McpServer
 import com.letta.mobile.data.model.McpServerCreateParams
 import com.letta.mobile.data.model.McpServerUpdateParams
 import com.letta.mobile.data.model.Tool
-import com.letta.mobile.data.repository.McpServerRepository
-import com.letta.mobile.data.repository.ToolRepository
+import com.letta.mobile.data.repository.api.IMcpServerRepository
+import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.util.mapErrorToUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,8 +46,8 @@ data class McpUiState(
 
 @HiltViewModel
 class McpViewModel @Inject constructor(
-    private val mcpServerRepository: McpServerRepository,
-    private val toolRepository: ToolRepository,
+    private val mcpServerRepository: IMcpServerRepository,
+    private val toolRepository: IToolRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<McpUiState>>(UiState.Loading)

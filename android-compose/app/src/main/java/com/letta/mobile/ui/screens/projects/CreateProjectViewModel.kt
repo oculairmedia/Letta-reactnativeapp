@@ -2,7 +2,7 @@ package com.letta.mobile.ui.screens.projects
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.letta.mobile.data.repository.ProjectRepository
+import com.letta.mobile.data.repository.api.IProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,7 @@ sealed interface CreateProjectEvent {
 
 @HiltViewModel
 class CreateProjectViewModel @Inject constructor(
-    private val projectRepository: ProjectRepository,
+    private val projectRepository: IProjectRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateProjectUiState())
