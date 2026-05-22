@@ -161,13 +161,12 @@ class MessageRepositoryTest {
     fun `cancel and reset message operations delegate identifiers`() = runTest {
         val cancelResult = repository.cancelMessage("agent-1", runIds = listOf("run-1"))
         repository.resetMessages("agent-1")
-        repository.resetMessages("agent-1", "conv-ignored")
 
         assertEquals(mapOf("status" to "cancelled"), cancelResult)
         assertEquals("agent-1", fakeApi.lastCancelAgentId)
         assertEquals(listOf("run-1"), fakeApi.lastCancelRunIds)
         assertEquals("agent-1", fakeApi.lastResetAgentId)
-        assertEquals(2, fakeApi.calls.count { it == "resetMessages:agent-1" })
+        assertEquals(1, fakeApi.calls.count { it == "resetMessages:agent-1" })
     }
 
     @Test(expected = ApiException::class)
