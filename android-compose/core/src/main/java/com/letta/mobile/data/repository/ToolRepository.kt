@@ -15,10 +15,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.letta.mobile.data.repository.api.IToolRepository
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ToolRepository @Inject constructor(
+open class ToolRepository @Inject constructor(
     private val toolApi: ToolApi,
 ) : IToolRepository {
     private val _tools = MutableStateFlow<List<Tool>>(emptyList())
@@ -26,15 +24,15 @@ class ToolRepository @Inject constructor(
     private val refreshMutex = Mutex()
     private var lastRefreshAtMillis: Long = 0L
 
-    override fun getTools(): StateFlow<List<Tool>> = _tools.asStateFlow()
+    override open fun getTools(): StateFlow<List<Tool>> = _tools.asStateFlow()
 
-    override fun getAgentTools(agentId: String): Flow<List<Tool>> {
+    override open fun getAgentTools(agentId: String): Flow<List<Tool>> {
         return _toolsByAgent.map { it[agentId] ?: emptyList() }
     }
 
-    override suspend fun countTools(): Int = toolApi.countTools()
+    override open suspend fun countTools(): Int = toolApi.countTools()
 
-    override suspend fun refreshTools() = refreshMutex.withLock {
+    override open suspend fun refreshTools() = refreshMutex.withLock {
         refreshToolsLocked()
     }
 
@@ -47,13 +45,13 @@ class ToolRepository @Inject constructor(
         return _tools.value.isNotEmpty() && System.currentTimeMillis() - lastRefreshAtMillis <= maxAgeMs
     }
 
-    override suspend fun refreshToolsIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
+    override open suspend fun refreshToolsIfStale(maxAgeMs: Long): Boolean = refreshMutex.withLock {
         if (hasFreshTools(maxAgeMs)) return@withLock false
         refreshToolsLocked()
         true
     }
 
-    override suspend fun fetchToolsPage(limit: Int, offset: Int): List<Tool> {
+    override open suspend fun fetchToolsPage(limit: Int, offset: Int): List<Tool> {
         return toolApi.listTools(limit = limit, offset = offset)
     }
 
@@ -63,7 +61,7 @@ class ToolRepository @Inject constructor(
                 } }
     }
 
-    override suspend fun attachTool(agentId: String, toolId: String) {
+    override open suspend fun attachTool(agentId: String, toolId: String) {
         toolApi.attachTool(agentId, toolId)
         val tool = _tools.value.find { it.id == ToolId(toolId) }
         if (tool != null) {
@@ -74,7 +72,7 @@ class ToolRepository @Inject constructor(
         }
     }
 
-    override suspend fun detachTool(agentId: String, toolId: String) {
+    override open suspend fun detachTool(agentId: String, toolId: String) {
         toolApi.detachTool(agentId, toolId)
         _toolsByAgent.update { current -> current.toMutableMap().apply {
                     val existing = get(agentId) ?: emptyList()
@@ -82,7 +80,7 @@ class ToolRepository @Inject constructor(
                 } }
     }
 
-    override suspend fun upsertTool(params: ToolCreateParams): Tool {
+    override open suspend fun upsertTool(params: ToolCreateParams): Tool {
         val tool = toolApi.upsertTool(params)
         _tools.update { current ->
             val index = current.indexOfFirst { it.id == tool.id }
@@ -91,7 +89,7 @@ class ToolRepository @Inject constructor(
         return tool
     }
 
-    override suspend fun updateTool(toolId: String, params: ToolUpdateParams): Tool {
+    override open suspend fun updateTool(toolId: String, params: ToolUpdateParams): Tool {
         val tool = toolApi.updateTool(toolId, params)
         _tools.update { current ->
             current.map { existing -> if (existing.id == tool.id) tool else existing }
@@ -104,7 +102,7 @@ class ToolRepository @Inject constructor(
         return tool
     }
 
-    override suspend fun deleteTool(toolId: String) {
+    override open suspend fun deleteTool(toolId: String) {
         toolApi.deleteTool(toolId)
         _tools.update { current -> current.filterNot { it.id == ToolId(toolId) } }
         _toolsByAgent.update { current ->

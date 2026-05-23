@@ -16,10 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class McpServerRepository @Inject constructor(
+open class McpServerRepository @Inject constructor(
     private val mcpServerApi: McpServerApi,
 ) : IMcpServerRepository {
     private val _servers = MutableStateFlow<List<McpServer>>(emptyList())
@@ -27,30 +25,30 @@ class McpServerRepository @Inject constructor(
 
     private val _toolsByServer = MutableStateFlow<Map<String, List<Tool>>>(emptyMap())
 
-    override fun getServers(): Flow<List<McpServer>> = servers
+    override open fun getServers(): Flow<List<McpServer>> = servers
 
-    override fun getServerTools(serverId: String): Flow<List<Tool>> {
+    override open fun getServerTools(serverId: String): Flow<List<Tool>> {
         return _toolsByServer.map { it[serverId] ?: emptyList() }
     }
 
-    override suspend fun refreshServers() {
+    override open suspend fun refreshServers() {
         _servers.update { mcpServerApi.listMcpServers() }
     }
 
-    override suspend fun refreshServerTools(serverId: String) {
+    override open suspend fun refreshServerTools(serverId: String) {
         val tools = mcpServerApi.listMcpServerTools(serverId)
         _toolsByServer.update { current -> current.toMutableMap().apply {
                     put(serverId, tools)
                 } }
     }
 
-    override suspend fun resyncServerTools(serverId: String): McpServerResyncResult {
+    override open suspend fun resyncServerTools(serverId: String): McpServerResyncResult {
         val result = mcpServerApi.refreshMcpServerTools(serverId)
         refreshServerTools(serverId)
         return result
     }
 
-    override suspend fun runServerTool(
+    override open suspend fun runServerTool(
         serverId: String,
         toolId: String,
         params: McpToolExecuteParams,
@@ -58,7 +56,7 @@ class McpServerRepository @Inject constructor(
         return mcpServerApi.runMcpServerTool(serverId, toolId, params)
     }
 
-    override suspend fun fetchAllMcpTools(): List<Tool> {
+    override open suspend fun fetchAllMcpTools(): List<Tool> {
         refreshServers()
         return _servers.value.flatMap { server ->
             try {
@@ -69,19 +67,19 @@ class McpServerRepository @Inject constructor(
         }
     }
 
-    override suspend fun createServer(params: McpServerCreateParams): McpServer {
+    override open suspend fun createServer(params: McpServerCreateParams): McpServer {
         val server = mcpServerApi.createMcpServer(params)
         refreshServers()
         return server
     }
 
-    override suspend fun updateServer(id: String, params: McpServerUpdateParams): McpServer {
+    override open suspend fun updateServer(id: String, params: McpServerUpdateParams): McpServer {
         val server = mcpServerApi.updateMcpServer(id, params)
         refreshServers()
         return server
     }
 
-    override suspend fun deleteServer(id: String) {
+    override open suspend fun deleteServer(id: String) {
         mcpServerApi.deleteMcpServer(id)
         refreshServers()
         _toolsByServer.update { current -> current.toMutableMap().apply {
