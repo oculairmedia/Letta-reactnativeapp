@@ -25,7 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -78,7 +78,7 @@ class AgentSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                val agent = agentRepository.getAgent(agentId).last()
+                val agent = agentRepository.getAgent(agentId).first()
                 val persona = agent.blocks.find { it.label == "persona" }?.value ?: ""
                 val human = agent.blocks.find { it.label == "human" }?.value ?: ""
                 originalPersonaBlock = persona
@@ -265,7 +265,7 @@ class AgentSettingsViewModel @Inject constructor(
                     overrideExistingTools = overrideExistingTools,
                     stripMessages = stripMessages,
                 )
-                val refreshedAgent = agentRepository.getAgent(agentId).last()
+                val refreshedAgent = agentRepository.getAgent(agentId).first()
                 _uiState.value = UiState.Success(state.copy(agent = refreshedAgent, isCloning = false))
                 onSuccess(response)
             } catch (e: Exception) {

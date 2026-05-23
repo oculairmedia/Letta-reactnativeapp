@@ -22,6 +22,7 @@ import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -97,6 +98,38 @@ class AgentSettingsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `loadSettings succeeds when flow never completes`() = runTest {
+        every { agentRepository.getAgent("a1") } returns flow {
+            emit(
+                Agent(
+                    id = AgentId("a1"),
+                    name = "Test Agent",
+                    model = "letta/letta-free",
+                    agentType = "stateful",
+                    contextWindowLimit = 128000,
+                    modelSettings = ModelSettings(temperature = 0.7, maxOutputTokens = 2000, parallelToolCalls = true, providerType = "openai"),
+                    blocks = listOf(
+                        Block(id = BlockId("b1"), label = "persona", value = "persona value"),
+                        Block(id = BlockId("b2"), label = "human", value = "human value"),
+                    ),
+                ),
+            )
+            kotlinx.coroutines.awaitCancellation()
+        }
+        viewModel = AgentSettingsViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("agentId" to "a1")),
+            agentRepository = agentRepository,
+            blockRepository = blockRepository,
+            messageRepository = messageRepository,
+            settingsRepository = settingsRepository,
+            clientModeConnectionTester = clientModeConnectionTester,
+        )
+        val state = awaitSuccessState()
+        assertEquals("Test Agent", state.agent?.name)
+        assertEquals("stateful", state.agentType)
     }
 
     @Test

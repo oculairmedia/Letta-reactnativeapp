@@ -20,7 +20,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -81,7 +80,7 @@ internal class EditAgentViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             try {
-                val agent = agentRepository.getAgent(agentId).last()
+                val agent = agentRepository.getAgent(agentId).first()
                 val editableBlocks = agent.blocks.map { block ->
                     EditableBlock(
                         id = block.id.value,
