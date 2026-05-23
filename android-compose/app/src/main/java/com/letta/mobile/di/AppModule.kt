@@ -12,8 +12,6 @@ import com.letta.mobile.data.health.ServerHealthRepository
 import com.letta.mobile.data.repository.BlockRepository
 import com.letta.mobile.data.repository.BugReportRepository
 import com.letta.mobile.data.repository.MessageRepository
-import com.letta.mobile.data.repository.AllConversationsRepository
-import com.letta.mobile.data.repository.ProjectWorkRepository
 import com.letta.mobile.data.repository.SettingsRepository
 import com.letta.mobile.data.repository.VibesyncEventStreamRepository
 import com.letta.mobile.data.repository.api.IAllConversationsRepository
@@ -41,6 +39,7 @@ import com.letta.mobile.data.repository.api.IStepRepository
 import com.letta.mobile.data.repository.api.IToolRepository
 import com.letta.mobile.data.repository.api.IVibesyncEventStreamRepository
 import com.letta.mobile.data.session.SessionScopedAgentRepository
+import com.letta.mobile.data.session.SessionScopedAllConversationsRepository
 import com.letta.mobile.data.session.SessionScopedArchiveRepository
 import com.letta.mobile.data.session.SessionScopedConversationRepository
 import com.letta.mobile.data.session.SessionScopedFolderRepository
@@ -52,6 +51,7 @@ import com.letta.mobile.data.session.SessionScopedModelRepository
 import com.letta.mobile.data.session.SessionScopedPassageRepository
 import com.letta.mobile.data.session.SessionScopedProviderRepository
 import com.letta.mobile.data.session.SessionScopedProjectRepository
+import com.letta.mobile.data.session.SessionScopedProjectWorkRepository
 import com.letta.mobile.data.session.SessionScopedRunRepository
 import com.letta.mobile.data.session.SessionScopedScheduleRepository
 import com.letta.mobile.data.session.SessionScopedStepRepository
@@ -113,7 +113,7 @@ abstract class AppModule {
 
     @Binds
     @Singleton
-    abstract fun bindAllConversationsRepository(impl: AllConversationsRepository): IAllConversationsRepository
+    abstract fun bindAllConversationsRepository(impl: SessionScopedAllConversationsRepository): IAllConversationsRepository
 
     @Binds
     @Singleton
@@ -121,7 +121,7 @@ abstract class AppModule {
 
     @Binds
     @Singleton
-    abstract fun bindProjectWorkRepository(impl: ProjectWorkRepository): IProjectWorkRepository
+    abstract fun bindProjectWorkRepository(impl: SessionScopedProjectWorkRepository): IProjectWorkRepository
 
     @Binds
     @Singleton

@@ -15,7 +15,6 @@ import com.letta.mobile.data.model.ProjectIssueSummary
 import com.letta.mobile.data.repository.api.IProjectWorkRepository
 import java.util.UUID
 import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,8 +22,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-@Singleton
-class ProjectWorkRepository @Inject constructor(
+open class ProjectWorkRepository @Inject constructor(
     private val projectWorkApi: ProjectWorkApi,
 ) : IProjectWorkRepository {
     private val _readyWorkByProject = MutableStateFlow<Map<String, List<ProjectIssueSummary>>>(emptyMap())
@@ -42,14 +40,14 @@ class ProjectWorkRepository @Inject constructor(
     private val refreshMutex = Mutex()
     private val analyticsRefreshMutex = Mutex()
 
-    override suspend fun refreshReadyWork(projectId: String, limit: Int?, cursor: String?): List<ProjectIssueSummary> =
+    override open suspend fun refreshReadyWork(projectId: String, limit: Int?, cursor: String?): List<ProjectIssueSummary> =
         refreshMutex.withLock {
             val response = projectWorkApi.getReadyWork(projectId, limit, cursor)
             _readyWorkByProject.update { current -> current + (projectId to response.items) }
             response.items
         }
 
-    override suspend fun refreshIssues(
+    override open suspend fun refreshIssues(
         projectId: String,
         params: ProjectIssueListParams,
     ): List<ProjectIssueSummary> = refreshMutex.withLock {
@@ -58,7 +56,7 @@ class ProjectWorkRepository @Inject constructor(
         response.items
     }
 
-    override suspend fun refreshIssuePage(
+    override open suspend fun refreshIssuePage(
         projectId: String,
         params: ProjectIssueListParams,
     ): ProjectIssueListResponse = refreshMutex.withLock {
@@ -74,7 +72,7 @@ class ProjectWorkRepository @Inject constructor(
         response
     }
 
-    override suspend fun refreshIssueAnalytics(
+    override open suspend fun refreshIssueAnalytics(
         projectId: String,
         params: ProjectIssueAnalyticsParams,
     ): IssueAnalyticsResponse = analyticsRefreshMutex.withLock {
@@ -83,7 +81,7 @@ class ProjectWorkRepository @Inject constructor(
         response
     }
 
-    override suspend fun getIssue(issueId: String, forceRefresh: Boolean): ProjectIssueDetail =
+    override open suspend fun getIssue(issueId: String, forceRefresh: Boolean): ProjectIssueDetail =
         refreshMutex.withLock {
             if (!forceRefresh) {
                 _issueDetails.value[issueId]?.let { return@withLock it }
@@ -93,7 +91,7 @@ class ProjectWorkRepository @Inject constructor(
             issue
         }
 
-    override suspend fun invalidateProjectCache(projectId: String) {
+    override open suspend fun invalidateProjectCache(projectId: String) {
         // Take both mutexes so invalidation can't interleave with an in-flight
         // refresh and reintroduce stale entries we just cleared.
         refreshMutex.withLock {
@@ -108,7 +106,7 @@ class ProjectWorkRepository @Inject constructor(
         }
     }
 
-    override suspend fun claimIssue(
+    override open suspend fun claimIssue(
         issueId: String,
         assignee: String,
         ifMatch: String,
@@ -121,7 +119,7 @@ class ProjectWorkRepository @Inject constructor(
         ).issue,
     )
 
-    override suspend fun unclaimIssue(
+    override open suspend fun unclaimIssue(
         issueId: String,
         ifMatch: String,
         idempotencyKey: String,
@@ -132,7 +130,7 @@ class ProjectWorkRepository @Inject constructor(
         ).issue,
     )
 
-    override suspend fun updateIssueStatus(
+    override open suspend fun updateIssueStatus(
         issueId: String,
         status: String,
         ifMatch: String,
@@ -145,7 +143,7 @@ class ProjectWorkRepository @Inject constructor(
         ).issue,
     )
 
-    override suspend fun addIssueNote(
+    override open suspend fun addIssueNote(
         issueId: String,
         note: String,
         ifMatch: String,
@@ -158,7 +156,7 @@ class ProjectWorkRepository @Inject constructor(
         ).issue,
     )
 
-    override suspend fun closeIssue(
+    override open suspend fun closeIssue(
         issueId: String,
         reason: String,
         ifMatch: String,
@@ -171,7 +169,7 @@ class ProjectWorkRepository @Inject constructor(
         ).issue,
     )
 
-    override suspend fun reopenIssue(
+    override open suspend fun reopenIssue(
         issueId: String,
         reason: String,
         ifMatch: String,
@@ -234,5 +232,5 @@ class ProjectWorkRepository @Inject constructor(
         return this + (issue.projectId to updated)
     }
 
-    override fun newIdempotencyKey(): String = "android-${UUID.randomUUID()}"
+    override open fun newIdempotencyKey(): String = "android-${UUID.randomUUID()}"
 }
