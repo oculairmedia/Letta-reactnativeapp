@@ -244,10 +244,12 @@ class FakeSettingsRepository(
 
     override suspend fun setTheme(theme: AppTheme) {
         themeState.value = theme
+        chatBackgroundKeyState.value = "default"
     }
 
     override suspend fun setThemePreset(themePreset: ThemePreset) {
         themePresetState.value = themePreset
+        chatBackgroundKeyState.value = "default"
     }
 
     override suspend fun setDynamicColor(enabled: Boolean) {
