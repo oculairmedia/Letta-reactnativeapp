@@ -3,6 +3,7 @@ package com.letta.mobile.data.timeline
 import com.letta.mobile.data.model.ApprovalResponseMessage
 import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.model.ToolReturnMessage
+import com.letta.mobile.util.Telemetry
 
 data class HydratedTimelineResult(
     val timeline: Timeline,
@@ -65,14 +66,36 @@ internal object TimelineHydrationReducer {
                 is TimelineEvent.Confirmed -> event.copy(position = position)
             }
         }
+        val deduped = dedupeByOtid(
+            conversationId = conversationId,
+            events = merged,
+        )
         return HydratedTimelineResult(
             timeline = Timeline(
                 conversationId = conversationId,
-                events = merged,
+                events = deduped,
                 liveCursor = converted.lastOrNull()?.serverId,
             ),
             visibleEventCount = converted.size,
         )
+    }
+
+    private fun dedupeByOtid(
+        conversationId: String,
+        events: List<TimelineEvent>,
+    ): List<TimelineEvent> {
+        val seen = HashSet<String>()
+        val deduped = events.filter { event -> seen.add(event.otid) }
+        if (deduped.size != events.size) {
+            Telemetry.event(
+                "Timeline", "hydrate.duplicateOtidDropped",
+                "conversationId" to conversationId,
+                "eventCount" to events.size,
+                "dedupedCount" to deduped.size,
+                level = Telemetry.Level.WARN,
+            )
+        }
+        return deduped
     }
 
     private fun attachToolReturnsAndDropStandaloneReturns(
