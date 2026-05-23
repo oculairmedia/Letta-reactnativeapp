@@ -5,16 +5,11 @@ import androidx.lifecycle.SavedStateHandle
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
-import com.letta.mobile.data.repository.SettingsRepository
-import com.letta.mobile.testutil.InMemorySecureSettingsStore
-import com.letta.mobile.testutil.createTestPreferencesDataStore
+import com.letta.mobile.testutil.FakeSettingsRepository
 import com.letta.mobile.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -24,15 +19,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import org.junit.jupiter.api.Tag
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
 @OptIn(ExperimentalCoroutinesApi::class)
-@Tag("integration")
+@Tag("unit")
 class ConfigViewModelTest {
 
     private lateinit var fakeRepository: FakeSettingsRepository
@@ -57,7 +47,7 @@ class ConfigViewModelTest {
 
     @Test
     fun loadConfig_withNullConfig_setsUiStateSuccess_withDefaultConfigUiState() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
 
         viewModel.loadConfig()
 
@@ -82,7 +72,7 @@ class ConfigViewModelTest {
             serverUrl = "https://cloud.letta.ai",
             accessToken = "cloud-token-123"
         )
-        fakeRepository.setActiveConfig(config)
+        fakeRepository.activeConfigState.value = config
 
         viewModel.loadConfig()
 
@@ -104,7 +94,7 @@ class ConfigViewModelTest {
             serverUrl = "http://localhost:8080",
             accessToken = "self-hosted-token-456"
         )
-        fakeRepository.setActiveConfig(config)
+        fakeRepository.activeConfigState.value = config
 
         viewModel.loadConfig()
 
@@ -126,7 +116,7 @@ class ConfigViewModelTest {
             serverUrl = "https://cloud.letta.ai",
             accessToken = null
         )
-        fakeRepository.setActiveConfig(config)
+        fakeRepository.activeConfigState.value = config
 
         viewModel.loadConfig()
 
@@ -140,7 +130,7 @@ class ConfigViewModelTest {
 
     @Test
     fun saveConfig_buildsLettaConfigFromFormState_withCloudMode() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.CLOUD)
@@ -152,7 +142,7 @@ class ConfigViewModelTest {
             onSuccessCalled = true
         })
 
-        val savedConfig = fakeRepository.getSavedConfig()
+        val savedConfig = fakeRepository.activeConfig.value
         assertEquals(LettaConfig.Mode.CLOUD, savedConfig?.mode)
         assertEquals("https://api.letta.com", savedConfig?.serverUrl)
         assertEquals("new-token", savedConfig?.accessToken)
@@ -161,7 +151,7 @@ class ConfigViewModelTest {
 
     @Test
     fun saveConfig_buildsLettaConfigFromFormState_withSelfHostedMode() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.SELF_HOSTED)
@@ -173,7 +163,7 @@ class ConfigViewModelTest {
             onSuccessCalled = true
         })
 
-        val savedConfig = fakeRepository.getSavedConfig()
+        val savedConfig = fakeRepository.activeConfig.value
         assertEquals(LettaConfig.Mode.SELF_HOSTED, savedConfig?.mode)
         assertEquals("http://192.168.1.100:8080", savedConfig?.serverUrl)
         assertEquals("local-token", savedConfig?.accessToken)
@@ -188,21 +178,21 @@ class ConfigViewModelTest {
             serverUrl = "https://old.letta.ai",
             accessToken = "old-token"
         )
-        fakeRepository.setActiveConfig(existingConfig)
+        fakeRepository.activeConfigState.value = existingConfig
         viewModel.loadConfig()
 
         viewModel.updateServerUrl("https://new.letta.ai")
 
         viewModel.saveConfig(onSuccess = {})
 
-        val savedConfig = fakeRepository.getSavedConfig()
+        val savedConfig = fakeRepository.activeConfig.value
         assertEquals("existing-id-123", savedConfig?.id)
         assertEquals(ConfigViewModel.DEFAULT_CLOUD_URL, savedConfig?.serverUrl)
     }
 
     @Test
     fun saveConfig_withBlankToken_savesAsNull() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.CLOUD)
@@ -211,13 +201,13 @@ class ConfigViewModelTest {
 
         viewModel.saveConfig(onSuccess = {})
 
-        val savedConfig = fakeRepository.getSavedConfig()
+        val savedConfig = fakeRepository.activeConfig.value
         assertEquals(null, savedConfig?.accessToken)
     }
 
     @Test
     fun updateMode_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.SELF_HOSTED)
@@ -232,7 +222,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateMode_roundTripsCloudAndSelfHostedUrlsCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.CLOUD)
@@ -255,7 +245,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateServerUrl_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateServerUrl("http://test.server")
@@ -270,7 +260,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateApiToken_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateApiToken("test-token")
@@ -285,7 +275,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateTheme_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateTheme(AppTheme.DARK)
@@ -300,7 +290,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateThemePreset_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateThemePreset(ThemePreset.SAKURA)
@@ -316,7 +306,7 @@ class ConfigViewModelTest {
 
     @Test
     fun updateDynamicColor_updatesStateCorrectly() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateDynamicColor(false)
@@ -331,7 +321,7 @@ class ConfigViewModelTest {
 
     @Test
     fun saveConfig_persistsThemePresetAndDynamicColor() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
         fakeRepository.setChatBackgroundKey("solid_charcoal")
 
@@ -348,7 +338,7 @@ class ConfigViewModelTest {
 
     @Test
     fun saveConfig_trimsSelfHostedUrlAndToken() = runTest {
-        fakeRepository.setActiveConfig(null)
+        fakeRepository.activeConfigState.value = null
         viewModel.loadConfig()
 
         viewModel.updateMode(ServerMode.SELF_HOSTED)
@@ -357,78 +347,8 @@ class ConfigViewModelTest {
 
         viewModel.saveConfig(onSuccess = {})
 
-        val savedConfig = fakeRepository.getSavedConfig()
+        val savedConfig = fakeRepository.activeConfig.value
         assertEquals("https://self-hosted.letta.dev", savedConfig?.serverUrl)
         assertEquals("token-with-spaces", savedConfig?.accessToken)
-    }
-
-    private class FakeSettingsRepository : SettingsRepository(
-        dataStore = createTestPreferencesDataStore(),
-        secureSettingsStore = InMemorySecureSettingsStore(),
-    ) {
-        private val _activeConfig = MutableStateFlow<LettaConfig?>(null)
-        override val activeConfig: StateFlow<LettaConfig?> = _activeConfig.asStateFlow()
-
-        private val _configs = MutableStateFlow<List<LettaConfig>>(emptyList())
-        override val configs: StateFlow<List<LettaConfig>> = _configs.asStateFlow()
-
-        private val themeFlow = MutableStateFlow(AppTheme.SYSTEM)
-        private val themePresetFlow = MutableStateFlow(ThemePreset.DEFAULT)
-        private val dynamicColorFlow = MutableStateFlow(true)
-        private val chatBackgroundFlow = MutableStateFlow("default")
-        private val enableProjectsFlow = MutableStateFlow(false)
-
-        private var savedConfig: LettaConfig? = null
-
-        fun setActiveConfig(config: LettaConfig?) {
-            _activeConfig.value = config
-        }
-
-        fun getSavedConfig(): LettaConfig? = savedConfig
-
-        override suspend fun saveConfig(config: LettaConfig) {
-            savedConfig = config
-            _activeConfig.value = config
-            val updatedConfigs = _configs.value.toMutableList()
-            val existingIndex = updatedConfigs.indexOfFirst { it.id == config.id }
-            if (existingIndex >= 0) {
-                updatedConfigs[existingIndex] = config
-            } else {
-                updatedConfigs.add(config)
-            }
-            _configs.value = updatedConfigs
-        }
-
-        override fun getTheme() = themeFlow
-
-        override suspend fun setTheme(theme: AppTheme) {
-            themeFlow.value = theme
-            chatBackgroundFlow.value = "default"
-        }
-
-        override fun getThemePreset() = themePresetFlow
-
-        override suspend fun setThemePreset(themePreset: ThemePreset) {
-            themePresetFlow.value = themePreset
-            chatBackgroundFlow.value = "default"
-        }
-
-        override fun getDynamicColor() = dynamicColorFlow
-
-        override suspend fun setDynamicColor(enabled: Boolean) {
-            dynamicColorFlow.value = enabled
-        }
-
-        override fun getChatBackgroundKey() = chatBackgroundFlow
-
-        override suspend fun setChatBackgroundKey(key: String) {
-            chatBackgroundFlow.value = key
-        }
-
-        override fun getEnableProjects() = enableProjectsFlow
-
-        override suspend fun setEnableProjects(enabled: Boolean) {
-            enableProjectsFlow.value = enabled
-        }
     }
 }
