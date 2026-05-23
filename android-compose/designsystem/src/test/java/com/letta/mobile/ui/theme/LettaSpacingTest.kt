@@ -49,6 +49,12 @@ class LettaSpacingTest {
     }
 
     @Test
+    fun `dialog and sheet spacing tokens preserve reusable surface geometry`() {
+        assertEquals(32.dp, LettaSpacing.actionSheetBottomPadding)
+        assertEquals(40.dp, LettaSpacing.dialogOuterPadding)
+    }
+
+    @Test
     fun `iconGap is 12 dp`() {
         assertEquals(12.dp, LettaSpacing.iconGap)
     }

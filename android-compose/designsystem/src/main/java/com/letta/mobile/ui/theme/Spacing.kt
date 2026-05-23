@@ -16,6 +16,8 @@ object LettaSpacing {
     val cardGroupItemGap: Dp = 2.dp
     val innerPadding: Dp = 16.dp
     val innerPaddingSmall: Dp = 12.dp
+    val actionSheetBottomPadding: Dp = 32.dp
+    val dialogOuterPadding: Dp = 40.dp
     val iconGap: Dp = 12.dp
     val chipGap: Dp = 8.dp
     val listItemHorizontal: Dp = 14.dp

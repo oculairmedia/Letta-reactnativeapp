@@ -22,6 +22,7 @@ class LettaGeometryTokenTest {
 
     @Test
     fun `component size tokens preserve chat and list geometry`() {
+        assertEquals(900.dp, LettaSizing.adaptiveDialogMaxWidth)
         assertEquals(44.dp, LettaSizing.prominentAvatar)
         assertEquals(30.dp, LettaSizing.compactAvatar)
         assertEquals(36.dp, LettaSizing.chatComposerAttachButton)

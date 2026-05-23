@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 
 object LettaSizing {
     val compactWidthBreakpoint: Dp = 600.dp
+    val adaptiveDialogMaxWidth: Dp = 900.dp
     val readableDialogMaxWidth: Dp = 1000.dp
     val diagramPreviewMinHeight: Dp = 120.dp
     val prominentAvatar: Dp = 44.dp
