@@ -20,8 +20,7 @@ internal suspend fun ingestStreamEvent(
     events: MutableSharedFlow<TimelineSyncEvent>,
     pendingToolReturnsByCallId: LinkedHashMap<String, ToolReturnMessage>,
     conversationId: String,
-    ingestNotificationDispatcher: TimelineIngestNotificationDispatcher,
-) {
+): PendingIngestNotification? {
     // letta-mobile-rnyg: collect events to emit inside the writeMutex so we
     // can publish them AFTER releasing the lock. MutableSharedFlow.emit can
     // suspend (default BufferOverflow.SUSPEND), and any subscriber re-entering
@@ -43,6 +42,6 @@ internal suspend fun ingestStreamEvent(
     }
     // Lock released — safe to suspend on emit/dispatch.
     output.emittedEvents.forEach { events.emit(it) }
-    ingestNotificationDispatcher.dispatch(output.notification)
     dumpTimelineState("streamIngest.${message.messageType}", conversationId, state.value)
+    return output.notification
 }
