@@ -387,6 +387,9 @@ class ProjectHomeViewModel private constructor(
                         updateSuccess { it.copy(syncingProjectId = if (it.syncingProjectId == projectId) null else it.syncingProjectId) }
                         if (event.type == "sync:completed") loadProjects(forceRefresh = true)
                     }
+                    "rig:provisioned", "rig:push_status", "rig:degraded" -> {
+                        loadProjects(forceRefresh = true)
+                    }
                 }
             }
         }

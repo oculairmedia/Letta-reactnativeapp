@@ -143,7 +143,7 @@ class ProjectIssuesViewModel @Inject constructor(
         viewModelScope.launch {
             eventRepository.events.collect { event ->
                 if (event.projectId != route.projectId) return@collect
-                if (event.type == "sync:completed" || event.type == "config:updated") {
+                if (event.type == "sync:completed" || event.type == "config:updated" || event.type == "rig:provisioned" || event.type == "rig:push_status") {
                     projectWorkRepository.invalidateProjectCache(route.projectId)
                     loadIssues(forceRefresh = true)
                 }
