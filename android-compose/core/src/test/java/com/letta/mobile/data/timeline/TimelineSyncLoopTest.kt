@@ -15,6 +15,7 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.writeStringUtf8
 import io.mockk.mockk
+import kotlin.random.Random
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -323,20 +324,15 @@ class TimelineSyncLoopTest {
 
         sync.send("hello")
 
-        // Wait for the first frame to land (uniquely identifiable by otid),
-        // then for subsequent merges — deltas merge into the same event by
-        // serverId, so its content grows monotonically.
+        // Wait until the queued gateway worker has folded every stream frame.
+        // A length-stability heuristic is too weak here because queued chunks
+        // can be briefly stable between eventQueue drains.
         withTimeout(5_000) {
-            while (sync.state.value.findByOtid("reply-otid-uww11") == null) delay(10)
-            // Then wait until merging is done (content stable for ~50ms)
-            var stable = 0
-            var lastLen = -1
-            while (stable < 5) {
-                val ev = sync.state.value.events.firstOrNull {
+            while (true) {
+                val content = sync.state.value.events.firstOrNull {
                     it is TimelineEvent.Confirmed && it.serverId == "reply-stream"
-                }
-                val len = ev?.content?.length ?: -1
-                if (len == lastLen && len >= 0) stable++ else { stable = 0; lastLen = len }
+                }?.content
+                if (content == expected) break
                 delay(10)
             }
         }
@@ -547,6 +543,184 @@ class TimelineSyncLoopTest {
         val assistant = sync.state.value.events.single() as TimelineEvent.Confirmed
         assertEquals("gateway-otid", assistant.otid)
         assertEquals("Hello world", assistant.content)
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `client mode stream chunks fold through serialized gateway`() = runTest {
+        val api = FakeSyncApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-client-gateway", scope)
+        val chunks = listOf(
+            ClientModeStreamChunk(text = "Hel", event = ClientModeStreamEvent.ASSISTANT),
+            ClientModeStreamChunk(text = "lo", event = ClientModeStreamEvent.ASSISTANT),
+            ClientModeStreamChunk(text = "Think", event = ClientModeStreamEvent.REASONING, uuid = "r1"),
+            ClientModeStreamChunk(text = "ing", event = ClientModeStreamEvent.REASONING, uuid = "r1"),
+        )
+
+        val jobs = chunks.map { chunk ->
+            launch {
+                sync.upsertClientModeStreamChunk(
+                    chunk = chunk,
+                    assistantMessageId = "assistant-1",
+                )
+            }
+        }
+
+        assertEquals(
+            "launched chunk writers should not mutate state until the gateway worker runs",
+            0,
+            sync.state.value.events.size,
+        )
+
+        advanceUntilIdle()
+        jobs.forEach { it.join() }
+
+        val assistant = sync.state.value.events.first { it.otid == "cm-assist-assistant-1" } as TimelineEvent.Local
+        val reasoning = sync.state.value.events.first { it.otid == "cm-reason-r1" } as TimelineEvent.Local
+        assertEquals("Hello", assistant.content)
+        assertEquals("Thinking", reasoning.reasoningContent)
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `external transport local sent and failed markers fold through serialized gateway`() = runTest {
+        val api = FakeSyncApi()
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-external-gateway", scope)
+
+        val appendJob = launch {
+            sync.appendExternalTransportLocal(
+                content = "from ws",
+                otid = "external-otid",
+            )
+        }
+
+        assertEquals(0, sync.state.value.events.size)
+
+        advanceUntilIdle()
+        appendJob.join()
+
+        val appended = sync.state.value.findByOtid("external-otid") as TimelineEvent.Local
+        assertEquals(DeliveryState.SENDING, appended.deliveryState)
+
+        val sentJob = launch { sync.markExternalTransportLocalSent("external-otid") }
+        advanceUntilIdle()
+        sentJob.join()
+        val sent = sync.state.value.findByOtid("external-otid") as TimelineEvent.Local
+        assertEquals(DeliveryState.SENT, sent.deliveryState)
+
+        val failedJob = launch { sync.markExternalTransportLocalFailed("external-otid") }
+        advanceUntilIdle()
+        failedJob.join()
+        val failed = sync.state.value.findByOtid("external-otid") as TimelineEvent.Local
+        assertEquals(DeliveryState.FAILED, failed.deliveryState)
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `retry failed local send re-enters serialized gateway before send queue`() = runTest {
+        val api = FakeSyncApi()
+        api.nextSendFailure = java.io.IOException("first send fails")
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-retry-gateway", scope)
+
+        val otid = sync.send("retry me")
+        advanceUntilIdle()
+
+        val failed = sync.state.value.findByOtid(otid) as TimelineEvent.Local
+        assertEquals(DeliveryState.FAILED, failed.deliveryState)
+
+        val retryJob = launch { sync.retry(otid) }
+        assertEquals(
+            "retry should not flip state until the gateway worker drains",
+            DeliveryState.FAILED,
+            (sync.state.value.findByOtid(otid) as TimelineEvent.Local).deliveryState,
+        )
+
+        advanceUntilIdle()
+        retryJob.join()
+
+        val retried = sync.state.value.findByOtid(otid)
+        assertTrue(retried is TimelineEvent.Confirmed)
+        assertEquals(2, api.sendCalls)
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `randomized gateway interleavings preserve unique otids`() = runBlocking {
+        val api = FakeSyncApi()
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val sync = TimelineSyncLoop(api, "conv-random-gateway", scope)
+        val random = Random(0x71_6A_1)
+        val externalOtids = mutableListOf<String>()
+        val assistantIds = List(16) { index -> "assistant-$index" }
+        val reasoningIds = List(16) { index -> "reason-$index" }
+        val serverIds = List(32) { index -> "server-$index" }
+
+        repeat(10_000) { index ->
+            when (random.nextInt(7)) {
+                0 -> sync.appendClientModeLocal("client local $index")
+                1 -> {
+                    val otid = "external-$index"
+                    externalOtids += otid
+                    sync.appendExternalTransportLocal(
+                        content = "external local $index",
+                        otid = otid,
+                    )
+                }
+                2 -> {
+                    val otid = externalOtids.randomOrNull(random)
+                    if (otid != null) sync.markExternalTransportLocalSent(otid)
+                }
+                3 -> {
+                    val otid = externalOtids.randomOrNull(random)
+                    if (otid != null) sync.markExternalTransportLocalFailed(otid)
+                }
+                4 -> {
+                    val assistantId = assistantIds[random.nextInt(assistantIds.size)]
+                    sync.upsertClientModeStreamChunk(
+                        chunk = ClientModeStreamChunk(
+                            text = "a$index ",
+                            event = ClientModeStreamEvent.ASSISTANT,
+                        ),
+                        assistantMessageId = assistantId,
+                    )
+                }
+                5 -> {
+                    val assistantId = assistantIds[random.nextInt(assistantIds.size)]
+                    val reasoningId = reasoningIds[random.nextInt(reasoningIds.size)]
+                    sync.upsertClientModeStreamChunk(
+                        chunk = ClientModeStreamChunk(
+                            text = "r$index ",
+                            event = ClientModeStreamEvent.REASONING,
+                            uuid = reasoningId,
+                        ),
+                        assistantMessageId = assistantId,
+                    )
+                }
+                else -> {
+                    val serverId = serverIds[random.nextInt(serverIds.size)]
+                    sync.ingestStreamEvent(
+                        AssistantMessage(
+                            id = serverId,
+                            contentRaw = JsonPrimitive("s$index "),
+                            otid = if (index % 11 == 0) "server-otid-$index" else null,
+                        )
+                    )
+                }
+            }
+        }
+
+        val otids = sync.state.value.events.map { it.otid }
+        assertEquals(
+            "gateway interleavings must not create duplicate otids",
+            otids.size,
+            otids.toSet().size,
+        )
         scope.coroutineContext.job.cancel()
     }
 
@@ -870,15 +1044,11 @@ class TimelineSyncLoopTest {
         sync.send("draw it")
 
         withTimeout(5_000) {
-            while (sync.state.value.findByOtid("mermaid-otid") == null) delay(10)
-            var stable = 0
-            var lastLen = -1
-            while (stable < 5) {
-                val ev = sync.state.value.events.firstOrNull {
+            while (true) {
+                val content = sync.state.value.events.firstOrNull {
                     it is TimelineEvent.Confirmed && it.serverId == "reply-mermaid"
-                }
-                val len = ev?.content?.length ?: -1
-                if (len == lastLen && len >= 0) stable++ else { stable = 0; lastLen = len }
+                }?.content
+                if (content == mermaid) break
                 delay(10)
             }
         }
@@ -2056,6 +2226,8 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
     var nextStreamMessages: List<LettaMessage> = emptyList()
     var lastSendRequest: MessageCreateRequest? = null
     var sendResponseGate: CompletableDeferred<Unit>? = null
+    var nextSendFailure: Throwable? = null
+    var sendCalls: Int = 0
 
     // letta-mobile-j44j: failure-injection for reconcile retry tests.
     // When [listMessagesFailuresBeforeSuccess] > 0, the first N calls to
@@ -2105,6 +2277,11 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
         conversationId: String,
         request: MessageCreateRequest,
     ): ByteReadChannel {
+        sendCalls++
+        nextSendFailure?.let { failure ->
+            nextSendFailure = null
+            throw failure
+        }
         lastSendRequest = request
         sendResponseGate?.await()
         // Extract otid from request and create a UserMessage in the store to
@@ -2148,6 +2325,9 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
         return ByteReadChannel(sseBody.toByteArray())
     }
 }
+
+private fun <T> List<T>.randomOrNull(random: Random): T? =
+    if (isEmpty()) null else this[random.nextInt(size)]
 
 private val kotlinx.serialization.json.JsonPrimitive.contentOrNull: String?
     get() = if (isString) content else content.takeIf { it != "null" }
