@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,6 +80,7 @@ fun VibesyncDebugScreen(
                     item(headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_database_label)) }, supportingContent = { Text(databaseText) })
                 }
                 CardGroup(title = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_section)) }) {
+                    val actionsEnabled = !state.data.isRefreshingAgentsMd
                     item(
                         headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_refresh)) },
                         supportingContent = {
@@ -101,12 +101,24 @@ fun VibesyncDebugScreen(
                         },
                         leadingContent = { Icon(LettaIcons.Refresh, contentDescription = null) },
                     )
-                }
-                Button(enabled = !state.data.isRefreshingAgentsMd, onClick = { viewModel.refreshAgentsMd(dryRun = true) }) {
-                    Text(stringResource(R.string.screen_vibesync_debug_agents_md_dry_run))
-                }
-                Button(enabled = !state.data.isRefreshingAgentsMd, onClick = { viewModel.refreshAgentsMd(dryRun = false) }) {
-                    Text(stringResource(R.string.screen_vibesync_debug_agents_md_apply))
+                    item(
+                        onClick = if (actionsEnabled) {
+                            { viewModel.refreshAgentsMd(dryRun = true) }
+                        } else {
+                            null
+                        },
+                        headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_dry_run)) },
+                        leadingContent = { Icon(LettaIcons.Play, contentDescription = null) },
+                    )
+                    item(
+                        onClick = if (actionsEnabled) {
+                            { viewModel.refreshAgentsMd(dryRun = false) }
+                        } else {
+                            null
+                        },
+                        headlineContent = { Text(stringResource(R.string.screen_vibesync_debug_agents_md_apply)) },
+                        leadingContent = { Icon(LettaIcons.Check, contentDescription = null) },
+                    )
                 }
             }
         }
