@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,8 +45,16 @@ fun VibesyncDebugScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.screen_vibesync_debug_title)) },
-                navigationIcon = { TextButton(onClick = onNavigateBack) { Text(stringResource(R.string.action_back)) } },
-                actions = { TextButton(onClick = viewModel::refresh) { Text(stringResource(R.string.action_refresh)) } },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(LettaIcons.ArrowBack, stringResource(R.string.action_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(LettaIcons.Refresh, stringResource(R.string.action_refresh))
+                    }
+                },
                 colors = LettaTopBarDefaults.topAppBarColors(),
             )
         },
