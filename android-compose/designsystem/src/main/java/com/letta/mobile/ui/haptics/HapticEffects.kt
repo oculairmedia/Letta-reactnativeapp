@@ -22,7 +22,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.Confirm,
-            platformType = HapticFeedbackConstants.CONFIRM,
             fallbackPlatformType = HapticFeedbackConstants.CONTEXT_CLICK,
         )
     }
@@ -33,7 +32,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.Reject,
-            platformType = HapticFeedbackConstants.REJECT,
             fallbackPlatformType = HapticFeedbackConstants.LONG_PRESS,
         )
     }
@@ -44,7 +42,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.ToggleOn,
-            platformType = HapticFeedbackConstants.TOGGLE_ON,
             fallbackPlatformType = HapticFeedbackConstants.CLOCK_TICK,
         )
     }
@@ -55,7 +52,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.ToggleOff,
-            platformType = HapticFeedbackConstants.TOGGLE_OFF,
             fallbackPlatformType = HapticFeedbackConstants.CLOCK_TICK,
         )
     }
@@ -66,7 +62,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.SegmentTick,
-            platformType = HapticFeedbackConstants.SEGMENT_TICK,
             fallbackPlatformType = HapticFeedbackConstants.CLOCK_TICK,
         )
     }
@@ -77,7 +72,6 @@ object HapticEffects {
             haptic = haptic,
             view = view,
             composeType = HapticFeedbackType.GestureThresholdActivate,
-            platformType = HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE,
             fallbackPlatformType = HapticFeedbackConstants.LONG_PRESS,
         )
     }
@@ -99,7 +93,6 @@ object HapticEffects {
         haptic: HapticFeedback,
         view: View?,
         composeType: HapticFeedbackType,
-        platformType: Int,
         fallbackPlatformType: Int,
     ) {
         if (!enabled) return

@@ -161,11 +161,6 @@ internal fun ToolCallCard(
     val codeStyle = MaterialTheme.chatTypography.codeBlock
     val showDetails = keepExpanded || expanded
     val approvalState = approvalStateOverride ?: toolCall.approvalDecision?.toToolApprovalState()
-    LaunchedEffect(toolCall.toolCallId, toolCall.status, isError) {
-        if (isError) {
-            HapticEffects.reject(haptic, view)
-        }
-    }
     val compactDetail = remember(
         display.label,
         display.detailLine,
@@ -671,11 +666,6 @@ internal fun CompactToolCallRow(
         "${toolCall.name} - $summary"
     }
     val isError = ToolReturnStatus.isError(toolCall.status)
-    LaunchedEffect(toolCall.toolCallId, toolCall.status, isError) {
-        if (isError) {
-            HapticEffects.reject(haptic, view)
-        }
-    }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = ChatMotion.chipCrossfadeSpec,

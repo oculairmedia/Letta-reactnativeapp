@@ -2361,7 +2361,11 @@ private fun A2uiSlider(
         Slider(
             value = range.coerce(value).toFloat(),
             onValueChange = {
-                if (dragStartValue == null) dragStartValue = range.coerce(value)
+                if (dragStartValue == null) {
+                    val current = range.coerce(value)
+                    dragStartValue = current
+                    lastTickValue = current
+                }
                 update(it.toDouble())
             },
             onValueChangeFinished = {
