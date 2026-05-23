@@ -17,6 +17,9 @@ import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.LlmModel
 import com.letta.mobile.data.model.McpServer
 import com.letta.mobile.data.model.Passage
+import com.letta.mobile.data.model.ProjectIssueDetail
+import com.letta.mobile.data.model.ProjectIssueListParams
+import com.letta.mobile.data.model.ProjectIssueSummary
 import com.letta.mobile.data.model.ProjectSummary
 import com.letta.mobile.data.model.Provider
 import com.letta.mobile.data.model.Run
@@ -40,6 +43,7 @@ import com.letta.mobile.testutil.FakeMcpServerApi
 import com.letta.mobile.testutil.FakeModelApi
 import com.letta.mobile.testutil.FakePassageApi
 import com.letta.mobile.testutil.FakeProjectApi
+import com.letta.mobile.testutil.FakeProjectWorkApi
 import com.letta.mobile.testutil.FakeProviderApi
 import com.letta.mobile.testutil.FakeRunApi
 import com.letta.mobile.testutil.FakeScheduleApi
@@ -85,6 +89,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -128,6 +133,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -179,6 +185,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -228,6 +235,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -286,6 +294,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 fakeRunApi,
                 fakeJobApi,
                 FakeProviderApi(),
@@ -367,6 +376,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 fakeProviderApi,
@@ -456,6 +466,7 @@ class SessionManagerTest {
                 fakeModelApi,
                 fakePassageApi,
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -542,6 +553,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 FakeProjectApi(),
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -617,6 +629,7 @@ class SessionManagerTest {
                 FakeModelApi(),
                 FakePassageApi(),
                 fakeProjectApi,
+                FakeProjectWorkApi(),
                 FakeRunApi(),
                 FakeJobApi(),
                 FakeProviderApi(),
@@ -648,6 +661,122 @@ class SessionManagerTest {
 
         assertEquals(listOf("project-b"), projectProxy.projects.value.map { it.identifier })
         assertEquals("Backend B", projectProxy.getProject("project-b").name)
+    }
+
+    @Test
+    fun `all conversations repository proxy switches cache to rebuilt graph`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val fakeConversationApi = FakeConversationApi().apply {
+            conversations = mutableListOf(TestData.conversation(id = "conv-a", summary = "Backend A"))
+        }
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val sessionManager = SessionManager(
+            settingsRepository = settingsRepository,
+            sessionGraphFactory = SessionGraphFactory(
+                FakeAgentApi(),
+                FakeAgentDao(),
+                fakeConversationApi,
+                FakeConversationDao(),
+                FakeArchiveApi(),
+                FakeFolderApi(),
+                FakeGroupApi(),
+                FakeIdentityApi(),
+                FakeMcpServerApi(),
+                FakeModelApi(),
+                FakePassageApi(),
+                FakeProjectApi(),
+                FakeProjectWorkApi(),
+                FakeRunApi(),
+                FakeJobApi(),
+                FakeProviderApi(),
+                FakeScheduleApi(),
+                FakeStepApi(),
+                FakeToolApi(),
+            ),
+            managerScope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+        val conversationsProxy = SessionScopedAllConversationsRepository(
+            sessionManager = sessionManager,
+            proxyScope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+
+        conversationsProxy.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf("conv-a"), conversationsProxy.conversations.value.map { it.id })
+
+        fakeConversationApi.conversations = mutableListOf(TestData.conversation(id = "conv-b", summary = "Backend B"))
+        settingsRepository.activeConfigState.value = config("backend-b")
+        advanceUntilIdle()
+
+        conversationsProxy.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf("conv-b"), conversationsProxy.conversations.value.map { it.id })
+        assertTrue(conversationsProxy.hasFreshConversations(maxAgeMs = 60_000))
+    }
+
+    @Test
+    fun `project work repository proxy switches caches to rebuilt graph`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val fakeProjectWorkApi = FakeProjectWorkApi().apply {
+            readyWork["letta-mobile"] = listOf(sampleIssue("letta-mobile-a"))
+            issues["letta-mobile"] = listOf(sampleIssue("letta-mobile-a"))
+            issueDetails["letta-mobile-a"] = sampleIssueDetail("letta-mobile-a", "Backend A")
+        }
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val sessionManager = SessionManager(
+            settingsRepository = settingsRepository,
+            sessionGraphFactory = SessionGraphFactory(
+                FakeAgentApi(),
+                FakeAgentDao(),
+                FakeConversationApi(),
+                FakeConversationDao(),
+                FakeArchiveApi(),
+                FakeFolderApi(),
+                FakeGroupApi(),
+                FakeIdentityApi(),
+                FakeMcpServerApi(),
+                FakeModelApi(),
+                FakePassageApi(),
+                FakeProjectApi(),
+                fakeProjectWorkApi,
+                FakeRunApi(),
+                FakeJobApi(),
+                FakeProviderApi(),
+                FakeScheduleApi(),
+                FakeStepApi(),
+                FakeToolApi(),
+            ),
+            managerScope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+        val workProxy = SessionScopedProjectWorkRepository(
+            sessionManager = sessionManager,
+            proxyScope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+
+        workProxy.refreshReadyWork("letta-mobile")
+        workProxy.refreshIssues("letta-mobile", ProjectIssueListParams())
+        assertEquals("Backend A", workProxy.getIssue("letta-mobile-a").title)
+        advanceUntilIdle()
+        assertEquals(listOf("letta-mobile-a"), workProxy.readyWorkByProject.value["letta-mobile"]?.map { it.id })
+        assertEquals(listOf("letta-mobile-a"), workProxy.issuesByProject.value["letta-mobile"]?.map { it.id })
+
+        fakeProjectWorkApi.readyWork["letta-mobile"] = listOf(sampleIssue("letta-mobile-b"))
+        fakeProjectWorkApi.issues["letta-mobile"] = listOf(sampleIssue("letta-mobile-b"))
+        fakeProjectWorkApi.issueDetails.clear()
+        fakeProjectWorkApi.issueDetails["letta-mobile-b"] = sampleIssueDetail("letta-mobile-b", "Backend B")
+        settingsRepository.activeConfigState.value = config("backend-b")
+        advanceUntilIdle()
+
+        workProxy.refreshReadyWork("letta-mobile")
+        workProxy.refreshIssues("letta-mobile", ProjectIssueListParams())
+        val backendBIssue = workProxy.getIssue("letta-mobile-b")
+        advanceUntilIdle()
+
+        assertEquals(listOf("letta-mobile-b"), workProxy.readyWorkByProject.value["letta-mobile"]?.map { it.id })
+        assertEquals(listOf("letta-mobile-b"), workProxy.issuesByProject.value["letta-mobile"]?.map { it.id })
+        assertEquals("Backend B", backendBIssue.title)
+        assertNull(workProxy.issueDetails.value["letta-mobile-a"])
     }
 
     private fun config(id: String): LettaConfig = LettaConfig(
@@ -727,6 +856,26 @@ class SessionManagerTest {
     private fun sampleProject(identifier: String, name: String) = ProjectSummary(
         identifier = identifier,
         name = name,
+    )
+
+    private fun sampleIssue(id: String) = ProjectIssueSummary(
+        id = id,
+        projectId = "letta-mobile",
+        provider = "beads",
+        title = "Issue $id",
+        type = "task",
+        priority = "high",
+        status = "open",
+        ready = true,
+        etag = "$id:1",
+    )
+
+    private fun sampleIssueDetail(id: String, title: String) = ProjectIssueDetail(
+        id = id,
+        projectId = "letta-mobile",
+        title = title,
+        status = "open",
+        description = "Description for $id",
     )
 
     private class FakeAgentDao : AgentDao {

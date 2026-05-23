@@ -1,6 +1,7 @@
 package com.letta.mobile.data.session
 
 import com.letta.mobile.data.repository.AgentRepository
+import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ArchiveRepository
 import com.letta.mobile.data.repository.ConversationRepository
 import com.letta.mobile.data.repository.FolderRepository
@@ -11,6 +12,7 @@ import com.letta.mobile.data.repository.McpServerRepository
 import com.letta.mobile.data.repository.ModelRepository
 import com.letta.mobile.data.repository.PassageRepository
 import com.letta.mobile.data.repository.ProjectRepository
+import com.letta.mobile.data.repository.ProjectWorkRepository
 import com.letta.mobile.data.repository.ProviderRepository
 import com.letta.mobile.data.repository.RunRepository
 import com.letta.mobile.data.repository.ScheduleRepository
@@ -22,6 +24,7 @@ class SessionGraph internal constructor(
     val id: Long,
     val scope: CoroutineScope,
     val agentRepository: AgentRepository,
+    val allConversationsRepository: AllConversationsRepository,
     val conversationRepository: ConversationRepository,
     val archiveRepository: ArchiveRepository,
     val folderRepository: FolderRepository,
@@ -31,6 +34,7 @@ class SessionGraph internal constructor(
     val modelRepository: ModelRepository,
     val passageRepository: PassageRepository,
     val projectRepository: ProjectRepository,
+    val projectWorkRepository: ProjectWorkRepository,
     val runRepository: RunRepository,
     val jobRepository: JobRepository,
     val providerRepository: ProviderRepository,
