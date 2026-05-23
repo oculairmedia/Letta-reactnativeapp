@@ -149,6 +149,17 @@ class EditAgentViewModelTest {
     }
 
     @Test
+    fun `loadAgent succeeds when flow never completes`() = runTest {
+        fakeAgentRepo.neverComplete = true
+        viewModel.loadAgent()
+        viewModel.uiState.test {
+            val state = awaitItem() as UiState.Success
+            assertEquals("Test Agent", state.data.name)
+            assertEquals("stateful", state.data.agentType)
+        }
+    }
+
+    @Test
     fun `loadAgent sets Error on failure`() = runTest {
         fakeAgentRepo.shouldFail = true
         viewModel.loadAgent()
@@ -721,6 +732,7 @@ class EditAgentViewModelTest {
         private val _agents = MutableStateFlow<List<Agent>>(emptyList())
         override val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
         var shouldFail = false
+        var neverComplete = false
         var lastUpdateParams: AgentUpdateParams? = null
         var loadedModel: String = "letta/letta-free"
         var loadedProviderType: String? = "openai"
@@ -758,6 +770,7 @@ class EditAgentViewModelTest {
                     TestData.block(label = "human", value = "human value"),
                 )
             ))
+            if (neverComplete) kotlinx.coroutines.awaitCancellation()
         }
         override suspend fun refreshAgents() {}
         override suspend fun createAgent(params: AgentCreateParams): Agent = TestData.agent()
