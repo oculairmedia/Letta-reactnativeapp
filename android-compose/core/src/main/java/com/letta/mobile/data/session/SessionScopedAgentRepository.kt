@@ -9,6 +9,7 @@ import com.letta.mobile.data.repository.api.IAgentRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,7 @@ internal fun defaultSessionScopedAgentRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedAgentRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IAgentRepository {
     @Inject
     constructor(
@@ -98,4 +99,6 @@ class SessionScopedAgentRepository internal constructor(
     override suspend fun attachArchive(agentId: String, archiveId: String) = sessionManager.withCurrentSession { it.agentRepository.attachArchive(agentId, archiveId) }
 
     override suspend fun detachArchive(agentId: String, archiveId: String) = sessionManager.withCurrentSession { it.agentRepository.detachArchive(agentId, archiveId) }
+
+    fun close() { proxyScope.cancel() }
 }

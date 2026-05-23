@@ -11,6 +11,7 @@ import com.letta.mobile.data.repository.api.IIdentityRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +27,7 @@ internal fun defaultSessionScopedIdentityRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedIdentityRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IIdentityRepository {
     @Inject
     constructor(
@@ -80,4 +81,6 @@ class SessionScopedIdentityRepository internal constructor(
 
     override suspend fun listBlocksForIdentity(identityId: String): List<Block> =
         sessionManager.withCurrentSession { it.identityRepository.listBlocksForIdentity(identityId) }
+
+    fun close() { proxyScope.cancel() }
 }

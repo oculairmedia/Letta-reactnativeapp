@@ -8,6 +8,7 @@ import com.letta.mobile.data.repository.api.IProviderRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,7 @@ internal fun defaultSessionScopedProviderRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedProviderRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IProviderRepository {
     @Inject
     constructor(
@@ -61,4 +62,6 @@ class SessionScopedProviderRepository internal constructor(
     override suspend fun checkExistingProvider(providerId: String) = sessionManager.withCurrentSession { it.providerRepository.checkExistingProvider(providerId) }
 
     override suspend fun deleteProvider(providerId: String) = sessionManager.withCurrentSession { it.providerRepository.deleteProvider(providerId) }
+
+    fun close() { proxyScope.cancel() }
 }

@@ -9,6 +9,7 @@ import com.letta.mobile.data.model.ProjectIssueSummary
 import com.letta.mobile.data.repository.api.IProjectWorkRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +27,7 @@ internal fun defaultSessionScopedProjectWorkRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedProjectWorkRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IProjectWorkRepository {
     @Inject
     constructor(
@@ -125,4 +126,6 @@ class SessionScopedProjectWorkRepository internal constructor(
     ): ProjectIssueSummary = sessionManager.withCurrentSession { it.projectWorkRepository.reopenIssue(issueId, reason, ifMatch, idempotencyKey) }
 
     override fun newIdempotencyKey(): String = current.newIdempotencyKey()
+
+    fun close() { proxyScope.cancel() }
 }

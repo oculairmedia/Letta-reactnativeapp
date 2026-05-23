@@ -6,6 +6,7 @@ import com.letta.mobile.data.repository.api.IModelRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,7 @@ internal fun defaultSessionScopedModelRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedModelRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IModelRepository {
     @Inject
     constructor(
@@ -54,4 +55,6 @@ class SessionScopedModelRepository internal constructor(
     override suspend fun refreshLlmModels() = sessionManager.withCurrentSession { it.modelRepository.refreshLlmModels() }
 
     override suspend fun refreshEmbeddingModels() = sessionManager.withCurrentSession { it.modelRepository.refreshEmbeddingModels() }
+
+    fun close() { proxyScope.cancel() }
 }

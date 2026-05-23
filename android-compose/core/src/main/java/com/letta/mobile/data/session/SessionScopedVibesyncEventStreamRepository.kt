@@ -5,6 +5,7 @@ import com.letta.mobile.data.repository.api.IVibesyncEventStreamRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,7 +23,7 @@ internal fun defaultSessionScopedVibesyncEventStreamRepositoryScope(): Coroutine
 @Singleton
 class SessionScopedVibesyncEventStreamRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IVibesyncEventStreamRepository {
     @Inject
     constructor(sessionManager: SessionManager) : this(
@@ -58,4 +59,6 @@ class SessionScopedVibesyncEventStreamRepository internal constructor(
         activeSubscribers.set(0)
         sessionManager.current.vibesyncEventStreamRepository.stop()
     }
+
+    fun close() { proxyScope.cancel() }
 }
