@@ -4,13 +4,20 @@ import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
+import com.letta.mobile.util.Telemetry
 import java.time.Instant
+import org.junit.After
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TimelineHydrationReducerTest {
+
+    @After
+    fun tearDown() {
+        Telemetry.clear()
+    }
 
     @Test
     fun `reduce attaches tool returns and drops standalone return bubbles`() {
@@ -62,5 +69,43 @@ class TimelineHydrationReducerTest {
         assertEquals(listOf("server-server-1-user", "local-1"), result.timeline.events.map { it.otid })
         assertEquals(1.0, result.timeline.events.first().position, 0.0)
         assertEquals(2.0, result.timeline.events.last().position, 0.0)
+    }
+
+    @Test
+    fun `reduce drops duplicate otids preserved from current timeline`() {
+        val first = TimelineEvent.Confirmed(
+            position = 1.0,
+            otid = "dup-otid",
+            content = "first",
+            serverId = "current-1",
+            messageType = TimelineMessageType.ASSISTANT,
+            date = Instant.parse("2026-05-10T00:00:00Z"),
+            runId = null,
+            stepId = null,
+        )
+        val second = first.copy(
+            position = 2.0,
+            content = "second",
+            serverId = "current-2",
+        )
+        val current = Timeline("conversation-1", events = listOf(first, second))
+        Telemetry.clear()
+
+        val result = TimelineHydrationReducer.reduce(
+            conversationId = "conversation-1",
+            serverMessagesChronological = emptyList(),
+            timelineBeforeFetch = Timeline("conversation-1"),
+            currentTimeline = current,
+            diskRecords = emptyList(),
+        )
+
+        assertEquals(1, result.timeline.events.size)
+        assertEquals("first", result.timeline.events.single().content)
+        assertTrue(
+            "Expected hydration duplicate drop telemetry",
+            Telemetry.snapshot().any {
+                it.tag == "Timeline" && it.name == "hydrate.duplicateOtidDropped"
+            },
+        )
     }
 }
