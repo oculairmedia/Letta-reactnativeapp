@@ -27,7 +27,7 @@ internal fun defaultSessionScopedProjectWorkRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedProjectWorkRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IProjectWorkRepository {
     @Inject
     constructor(

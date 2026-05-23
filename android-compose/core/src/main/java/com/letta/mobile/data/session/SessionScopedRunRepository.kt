@@ -26,7 +26,7 @@ internal fun defaultSessionScopedRunRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedRunRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IRunRepository {
     @Inject
     constructor(

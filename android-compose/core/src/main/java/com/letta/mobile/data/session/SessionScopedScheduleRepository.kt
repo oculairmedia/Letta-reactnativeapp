@@ -19,7 +19,7 @@ internal fun defaultSessionScopedScheduleRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedScheduleRepository internal constructor(
     private val sessionManager: SessionManager,
-    @Suppress("unused") proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IScheduleRepository {
     @Inject
     constructor(

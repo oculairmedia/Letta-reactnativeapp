@@ -23,7 +23,7 @@ internal fun defaultSessionScopedVibesyncEventStreamRepositoryScope(): Coroutine
 @Singleton
 class SessionScopedVibesyncEventStreamRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IVibesyncEventStreamRepository {
     @Inject
     constructor(sessionManager: SessionManager) : this(

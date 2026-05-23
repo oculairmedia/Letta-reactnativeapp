@@ -27,7 +27,7 @@ internal fun defaultSessionScopedFolderRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedFolderRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IFolderRepository {
     @Inject
     constructor(

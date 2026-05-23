@@ -28,7 +28,7 @@ internal fun defaultSessionScopedGroupRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedGroupRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IGroupRepository {
     @Inject
     constructor(

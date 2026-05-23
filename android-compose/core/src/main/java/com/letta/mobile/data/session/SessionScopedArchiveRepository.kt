@@ -24,7 +24,7 @@ internal fun defaultSessionScopedArchiveRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedArchiveRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IArchiveRepository {
     @Inject
     constructor(

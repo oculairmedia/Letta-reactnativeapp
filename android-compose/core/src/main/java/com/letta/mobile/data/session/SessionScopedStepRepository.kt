@@ -26,7 +26,7 @@ internal fun defaultSessionScopedStepRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedStepRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IStepRepository {
     @Inject
     constructor(

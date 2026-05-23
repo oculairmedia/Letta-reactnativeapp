@@ -22,7 +22,7 @@ internal fun defaultSessionScopedJobRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedJobRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IJobRepository {
     @Inject
     constructor(

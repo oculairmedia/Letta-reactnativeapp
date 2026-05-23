@@ -25,7 +25,7 @@ internal fun defaultSessionScopedAllConversationsRepositoryScope(): CoroutineSco
 @Singleton
 class SessionScopedAllConversationsRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IAllConversationsRepository {
     @Inject
     constructor(

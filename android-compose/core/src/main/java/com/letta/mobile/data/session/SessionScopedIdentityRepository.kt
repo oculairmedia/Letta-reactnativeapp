@@ -27,7 +27,7 @@ internal fun defaultSessionScopedIdentityRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedIdentityRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IIdentityRepository {
     @Inject
     constructor(

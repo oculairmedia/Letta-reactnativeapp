@@ -24,7 +24,7 @@ internal fun defaultSessionScopedProviderRepositoryScope(): CoroutineScope =
 @Singleton
 class SessionScopedProviderRepository internal constructor(
     private val sessionManager: SessionManager,
-    proxyScope: CoroutineScope,
+    private val proxyScope: CoroutineScope,
 ) : IProviderRepository {
     @Inject
     constructor(
