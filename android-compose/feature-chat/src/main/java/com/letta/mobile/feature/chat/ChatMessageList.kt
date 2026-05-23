@@ -80,6 +80,8 @@ internal fun ChatMessageList(
     var hasScrolledToTarget by remember { mutableStateOf(false) }
     var showFontIndicator by remember { mutableStateOf(false) }
     var pinchTick by remember { mutableStateOf(0L) }
+    var pinchAnimationSuppressionTick by remember { mutableStateOf(0L) }
+    var suppressPinchLayoutAnimations by remember { mutableStateOf(false) }
     val pinchFontScaleController = remember {
         PinchScalePreviewController(minScale = 0.7f, maxScale = 1.6f, step = 0.02f)
     }
@@ -93,6 +95,15 @@ internal fun ChatMessageList(
             showFontIndicator = true
             delay(1000)
             showFontIndicator = false
+        }
+    }
+
+    LaunchedEffect(pinchAnimationSuppressionTick) {
+        if (pinchAnimationSuppressionTick > 0) {
+            delay(ChatMotion.ContentSizeMillis.toLong())
+            if (!pinchFontScaleController.isPinching) {
+                suppressPinchLayoutAnimations = false
+            }
         }
     }
 
@@ -177,6 +188,8 @@ internal fun ChatMessageList(
                         if (activePointers.size >= 2) {
                             if (!gesturePinching) {
                                 gesturePinching = true
+                                suppressPinchLayoutAnimations = true
+                                pinchAnimationSuppressionTick = 0L
                                 pinchFontScaleController.begin(activeFontScale)
                                 pinchTick = System.nanoTime()
                             }
@@ -192,8 +205,10 @@ internal fun ChatMessageList(
                         onActiveFontScaleChange(snapped)
                         onFontScaleChange(snapped)
                         pinchTick = System.nanoTime()
+                        pinchAnimationSuppressionTick = pinchTick
                     } else {
                         pinchFontScaleController.cancel()
+                        suppressPinchLayoutAnimations = false
                     }
                 }
             },
@@ -201,7 +216,7 @@ internal fun ChatMessageList(
         // letta-mobile-5e0f.r2: provide LocalChatIsPinching to
         // the entire chat content tree so animateContentSize
         // sites can suppress themselves during the gesture.
-        CompositionLocalProvider(LocalChatIsPinching provides pinchFontScaleController.isPinching) {
+        CompositionLocalProvider(LocalChatIsPinching provides suppressPinchLayoutAnimations) {
             LazyColumn(
                 state = listState,
                 // Use the chat theme's compact gutter so assistant prose,
