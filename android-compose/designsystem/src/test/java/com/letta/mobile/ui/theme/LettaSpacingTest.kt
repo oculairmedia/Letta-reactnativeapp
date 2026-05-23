@@ -14,6 +14,16 @@ class LettaSpacingTest {
     }
 
     @Test
+    fun `spacing scale exposes small semantic steps`() {
+        assertEquals(0.dp, LettaSpacing.none)
+        assertEquals(4.dp, LettaSpacing.extraSmall)
+        assertEquals(6.dp, LettaSpacing.compact)
+        assertEquals(8.dp, LettaSpacing.small)
+        assertEquals(12.dp, LettaSpacing.medium)
+        assertEquals(16.dp, LettaSpacing.large)
+    }
+
+    @Test
     fun `cardGap is 8 dp`() {
         assertEquals(8.dp, LettaSpacing.cardGap)
     }
@@ -46,5 +56,11 @@ class LettaSpacingTest {
     @Test
     fun `chipGap is 8 dp`() {
         assertEquals(8.dp, LettaSpacing.chipGap)
+    }
+
+    @Test
+    fun `list item spacing tokens match existing card rhythm`() {
+        assertEquals(14.dp, LettaSpacing.listItemHorizontal)
+        assertEquals(10.dp, LettaSpacing.listItemVertical)
     }
 }
