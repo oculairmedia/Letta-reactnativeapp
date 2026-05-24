@@ -139,16 +139,14 @@ internal fun reduceStreamFrame(input: TimelineReducerInput): TimelineReducerOutp
         }
         val oldText = existing.content
         val newText = confirmed.content
-        val mergedText = if (existing.source == MessageSource.CLIENT_MODE_HARNESS) {
-            when {
-                newText.isEmpty() -> oldText
-                newText == oldText -> oldText
-                newText.startsWith(oldText) -> newText
-                oldText.startsWith(newText) -> oldText
-                oldText.endsWith(newText) -> oldText
-                else -> oldText + newText
-            }
-        } else if (newText.isEmpty()) oldText else oldText + newText
+        val mergedText = when {
+            newText.isEmpty() -> oldText
+            newText == oldText -> oldText
+            newText.startsWith(oldText) -> newText
+            oldText.startsWith(newText) -> oldText
+            oldText.endsWith(newText) -> oldText
+            else -> oldText + newText
+        }
         val oldCalls = existing.toolCalls
         val newCalls = confirmed.toolCalls
         val oldScore = oldCalls.count { !it.arguments.isNullOrBlank() }

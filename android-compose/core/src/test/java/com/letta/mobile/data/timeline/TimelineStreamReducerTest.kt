@@ -116,6 +116,42 @@ class TimelineStreamReducerTest {
     }
 
     @Test
+    fun `cumulative frames do not double existing text`() {
+        val seeded = reduce(
+            frame = AssistantMessage(id = "assistant-1", contentRaw = JsonPrimitive("Hey"))
+        ).next
+
+        val out2 = reduce(
+            prev = seeded,
+            frame = AssistantMessage(id = "assistant-1", contentRaw = JsonPrimitive("Hey Emmanuel.")),
+        )
+        (out2.next.events.single() as TimelineEvent.Confirmed).content shouldBe "Hey Emmanuel."
+
+        val out3 = reduce(
+            prev = out2.next,
+            frame = AssistantMessage(
+                id = "assistant-1",
+                contentRaw = JsonPrimitive("Hey Emmanuel. Most recent thing"),
+            ),
+        )
+        (out3.next.events.single() as TimelineEvent.Confirmed).content shouldBe "Hey Emmanuel. Most recent thing"
+    }
+
+    @Test
+    fun `seqId dedup skips already-ingested stream frame`() {
+        val seeded = reduce(
+            frame = AssistantMessage(id = "assistant-1", contentRaw = JsonPrimitive("Hello"), seqId = 3)
+        ).next
+
+        val output = reduce(
+            prev = seeded,
+            frame = AssistantMessage(id = "assistant-1", contentRaw = JsonPrimitive("Hel"), seqId = 2),
+        )
+        (output.next.events.single() as TimelineEvent.Confirmed).content shouldBe "Hello"
+        output.emittedEvents shouldBe emptyList()
+    }
+
+    @Test
     fun `otid match dedupes duplicate stream frame`() {
         val seeded = reduce(
             frame = UserMessage(id = "server-user-1", contentRaw = JsonPrimitive("hello"), otid = "shared-otid")
