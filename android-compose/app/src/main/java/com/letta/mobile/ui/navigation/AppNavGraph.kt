@@ -483,8 +483,6 @@ fun AppNavGraph(
                 onNavigateToConfigList = {
                     navController.navigate(ConfigListRoute)
                 },
-                onNavigateToLettaBotConnection = {
-                },
                 onNavigateToSystemAccess = {
                     navController.navigate(SystemAccessRoute)
                 },
