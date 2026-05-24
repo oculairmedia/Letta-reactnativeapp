@@ -319,12 +319,7 @@ class TimelineTest {
             },
         )
     }
-
-    // ---------------------------------------------------------------
-    // letta-mobile-c87t: Client Mode fuzzy reconcile tests
-    // ---------------------------------------------------------------
-
-    private fun clientModeLocal(
+}
         otid: String,
         pos: Double,
         content: String,

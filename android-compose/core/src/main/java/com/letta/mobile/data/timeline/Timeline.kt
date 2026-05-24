@@ -42,27 +42,10 @@ sealed class TimelineEvent {
      */
     abstract val attachments: List<MessageContentPart.Image>
 
-    /**
-     * Origin of this event. Defaults to LETTA_SERVER for the strict-otid timeline
-     * path. CLIENT_MODE_HARNESS marks events that came from / were sent through
-     * the lettabot WS gateway, where strict otid reconcile isn't yet supported.
-     * See [MessageSource] kdoc for details.
-     */
     abstract val source: MessageSource
 
     /**
-     * Optimistic, not yet confirmed by server. Historically only ever USER —
-     * extended for letta-mobile-5s1n (Client Mode assistant streaming) so
-     * in-flight assistant content + reasoning + tool calls can flow through
-     * the timeline rather than the legacy in-memory `clientModeMessages` list.
-     *
-     * Strict-otid sends from Letta REST/SSE remain USER-only; the new fields
-     * default to safe values and are unused for [MessageSource.LETTA_SERVER].
-     * For [MessageSource.CLIENT_MODE_HARNESS] events that represent assistant
-     * streaming, [messageType] is set accordingly and the structured fields
-     * (toolCalls / approval / toolReturn / reasoningContent) carry the
-     * stream payload until the SSE-side Confirmed event lands and the fuzzy
-     * matcher (or future strict-otid path) collapses them.
+     * Optimistic, not yet confirmed by server.
      */
     data class Local(
         override val position: Double,
