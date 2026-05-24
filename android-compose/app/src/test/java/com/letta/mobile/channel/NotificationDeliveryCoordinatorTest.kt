@@ -9,7 +9,6 @@ import com.letta.mobile.data.channel.NotificationDeliveryDecision
 import com.letta.mobile.data.channel.NotificationSuppressionReason
 import com.letta.mobile.testutil.FakeChannelNotificationPublisher
 import com.letta.mobile.testutil.FakeChannelSyncStateStore
-import com.letta.mobile.testutil.FakeNotificationReplyStreamTracker
 import com.letta.mobile.util.Telemetry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -94,7 +93,7 @@ class NotificationDeliveryCoordinatorTest {
 
         val decision = fixture.coordinator.submit(
             candidate(
-                source = NotificationCandidateSource.WebsocketClientMode,
+                source = NotificationCandidateSource.TimelineIngestion,
                 phase = NotificationCandidatePhase.Partial,
                 isFinal = false,
                 previewText = "Hel",
@@ -116,7 +115,7 @@ class NotificationDeliveryCoordinatorTest {
 
         val decision = fixture.coordinator.submit(
             candidate(
-                source = NotificationCandidateSource.WebsocketClientMode,
+                source = NotificationCandidateSource.TimelineIngestion,
                 phase = NotificationCandidatePhase.Partial,
                 isFinal = false,
                 previewText = "I",
@@ -153,7 +152,7 @@ class NotificationDeliveryCoordinatorTest {
 
         val partial = fixture.coordinator.submit(
             candidate(
-                source = NotificationCandidateSource.WebsocketClientMode,
+                source = NotificationCandidateSource.TimelineIngestion,
                 phase = NotificationCandidatePhase.Partial,
                 isFinal = false,
                 previewText = "Hel",
@@ -161,7 +160,7 @@ class NotificationDeliveryCoordinatorTest {
         )
         val final = fixture.coordinator.submit(
             candidate(
-                source = NotificationCandidateSource.WebsocketClientMode,
+                source = NotificationCandidateSource.TimelineIngestion,
                 phase = NotificationCandidatePhase.Final,
                 isFinal = true,
                 previewText = "Hello from the background",
@@ -209,19 +208,17 @@ class NotificationDeliveryCoordinatorTest {
 
     private fun createFixture(
         currentConversationId: String? = null,
-        activeReplyStreams: Set<String> = emptySet(),
+        @Suppress("UNUSED_PARAMETER") activeReplyStreams: Set<String> = emptySet(),
         notified: MutableMap<String, String> = mutableMapOf(),
         publisherAccepted: Boolean = true,
     ): Fixture {
         val tracker = CurrentConversationTracker().apply { setCurrent(currentConversationId) }
-        val replyHandler = FakeNotificationReplyStreamTracker(activeReplyStreams)
         val stateStore = FakeChannelSyncStateStore(initialNotified = notified)
         val publisher = FakeChannelNotificationPublisher(accepted = publisherAccepted)
 
         return Fixture(
             coordinator = NotificationDeliveryCoordinator(
                 currentConversationTracker = tracker,
-                notificationReplyHandler = replyHandler,
                 syncStateStore = stateStore,
                 publisher = publisher,
             ),
