@@ -324,7 +324,6 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(project(":designsystem"))
-    implementation(project(":bot"))
     implementation(project(":feature-chat"))
     implementation(project(":feature-editagent"))
 
