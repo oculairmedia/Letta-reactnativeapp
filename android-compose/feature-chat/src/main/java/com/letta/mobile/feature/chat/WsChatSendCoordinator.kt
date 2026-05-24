@@ -399,6 +399,7 @@ internal class WsChatSendCoordinator(
                 stopReasonForTurn = null
                 usageRecordedForTurn = false
                 bufferedErrorMessage = null
+                timelineRepository.clearExternalTransportActive(conversationId)
                 drainPendingSend()
             }
             is WsTimelineEvent.Error -> {

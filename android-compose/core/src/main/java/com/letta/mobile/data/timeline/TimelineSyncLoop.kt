@@ -137,6 +137,16 @@ class TimelineSyncLoop(
     private val _streamSubscriberActive = MutableStateFlow(false)
     internal val streamSubscriberActive: StateFlow<Boolean> = _streamSubscriberActive.asStateFlow()
 
+    /**
+     * When true, an external transport (admin-shim WS) is delivering messages
+     * for this conversation. The SSE stream subscriber suppresses message
+     * ingestion while this flag is set to avoid dual-ingest duplication —
+     * the two transports use different message IDs for the same logical
+     * events, so serverId-based dedup misses them.
+     */
+    @Volatile
+    private var externalTransportActive = false
+
     // Serialize all mutations so append/replace logic is safe under concurrency.
     private val writeMutex = Mutex()
 
@@ -1236,13 +1246,27 @@ class TimelineSyncLoop(
     }
 
     internal suspend fun submitStreamEvent(message: LettaMessage) {
+        if (externalTransportActive) {
+            Telemetry.event(
+                "TimelineSync", "streamSubscriber.skippedDualIngest",
+                "conversationId" to conversationId,
+                "messageType" to message.messageType,
+                "messageId" to message.id,
+            )
+            return
+        }
         eventQueue.send(TimelineGatewayEvent.StreamMessage(message))
     }
 
     internal suspend fun ingestStreamEvent(message: LettaMessage) {
+        externalTransportActive = true
         val ack = CompletableDeferred<Unit>()
         eventQueue.send(TimelineGatewayEvent.StreamMessage(message, ack))
         ack.await()
+    }
+
+    internal fun clearExternalTransportActive() {
+        externalTransportActive = false
     }
 
     private suspend fun applyStreamEvent(message: LettaMessage) {

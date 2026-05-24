@@ -281,6 +281,15 @@ open class TimelineRepository @Inject constructor(
     }
 
     /**
+     * Signal that the external transport (WS) turn has completed for this
+     * conversation. Clears the SSE-suppression flag so the persistent SSE
+     * stream subscriber resumes ingesting messages for idle-period coverage.
+     */
+    override suspend fun clearExternalTransportActive(conversationId: String) {
+        loopsMutex.withLock { loops[conversationId] }?.clearExternalTransportActive()
+    }
+
+    /**
      * Reconcile a send that went through the admin-shim mobile WebSocket.
      * The shim guarantees `turn_done` is emitted after disk stamping, so callers
      * can invoke this immediately when that frame lands.
