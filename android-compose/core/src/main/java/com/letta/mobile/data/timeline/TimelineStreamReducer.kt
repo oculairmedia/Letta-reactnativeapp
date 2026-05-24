@@ -72,14 +72,10 @@ internal fun reduceStreamFrame(input: TimelineReducerInput): TimelineReducerOutp
             if (match != null) {
                 val body = message.toolReturn.funcResponse ?: ""
                 val isError = message.isErr == true || message.status == "error"
-                val contentByCallId = if (body.isEmpty()) {
-                    match.toolReturnContentByCallId
-                } else {
-                    match.toolReturnContentByCallId + (tcid to body)
-                }
+                val contentByCallId = match.toolReturnContentByCallId + (tcid to body)
                 val updated = match.copy(
                     approvalDecided = true,
-                    toolReturnContent = body.ifEmpty { match.toolReturnContent },
+                    toolReturnContent = body.ifBlank { match.toolReturnContent ?: body },
                     toolReturnIsError = isError,
                     toolReturnContentByCallId = contentByCallId,
                     toolReturnIsErrorByCallId = match.toolReturnIsErrorByCallId + (tcid to isError),
