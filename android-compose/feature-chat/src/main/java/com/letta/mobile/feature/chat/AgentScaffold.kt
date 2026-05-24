@@ -196,6 +196,9 @@ internal fun AgentScaffoldContent(
         ?: hiltViewModel<ConversationPickerViewModel>().conversationRepository
     val drawerConversations by drawerConversationRepo.getConversations(viewModel.agentId)
         .collectAsStateWithLifecycle(emptyList())
+    LaunchedEffect(viewModel.agentId) {
+        runCatching { drawerConversationRepo.refreshConversationsIfStale(viewModel.agentId, maxAgeMs = 30_000L) }
+    }
 
     val agentName = uiState.agentName
     val agentId = viewModel.agentId
