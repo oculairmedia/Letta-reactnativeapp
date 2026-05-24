@@ -343,8 +343,6 @@ internal class WsChatSendCoordinator(
             }
             is WsTimelineEvent.TurnDone -> {
                 val conversationId = activeWsConversationId ?: defaultShimConversationId(agentId)
-                // lcp-srk: reconcile from disk only when the shim signals it
-                // dropped frames. Clean turns can skip the round-trip.
                 if (event.lossy) {
                     Telemetry.event(
                         "AdminChatVM", "ws.turnDone.lossy",
@@ -352,14 +350,14 @@ internal class WsChatSendCoordinator(
                         "turnId" to event.turnId,
                         "runId" to event.runId,
                     )
-                    activeWsOtid?.let { otid ->
-                        timelineRepository.reconcileExternalTransportSend(
-                            conversationId = conversationId,
-                            agentId = agentId,
-                            externalConversationId = defaultShimConversationId(agentId),
-                            otid = otid,
-                        )
-                    }
+                }
+                activeWsOtid?.let { otid ->
+                    timelineRepository.reconcileExternalTransportSend(
+                        conversationId = conversationId,
+                        agentId = agentId,
+                        externalConversationId = defaultShimConversationId(agentId),
+                        otid = otid,
+                    )
                 }
                 // letta-mobile-9hcg: flip the optimistic Local user bubble
                 // from SENDING→SENT on every TurnDone. Without this, the

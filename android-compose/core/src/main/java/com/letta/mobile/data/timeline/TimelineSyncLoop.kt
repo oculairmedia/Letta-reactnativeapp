@@ -990,6 +990,9 @@ class TimelineSyncLoop(
                 otid = otid,
                 serverMessages = serverMessages,
             )
+            writeMutex.withLock {
+                applyReturnsAndResponsesFromSnapshot(serverMessages)
+            }
             result.confirmedServerId?.let { serverId ->
                 _events.emit(TimelineSyncEvent.LocalConfirmed(otid, serverId))
             }
