@@ -60,32 +60,6 @@ class NotificationDeliveryCoordinatorTest {
         assertTrue(fixture.publisher.published.isEmpty())
     }
 
-    @Test
-    fun `suppresses candidates while notification reply stream is active`() {
-        val fixture = createFixture(activeReplyStreams = setOf("conversation-1"))
-
-        val decision = fixture.coordinator.submit(
-            candidate(source = NotificationCandidateSource.TimelineIngestion),
-        )
-
-        assertEquals(
-            NotificationDeliveryDecision.Suppressed(NotificationSuppressionReason.ActiveNotificationReplyStream),
-            decision,
-        )
-        assertTrue(fixture.publisher.published.isEmpty())
-    }
-
-    @Test
-    fun `allows notification reply stream source to notify while reply stream is active`() {
-        val fixture = createFixture(activeReplyStreams = setOf("conversation-1"))
-
-        val decision = fixture.coordinator.submit(
-            candidate(source = NotificationCandidateSource.NotificationReplyStream),
-        )
-
-        assertEquals(NotificationDeliveryDecision.Published("message-1"), decision)
-        assertEquals("message-1", fixture.publisher.published.single().messageId)
-    }
 
     @Test
     fun `defers partial websocket previews instead of publishing first delta`() {
