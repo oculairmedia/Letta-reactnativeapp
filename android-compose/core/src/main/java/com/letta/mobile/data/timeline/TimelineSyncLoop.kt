@@ -825,6 +825,7 @@ class TimelineSyncLoop(
                 )
             ),
             streaming = true,
+            includePings = true,
             includeReturnMessageTypes = DEFAULT_INCLUDE_TYPES,
         )
         if (BuildConfig.DEBUG) {
