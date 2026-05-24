@@ -7,6 +7,8 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,11 +33,11 @@ open class CloudConnectionValidator @Inject constructor() {
     open suspend fun validate(
         baseUrl: String,
         apiToken: String,
-    ): CloudConnectionValidationResult {
+    ): CloudConnectionValidationResult = withContext(Dispatchers.IO) {
         val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
         val trimmedToken = apiToken.trim()
         if (trimmedToken.isBlank()) {
-            return CloudConnectionValidationResult.Failed(
+            return@withContext CloudConnectionValidationResult.Failed(
                 "Letta Cloud API key is required. Paste a key from app.letta.com before saving."
             )
         }
@@ -48,12 +50,12 @@ open class CloudConnectionValidator @Inject constructor() {
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
-            return CloudConnectionValidationResult.Failed(
+            return@withContext CloudConnectionValidationResult.Failed(
                 "Could not reach Letta Cloud. Check your connection and try again."
             )
         }
 
-        return when (response.status.value) {
+        return@withContext when (response.status.value) {
             in 200..299 -> CloudConnectionValidationResult.Success
             401 -> CloudConnectionValidationResult.Failed(
                 "Letta Cloud rejected this API key. Check the key and paste it again."
