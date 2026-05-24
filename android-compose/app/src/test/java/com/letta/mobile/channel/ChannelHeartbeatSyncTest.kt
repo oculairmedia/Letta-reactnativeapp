@@ -146,7 +146,6 @@ class ChannelHeartbeatSyncTest {
 
         val coordinator = NotificationDeliveryCoordinator(
             currentConversationTracker = CurrentConversationTracker(),
-            notificationReplyHandler = replyHandler,
             syncStateStore = stateStore,
             publisher = publisher,
         )
