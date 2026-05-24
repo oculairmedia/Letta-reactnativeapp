@@ -212,16 +212,6 @@ internal fun ChatScreen(
                 )
             }
             Column(modifier = Modifier.fillMaxSize()) {
-                // letta-mobile-c87t: surfaces a non-modal banner when the
-                // lettabot WS gateway substituted a fresh conversation for the
-                // one we asked to resume. See ClientModeConversationSwapBanner.
-                val swap = state.clientModeConversationSwap
-                com.letta.mobile.ui.components.ClientModeConversationSwapBanner(
-                    visible = swap != null,
-                    onDismiss = { viewModel.dismissClientModeConversationSwap() },
-                    requestedConversationIdSuffix = swap?.requestedConversationId?.takeLast(6),
-                    newConversationIdSuffix = swap?.newConversationId?.takeLast(6),
-                )
                 when (val conversationState = state.conversationState) {
                     ConversationState.Loading -> {
                         MessageSkeletonList(modifier = Modifier.weight(1f))
@@ -372,14 +362,6 @@ internal fun ChatScreen(
             }
         }
 
-        if (state.clientModeFilesystemPicker.isVisible) {
-            ClientModeFilesystemPickerSheet(
-                state = state.clientModeFilesystemPicker,
-                onDismiss = projectBindings::closeClientModeLocationPicker,
-                onNavigateTo = projectBindings::browseClientModeLocation,
-                onSelect = projectBindings::selectClientModeLocation,
-            )
-        }
     }
 }
 
@@ -558,101 +540,6 @@ private fun A2uiSurfaceStack(
                 onAction = onAction,
                 actionResolutionToken = resolvedActionCounters[surface.surfaceId] ?: 0,
             )
-        }
-    }
-}
-
-@Composable
-private fun ClientModeFilesystemPickerSheet(
-    state: ClientModeFilesystemPickerUiState,
-    onDismiss: () -> Unit,
-    onNavigateTo: (String?) -> Unit,
-    onSelect: (String) -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.screen_chat_client_location_picker_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = state.path ?: stringResource(R.string.screen_chat_client_location_unknown_label),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = { state.parent?.let(onNavigateTo) },
-                    enabled = state.parent != null && !state.isLoading,
-                ) {
-                    Icon(LettaIcons.ArrowBack, contentDescription = null)
-                    Text(stringResource(R.string.screen_chat_client_location_picker_parent))
-                }
-                TextButton(
-                    onClick = { state.path?.let(onSelect) },
-                    enabled = state.path != null && !state.isLoading,
-                ) {
-                    Icon(LettaIcons.Check, contentDescription = null)
-                    Text(stringResource(R.string.screen_chat_client_location_picker_select))
-                }
-            }
-
-            state.error?.let { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-
-            if (state.isLoading) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else if (state.entries.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.screen_chat_client_location_picker_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 24.dp),
-                )
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp)) {
-                    items(state.entries, key = { it.path }) { entry ->
-                        ListItem(
-                            headlineContent = { Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = {
-                                Text(entry.path, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                            leadingContent = { Icon(LettaIcons.Storage, contentDescription = null) },
-                            trailingContent = { Icon(LettaIcons.ChevronRight, contentDescription = null) },
-                            modifier = Modifier.clickable(enabled = !state.isLoading) { onNavigateTo(entry.path) },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            }
-
-            if (state.truncated) {
-                Text(
-                    text = stringResource(R.string.screen_chat_client_location_picker_truncated),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

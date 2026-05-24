@@ -271,12 +271,6 @@ internal fun AgentScaffoldContent(
                     contextWindow = uiState.contextWindow,
                     chatMode = chatMode,
                     onChatModeSelected = { chatMode = it },
-                    isClientModeEnabled = uiState.isClientModeEnabled,
-                    clientModeLocation = uiState.clientModeLocation,
-                    onOpenLocationPicker = {
-                        scope.launch { drawerState.close() }
-                        projectBindings.openClientModeLocationPicker()
-                    },
                     conversations = drawerConversations,
                     currentConversationId = conversationId,
                     onNewConversation = {
