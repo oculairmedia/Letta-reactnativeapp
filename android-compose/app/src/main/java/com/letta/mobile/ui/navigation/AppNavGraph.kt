@@ -188,8 +188,6 @@ fun AppNavGraph(
         onNotificationTargetConsumed()
     }
 
-    SharedTransitionLayout {
-    CompositionLocalProvider(LocalSharedTransitionScope provides this) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -765,8 +763,6 @@ fun AppNavGraph(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-    }
-    }
     }
 
     // letta-mobile-cdlk: render the backend-switcher sheet at the top level
