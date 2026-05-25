@@ -1,7 +1,9 @@
 package com.letta.mobile.feature.chat
 
 import com.letta.mobile.data.model.ToolCall
+import com.letta.mobile.data.timeline.DeliveryState
 import com.letta.mobile.data.timeline.MessageSource
+import com.letta.mobile.data.timeline.Role
 import com.letta.mobile.data.timeline.TimelineEvent
 import com.letta.mobile.data.timeline.TimelineMessageType
 import org.junit.Assert.assertEquals
@@ -59,6 +61,24 @@ class TimelineEventToUiMessageTest {
     @Test
     fun `standalone TOOL_RETURN events map to null`() {
         val ev = confirmed(TimelineMessageType.TOOL_RETURN, content = "output")
+        assertNull(timelineEventToUiMessage(ev))
+    }
+
+    @Test
+    fun `client mode result-only TOOL_CALL locals map to null until call batch arrives`() {
+        val ev = TimelineEvent.Local(
+            position = 1.0,
+            otid = "cm-tool-call-late",
+            content = "",
+            role = Role.ASSISTANT,
+            sentAt = Instant.parse("2026-05-10T12:00:00Z"),
+            deliveryState = DeliveryState.SENT,
+            messageType = TimelineMessageType.TOOL_CALL,
+            source = MessageSource.CLIENT_MODE_HARNESS,
+            toolReturnContent = "early result",
+            toolReturnContentByCallId = mapOf("call-late" to "early result"),
+        )
+
         assertNull(timelineEventToUiMessage(ev))
     }
 

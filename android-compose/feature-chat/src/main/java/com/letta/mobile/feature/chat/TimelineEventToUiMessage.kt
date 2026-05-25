@@ -176,6 +176,10 @@ internal fun timelineEventToUiMessage(ev: TimelineEvent): UiMessage? {
                     }
                 } else null
 
+            if (ev.messageType == TimelineMessageType.TOOL_CALL && uiToolCalls == null && ev.content.isBlank()) {
+                return null
+            }
+
             // For REASONING locals, prefer reasoningContent if present (allows
             // the streaming path to set content="" and pipe partial reasoning
             // through reasoningContent for cleaner separation), falling back
