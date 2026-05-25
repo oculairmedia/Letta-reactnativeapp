@@ -1,5 +1,7 @@
 package com.letta.mobile.feature.chat
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -212,48 +214,59 @@ internal fun ChatScreen(
                 )
             }
             Column(modifier = Modifier.fillMaxSize()) {
-                when (val conversationState = state.conversationState) {
-                    ConversationState.Loading -> {
-                        MessageSkeletonList(modifier = Modifier.weight(1f))
-                    }
-                    is ConversationState.Error -> {
-                        ErrorContent(
-                            message = conversationState.message,
-                            onRetry = { viewModel.retryConversationLoad() },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    ConversationState.NoConversation -> {
-                        NoConversationChatContent(
-                            state = state,
-                            scrollToMessageId = viewModel.scrollToMessageId,
-                            onSendMessage = { viewModel.sendMessage(it) },
-                            onRerunMessage = { viewModel.rerunMessage(it) },
-                            onLoadOlderMessages = { viewModel.loadOlderMessages() },
-                            onSubmitApproval = { requestId, toolCallIds, approve, reason ->
-                                viewModel.submitApproval(requestId, toolCallIds, approve, reason)
-                            },
-                            onToggleRunCollapsed = viewModel::toggleRunCollapsed,
-                            onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
-                            onA2uiAction = viewModel::submitA2uiAction,
-                            activeFontScale = activeFontScale,
-                            onActiveFontScaleChange = { activeFontScale = it },
-                            onFontScaleChange = { viewModel.setChatFontScale(it) },
-                            chatMode = chatMode,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    is ConversationState.Ready -> {
-                        val chatError = state.error
-                        if (state.isLoadingMessages && state.messages.isEmpty()) {
-                            MessageSkeletonList(modifier = Modifier.weight(1f))
-                        } else if (chatError != null && state.messages.isEmpty()) {
+                val contentPhase = when {
+                    state.conversationState is ConversationState.Loading -> "loading"
+                    state.conversationState is ConversationState.Error -> "error"
+                    state.conversationState == ConversationState.NoConversation -> "no-conv"
+                    state.isLoadingMessages && state.messages.isEmpty() -> "loading"
+                    state.error != null && state.messages.isEmpty() -> "error"
+                    else -> "ready"
+                }
+                Crossfade(
+                    targetState = contentPhase,
+                    animationSpec = tween(durationMillis = 200),
+                    modifier = Modifier.weight(1f),
+                    label = "chat-content",
+                ) { phase ->
+                    when (phase) {
+                        "loading" -> {
+                            MessageSkeletonList(modifier = Modifier.fillMaxSize())
+                        }
+                        "error" -> {
+                            val msg = (state.conversationState as? ConversationState.Error)?.message
+                                ?: state.error ?: "Unknown error"
+                            val retry = if (state.conversationState is ConversationState.Error) {
+                                { viewModel.retryConversationLoad() }
+                            } else {
+                                { viewModel.loadMessages() }
+                            }
                             ErrorContent(
-                                message = chatError,
-                                onRetry = { viewModel.loadMessages() },
-                                modifier = Modifier.weight(1f),
+                                message = msg,
+                                onRetry = retry,
+                                modifier = Modifier.fillMaxSize(),
                             )
-                        } else {
+                        }
+                        "no-conv" -> {
+                            NoConversationChatContent(
+                                state = state,
+                                scrollToMessageId = viewModel.scrollToMessageId,
+                                onSendMessage = { viewModel.sendMessage(it) },
+                                onRerunMessage = { viewModel.rerunMessage(it) },
+                                onLoadOlderMessages = { viewModel.loadOlderMessages() },
+                                onSubmitApproval = { requestId, toolCallIds, approve, reason ->
+                                    viewModel.submitApproval(requestId, toolCallIds, approve, reason)
+                                },
+                                onToggleRunCollapsed = viewModel::toggleRunCollapsed,
+                                onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
+                                onA2uiAction = viewModel::submitA2uiAction,
+                                activeFontScale = activeFontScale,
+                                onActiveFontScaleChange = { activeFontScale = it },
+                                onFontScaleChange = { viewModel.setChatFontScale(it) },
+                                chatMode = chatMode,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        else -> {
                             ChatContent(
                                 state = state,
                                 scrollToMessageId = viewModel.scrollToMessageId,
@@ -270,7 +283,7 @@ internal fun ChatScreen(
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
                                 chatMode = chatMode,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.fillMaxSize(),
                             )
                         }
                     }
