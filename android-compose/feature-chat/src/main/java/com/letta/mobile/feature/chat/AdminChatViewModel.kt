@@ -774,6 +774,9 @@ internal class AdminChatViewModel @Inject constructor(
         chatBannerController.clearComposerError()
     }
 
+    fun clearError() {
+        chatBannerController.clearError()
+    }
 
     fun addAttachment(image: MessageContentPart.Image): Boolean =
         composerController.addAttachment(image)

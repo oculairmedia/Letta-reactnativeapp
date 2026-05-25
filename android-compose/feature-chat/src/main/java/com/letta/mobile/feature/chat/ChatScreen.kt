@@ -2,6 +2,7 @@ package com.letta.mobile.feature.chat
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -146,6 +147,19 @@ internal fun ChatScreen(
                 )
             )
             viewModel.markA2uiActionSnackbarShown(snackbar.id)
+        }
+
+        LaunchedEffect(state.error) {
+            val err = state.error ?: return@LaunchedEffect
+            if (state.messages.isNotEmpty()) {
+                snackbarDispatcher.dispatch(
+                    SnackbarMessage(
+                        message = err,
+                        duration = SnackbarDuration.Long,
+                    )
+                )
+                viewModel.clearError()
+            }
         }
 
         LaunchedEffect(state.error, state.isAgentTyping, state.isStreaming) {
