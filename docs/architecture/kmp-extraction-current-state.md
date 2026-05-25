@@ -28,9 +28,10 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | Shared identity types | `AgentId`, `ProjectId`, `ToolId`, and `BlockId` live in `sharedLogic/commonMain`. Room converters stay in Android `:core`. |
 | Shared configuration value types | Backend selection (`LettaConfig`), backend labeling, theme preference enums, model configuration DTOs (`ModelSettings`, `LlmConfig`, `EmbeddingConfig`), and pure API/resource DTOs (`Agent`, `Block`, `Tool`, `Archive`, `Folder`, `Conversation`, project/work DTOs, MCP DTOs, model/provider/job/run/schedule/group/identity DTOs, message/tool-call DTOs, batch-message DTOs, passages, cron tasks, Vibesync events) live in `sharedLogic/commonMain`. |
 | Shared transport/protocol contracts | A2UI wire protocol/action DTOs, mobile WebSocket client/server frames, SSE frame contracts, replay cursor contract, and the `WsFrameMapper` projection into Letta messages live in `sharedLogic/commonMain`. Android `:core` still owns socket lifecycle, Ktor channel parsers, DataStore cursor persistence, reconnects, and logging. |
+| Shared agent-client utilities | Attachment limits, notification delivery candidate/decision contracts, and tool-output parsing/classification live in `sharedLogic/commonMain`. Platform apps still own image encoding, notification publication, and Compose rendering. |
 | Runtime contracts | `BackendDescriptor`, `RuntimeEvent`, `RuntimeEventOutbox`, MemFS, AgentFile, tool/approval contracts, `TurnCommand`, and `TurnEngine` live in `sharedLogic/commonMain`. |
 | Runtime reducer | `RuntimeEventProjector` and common tests cover replay, delivery status, tool return folding, approvals, MemFS commits, and AgentFile import/export projection. |
-| Shared model/protocol tests | `sharedLogic/commonTest` covers domain ID serialization, backend labels, agent update wire keys, message content-part wire shape, transport protocol contracts, and runtime projector/store behavior. |
+| Shared model/protocol tests | `sharedLogic/commonTest` covers domain ID serialization, backend labels, agent update wire keys, message content-part wire shape, transport protocol contracts, attachment limits, tool-output parsing, and runtime projector/store behavior. |
 | Shared repository contracts | Common-safe repository interfaces for agents, archives, blocks, conversations, conversation-inspector messages, cron schedules, identities, jobs, MCP servers, models, passages, projects, providers, runs, schedules, settings, steps, tools, and Vibesync events live in `sharedLogic/commonMain`. Paging, upload/Ktor, and UI-message contracts remain Android-owned. |
 | In-memory shared implementations | `InMemoryRuntimeEventOutbox`, `InMemoryMemFsStore`, and `LocalLettaBackend` are portable and covered by common tests. |
 | Android persistence adapters | Android `:core` binds Room-backed `RuntimeEventOutbox` and `MemFsStore` implementations. |
@@ -81,11 +82,11 @@ features:
 
 | Order | Extraction | Rationale |
 |---|---|---|
-| 1 | Backend/app configuration and user preference value types | Small, pure Kotlin, used by app/session setup, and safe to share across future platform apps. |
-| 2 | Letta API DTO clusters with no Android or Compose dependency | Enables common clients/adapters and reduces Android `:core` ownership. |
-| 3 | Message and timeline contracts | Required before a non-Android UI can render the same conversations. Needs careful time/ID portability. |
+| 1 | Finish current pure-contract cleanup | Keep extracting small platform-neutral contracts only when they compile on JVM, Android, and host Native. Avoid touching local runtime execution. |
+| 2 | Timeline/common message projection design | Required before a non-Android UI can render the same conversations. Needs careful time/ID portability. |
+| 3 | Common non-upload repository subsets | Split folder/group/message APIs away from Paging and Ktor upload/channel types only where another platform can consume them. |
 | 4 | Shared reducers and projection fixtures | Lets Android and future platforms prove identical timeline/runtime behavior. |
-| 5 | Native target declaration and validation | Add iOS/native targets once common APIs are clean enough to compile without Android/JVM assumptions. |
+| 5 | iOS/native target declaration and validation | Add iOS framework targets once common APIs are clean enough and dependency strategy is agreed. |
 
 ## Guardrails
 

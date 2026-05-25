@@ -147,7 +147,9 @@ object ToolOutputParser {
             ?: parseStackTrace(stripped)
             ?: parseShellTranscript(stripped)
             ?: parseTable(stripped)
-            ?: if (hasAnsi) ToolOutputBlock.AnsiLog(raw = normalized, stripped = stripped) else null
+            ?: normalized.takeIf { hasAnsi }?.let {
+                ToolOutputBlock.AnsiLog(raw = it, stripped = stripped)
+            }
             ?: parseCodeLike(stripped)
             ?: ToolOutputBlock.PlainText(stripped)
 
@@ -172,7 +174,6 @@ object ToolOutputParser {
                 is JsonObject -> JsonRootKind.Object
                 is JsonArray -> JsonRootKind.Array
                 is JsonPrimitive -> JsonRootKind.Primitive
-                else -> JsonRootKind.Primitive
             }
             ToolOutputBlock.Json(
                 raw = text,
@@ -211,7 +212,6 @@ object ToolOutputParser {
         } else {
             element
         }
-        else -> element
     }
 
     private fun String.isResultFieldName(): Boolean =
