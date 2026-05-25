@@ -1,6 +1,5 @@
 package com.letta.mobile.data.a2ui
 
-import androidx.compose.runtime.Immutable
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -218,7 +217,6 @@ data class A2uiComponent(
  * Per-item actions should include item identity in their emitted context, e.g.
  * `{ "type": "user_action", "name": "issue.open", "context": { "itemId": "..." } }`.
  */
-@Immutable
 data class A2uiListTemplatePayload(
     val itemTemplateComponentId: String,
     val itemsPath: String,
@@ -242,7 +240,6 @@ data class A2uiListTemplatePayload(
     }
 }
 
-@Immutable
 data class A2uiFrameEvent(
     val transport: String,
     val frameId: String?,

@@ -27,6 +27,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | KMP module | `:sharedLogic` exists as a KMP library and is exposed through `:core` with `api(project(":sharedLogic"))`. |
 | Shared identity types | `AgentId`, `ProjectId`, `ToolId`, and `BlockId` live in `sharedLogic/commonMain`. Room converters stay in Android `:core`. |
 | Shared configuration value types | Backend selection (`LettaConfig`), backend labeling, theme preference enums, model configuration DTOs (`ModelSettings`, `LlmConfig`, `EmbeddingConfig`), and pure API/resource DTOs (`Agent`, `Block`, `Tool`, `Archive`, `Folder`, `Conversation`, project/work DTOs, MCP DTOs, model/provider/job/run/schedule/group/identity DTOs, message/tool-call DTOs, batch-message DTOs, passages, cron tasks, Vibesync events) live in `sharedLogic/commonMain`. |
+| Shared transport/protocol contracts | A2UI wire protocol DTOs, mobile WebSocket client/server frames, and the `WsFrameMapper` projection into Letta messages live in `sharedLogic/commonMain`. Android `:core` still owns socket lifecycle, replay cursors, reconnects, and logging. |
 | Runtime contracts | `BackendDescriptor`, `RuntimeEvent`, `RuntimeEventOutbox`, MemFS, AgentFile, tool/approval contracts, `TurnCommand`, and `TurnEngine` live in `sharedLogic/commonMain`. |
 | Runtime reducer | `RuntimeEventProjector` and common tests cover replay, delivery status, tool return folding, approvals, MemFS commits, and AgentFile import/export projection. |
 | Shared model tests | `sharedLogic/commonTest` covers domain ID serialization, backend labels, agent update wire keys, message content-part wire shape, and runtime projector/store behavior. |
@@ -51,7 +52,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 |---|---|
 | Official KMP project shape | The repo is not yet split into `shared` or `sharedLogic` plus one app module per platform. Android still owns most application code. |
 | Native targets | `:sharedLogic` currently validates JVM/Android paths. iOS/native targets are not yet part of the validated build. |
-| Letta DTO extraction | Remaining model files in Android `:core` are Android/UI/JVM helpers: Room converters, UI message models, and app-message timeline projection model. Transport frames still live in Android `:core`. |
+| Letta DTO extraction | Remaining model files in Android `:core` are Android/UI/JVM helpers: Room converters, UI message models, and app-message timeline projection model. Transport lifecycle code still lives in Android `:core`. |
 | Timeline extraction | The timeline model and reducers still live in Android `:core`; moving them needs a common replacement for JVM-only time/UUID usage. |
 | Repository contracts | Repository contracts are partially extracted. Remaining Android-owned contracts depend on Paging, Ktor upload/channel types, or UI timeline models. |
 | App modules | No `iosApp`, `desktopApp`, or `webApp` module exists. This is expected until shared logic has enough value for another platform. |
