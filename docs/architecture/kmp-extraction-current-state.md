@@ -27,7 +27,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | KMP module | `:sharedLogic` exists as a KMP library and is exposed through `:core` with `api(project(":sharedLogic"))`. |
 | Shared identity types | `AgentId`, `ProjectId`, `ToolId`, and `BlockId` live in `sharedLogic/commonMain`. Room converters stay in Android `:core`. |
 | Shared configuration value types | Backend selection (`LettaConfig`), backend labeling, theme preference enums, model configuration DTOs (`ModelSettings`, `LlmConfig`, `EmbeddingConfig`), and pure API/resource DTOs (`Agent`, `Block`, `Tool`, `Archive`, `Folder`, `Conversation`, project/work DTOs, MCP DTOs, model/provider/job/run/schedule/group/identity DTOs, message/tool-call DTOs, batch-message DTOs, passages, cron tasks, Vibesync events) live in `sharedLogic/commonMain`. |
-| Shared transport/protocol contracts | A2UI wire protocol/action DTOs, mobile WebSocket client/server frames, SSE frame contracts, replay cursor contract, and the `WsFrameMapper` projection into Letta messages live in `sharedLogic/commonMain`. Android `:core` still owns socket lifecycle, Ktor channel parsers, DataStore cursor persistence, reconnects, and logging. |
+| Shared transport/protocol contracts | A2UI wire protocol/action DTOs, mobile WebSocket client/server frames, SSE frame contracts, replay cursor contract, `TimelineExternalTransportWriter`, and the `WsFrameMapper` projection into Letta messages live in `sharedLogic/commonMain`. Android `:core` still owns socket lifecycle, Ktor channel parsers, DataStore cursor persistence, reconnects, timeline repository implementation, and logging. |
 | Shared agent-client utilities | Attachment limits, notification delivery candidate/decision contracts, and tool-output parsing/classification live in `sharedLogic/commonMain`. Platform apps still own image encoding, notification publication, and Compose rendering. |
 | Shared settings/health contracts | `SecureSettingsStore`, `IServerHealthRepository`, and `ServerHealthState` live in `sharedLogic/commonMain`. Android still owns SharedPreferences/SecureSettingsStore adapters and Ktor health probing. |
 | Runtime contracts | `BackendDescriptor`, `RuntimeEvent`, `RuntimeEventOutbox`, MemFS, AgentFile, tool/approval contracts, `TurnCommand`, and `TurnEngine` live in `sharedLogic/commonMain`. |
@@ -69,7 +69,7 @@ straight file move.
 |---|---|
 | `DomainIdConverters.kt` | Room type converters for shared identity value classes. |
 | `UiMessage.kt` | Compose-stable UI projection model, not a wire/domain contract. |
-| `AppMessage.kt` and `data/timeline/*` | Use JVM `Instant`/`UUID` and represent Android timeline projection semantics. Needs a common clock/ID/time model first. |
+| `AppMessage.kt` and most `data/timeline/*` | Use JVM `Instant`/`UUID` and represent Android timeline projection semantics. Needs a common clock/ID/time model first. `TimelineExternalTransportWriter` is already shared as a narrow write contract. |
 | `IAllConversationsRepository` / `IMessageRepository` | Expose Android Paging and `AppMessage`; split common one-shot APIs only after timeline/common paging design is settled. |
 | `IFolderRepository` / `IGroupRepository` | Expose Ktor `ContentType` / `ByteReadChannel`; extract a common non-streaming/non-upload subset separately if another platform needs it. |
 | `SseParser.kt` / `Utf8LineReader.kt` | Ktor channel parser plus Android logging. `SseFrame` is shared; parser adapters should be platform-specific or rebuilt around a common byte/line abstraction. |
