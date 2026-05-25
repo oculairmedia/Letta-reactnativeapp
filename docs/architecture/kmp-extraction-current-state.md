@@ -26,7 +26,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 |---|---|
 | KMP module | `:sharedLogic` exists as a KMP library and is exposed through `:core` with `api(project(":sharedLogic"))`. |
 | Shared identity types | `AgentId`, `ProjectId`, `ToolId`, and `BlockId` live in `sharedLogic/commonMain`. Room converters stay in Android `:core`. |
-| Shared configuration value types | Backend selection (`LettaConfig`), theme preference enums, model configuration DTOs (`ModelSettings`, `LlmConfig`, `EmbeddingConfig`), and pure API/resource DTOs (`Archive`, `Folder`, `Conversation`, model/provider/job/run/schedule/group/identity DTOs, message/tool-call DTOs, batch-message DTOs, passages, cron tasks, Vibesync events) live in `sharedLogic/commonMain`. |
+| Shared configuration value types | Backend selection (`LettaConfig`), theme preference enums, model configuration DTOs (`ModelSettings`, `LlmConfig`, `EmbeddingConfig`), and pure API/resource DTOs (`Agent`, `Block`, `Tool`, `Archive`, `Folder`, `Conversation`, project/work DTOs, MCP DTOs, model/provider/job/run/schedule/group/identity DTOs, message/tool-call DTOs, batch-message DTOs, passages, cron tasks, Vibesync events) live in `sharedLogic/commonMain`. |
 | Runtime contracts | `BackendDescriptor`, `RuntimeEvent`, `RuntimeEventOutbox`, MemFS, AgentFile, tool/approval contracts, `TurnCommand`, and `TurnEngine` live in `sharedLogic/commonMain`. |
 | Runtime reducer | `RuntimeEventProjector` and common tests cover replay, delivery status, tool return folding, approvals, MemFS commits, and AgentFile import/export projection. |
 | In-memory shared implementations | `InMemoryRuntimeEventOutbox`, `InMemoryMemFsStore`, and `LocalLettaBackend` are portable and covered by common tests. |
@@ -49,7 +49,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 |---|---|
 | Official KMP project shape | The repo is not yet split into `shared` or `sharedLogic` plus one app module per platform. Android still owns most application code. |
 | Native targets | `:sharedLogic` currently validates JVM/Android paths. iOS/native targets are not yet part of the validated build. |
-| Letta DTO extraction | Some high-coupling server DTOs still live in Android `:core`, including agents, tools, blocks, MCP servers, projects/work items, and transport frames. |
+| Letta DTO extraction | Remaining model files in Android `:core` are Android/UI/JVM helpers: Room converters, UI message models, app-message timeline projection model, and `LettaConfigLabel` URL parsing. Transport frames still live in Android `:core`. |
 | Timeline extraction | The timeline model and reducers still live in Android `:core`; moving them needs a common replacement for JVM-only time/UUID usage. |
 | Repository contracts | Repository interfaces still live in Android `:core`; shared contracts should move only after DTOs are portable. |
 | App modules | No `iosApp`, `desktopApp`, or `webApp` module exists. This is expected until shared logic has enough value for another platform. |
