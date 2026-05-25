@@ -30,7 +30,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | Runtime contracts | `BackendDescriptor`, `RuntimeEvent`, `RuntimeEventOutbox`, MemFS, AgentFile, tool/approval contracts, `TurnCommand`, and `TurnEngine` live in `sharedLogic/commonMain`. |
 | Runtime reducer | `RuntimeEventProjector` and common tests cover replay, delivery status, tool return folding, approvals, MemFS commits, and AgentFile import/export projection. |
 | Shared model tests | `sharedLogic/commonTest` covers domain ID serialization, backend labels, agent update wire keys, message content-part wire shape, and runtime projector/store behavior. |
-| Shared repository contracts | Common-safe repository interfaces for agents, archives, blocks, conversations, cron schedules, identities, jobs, MCP servers, models, passages, projects, providers, runs, schedules, settings, steps, tools, and Vibesync events live in `sharedLogic/commonMain`. Paging, upload/Ktor, inspector, and UI-message contracts remain Android-owned. |
+| Shared repository contracts | Common-safe repository interfaces for agents, archives, blocks, conversations, conversation-inspector messages, cron schedules, identities, jobs, MCP servers, models, passages, projects, providers, runs, schedules, settings, steps, tools, and Vibesync events live in `sharedLogic/commonMain`. Paging, upload/Ktor, and UI-message contracts remain Android-owned. |
 | In-memory shared implementations | `InMemoryRuntimeEventOutbox`, `InMemoryMemFsStore`, and `LocalLettaBackend` are portable and covered by common tests. |
 | Android persistence adapters | Android `:core` binds Room-backed `RuntimeEventOutbox` and `MemFsStore` implementations. |
 | Local backend selection | `LettaConfig.Mode.LOCAL` is selectable in Android settings, health checks skip HTTP probing for it, and `SessionGraphFactory` can create a `LocalLettaBackend` for local configs. |
@@ -53,7 +53,7 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | Native targets | `:sharedLogic` currently validates JVM/Android paths. iOS/native targets are not yet part of the validated build. |
 | Letta DTO extraction | Remaining model files in Android `:core` are Android/UI/JVM helpers: Room converters, UI message models, and app-message timeline projection model. Transport frames still live in Android `:core`. |
 | Timeline extraction | The timeline model and reducers still live in Android `:core`; moving them needs a common replacement for JVM-only time/UUID usage. |
-| Repository contracts | Repository contracts are partially extracted. Remaining Android-owned contracts depend on Paging, Ktor upload/channel types, or UI timeline/inspector models. |
+| Repository contracts | Repository contracts are partially extracted. Remaining Android-owned contracts depend on Paging, Ktor upload/channel types, or UI timeline models. |
 | App modules | No `iosApp`, `desktopApp`, or `webApp` module exists. This is expected until shared logic has enough value for another platform. |
 
 ## Extraction Pivot
