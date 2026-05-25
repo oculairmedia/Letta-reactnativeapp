@@ -109,6 +109,9 @@ class SessionGraphFactory internal constructor(
         scheduleApi: ScheduleApi,
         stepApi: StepApi,
         toolApi: ToolApi,
+        runtimeEventOutbox: RuntimeEventOutbox,
+        turnEngine: TurnEngine,
+        memFsStore: MemFsStore,
         runCursorStore: RunCursorStore = RunCursorStore.inMemory(),
         settingsRepository: ISettingsRepository? = null,
     ) : this(
@@ -134,7 +137,11 @@ class SessionGraphFactory internal constructor(
         toolApi = toolApi,
         runCursorStore = runCursorStore,
         settingsRepository = settingsRepository,
-        localRuntimeOptions = LocalRuntimeOptions.Disabled,
+        localRuntimeOptions = LocalRuntimeOptions.Enabled(
+            runtimeEventOutbox = runtimeEventOutbox,
+            turnEngine = turnEngine,
+            memFsStore = memFsStore,
+        ),
     )
 
     private val nextId = AtomicLong(0L)
@@ -199,14 +206,19 @@ class SessionGraphFactory internal constructor(
         )
     }
 
-    private fun LocalRuntimeOptions.createBackend(config: LettaConfig?): LocalLettaBackend? = when (this) {
-        LocalRuntimeOptions.Disabled -> null
-        is LocalRuntimeOptions.Enabled -> LocalLettaBackend(
-            descriptor = localKoogDescriptor(config),
-            engine = turnEngine,
-            outbox = runtimeEventOutbox,
-            memFsStore = memFsStore,
-        )
+    private fun LocalRuntimeOptions.createBackend(config: LettaConfig?): LocalLettaBackend? {
+        if (config?.mode != LettaConfig.Mode.LOCAL) {
+            return null
+        }
+        return when (this) {
+            LocalRuntimeOptions.Disabled -> null
+            is LocalRuntimeOptions.Enabled -> LocalLettaBackend(
+                descriptor = localKoogDescriptor(config),
+                engine = turnEngine,
+                outbox = runtimeEventOutbox,
+                memFsStore = memFsStore,
+            )
+        }
     }
 
     private fun remoteLettaDescriptor(config: LettaConfig?): BackendDescriptor {

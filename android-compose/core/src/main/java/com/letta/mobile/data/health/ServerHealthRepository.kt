@@ -113,11 +113,13 @@ class ServerHealthRepository(
             val liveIds = configs.map { it.id }.toSet()
             _states.update { current ->
                 val pruned = current.filterKeys { it in liveIds }
-                pruned + configs.associate { it.id to Health.PROBING }
+                pruned + configs.associate { config ->
+                    config.id to if (config.mode == LettaConfig.Mode.LOCAL) Health.ONLINE else Health.PROBING
+                }
             }
 
             coroutineScope {
-                configs.map { config ->
+                configs.filterNot { it.mode == LettaConfig.Mode.LOCAL }.map { config ->
                     async { probe(config) }
                 }.awaitAll()
             }

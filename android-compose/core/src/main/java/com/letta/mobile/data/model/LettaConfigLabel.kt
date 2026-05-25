@@ -7,6 +7,7 @@ fun LettaConfig?.toBackendLabel(): String? {
     return when (config.mode) {
         LettaConfig.Mode.CLOUD -> "Cloud"
         LettaConfig.Mode.SELF_HOSTED -> config.serverUrl.toSelfHostedBackendLabel()
+        LettaConfig.Mode.LOCAL -> "Local Kotlin runtime"
     }
 }
 

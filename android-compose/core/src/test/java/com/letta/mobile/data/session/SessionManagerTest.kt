@@ -126,7 +126,7 @@ class SessionManagerTest {
 
     @Test
     fun `session graph can select local runtime backend behind internal option`() = runTest {
-        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = localConfig("backend-a"))
         val graph = SessionGraphFactory(
             FakeAgentApi(),
             FakeAgentDao(),
@@ -176,6 +176,39 @@ class SessionManagerTest {
         assertEquals(3, emitted.size)
         val completed = emitted.last().payload as RuntimeEventPayload.RunLifecycleChanged
         assertEquals(RuntimeRunStatus.Completed, completed.status)
+    }
+
+    @Test
+    fun `session graph keeps remote backend for non-local config when local runtime is available`() = runTest {
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val graph = SessionGraphFactory(
+            FakeAgentApi(),
+            FakeAgentDao(),
+            FakeConversationApi(),
+            FakeConversationDao(),
+            FakeArchiveApi(),
+            FakeFolderApi(),
+            FakeGroupApi(),
+            FakeIdentityApi(),
+            fakeLettaApiClient(),
+            FakeMcpServerApi(),
+            FakeModelApi(),
+            FakePassageApi(),
+            FakeProjectApi(),
+            FakeProjectWorkApi(),
+            FakeRunApi(),
+            FakeJobApi(),
+            FakeProviderApi(),
+            FakeScheduleApi(),
+            FakeStepApi(),
+            FakeToolApi(),
+            settingsRepository = settingsRepository,
+            localRuntimeOptions = localRuntimeOptions(),
+        ).create()
+
+        assertEquals(BackendKind.RemoteLetta, graph.backendDescriptor.kind)
+        assertEquals("remote-letta:backend-a", graph.backendDescriptor.backendId.value)
+        assertNull(graph.localRuntimeBackend)
     }
 
     @Test
@@ -1021,6 +1054,12 @@ class SessionManagerTest {
         id = id,
         mode = LettaConfig.Mode.SELF_HOSTED,
         serverUrl = "https://$id.example.test",
+    )
+
+    private fun localConfig(id: String): LettaConfig = LettaConfig(
+        id = id,
+        mode = LettaConfig.Mode.LOCAL,
+        serverUrl = "local://device",
     )
 
     private fun sampleRun(id: String, agentId: String) = Run(

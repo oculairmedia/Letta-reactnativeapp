@@ -142,7 +142,7 @@ private fun ConfigCard(
                         onClick = {},
                         label = {
                             Text(
-                                text = config.mode.name,
+                                text = serverModeLabel(config.mode),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
@@ -167,8 +167,11 @@ private fun ConfigCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = if (config.mode == ServerMode.CLOUD) stringResource(R.string.common_letta_cloud)
-                           else config.url,
+                    text = when (config.mode) {
+                        ServerMode.CLOUD -> stringResource(R.string.common_letta_cloud)
+                        ServerMode.SELF_HOSTED -> config.url
+                        ServerMode.LOCAL -> stringResource(R.string.common_local_kotlin_runtime)
+                    },
                     style = MaterialTheme.typography.listItemHeadline,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -207,4 +210,11 @@ private fun ConfigCard(
         onDismiss = { showDeleteDialog = false },
         destructive = true,
     )
+}
+
+@Composable
+private fun serverModeLabel(mode: ServerMode): String = when (mode) {
+    ServerMode.CLOUD -> stringResource(R.string.common_cloud)
+    ServerMode.SELF_HOSTED -> stringResource(R.string.common_self_hosted)
+    ServerMode.LOCAL -> stringResource(R.string.common_local_runtime)
 }

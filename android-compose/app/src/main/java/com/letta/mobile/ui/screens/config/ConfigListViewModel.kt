@@ -90,7 +90,7 @@ class ConfigListViewModel @Inject constructor(
         val rows = configs.map { c ->
             ServerConfig(
                 id = c.id,
-                mode = if (c.mode == LettaConfig.Mode.CLOUD) ServerMode.CLOUD else ServerMode.SELF_HOSTED,
+                mode = c.mode.toServerMode(),
                 url = c.serverUrl,
                 isActive = c.id == activeId,
                 health = healthStates[c.id] ?: ServerHealthRepository.Health.UNKNOWN,
@@ -144,4 +144,10 @@ class ConfigListViewModel @Inject constructor(
             }
         }
     }
+}
+
+private fun LettaConfig.Mode.toServerMode(): ServerMode = when (this) {
+    LettaConfig.Mode.CLOUD -> ServerMode.CLOUD
+    LettaConfig.Mode.SELF_HOSTED -> ServerMode.SELF_HOSTED
+    LettaConfig.Mode.LOCAL -> ServerMode.LOCAL
 }

@@ -12,6 +12,7 @@ data class LettaConfig(
 ) {
     enum class Mode {
         CLOUD,
-        SELF_HOSTED
+        SELF_HOSTED,
+        LOCAL,
     }
 }

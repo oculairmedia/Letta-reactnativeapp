@@ -236,7 +236,11 @@ private fun BackendSwitcherRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = if (config.mode == ServerMode.CLOUD) LettaIcons.Cloud else LettaIcons.Storage,
+                    imageVector = when (config.mode) {
+                        ServerMode.CLOUD -> LettaIcons.Cloud
+                        ServerMode.SELF_HOSTED -> LettaIcons.Storage
+                        ServerMode.LOCAL -> LettaIcons.Psychology
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(LettaIconSizing.Inline),
                 )
@@ -247,10 +251,10 @@ private fun BackendSwitcherRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    text = if (config.mode == ServerMode.CLOUD) {
-                        stringResource(R.string.common_letta_cloud)
-                    } else {
-                        config.url.removePrefix("https://").removePrefix("http://")
+                    text = when (config.mode) {
+                        ServerMode.CLOUD -> stringResource(R.string.common_letta_cloud)
+                        ServerMode.SELF_HOSTED -> config.url.removePrefix("https://").removePrefix("http://")
+                        ServerMode.LOCAL -> stringResource(R.string.common_local_kotlin_runtime)
                     },
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,

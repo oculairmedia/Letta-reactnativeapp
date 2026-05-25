@@ -58,15 +58,18 @@ class ConfigListViewModelTest {
     fun `loadConfigs maps configs with active flag`() = runTest {
         val config1 = TestData.lettaConfig(id = "c1")
         val config2 = TestData.lettaConfig(id = "c2", mode = LettaConfig.Mode.SELF_HOSTED)
+        val config3 = TestData.lettaConfig(id = "c3", mode = LettaConfig.Mode.LOCAL, serverUrl = ConfigViewModel.LOCAL_RUNTIME_URL)
         fakeRepo.saveConfig(config1)
         fakeRepo.saveConfig(config2)
+        fakeRepo.saveConfig(config3)
         fakeRepo.setActiveConfigId("c1")
         
         viewModel.loadConfigs()
         viewModel.uiState.test {
             val state = awaitItem() as UiState.Success
-            assertEquals(2, state.data.configs.size)
+            assertEquals(3, state.data.configs.size)
             assertTrue(state.data.configs.first { it.id == "c1" }.isActive)
+            assertEquals(ServerMode.LOCAL, state.data.configs.first { it.id == "c3" }.mode)
         }
     }
 
