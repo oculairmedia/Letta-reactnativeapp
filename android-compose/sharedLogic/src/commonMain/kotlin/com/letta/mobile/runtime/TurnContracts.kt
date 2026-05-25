@@ -1,6 +1,7 @@
 package com.letta.mobile.runtime
 
 import com.letta.mobile.data.model.AgentId
+import kotlin.jvm.JvmInline
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

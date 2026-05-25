@@ -49,6 +49,15 @@ kotlin {
         }
     }
 
+    val hostOs = System.getProperty("os.name")
+    val hostArch = System.getProperty("os.arch")
+    when {
+        hostOs == "Mac OS X" && hostArch == "aarch64" -> macosArm64("hostNative")
+        hostOs == "Mac OS X" -> macosX64("hostNative")
+        hostOs.startsWith("Windows") -> mingwX64("hostNative")
+        hostOs == "Linux" -> linuxX64("hostNative")
+    }
+
     sourceSets {
         commonMain {
             dependencies {

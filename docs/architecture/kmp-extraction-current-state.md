@@ -51,11 +51,28 @@ Koog dependencies or Koog-specific concepts to UI, repositories, or settings.
 | Gap | Impact |
 |---|---|
 | Official KMP project shape | The repo is not yet split into `shared` or `sharedLogic` plus one app module per platform. Android still owns most application code. |
-| Native targets | `:sharedLogic` currently validates JVM/Android paths. iOS/native targets are not yet part of the validated build. |
+| Native targets | `:sharedLogic` now declares a host-native smoke target (`hostNative`) so common code can be compiled by Kotlin/Native on the developer/CI host. iOS framework targets are not declared yet. |
 | Letta DTO extraction | Remaining model files in Android `:core` are Android/UI/JVM helpers: Room converters, UI message models, and app-message timeline projection model. Transport lifecycle code still lives in Android `:core`. |
 | Timeline extraction | The timeline model and reducers still live in Android `:core`; moving them needs a common replacement for JVM-only time/UUID usage. |
 | Repository contracts | Repository contracts are partially extracted. Remaining Android-owned contracts depend on Paging, Ktor upload/channel types, or UI timeline models. |
-| App modules | No `iosApp`, `desktopApp`, or `webApp` module exists. This is expected until shared logic has enough value for another platform. |
+| App modules | No `iosApp`, `desktopApp`, or `webApp` module exists. This is expected until shared logic has enough value for another platform and iOS/framework CI strategy is agreed. |
+
+## Android-Owned Boundary After First Pass
+
+These files were intentionally left in Android `:core` after the current
+extraction pass. Moving them next requires a design decision rather than a
+straight file move.
+
+| Area | Why it remains Android-owned |
+|---|---|
+| `DomainIdConverters.kt` | Room type converters for shared identity value classes. |
+| `UiMessage.kt` | Compose-stable UI projection model, not a wire/domain contract. |
+| `AppMessage.kt` and `data/timeline/*` | Use JVM `Instant`/`UUID` and represent Android timeline projection semantics. Needs a common clock/ID/time model first. |
+| `IAllConversationsRepository` / `IMessageRepository` | Expose Android Paging and `AppMessage`; split common one-shot APIs only after timeline/common paging design is settled. |
+| `IFolderRepository` / `IGroupRepository` | Expose Ktor `ContentType` / `ByteReadChannel`; extract a common non-streaming/non-upload subset separately if another platform needs it. |
+| `SseParser.kt` / `Utf8LineReader.kt` | Ktor channel parser plus Android logging. `SseFrame` is shared; parser adapters should be platform-specific or rebuilt around a common byte/line abstraction. |
+| `ChannelTransport.kt`, `IChannelTransport`, `WsChatBridge.kt`, `RunCursorStore.kt` | Android socket lifecycle, Hilt/DataStore adapters, reconnect/cursor persistence, and logging. Shared frame contracts are already extracted. |
+| `A2uiDataModel.kt`, `A2uiSurfaceManager.kt`, `A2uiActions.kt` | Compose-backed data model observation and renderer action-context resolution. A2UI protocol/action DTOs are shared. |
 
 ## Extraction Pivot
 

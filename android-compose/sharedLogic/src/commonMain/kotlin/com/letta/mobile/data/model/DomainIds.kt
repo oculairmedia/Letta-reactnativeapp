@@ -1,5 +1,6 @@
 package com.letta.mobile.data.model
 
+import kotlin.jvm.JvmInline
 import kotlinx.serialization.Serializable
 
 /**

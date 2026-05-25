@@ -1,5 +1,6 @@
 package com.letta.mobile.runtime
 
+import kotlin.jvm.JvmInline
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
