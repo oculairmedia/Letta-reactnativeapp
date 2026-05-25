@@ -21,6 +21,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonEncoder
+import kotlin.random.Random
 
 /**
  * Sealed interface for all Letta message types.
@@ -38,6 +39,9 @@ sealed interface LettaMessage {
     val isErr: Boolean?
     val seqId: Int?
 }
+
+private fun generatedMessageId(prefix: String): String =
+    "$prefix-${Random.nextLong()}-${Random.nextLong()}"
 
 @Serializable
 data class SystemMessage(
@@ -375,7 +379,7 @@ data class ApprovalResult(
  */
 @Serializable
 data class ErrorMessage(
-    override val id: String = "error-${java.util.UUID.randomUUID()}",
+    override val id: String = generatedMessageId("error"),
     @SerialName("content") val contentRaw: JsonElement? = null,
     @SerialName("message") val messageField: String? = null,
     @SerialName("error") val errorField: String? = null,
@@ -402,7 +406,7 @@ data class ErrorMessage(
 
 @Serializable
 data class UnknownMessage(
-    override val id: String = "unknown-${java.util.UUID.randomUUID()}",
+    override val id: String = generatedMessageId("unknown"),
     override val date: String? = null,
     override val runId: String? = null,
     override val stepId: String? = null,
@@ -493,7 +497,7 @@ data class LettaResponse(
 
 @Serializable
 data class StopReason(
-    override val id: String = "stop-${java.util.UUID.randomUUID()}",
+    override val id: String = generatedMessageId("stop"),
     @SerialName("stop_reason") val reason: String,
     override val date: String? = null,
     override val runId: String? = null,
@@ -507,7 +511,7 @@ data class StopReason(
 
 @Serializable
 data class UsageStatistics(
-    override val id: String = "usage-${java.util.UUID.randomUUID()}",
+    override val id: String = generatedMessageId("usage"),
     @SerialName("prompt_tokens") val promptTokens: Int? = null,
     @SerialName("completion_tokens") val completionTokens: Int? = null,
     @SerialName("total_tokens") val totalTokens: Int? = null,
