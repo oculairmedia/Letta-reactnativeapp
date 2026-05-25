@@ -22,8 +22,10 @@ import com.letta.mobile.data.model.DomainIdConverters
         ConversationEntity::class,
         ConversationRefreshEntity::class,
         RuntimeEventEntity::class,
+        MemFsFileEntity::class,
+        MemFsCommitEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @androidx.room.TypeConverters(DomainIdConverters::class)
@@ -33,6 +35,7 @@ abstract class LettaDatabase : RoomDatabase() {
     abstract fun pendingLocalDao(): PendingLocalDao
     abstract fun conversationDao(): ConversationDao
     abstract fun runtimeEventDao(): RuntimeEventDao
+    abstract fun memFsDao(): MemFsDao
 
     companion object {
         @Volatile

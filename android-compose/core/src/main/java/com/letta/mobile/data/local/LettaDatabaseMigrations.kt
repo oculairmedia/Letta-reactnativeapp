@@ -131,11 +131,42 @@ object LettaDatabaseMigrations {
         }
     }
 
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `memfs_files` (
+                    `path` TEXT NOT NULL,
+                    `revision` INTEGER NOT NULL,
+                    `content` TEXT NOT NULL,
+                    `metadataJson` TEXT NOT NULL,
+                    PRIMARY KEY(`path`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `memfs_commits` (
+                    `revision` INTEGER NOT NULL,
+                    `commitId` TEXT NOT NULL,
+                    `path` TEXT NOT NULL,
+                    `operation` TEXT NOT NULL,
+                    `createdAtEpochMs` INTEGER NOT NULL,
+                    PRIMARY KEY(`revision`)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_memfs_commits_commitId` ON `memfs_commits` (`commitId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_memfs_commits_path` ON `memfs_commits` (`path`)")
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_5,
         MIGRATION_5_6,
+        MIGRATION_6_7,
     )
 }

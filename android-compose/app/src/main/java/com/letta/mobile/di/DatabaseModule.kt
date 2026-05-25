@@ -5,6 +5,7 @@ import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.local.BugReportDao
 import com.letta.mobile.data.local.ConversationDao
 import com.letta.mobile.data.local.LettaDatabase
+import com.letta.mobile.data.local.MemFsDao
 import com.letta.mobile.data.local.PendingLocalDao
 import com.letta.mobile.data.local.RoomPendingLocalStore
 import com.letta.mobile.data.local.RuntimeEventDao
@@ -57,5 +58,10 @@ object DatabaseModule {
     @Provides
     fun provideRuntimeEventDao(database: LettaDatabase): RuntimeEventDao {
         return database.runtimeEventDao()
+    }
+
+    @Provides
+    fun provideMemFsDao(database: LettaDatabase): MemFsDao {
+        return database.memFsDao()
     }
 }
