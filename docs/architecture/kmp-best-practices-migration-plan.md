@@ -37,6 +37,11 @@ Primary references:
 - Android docs: [Strong skipping mode](https://developer.android.com/develop/ui/compose/performance/stability/strongskipping)
 - Android docs: [Compose performance best practices](https://developer.android.com/develop/ui/compose/performance/bestpractices)
 - Kotlin docs: [Compose compiler options DSL](https://kotlinlang.org/docs/compose-compiler-options.html)
+- JetBrains: [Cash App KMM case study](https://blog.jetbrains.com/kotlin/2021/03/cash-app-case-study/)
+- Cash App: [SQLDelight](https://cashapp.github.io/sqldelight/)
+- Cash App: [Molecule](https://github.com/cashapp/molecule)
+- Cash App: [Zipline](https://github.com/cashapp/zipline)
+- Cash App: [Redwood](https://github.com/cashapp/redwood)
 
 The relevant points for this repo:
 
@@ -54,6 +59,114 @@ The relevant points for this repo:
 - Compose stability must be treated as a module-boundary concern. Moving logic
   into KMP modules can make UI models look unstable unless the migration
   deliberately preserves stability, immutability, and compiler report coverage.
+- Cash App's KMP adoption is the closest strategic reference for this project:
+  share business logic and persistence first, preserve native platform
+  workflows, roll out behind feature flags, and avoid forcing UI sharing before
+  the runtime boundary is proven.
+- Cash App's runtime libraries show useful patterns but should not be copied
+  wholesale. SQLDelight is a strong persistence precedent, Molecule is a strong
+  presenter/state precedent, Zipline is a strong host/guest runtime precedent,
+  and Redwood is a heavier shared-presentation option for later evaluation.
+
+## Cash App Lessons For This Project
+
+Cash App is the right reference point for letta-mobile because its KMP adoption
+was not a "rewrite the app in shared UI" move. The useful lesson is gradual
+platform convergence around shared Kotlin logic while Android and iOS keep their
+productive native workflows.
+
+For this repo, that translates to:
+
+```text
+sharedLogic first
+shared persistence contracts second
+runtime event replay third
+local backend behind SessionGraph fourth
+shared UI only after the runtime works
+```
+
+### What To Copy
+
+Copy these Cash App patterns:
+
+- share business logic, persistence contracts, serializers, and pure functions
+  before sharing UI
+- keep app modules native and comfortable for each platform team
+- roll out KMP runtime behavior behind explicit feature flags
+- make the shared module useful to Android, iOS, desktop, and server-style JVM
+  contributors
+- keep PRs small enough that platform specialists can review them without
+  becoming Gradle archaeologists
+- prefer type-safe generated contracts for persistence and transport where the
+  schema is stable
+- expose streams as `Flow`/`StateFlow` at boundaries rather than leaking storage
+  or UI implementation details
+
+### What Not To Copy Blindly
+
+Do not blindly import every Cash App library.
+
+```text
+SQLDelight:
+  good candidate for durable multiplatform RuntimeEvent/MemFS storage after the
+  schema stabilizes; not a first PR replacement for current Room code.
+
+Molecule:
+  useful if we choose Compose-runtime presenters that emit StateFlow display
+  models; not a reason to put Compose UI into sharedLogic.
+
+Zipline:
+  useful precedent for a portable host/guest runtime, signed code, serialized
+  service boundaries, suspend calls, and Flow across a runtime boundary; not a
+  default dependency for the embedded Letta-shaped runtime.
+
+Redwood:
+  useful proof that shared presentation logic can target Android, iOS, and web
+  through platform renderers; too heavy for the first migration slice unless the
+  project explicitly chooses schema-driven shared UI.
+```
+
+The guiding rule:
+
+```text
+Use Cash App as architecture precedent.
+Adopt a Cash App library only when it removes concrete project risk.
+```
+
+### Cash App Pattern Mapping
+
+| Cash App pattern | letta-mobile application |
+|---|---|
+| Shared business logic with native UI | `sharedLogic` owns RuntimeEvent, MemFS, Letta-shaped contracts, reducers, and replay; Android UI stays Android-first. |
+| Persistence and pure functions as early KMP wins | Move idempotency, replay, path rules, validation, and projection reducers before moving repository implementations. |
+| Gradual rollout behind flags | `SessionGraphFactory` selects remote Letta vs local Koog runtime behind config/feature flags. |
+| SQLDelight-style portable storage | Evaluate SQLDelight for RuntimeEvent outbox and MemFS commits after schemas stabilize; keep Room as Android adapter during migration. |
+| Molecule-style state production | Consider shared presenter/state producers for stable `StateFlow<UiModel>` after reducers are common; do not make UI consume raw runtime DTOs. |
+| Zipline-style host/guest boundary | Treat local runtime, future plugin runtime, and AgentFile execution as host/guest boundaries with serialized services and explicit capability exchange. |
+| Redwood-style shared presentation | Defer unless iOS/desktop/web commit to shared presentation; prefer stable UI projections first. |
+
+### Implications For The Local Agent Runtime
+
+The local agent should look like a Cash App-style shared runtime, not a web app
+embedded inside Android.
+
+Required implications:
+
+- the runtime API must be Kotlin-first and serializable
+- platform hosts must provide filesystem, network, model, tool, and secure
+  storage services through explicit interfaces
+- the runtime emits `RuntimeEvent` streams rather than mutating UI state
+- every event is replayable from an offset
+- host/runtime boundaries support suspend calls and streaming flows
+- feature flags can switch between remote Letta and local Koog without changing
+  UI contracts
+- storage migration is a schema decision, not a repository rewrite side effect
+
+### Web Target Note
+
+Kotlin web can be productive, but it is not the architectural foundation for
+the agent runtime. If a web app is added later, it should be an app module that
+consumes `sharedLogic`, not the source of truth for runtime behavior.
 
 ## Current Repo Shape
 
@@ -108,6 +221,7 @@ android-compose/
   sharedLogic/               KMP library, no Compose dependency by default
   sharedUI/                  optional KMP Compose UI library
   sharedRuntime/             optional split if runtime grows too large
+  sharedPersistence/         optional SQLDelight-backed storage split
   sharedTesting/             optional test fixtures and fake backends
 
   core/                      temporary Android-era module during migration
@@ -751,6 +865,8 @@ from :app, :designsystem, :feature-chat, :feature-editagent, and future
 - kotlinx.datetime
 - small multiplatform libraries with active KMP support
 - pure domain code
+- SQLDelight generated/runtime APIs only after a persistence ADR chooses it for
+  RuntimeEvent or MemFS storage
 
 ### Avoid In `sharedLogic/commonMain`
 
@@ -816,6 +932,15 @@ Required changes:
 
 6. Keep current clear-on-switch behavior only as an Android remote cache safety
    mechanism until backend-scoped persistence exists.
+
+7. Treat every backend as a host/runtime contract, not a UI implementation:
+
+   ```text
+   host services in app/platform modules
+   runtime contracts in sharedLogic
+   runtime storage behind explicit persistence interfaces
+   events out through Flow<RuntimeEventEnvelope>
+   ```
 
 ## RuntimeEvent Requirements
 
@@ -889,6 +1014,31 @@ Required platform actuals:
 Do not put Room entities in common code. Put common contracts in `sharedLogic`
 and map to platform storage schemas.
 
+### Portable Persistence Direction
+
+Cash App's SQLDelight precedent matters because RuntimeEvent and MemFS need
+durable portable schemas. Room can remain the Android implementation while the
+shared contract stabilizes, but the long-term KMP storage candidate should be
+SQLDelight or an equivalent type-safe multiplatform persistence layer.
+
+Do not combine these changes in one PR:
+
+```text
+RuntimeEvent schema design
+Room adapter changes
+SQLDelight introduction
+MemFS persistence rewrite
+```
+
+Recommended sequence:
+
+1. Define common RuntimeEvent and MemFS contracts.
+2. Keep Android Room/DataStore adapters working.
+3. Freeze first durable schemas with replay tests.
+4. Spike SQLDelight for RuntimeEvent outbox only.
+5. Add MemFS commits only after outbox replay is proven.
+6. Remove Android-only storage assumptions from shared APIs.
+
 ## Koog Requirements
 
 Koog should be an implementation detail of `LocalLettaBackend`.
@@ -911,6 +1061,19 @@ androidMain/jvmMain:
 
 The public app-facing contract should remain Letta-shaped. UI should not know
 whether a run came from Koog or remote Letta.
+
+The Cash App/Zipline lesson for Koog is boundary design:
+
+- pass serializable commands and values across the runtime boundary
+- expose long-running work as `Flow<RuntimeEventEnvelope>`
+- keep host capabilities explicit
+- make every runtime capability discoverable before a turn starts
+- avoid giving the runtime direct access to Android services, DI, or UI state
+- assume future runtimes may be embedded, remote, dynamically loaded, or
+  isolated differently
+
+This does not require Zipline. It requires a Zipline-shaped level of discipline
+around host/guest contracts.
 
 ## Testing Requirements
 
@@ -1006,6 +1169,8 @@ Deliverables:
 - Android Room/DataStore-backed implementation behind current app
 - offset semantics documented
 - backend/runtime scoping enforced
+- persistence ADR deciding whether SQLDelight is the long-term outbox/MemFS
+  storage layer
 
 Exit criteria:
 
@@ -1053,6 +1218,8 @@ Deliverables:
 - Compose compiler reports preserved for sharedUI and every app module that
   consumes it
 - stable UI projections created for shared runtime models used by hot screens
+- explicit decision on Compose Multiplatform vs native UI vs Redwood-style
+  schema-driven presentation if web/iOS/desktop requirements demand it
 
 Exit criteria:
 
@@ -1085,6 +1252,9 @@ Do not do these in the first migration:
 - make Room or Hilt common dependencies
 - make Compose runtime a blanket dependency of sharedLogic just to annotate
   everything stable
+- adopt SQLDelight, Molecule, Zipline, or Redwood without a narrow ADR and a
+  measured reason
+- use a Kotlin web framework as the runtime architecture source of truth
 - pass raw shared DTO lists directly into hot Compose lists
 - bypass `SessionGraph` for local runtime
 - make RuntimeEvent a second UI state path beside timeline
@@ -1100,10 +1270,12 @@ Recommended PR sequence:
 5. Add replay tests for current timeline gateway cases.
 6. Move pure timeline reducer pieces only after tests pin behavior.
 7. Add MemFS common contracts.
-8. Add Android actual storage abstractions behind feature flag.
-9. Wire `SessionGraphFactory` to select remote vs local backend graph.
-10. Add Koog-backed local turn slice.
-11. Add sharedUI only after stable UI projection and Compose report policy is
+8. Write persistence ADR covering Room bridge now and SQLDelight evaluation
+   later.
+9. Add Android actual storage abstractions behind feature flag.
+10. Wire `SessionGraphFactory` to select remote vs local backend graph.
+11. Add Koog-backed local turn slice.
+12. Add sharedUI only after stable UI projection and Compose report policy is
     already in place.
 
 ## Success Criteria
@@ -1119,6 +1291,10 @@ The migration is on track when:
 - Compose compiler reports remain available for every Compose-bearing module.
 - Hot UI models use stable projections, immutable collections, or documented
   stability contracts.
+- Portable persistence has a documented path from Android Room bridge to a KMP
+  storage layer if/when the schemas justify it.
+- Cash App-style host/runtime boundaries exist before any dynamic or plugin
+  runtime is attempted.
 - Platform app modules own packaging, entry points, and platform services.
 
 ## Final Architecture Target
