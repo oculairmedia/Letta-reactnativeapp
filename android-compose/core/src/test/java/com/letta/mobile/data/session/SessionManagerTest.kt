@@ -53,6 +53,19 @@ import com.letta.mobile.testutil.FakeStepApi
 import com.letta.mobile.testutil.FakeToolApi
 import com.letta.mobile.testutil.TestData
 import com.letta.mobile.runtime.BackendKind
+import com.letta.mobile.runtime.ConversationId
+import com.letta.mobile.runtime.EpochMillis
+import com.letta.mobile.runtime.InMemoryMemFsStore
+import com.letta.mobile.runtime.InMemoryRuntimeEventOutbox
+import com.letta.mobile.runtime.MemFsCommitId
+import com.letta.mobile.runtime.RuntimeEventDraft
+import com.letta.mobile.runtime.RuntimeEventId
+import com.letta.mobile.runtime.RuntimeEventPayload
+import com.letta.mobile.runtime.RuntimeEventSource
+import com.letta.mobile.runtime.RuntimeRunStatus
+import com.letta.mobile.runtime.TurnCommand
+import com.letta.mobile.runtime.TurnEngine
+import com.letta.mobile.runtime.TurnInput
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,12 +73,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -106,6 +122,60 @@ class SessionManagerTest {
         assertEquals("https://backend-a.example.test", graph.backendDescriptor.label)
         assertTrue(graph.backendDescriptor.capabilities.supportsMemFs)
         assertTrue(graph.backendDescriptor.capabilities.supportsApprovals)
+    }
+
+    @Test
+    fun `session graph can select local runtime backend behind internal option`() = runTest {
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val graph = SessionGraphFactory(
+            FakeAgentApi(),
+            FakeAgentDao(),
+            FakeConversationApi(),
+            FakeConversationDao(),
+            FakeArchiveApi(),
+            FakeFolderApi(),
+            FakeGroupApi(),
+            FakeIdentityApi(),
+            fakeLettaApiClient(),
+            FakeMcpServerApi(),
+            FakeModelApi(),
+            FakePassageApi(),
+            FakeProjectApi(),
+            FakeProjectWorkApi(),
+            FakeRunApi(),
+            FakeJobApi(),
+            FakeProviderApi(),
+            FakeScheduleApi(),
+            FakeStepApi(),
+            FakeToolApi(),
+            settingsRepository = settingsRepository,
+            localRuntimeOptions = localRuntimeOptions(),
+        ).create()
+
+        assertEquals(BackendKind.LocalKoog, graph.backendDescriptor.kind)
+        assertEquals("local-koog:backend-a", graph.backendDescriptor.backendId.value)
+        assertEquals("local-koog:backend-a", graph.backendDescriptor.runtimeId.value)
+        assertEquals("Local Kotlin runtime", graph.backendDescriptor.label)
+        assertTrue(graph.backendDescriptor.capabilities.supportsMemFs)
+        assertFalse(graph.backendDescriptor.capabilities.supportsTools)
+
+        val backend = graph.localRuntimeBackend ?: error("Expected local runtime backend")
+        val emitted = backend.runTurn(
+            TurnCommand(
+                backendId = graph.backendDescriptor.backendId,
+                runtimeId = graph.backendDescriptor.runtimeId,
+                agentId = AgentId("agent-1"),
+                conversationId = ConversationId("conv-1"),
+                input = TurnInput.UserMessage(
+                    localMessageId = "local-1",
+                    text = "hello local",
+                ),
+            )
+        ).toList()
+
+        assertEquals(3, emitted.size)
+        val completed = emitted.last().payload as RuntimeEventPayload.RunLifecycleChanged
+        assertEquals(RuntimeRunStatus.Completed, completed.status)
     }
 
     @Test
@@ -921,6 +991,31 @@ class SessionManagerTest {
     }
 
     private fun fakeLettaApiClient(): LettaApiClient = mockk(relaxed = true)
+
+    private fun localRuntimeOptions(): LocalRuntimeOptions = LocalRuntimeOptions.Enabled(
+        runtimeEventOutbox = InMemoryRuntimeEventOutbox(
+            eventIdFactory = { _, offset -> RuntimeEventId("local-event-${offset.value}") },
+            clock = { EpochMillis(1_000) },
+        ),
+        turnEngine = TurnEngine {
+            flowOf(
+                RuntimeEventDraft(
+                    backendId = it.backendId,
+                    runtimeId = it.runtimeId,
+                    agentId = it.agentId,
+                    conversationId = it.conversationId,
+                    source = RuntimeEventSource.LocalRuntime,
+                    payload = RuntimeEventPayload.RunLifecycleChanged(RuntimeRunStatus.Completed),
+                ),
+            )
+        },
+        memFsStore = InMemoryMemFsStore(
+            commitIdFactory = { path, revision, operation ->
+                MemFsCommitId("${operation.name.lowercase()}-${path.value}-${revision.value}")
+            },
+            clock = { EpochMillis(1_000) },
+        ),
+    )
 
     private fun config(id: String): LettaConfig = LettaConfig(
         id = id,
