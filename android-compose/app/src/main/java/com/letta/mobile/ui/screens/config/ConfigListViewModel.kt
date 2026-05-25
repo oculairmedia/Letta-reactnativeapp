@@ -9,8 +9,8 @@ import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.letta.mobile.channel.ChatPushAlarmScheduler
-import com.letta.mobile.data.health.ServerHealthRepository
 import com.letta.mobile.data.health.IServerHealthRepository
+import com.letta.mobile.data.health.ServerHealthState
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.ui.common.UiState
@@ -30,7 +30,7 @@ data class ServerConfig(
     val mode: ServerMode,
     val url: String,
     val isActive: Boolean,
-    val health: ServerHealthRepository.Health = ServerHealthRepository.Health.UNKNOWN,
+    val health: ServerHealthState = ServerHealthState.UNKNOWN,
 )
 
 @androidx.compose.runtime.Immutable
@@ -93,7 +93,7 @@ class ConfigListViewModel @Inject constructor(
                 mode = c.mode.toServerMode(),
                 url = c.serverUrl,
                 isActive = c.id == activeId,
-                health = healthStates[c.id] ?: ServerHealthRepository.Health.UNKNOWN,
+                health = healthStates[c.id] ?: ServerHealthState.UNKNOWN,
             )
         }
         return UiState.Success(ConfigListUiState(configs = rows.toImmutableList()))

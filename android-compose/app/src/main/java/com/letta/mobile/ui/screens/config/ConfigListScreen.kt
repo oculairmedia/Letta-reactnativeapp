@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
-import com.letta.mobile.data.health.ServerHealthRepository
+import com.letta.mobile.data.health.ServerHealthState
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.components.EmptyState
@@ -114,7 +114,7 @@ private fun ConfigCard(
     modifier: Modifier = Modifier
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val isOffline = config.health == ServerHealthRepository.Health.OFFLINE
+    val isOffline = config.health == ServerHealthState.OFFLINE
     // letta-mobile-aaxy: keyed by config.id so the per-row refusal animation
     // counter doesn't carry across to a different row after a reorder/delete.
     var refusalTrigger by remember(config.id) { mutableIntStateOf(0) }

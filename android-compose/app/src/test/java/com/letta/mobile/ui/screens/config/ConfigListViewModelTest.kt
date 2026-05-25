@@ -2,7 +2,6 @@ package com.letta.mobile.ui.screens.config
 
 import android.content.Context
 import app.cash.turbine.test
-import com.letta.mobile.data.health.ServerHealthRepository
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.testutil.FakeSettingsRepository

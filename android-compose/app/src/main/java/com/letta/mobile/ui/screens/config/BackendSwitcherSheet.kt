@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.letta.mobile.R
-import com.letta.mobile.data.health.ServerHealthRepository
+import com.letta.mobile.data.health.ServerHealthState
 import com.letta.mobile.ui.common.UiState
 import com.letta.mobile.ui.components.ConfirmDialog
 import com.letta.mobile.ui.icons.LettaIconSizing
@@ -186,7 +186,7 @@ private fun BackendSwitcherRow(
     onEdit: () -> Unit,
     onLongPress: () -> Unit,
 ) {
-    val isOffline = config.health == ServerHealthRepository.Health.OFFLINE
+    val isOffline = config.health == ServerHealthState.OFFLINE
     // letta-mobile-qmxn: tap-on-dead is silent-but-visible. Bumping
     // `refusalTrigger` re-fires the shake+flash animation in HealthRowShell
     // without switching active backends. Keyed by config.id so the counter
