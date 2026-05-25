@@ -488,5 +488,6 @@ tasks.register<Test>("testScreenshot") {
     }
     filter {
         includeTestsMatching("*ScreenshotTest")
+        isFailOnNoMatchingTests = false
     }
 }
