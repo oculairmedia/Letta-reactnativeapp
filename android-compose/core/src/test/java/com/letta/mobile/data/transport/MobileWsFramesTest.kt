@@ -9,6 +9,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Tag
 
@@ -121,6 +122,30 @@ class MobileWsFramesTest : WordSpec({
             val out = frame.encodeJson(json)
             out shouldContain "\"type\":\"cancel\""
             out shouldContain "\"run_id\":\"run-7\""
+        }
+
+        "letta-mobile-2rkdj subscribe — encodes run_id + cursor for resume" {
+            val frame = SubscribeFrame(
+                id = "fid-sub",
+                ts = "2026-05-21T20:00:00Z",
+                runId = "run-9",
+                cursor = 42L,
+            )
+            val out = frame.encodeJson(json)
+            out shouldContain "\"type\":\"subscribe\""
+            out shouldContain "\"run_id\":\"run-9\""
+            out shouldContain "\"cursor\":42"
+        }
+
+        "letta-mobile-2rkdj subscribe — cursor=0 means full replay" {
+            val frame = SubscribeFrame(
+                id = "fid-sub-0",
+                ts = "2026-05-21T20:00:00Z",
+                runId = "run-9",
+                cursor = 0L,
+            )
+            val out = frame.encodeJson(json)
+            out shouldContain "\"cursor\":0"
         }
 
         "letta-mobile-51xm.7 user_action sends routing ids name surface_id and resolved context" {
@@ -311,6 +336,37 @@ class MobileWsFramesTest : WordSpec({
             val parsed = json.decodeFromString(ServerFrameSerializer, payload)
             parsed.shouldBeInstanceOf<ServerFrame.Unknown>()
             parsed.type shouldBe "some_future_type"
+        }
+
+        "letta-mobile-2rkdj subscribe_frame — exposes run_id + seq + inner frame as JsonObject" {
+            val payload = """
+                {"v":1,"type":"subscribe_frame","id":"env-1","ts":"t",
+                 "run_id":"run-9","seq":17,
+                 "frame":{"message_type":"assistant_message","content":"hello",
+                          "run_id":"run-9","turn_id":"T","id":"cm-stream-x",
+                          "agent_id":"a","conversation_id":"c","ts":"t","v":1,
+                          "type":"assistant_message"}}
+            """.trimIndent()
+            val parsed = json.decodeFromString(ServerFrameSerializer, payload)
+            parsed.shouldBeInstanceOf<ServerFrame.SubscribeFrameMessage>()
+            parsed.runId shouldBe "run-9"
+            parsed.seq shouldBe 17L
+            // Inner frame retained as JsonObject so the caller can
+            // re-route it through the live handler.
+            parsed.frame["message_type"]?.jsonPrimitive?.content shouldBe "assistant_message"
+            parsed.frame["content"]?.jsonPrimitive?.content shouldBe "hello"
+        }
+
+        "letta-mobile-2rkdj subscribe_done — carries last_seq + terminal status" {
+            val payload = """
+                {"v":1,"type":"subscribe_done","id":"env-2","ts":"t",
+                 "run_id":"run-9","last_seq":42,"status":"completed"}
+            """.trimIndent()
+            val parsed = json.decodeFromString(ServerFrameSerializer, payload)
+            parsed.shouldBeInstanceOf<ServerFrame.SubscribeDone>()
+            parsed.runId shouldBe "run-9"
+            parsed.lastSeq shouldBe 42L
+            parsed.status shouldBe "completed"
         }
     }
 

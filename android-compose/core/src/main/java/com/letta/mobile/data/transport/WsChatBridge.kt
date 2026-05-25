@@ -248,6 +248,13 @@ private fun ServerFrame.toTimelineEvent(): WsTimelineEvent? = when (this) {
     is ServerFrame.CronDeleteResponse,
     is ServerFrame.CronDeleteAllResponse,
     is ServerFrame.CronsUpdated,
+    // letta-mobile-2rkdj: subscribe wrappers don't surface to chat
+    // directly — the inner BridgeFrame is unwrapped and re-routed
+    // through the normal handler upstream of this mapper, so by the
+    // time we'd see one here it's already been handled. SubscribeDone
+    // is a cursor cleanup signal, not chat content.
+    is ServerFrame.SubscribeFrameMessage,
+    is ServerFrame.SubscribeDone,
     is ServerFrame.Unknown -> null
 }
 

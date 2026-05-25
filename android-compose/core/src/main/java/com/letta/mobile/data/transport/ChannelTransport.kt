@@ -28,6 +28,9 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -74,9 +77,13 @@ internal fun defaultChannelTransportScope(): CoroutineScope =
 @Singleton
 class ChannelTransport internal constructor(
     private val scope: CoroutineScope,
+    // letta-mobile-2rkdj: persistent per-conv {runId -> lastSeq} map
+    // used to drive auto-resume on reconnect. Tests that don't
+    // exercise resume can pass [RunCursorStore.inMemory].
+    private val cursorStore: RunCursorStore,
 ) : IChannelTransport {
     @Inject
-    constructor() : this(defaultChannelTransportScope())
+    constructor(cursorStore: RunCursorStore) : this(defaultChannelTransportScope(), cursorStore)
 
     sealed interface State {
         data object Idle : State
@@ -161,11 +168,21 @@ class ChannelTransport internal constructor(
     private val currentRunId = AtomicReference<String?>(null)
     private val currentTurnId = AtomicReference<String?>(null)
 
+    /**
+     * letta-mobile-2rkdj: track the conversation_id of the currently
+     * in-flight turn so frames without an explicit conversation_id
+     * (rare — mostly TurnStarted/TurnDone do carry it, but defense in
+     * depth) can still be attributed to their cursor entry. Set on
+     * [send], cleared on [TurnDone].
+     */
+    private val currentConversationId = AtomicReference<String?>(null)
+
     private val socketRef = AtomicReference<WebSocket?>(null)
     private val socketMutex = Mutex()
     private var listenerJob: Job? = null
     private var reconnectJob: Job? = null
     private var lastConnectionConfig: ConnectionConfig? = null
+    private val resumedRunConversationIds = ConcurrentHashMap<String, String>()
     private val pendingA2uiActionLock = Any()
     private val pendingA2uiActions = ArrayDeque<UserActionFrame>()
 
@@ -218,7 +235,11 @@ class ChannelTransport internal constructor(
         _state.value = State.Connecting
         currentRunId.set(null)
         currentTurnId.set(null)
+        currentConversationId.set(null)
         inFlight = false
+        // letta-mobile-2rkdj: eagerly load persisted cursors so the
+        // upcoming welcome handler can iterate them synchronously.
+        cursorStore.ensureLoaded()
 
         val wsUrl = baseShimUrl.trimEnd('/').toWsUrl() + "/shim/v1/mobile"
         val request = Request.Builder().url(wsUrl).build()
@@ -267,6 +288,7 @@ class ChannelTransport internal constructor(
                 inFlight = false
                 currentRunId.set(null)
                 currentTurnId.set(null)
+                currentConversationId.set(null)
                 clientInitiatedClose = false
                 cancelPendingCronRequests("WS closed: code=$code reason=$reason")
             }
@@ -287,6 +309,7 @@ class ChannelTransport internal constructor(
                 inFlight = false
                 currentRunId.set(null)
                 currentTurnId.set(null)
+                currentConversationId.set(null)
                 clientInitiatedClose = false
                 cancelPendingCronRequests("WS failure: ${t.message ?: t::class.java.simpleName}")
             }
@@ -317,7 +340,8 @@ class ChannelTransport internal constructor(
         inFlight = true
         currentRunId.set(null)
         currentTurnId.set(null)
-        return socket.sendFrame(
+        currentConversationId.set(conversationId)
+        val sent = socket.sendFrame(
             SendMessageFrame(
                 id = UUID.randomUUID().toString(),
                 ts = nowIso(),
@@ -328,6 +352,13 @@ class ChannelTransport internal constructor(
                 contentParts = contentParts,
             )
         )
+        if (!sent) {
+            inFlight = false
+            currentRunId.set(null)
+            currentTurnId.set(null)
+            currentConversationId.set(null)
+        }
+        return sent
     }
 
     /**
@@ -359,6 +390,27 @@ class ChannelTransport internal constructor(
             ByeFrame(
                 id = UUID.randomUUID().toString(),
                 ts = nowIso(),
+            )
+        )
+    }
+
+    /**
+     * letta-mobile-2rkdj — see [IChannelTransport.subscribe].
+     * Re-subscribing to a run_id we're already subscribed to
+     * REPLACES the prior subscription server-side (per spec §3.4),
+     * so callers can safely re-issue with a fresh cursor.
+     */
+    override fun subscribe(runId: String, cursor: Long): Boolean {
+        if (runId.isEmpty()) return false
+        if (cursor < 0L) return false
+        val socket = socketRef.get() ?: return false
+        if (state.value !is State.Connected) return false
+        return socket.sendFrame(
+            SubscribeFrame(
+                id = UUID.randomUUID().toString(),
+                ts = nowIso(),
+                runId = runId,
+                cursor = cursor,
             )
         )
     }
@@ -537,6 +589,7 @@ class ChannelTransport internal constructor(
         inFlight = false
         currentRunId.set(null)
         currentTurnId.set(null)
+        currentConversationId.set(null)
         cancelPendingCronRequests("WS teardown: $reason")
     }
 
@@ -547,6 +600,14 @@ class ChannelTransport internal constructor(
             Log.w(TAG, "Failed to parse WS frame: ${it.message}", it)
             return
         }
+
+        // letta-mobile-2rkdj: capture envelope-level (run_id, seq) into
+        // the persistent cursor store BEFORE typed dispatch so the
+        // mutation lands even if the typed branch is a no-op
+        // (e.g. unknown frames, A2UI frames, etc.). Skips frames the
+        // shim emits without a seq stamp (welcome, ping, cron RPC,
+        // subscribe wrappers — see anti-double-record note below).
+        recordCursorFromEnvelope(text)
 
         when (frame) {
             is ServerFrame.Welcome -> {
@@ -559,6 +620,11 @@ class ChannelTransport internal constructor(
                     a2uiCatalog = frame.a2ui?.catalogId,
                 )
                 drainPendingA2uiActions()
+                // letta-mobile-2rkdj: post-welcome resume scan. Iterate
+                // every non-terminal run we've recorded and issue
+                // subscribe(run_id, last_seq) so the shim replays
+                // anything that flew by during the disconnect.
+                resumeActiveRuns()
             }
 
             is ServerFrame.A2uiCapabilities -> {
@@ -603,9 +669,19 @@ class ChannelTransport internal constructor(
             }
 
             is ServerFrame.TurnDone -> {
+                // letta-mobile-2rkdj: terminal-status turn_done means
+                // the run is done and the cursor can be discarded.
+                // status values are "completed" | "cancelled" | "failed"
+                // (spec §4.7) — all terminal. Use the in-flight
+                // conversation id we cached on send.
+                val convId = currentConversationId.get()
+                    ?: resumedRunConversationIds[frame.runId]
+                if (convId != null) cursorStore.clear(convId, frame.runId)
+                resumedRunConversationIds.remove(frame.runId)
                 inFlight = false
                 currentRunId.set(null)
                 currentTurnId.set(null)
+                currentConversationId.set(null)
             }
 
             is ServerFrame.Error -> {
@@ -630,6 +706,53 @@ class ChannelTransport internal constructor(
                 }
             }
 
+            is ServerFrame.SubscribeFrameMessage -> {
+                // letta-mobile-2rkdj: unwrap the replayed/live-tailed
+                // BridgeFrame and re-route it through the same handler
+                // path as a live frame so replayed and live take the
+                // same code path (spec §11). Also broadcast the
+                // wrapper itself so cursor-aware observers can persist
+                // {run_id, seq} for the next resume.
+                val innerText = frame.frame.toString()
+                runCatching {
+                    json.decodeFromString(ServerFrameSerializer, innerText)
+                }.onSuccess { inner ->
+                    handleInbound(innerText)
+                    Log.d(
+                        TAG,
+                        "subscribe_frame unwrapped runId=${frame.runId} seq=${frame.seq} " +
+                            "innerType=${inner::class.java.simpleName}",
+                    )
+                }.onFailure { t ->
+                    Log.w(
+                        TAG,
+                        "subscribe_frame inner decode failed runId=${frame.runId} seq=${frame.seq}: ${t.message}",
+                        t,
+                    )
+                }
+            }
+
+            is ServerFrame.SubscribeDone -> {
+                // letta-mobile-2rkdj: terminal envelope. Drop the
+                // persisted cursor entry — the run is done and any
+                // future subscribe to this run_id would be for
+                // history-replay, not resume.
+                //
+                // We don't know which conversationId owned the run
+                // from the envelope alone, so iterate persisted convs
+                // and drop the runId from whichever one carried it.
+                cursorStore.allActiveRuns().forEach { (convId, runs) ->
+                    if (runs.containsKey(frame.runId)) {
+                        cursorStore.clear(convId, frame.runId)
+                    }
+                }
+                resumedRunConversationIds.remove(frame.runId)
+                Log.i(
+                    TAG,
+                    "subscribe_done runId=${frame.runId} lastSeq=${frame.lastSeq} status=${frame.status}",
+                )
+            }
+
             else -> {
                 // Capture run_id from the first frame that has one.
                 // Most server frames after turn_started carry it.
@@ -652,6 +775,72 @@ class ChannelTransport internal constructor(
 
     private fun WebSocket.sendFrame(frame: ClientFrame): Boolean {
         return send(frame.encodeJson(json))
+    }
+
+    /**
+     * letta-mobile-2rkdj: pull `(run_id, seq, conversation_id)` from
+     * the raw envelope JSON and record it into [cursorStore].
+     *
+     * Skips frames the shim never stamps with `seq`:
+     *  - `welcome`, `ping`, `a2ui_capabilities`, `user_action_ack`,
+     *    `user_action_outcome`, `error` (control plane, not run-scoped)
+     *  - `cron_*_response`, `crons_updated` (cron RPC, separate channel)
+     *  - `subscribe_frame`, `subscribe_done` (the wrapper carries seq
+     *    but the inner re-routed frame will record on its own pass)
+     *
+     * Also skips frames missing any of the three required fields —
+     * `record()` itself guards against that, but the early return
+     * avoids a JsonObject scan for envelopes that obviously won't
+     * advance the cursor.
+     *
+     * conversation_id falls back to [currentConversationId] (set on
+     * [send]) or the post-welcome resume subscription owner because
+     * not every shim-emitted frame includes it explicitly — replayed
+     * frames especially.
+     */
+    private fun recordCursorFromEnvelope(text: String) {
+        val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
+        val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return
+        if (type in SKIP_CURSOR_TYPES) return
+        val runId = obj["run_id"]?.jsonPrimitive?.contentOrNull ?: return
+        val seq = obj["seq"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: return
+        val convId = obj["conversation_id"]?.jsonPrimitive?.contentOrNull
+            ?: currentConversationId.get()
+            ?: resumedRunConversationIds[runId]
+            ?: return
+        cursorStore.record(convId, runId, seq)
+    }
+
+    /**
+     * letta-mobile-2rkdj: post-welcome resume scan. Iterate every
+     * persisted non-terminal run and dispatch a [subscribe] for it.
+     * The shim either replays missed frames (if the run is still in
+     * Letta's frame log and non-terminal) or emits `subscribe_done`
+     * immediately (if the run finished while we were offline) — both
+     * outcomes are correct and self-healing.
+     */
+    private fun resumeActiveRuns() {
+        val snapshot = cursorStore.allActiveRuns()
+        if (snapshot.isEmpty()) return
+        var dispatched = 0
+        snapshot.forEach { (convId, runs) ->
+            runs.forEach { (runId, lastSeq) ->
+                resumedRunConversationIds[runId] = convId
+                if (subscribe(runId, lastSeq)) {
+                    dispatched++
+                } else {
+                    resumedRunConversationIds.remove(runId)
+                    Log.w(
+                        TAG,
+                        "resume subscribe failed convId=$convId runId=$runId cursor=$lastSeq " +
+                            "(state=${state.value::class.simpleName})",
+                    )
+                }
+            }
+        }
+        if (dispatched > 0) {
+            Log.i(TAG, "post-welcome resume scan dispatched $dispatched subscribe frame(s)")
+        }
     }
 
     override fun sendA2uiAction(action: A2uiAction): A2uiActionDispatchResult {
@@ -793,6 +982,31 @@ class ChannelTransport internal constructor(
         private const val TAG = "ChannelTransport"
         private const val NORMAL_CLOSE = 1000
         private const val MAX_PENDING_A2UI_ACTIONS = 16
+
+        /**
+         * letta-mobile-2rkdj: envelope `type` values that the shim
+         * never stamps with a per-run `seq`. Capturing a cursor for
+         * these would either be a no-op (no seq present) or actively
+         * wrong (subscribe wrappers — the inner re-routed frame
+         * records on its own pass, double-recording would just be
+         * idempotent waste).
+         */
+        private val SKIP_CURSOR_TYPES: Set<String> = setOf(
+            "welcome",
+            "ping",
+            "a2ui_capabilities",
+            "user_action_ack",
+            "user_action_outcome",
+            "error",
+            "cron_list_response",
+            "cron_add_response",
+            "cron_get_response",
+            "cron_delete_response",
+            "cron_delete_all_response",
+            "crons_updated",
+            "subscribe_frame",
+            "subscribe_done",
+        )
 
         /**
          * Default await-window for a cron WS round-trip. Matches the
