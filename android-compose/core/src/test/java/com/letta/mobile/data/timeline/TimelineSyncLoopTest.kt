@@ -557,6 +557,29 @@ class TimelineSyncLoopTest {
         assertEquals(2, api.sendCalls)
         scope.coroutineContext.job.cancel()
     }
+
+    @Test
+    fun `streamed reasoning and assistant frames with same server id stay separate`() = runBlocking {
+        val api = FakeSyncApi()
+        api.nextStreamMessages = listOf(
+            ReasoningMessage(
+                id = "shared-step-id",
+                reasoning = "thinking about it",
+            ),
+            AssistantMessage(
+                id = "shared-step-id",
+                contentRaw = JsonPrimitive("final answer"),
+            ),
+        )
+        val scope = CoroutineScope(Dispatchers.IO)
+        val sync = TimelineSyncLoop(api, "conv1", scope)
+
+        sync.send("hello")
+
+        withTimeout(5_000) {
+            while (true) {
+                val confirmed = sync.state.value.events.filterIsInstance<TimelineEvent.Confirmed>()
+                    .filter { it.serverId == "shared-step-id" }
                 if (
                     confirmed.any { it.messageType == TimelineMessageType.REASONING } &&
                     confirmed.any { it.messageType == TimelineMessageType.ASSISTANT }
@@ -1502,6 +1525,9 @@ scope.coroutineContext.job.cancel()
 
         scope.coroutineContext.job.cancel()
     }
+
+    @Test
+    fun `stream subscriber dispatches to listener resolved after loop creation`() = runTest {
         com.letta.mobile.util.Telemetry.clear()
         val api = OneShotAssistantStreamApi()
         val dispatcher = StandardTestDispatcher(testScheduler)
