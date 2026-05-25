@@ -20,6 +20,7 @@ import com.letta.mobile.data.api.StepApi
 import com.letta.mobile.data.api.ToolApi
 import com.letta.mobile.data.local.AgentDao
 import com.letta.mobile.data.local.ConversationDao
+import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.AllConversationsRepository
 import com.letta.mobile.data.repository.ArchiveRepository
@@ -40,8 +41,14 @@ import com.letta.mobile.data.repository.ScheduleRepository
 import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.repository.VibesyncEventStreamRepository
+import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.RunCursorStore
+import com.letta.mobile.runtime.BackendCapabilities
+import com.letta.mobile.runtime.BackendDescriptor
+import com.letta.mobile.runtime.BackendId
+import com.letta.mobile.runtime.BackendKind
+import com.letta.mobile.runtime.RuntimeId
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -73,10 +80,12 @@ class SessionGraphFactory @Inject constructor(
     private val stepApi: StepApi,
     private val toolApi: ToolApi,
     private val runCursorStore: RunCursorStore = RunCursorStore.inMemory(),
+    private val settingsRepository: ISettingsRepository? = null,
 ) {
     private val nextId = AtomicLong(0L)
 
     fun create(): SessionGraph {
+        val graphId = nextId.incrementAndGet()
         runBlocking(Dispatchers.IO) {
             agentDao.deleteAll()
             conversationDao.deleteAll()
@@ -90,7 +99,8 @@ class SessionGraphFactory @Inject constructor(
         )
         val channelTransport = ChannelTransport(scope, runCursorStore)
         return SessionGraph(
-            id = nextId.incrementAndGet(),
+            id = graphId,
+            backendDescriptor = remoteLettaDescriptor(settingsRepository?.activeConfig?.value),
             scope = scope,
             agentRepository = agentRepository,
             allConversationsRepository = AllConversationsRepository(
@@ -127,6 +137,25 @@ class SessionGraphFactory @Inject constructor(
             vibesyncEventStreamRepository = VibesyncEventStreamRepository(
                 apiClient = lettaApiClient,
                 scope = scope,
+            ),
+        )
+    }
+
+    private fun remoteLettaDescriptor(config: LettaConfig?): BackendDescriptor {
+        val backendKey = config?.id?.takeIf { it.isNotBlank() } ?: "default"
+        val label = config?.serverUrl?.trim()?.takeIf { it.isNotBlank() } ?: "https://api.letta.com"
+        return BackendDescriptor(
+            backendId = BackendId("remote-letta:$backendKey"),
+            runtimeId = RuntimeId("remote-letta:$backendKey"),
+            kind = BackendKind.RemoteLetta,
+            label = label,
+            capabilities = BackendCapabilities(
+                supportsStreaming = true,
+                supportsMemFs = true,
+                supportsTools = true,
+                supportsApprovals = true,
+                supportsAgentFileImport = true,
+                supportsAgentFileExport = true,
             ),
         )
     }

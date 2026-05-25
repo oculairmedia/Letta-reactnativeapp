@@ -21,10 +21,12 @@ import com.letta.mobile.data.repository.StepRepository
 import com.letta.mobile.data.repository.ToolRepository
 import com.letta.mobile.data.repository.VibesyncEventStreamRepository
 import com.letta.mobile.data.transport.ChannelTransport
+import com.letta.mobile.runtime.BackendDescriptor
 import kotlinx.coroutines.CoroutineScope
 
 class SessionGraph internal constructor(
     val id: Long,
+    val backendDescriptor: BackendDescriptor,
     val scope: CoroutineScope,
     val agentRepository: AgentRepository,
     val allConversationsRepository: AllConversationsRepository,

@@ -52,6 +52,7 @@ import com.letta.mobile.testutil.FakeSettingsRepository
 import com.letta.mobile.testutil.FakeStepApi
 import com.letta.mobile.testutil.FakeToolApi
 import com.letta.mobile.testutil.TestData
+import com.letta.mobile.runtime.BackendKind
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,6 +73,41 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionManagerTest {
+    @Test
+    fun `session graph exposes shared backend descriptor from active config`() = runTest {
+        val settingsRepository = FakeSettingsRepository(initialActiveConfig = config("backend-a"))
+        val graph = SessionGraphFactory(
+            FakeAgentApi(),
+            FakeAgentDao(),
+            FakeConversationApi(),
+            FakeConversationDao(),
+            FakeArchiveApi(),
+            FakeFolderApi(),
+            FakeGroupApi(),
+            FakeIdentityApi(),
+            fakeLettaApiClient(),
+            FakeMcpServerApi(),
+            FakeModelApi(),
+            FakePassageApi(),
+            FakeProjectApi(),
+            FakeProjectWorkApi(),
+            FakeRunApi(),
+            FakeJobApi(),
+            FakeProviderApi(),
+            FakeScheduleApi(),
+            FakeStepApi(),
+            FakeToolApi(),
+            settingsRepository = settingsRepository,
+        ).create()
+
+        assertEquals(BackendKind.RemoteLetta, graph.backendDescriptor.kind)
+        assertEquals("remote-letta:backend-a", graph.backendDescriptor.backendId.value)
+        assertEquals("remote-letta:backend-a", graph.backendDescriptor.runtimeId.value)
+        assertEquals("https://backend-a.example.test", graph.backendDescriptor.label)
+        assertTrue(graph.backendDescriptor.capabilities.supportsMemFs)
+        assertTrue(graph.backendDescriptor.capabilities.supportsApprovals)
+    }
+
     @Test
     fun `active config change rebuilds session graph and cancels previous scope`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
