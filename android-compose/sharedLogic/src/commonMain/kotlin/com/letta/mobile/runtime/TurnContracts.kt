@@ -135,6 +135,6 @@ enum class ToolApprovalScope {
     Forever,
 }
 
-interface TurnEngine {
-    fun runTurn(command: TurnCommand): Flow<RuntimeEventEnvelope>
+fun interface TurnEngine {
+    fun runTurn(command: TurnCommand): Flow<RuntimeEventDraft>
 }
