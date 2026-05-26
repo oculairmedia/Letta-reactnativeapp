@@ -8,6 +8,11 @@ import com.letta.mobile.cli.commands.DisconnectCommand
 import com.letta.mobile.cli.commands.DumpTimelineCommand
 import com.letta.mobile.cli.commands.RecordCommand
 import com.letta.mobile.cli.commands.ReconnectCommand
+import com.letta.mobile.cli.commands.RestCommand
+import com.letta.mobile.cli.commands.RestDeleteCommand
+import com.letta.mobile.cli.commands.RestGetCommand
+import com.letta.mobile.cli.commands.RestPatchCommand
+import com.letta.mobile.cli.commands.RestPostCommand
 import com.letta.mobile.cli.commands.ReplayCommand
 import com.letta.mobile.cli.commands.SendCommand
 import com.letta.mobile.cli.commands.StreamCommand
@@ -32,6 +37,12 @@ object Main {
                 RecordCommand(),
                 DisconnectCommand(),
                 ReconnectCommand(),
+                RestCommand().subcommands(
+                    RestGetCommand(),
+                    RestPostCommand(),
+                    RestPatchCommand(),
+                    RestDeleteCommand(),
+                ),
                 StreamCommand(),
             )
             .main(args)
@@ -51,6 +62,7 @@ object Main {
           record         Capture admin-shim WS wire frames as replay-compatible JSONL.
           disconnect     Open WS and close it cleanly.
           reconnect      Exercise disconnect/reconnect and optional run resume.
+          rest           Call arbitrary authenticated Letta REST endpoints.
           stream         Direct Letta REST/SSE path for low-level comparison.
 
         Run with --help on any subcommand for details.

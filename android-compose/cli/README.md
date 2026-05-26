@@ -7,6 +7,8 @@ The CLI now has two useful modes:
 
 - `connect` / `send` / `record` / `replay` / `dump-timeline` exercise the
   admin-shim mobile WebSocket and the same reducer/writer paths used by the app.
+- `rest` exposes generic authenticated JSON access to any Letta REST endpoint,
+  which is the foundation for the broader device-free admin/provisioning CLI.
 - `stream` keeps the older direct REST/SSE tracer for low-level comparison when
   debugging server wire frames or merge behavior.
 
@@ -179,6 +181,27 @@ cursor seeding:
 ```powershell
 .\gradlew.bat :cli:run -PcliArgs="reconnect --conversation conv_x --run-id run_x --cursor 42"
 ```
+
+### `rest`
+
+Call arbitrary Letta REST endpoints with the same base URL/token flags as the
+admin-shim commands. This is the escape hatch for app/server functionality that
+does not yet have a typed CLI wrapper.
+
+```powershell
+.\gradlew.bat :cli:run -PcliArgs="rest get /v1/agents --query limit=20"
+.\gradlew.bat :cli:run -PcliArgs="rest post /v1/agents --body-file agent-create.json"
+.\gradlew.bat :cli:run -PcliArgs="rest patch /v1/agents/agt_x --body '{`"name`":`"CLI agent`"}'"
+.\gradlew.bat :cli:run -PcliArgs="rest delete /v1/tools/tool_x"
+```
+
+Supported options:
+
+- `--query name=value`: repeatable query parameters.
+- `--body <json>` / `--body-file <path>`: request body for POST/PATCH/DELETE.
+- `--compact`: compact JSON response output.
+- `--raw`: print response without JSON formatting.
+- `--allow-error`: print non-2xx response body without failing the process.
 
 ### `stream`
 
