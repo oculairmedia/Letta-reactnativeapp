@@ -129,17 +129,23 @@ class A2uiToolApprovalRoundTripTest {
         withRealTimeout { server.frames.receiveOfType("hello") }
 
         assertTrue(bridge.send(agentId = "agent-e2e", conversationId = "conv-a", text = "a"))
+        assertEquals(
+            "second send for the same conversation must be rejected while the first turn is in flight",
+            false,
+            bridge.send(agentId = "agent-e2e", conversationId = "conv-a", text = "a again"),
+        )
         assertTrue(bridge.send(agentId = "agent-e2e", conversationId = "conv-b", text = "b"))
         withRealTimeout { server.frames.receiveOfType("send_message") }
         withRealTimeout { server.frames.receiveOfType("send_message") }
 
-        server.sendTurnStarted(conversationId = "conv-a", runId = "run-a", turnId = "turn-a")
-        server.sendTurnStarted(conversationId = "conv-b", runId = "run-b", turnId = "turn-b")
-        withRealTimeout {
+        val convBStarted = async(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
             bridge.events.first { event ->
                 (event as? WsTimelineEvent.TurnStarted)?.conversationId == "conv-b"
             }
         }
+        server.sendTurnStarted(conversationId = "conv-a", runId = "run-a", turnId = "turn-a")
+        server.sendTurnStarted(conversationId = "conv-b", runId = "run-b", turnId = "turn-b")
+        withRealTimeout { convBStarted.await() }
 
         assertTrue(bridge.cancel("conv-b"))
         val cancel = withRealTimeout { server.frames.receiveOfType("cancel") }

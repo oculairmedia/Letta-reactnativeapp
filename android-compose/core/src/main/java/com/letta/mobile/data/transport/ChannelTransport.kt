@@ -39,6 +39,7 @@ import okhttp3.WebSocketListener
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -155,7 +156,7 @@ class ChannelTransport internal constructor(
 
     /** Per-conversation turn state. The WebSocket remains singleton, but run/cancel/A2UI routing must not. */
     private data class PerConversationState(
-        @Volatile var inFlight: Boolean = false,
+        val inFlight: AtomicBoolean = AtomicBoolean(false),
         val currentRunId: AtomicReference<String?> = AtomicReference(null),
         val currentTurnId: AtomicReference<String?> = AtomicReference(null),
         val pendingA2uiActions: ArrayDeque<UserActionFrame> = ArrayDeque(),
@@ -198,7 +199,7 @@ class ChannelTransport internal constructor(
 
     private fun clearAllTurnState() {
         conversationStates.values.forEach { perConv ->
-            perConv.inFlight = false
+            perConv.inFlight.set(false)
             perConv.currentRunId.set(null)
             perConv.currentTurnId.set(null)
         }
@@ -207,7 +208,7 @@ class ChannelTransport internal constructor(
 
     private fun clearConversationTurnState(conversationId: String) {
         conversationStates[conversationId]?.let { perConv ->
-            perConv.inFlight = false
+            perConv.inFlight.set(false)
             perConv.currentRunId.set(null)
             perConv.currentTurnId.set(null)
         }
@@ -360,9 +361,8 @@ class ChannelTransport internal constructor(
             requireConversationKey(normalizedConversationId) ?: return false
         }
         val perConv = stateForConversation(conversationKey)
-        if (perConv.inFlight) return false
         val socket = socketRef.get() ?: return false
-        perConv.inFlight = true
+        if (!perConv.inFlight.compareAndSet(false, true)) return false
         perConv.currentRunId.set(null)
         perConv.currentTurnId.set(null)
         val sent = socket.sendFrame(
@@ -685,7 +685,7 @@ class ChannelTransport internal constructor(
                 // without the "between turn_started and first run-bearing
                 // frame" dead zone.
                 val perConv = stateForConversation(frame.conversationId)
-                perConv.inFlight = true
+                perConv.inFlight.set(true)
                 perConv.currentRunId.set(frame.runId)
                 perConv.currentTurnId.set(frame.turnId)
                 runConversationIds[frame.runId] = frame.conversationId
