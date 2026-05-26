@@ -72,6 +72,8 @@ internal abstract class AdminShimCommand(
 
     protected fun defaultConversationId(): String? = connection.profile?.defaultConversationId
 
+    protected fun defaultProjectId(): String? = connection.profile?.defaultProjectId
+
     protected fun requireAgentId(value: String?): String =
         value ?: defaultAgentId() ?: throw UsageError(
             "Missing agent id. Pass --agent, set LETTA_AGENT_ID, or configure profile --agent."

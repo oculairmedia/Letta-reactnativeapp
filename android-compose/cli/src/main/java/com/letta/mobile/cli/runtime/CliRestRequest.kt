@@ -9,6 +9,11 @@ internal data class CliQueryParam(
     val value: String,
 )
 
+internal data class CliHeaderParam(
+    val name: String,
+    val value: String,
+)
+
 internal fun buildRestUrl(
     baseUrl: String,
     path: String,
@@ -19,7 +24,7 @@ internal fun buildRestUrl(
     val baseWithPath = if (normalizedPath.isBlank()) normalizedBase else "$normalizedBase/$normalizedPath"
     if (queryParams.isEmpty()) return baseWithPath
     val query = queryParams.joinToString("&") { param ->
-        "${param.name.urlEncode()}=${param.value.urlEncode()}"
+        "${encodeUrlComponent(param.name)}=${encodeUrlComponent(param.value)}"
     }
     return "$baseWithPath?$query"
 }
@@ -38,6 +43,20 @@ internal fun parseQueryParams(rawParams: List<String>): List<CliQueryParam> =
         CliQueryParam(name, value)
     }
 
+internal fun parseHeaderParams(rawParams: List<String>): List<CliHeaderParam> =
+    rawParams.map { raw ->
+        val index = raw.indexOf('=')
+        if (index <= 0) {
+            throw UsageError("--header values must be name=value")
+        }
+        val name = raw.substring(0, index).trim()
+        val value = raw.substring(index + 1)
+        if (name.isBlank()) {
+            throw UsageError("--header values must include a non-empty name")
+        }
+        CliHeaderParam(name, value)
+    }
+
 internal fun resolveRequestBody(
     inlineBody: String?,
     bodyFile: String?,
@@ -52,5 +71,5 @@ internal fun resolveRequestBody(
     }
 }
 
-private fun String.urlEncode(): String =
-    java.net.URLEncoder.encode(this, Charsets.UTF_8).replace("+", "%20")
+internal fun encodeUrlComponent(value: String): String =
+    java.net.URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")

@@ -9,6 +9,9 @@ The CLI now has two useful modes:
   admin-shim mobile WebSocket and the same reducer/writer paths used by the app.
 - `rest` exposes generic authenticated JSON access to any Letta REST endpoint,
   which is the foundation for the broader device-free admin/provisioning CLI.
+- Typed resource command groups wrap the app's main REST-backed admin surfaces
+  so agents, conversations, tools, memory, files, projects, MCP, runs, jobs, and
+  related resources can be managed without opening the Android UI.
 - `stream` keeps the older direct REST/SSE tracer for low-level comparison when
   debugging server wire frames or merge behavior.
 
@@ -63,7 +66,8 @@ configuration for CLI runs.
 ```
 
 Profile defaults are used by `send`, `dump-timeline`, `replay`, `record`,
-`reconnect`, `stream`, and `rest` when explicit flags/env vars are omitted.
+`reconnect`, `stream`, `rest`, and the typed resource command groups when
+explicit flags/env vars are omitted.
 
 ## Commands
 
@@ -210,6 +214,7 @@ does not yet have a typed CLI wrapper.
 ```powershell
 .\gradlew.bat :cli:run -PcliArgs="rest get /v1/agents --query limit=20"
 .\gradlew.bat :cli:run -PcliArgs="rest post /v1/agents --body-file agent-create.json"
+.\gradlew.bat :cli:run -PcliArgs="rest put /v1/tools --body-file tool.json"
 .\gradlew.bat :cli:run -PcliArgs="rest patch /v1/agents/agt_x --body '{`"name`":`"CLI agent`"}'"
 .\gradlew.bat :cli:run -PcliArgs="rest delete /v1/tools/tool_x"
 ```
@@ -217,10 +222,47 @@ does not yet have a typed CLI wrapper.
 Supported options:
 
 - `--query name=value`: repeatable query parameters.
-- `--body <json>` / `--body-file <path>`: request body for POST/PATCH/DELETE.
+- `--header name=value`: repeatable request headers, useful for mutation
+  contracts such as `If-Match` and `Idempotency-Key`.
+- `--body <json>` / `--body-file <path>`: request body for POST/PUT/PATCH/DELETE.
 - `--compact`: compact JSON response output.
 - `--raw`: print response without JSON formatting.
 - `--allow-error`: print non-2xx response body without failing the process.
+
+### Typed resources
+
+Typed resource groups use the same profile/base-url/token options as `rest` and
+share its JSON output flags. They are thin wrappers over the production app API
+routes, so `--query`, `--header`, `--body`, and `--body-file` pass through to the
+server contract. Positional `agent_id`, `conversation_id`, and `project_id`
+values fall back to the selected profile defaults when omitted.
+
+Core resource groups:
+
+- `agents`: list/get/create/update/delete/export/import, context, core-memory
+  blocks, archive/tool/identity/block attachments, and agent message actions.
+- `conversations`: list/get/create/update/delete, fork/cancel/recompile, and
+  conversation messages.
+- `tools`, `blocks`, `archives`, `passages`, `folders`, `groups`,
+  `identities`, `schedules`, `mcp`, `models`, and `providers`: app admin
+  surfaces exposed as first-class CLI groups.
+- `runs`, `jobs`, `steps`, `messages`, and `message-batches`: operational
+  inspection and mutation routes.
+- `projects`, `project-agents`, and `project-work`: Vibesync project registry,
+  beads remote, sync trigger, ready-work, issue, and analytics routes.
+- `debug` and `vibesync-admin`: health/stats and admin refresh routes.
+
+Examples:
+
+```powershell
+.\gradlew.bat :cli:run -PcliArgs="agents list --query limit=20"
+.\gradlew.bat :cli:run -PcliArgs="agents update agt_x --body-file agent-update.json"
+.\gradlew.bat :cli:run -PcliArgs="agents attach-tool agt_x tool_x"
+.\gradlew.bat :cli:run -PcliArgs="agents import --file agent-export.json --override-name `"CLI import`""
+.\gradlew.bat :cli:run -PcliArgs="folders upload folder_x --file .\notes.md --duplicate-handling replace"
+.\gradlew.bat :cli:run -PcliArgs="projects sync-trigger project_x"
+.\gradlew.bat :cli:run -PcliArgs="project-work status issue_x --header If-Match=abc --header Idempotency-Key=run-1 --body '{`"status`":`"closed`"}'"
+```
 
 ### `stream`
 

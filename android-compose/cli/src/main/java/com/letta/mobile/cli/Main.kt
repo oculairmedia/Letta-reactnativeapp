@@ -21,9 +21,11 @@ import com.letta.mobile.cli.commands.RestDeleteCommand
 import com.letta.mobile.cli.commands.RestGetCommand
 import com.letta.mobile.cli.commands.RestPatchCommand
 import com.letta.mobile.cli.commands.RestPostCommand
+import com.letta.mobile.cli.commands.RestPutCommand
 import com.letta.mobile.cli.commands.ReplayCommand
 import com.letta.mobile.cli.commands.SendCommand
 import com.letta.mobile.cli.commands.StreamCommand
+import com.letta.mobile.cli.commands.buildResourceCommands
 
 class LettaMobileCli : CliktCommand(name = "meridian") {
     override fun run() = Unit
@@ -48,6 +50,7 @@ object Main {
                 RestCommand().subcommands(
                     RestGetCommand(),
                     RestPostCommand(),
+                    RestPutCommand(),
                     RestPatchCommand(),
                     RestDeleteCommand(),
                 ),
@@ -60,6 +63,7 @@ object Main {
                     ProfileExportCommand(),
                     ProfileImportCommand(),
                 ),
+                *buildResourceCommands().toTypedArray(),
                 StreamCommand(),
             )
             .main(args)
@@ -81,6 +85,18 @@ object Main {
           reconnect      Exercise disconnect/reconnect and optional run resume.
           rest           Call arbitrary authenticated Letta REST endpoints.
           profile        Manage local CLI backend profiles and defaults.
+          agents         Manage agents and agent-scoped attachments/messages.
+          conversations  Manage conversations and conversation messages.
+          tools          Manage tools and tool-agent attachments.
+          blocks         Manage core-memory blocks and identity attachments.
+          archives       Manage archives and archive passages.
+          folders        Manage folders, files, passages, and uploads.
+          groups         Manage multi-agent groups.
+          identities     Manage identities and identity links.
+          schedules      Manage agent scheduled messages.
+          mcp            Manage MCP servers and tools.
+          runs/jobs/steps Inspect and mutate execution resources.
+          projects       Manage Vibesync projects and beads remotes.
           stream         Direct Letta REST/SSE path for low-level comparison.
 
         Run with --help on any subcommand for details.
