@@ -164,7 +164,7 @@ internal fun parseMarkdownTable(text: String): ParsedMarkdownTable? {
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .toList()
-    if (lines.size < 3) return null
+    if (lines.size < 2) return null
     if (!lines[0].contains('|')) return null
     if (!lineLooksLikeTableSeparator(lines[1], 0, lines[1].length)) return null
 
@@ -182,8 +182,6 @@ internal fun parseMarkdownTable(text: String): ParsedMarkdownTable? {
             cells = cells,
         )
     }
-    if (rows.isEmpty()) return null
-
     return ParsedMarkdownTable(
         header = normalizedHeader,
         rows = rows,

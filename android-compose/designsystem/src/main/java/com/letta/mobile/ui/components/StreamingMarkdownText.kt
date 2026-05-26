@@ -158,15 +158,13 @@ fun StreamingMarkdownText(
         }
     }
 
-    // letta-mobile-flk2 (revision 15+): split-render with a repaired markdown
-    // active tail.
+    // letta-mobile-gqaw0: stable markdown document renderer.
     //
-    // Architecture: committed blocks (append-only, partitioned at safe
-    // markdown boundaries by `partitionStreamingMarkdown`) render
-    // through MarkdownText with stable Compose keys. The active tail
-    // (in-progress paragraph past the last safe boundary) is repaired into
-    // syntactically closed markdown before rendering, so inline emphasis,
-    // links, math, and fences can appear live without flashing raw delimiters.
+    // Architecture: the stream is parsed into typed block nodes with stable ids.
+    // A syntax cue (``` fence, list marker, heading marker, table separator)
+    // opens its block immediately; later chunks append to that same block.
+    // Unchanged blocks keep their keys and object identity, so only the active
+    // block should recompose at paint cadence.
     //
     // Why this is necessary: revision 14 instrumentation measured
     // ~17-18Hz (50ms coalesce) and ~10Hz (100ms coalesce) of
@@ -178,40 +176,12 @@ fun StreamingMarkdownText(
     // independent ("every message"), confirming subtree rebuild rather
     // than mid-construct parse churn.
     //
-    // The repair pass is render-only: source text and partition boundaries stay
-    // untouched. When the real closer arrives, the synthetic closer disappears
-    // on the next paint tick and the same active-tail block re-renders with the
-    // real markdown.
-    //
-    // No swap-flash: when a paragraph break commits, the rendered
-    // markdown prefix is unchanged (existing blocks keep their stable
-    // keys, no recomposition); only a new MarkdownText block appears
-    // and the active tail shrinks. Compose treats this as a layout step,
-    // not a render swap.
-    val partition = remember(displayed) { partitionStreamingMarkdown(displayed) }
-    val renderPartition = remember(partition, displayed, deferUnstableMarkdown) {
-        if (deferUnstableMarkdown) {
-            partition.deferTrailingBoundaryCommit(displayed)
-        } else {
-            partition
-        }
-    }
-    val renderPlan = remember(renderPartition, isStreaming) {
-        buildStreamingMarkdownRenderPlan(
-            partition = renderPartition,
-            isStreaming = isStreaming,
-        )
-    }
-    val renderPlanCommittedToken = remember(renderPlan.committedBlocks) {
-        renderPlan.committedBlocks.joinToString(separator = "|") { it.key }
-    }
-    val committedBlocksForRender = remember(renderPlanCommittedToken) {
-        renderPlan.committedBlocks
-    }
-    val activeTailForText = renderPlan.activeTail
-    val transformedTail = remember(activeTailForText) {
-        tailTransform(activeTailForText)
-    }
+    // The repair pass is render-only: source text and block ids stay untouched.
+    // When the real closer arrives, the synthetic closer disappears on the next
+    // paint tick inside the same block key.
+    val documentState = remember { StreamingMarkdownDocumentState() }
+    val document = remember(displayed) { documentState.update(displayed) }
+    val blocksForRender = document.blocks
     val density = LocalDensity.current
     // letta-mobile-mmnn fix: stable height floor that only updates at committed-block boundaries.
     //
@@ -228,8 +198,8 @@ fun StreamingMarkdownText(
     // remeasures the whole message at the paint cadence and styled tables visibly flash.
     var stableFloorHeightPx by remember { mutableStateOf(0) }
     var stableFloorBoundaryToken by remember { mutableStateOf<String?>(null) }
-    val committedBoundaryToken = remember(committedBlocksForRender) {
-        committedBlocksForRender.joinToString(separator = "|") { it.key }
+    val committedBoundaryToken = remember(document, isStreaming) {
+        document.stableHeightToken(isStreaming = isStreaming)
     }
     val heightFloorModifier = if (stableFloorHeightPx > 0) {
         with(density) { Modifier.heightIn(min = stableFloorHeightPx.toDp()) }
@@ -268,58 +238,65 @@ fun StreamingMarkdownText(
                 }
             },
     ) {
-        CommittedMarkdownBlocks(
-            blocks = committedBlocksForRender,
+        StreamingMarkdownDocumentBlocks(
+            blocks = blocksForRender,
             textColor = textColor,
             stabilizeTables = stabilizeTables,
+            tailTransform = tailTransform,
+            cursorText = cursorText,
+            cursorAlpha = cursorAlpha,
+            repairIncompleteMarkdown = deferUnstableMarkdown,
         )
-
-        // Active tail: repair incomplete markdown into a temporary valid
-        // document before handing it to the renderer. Cursor glyph injection
-        // happens here so callers can fade it independently via cursorAlpha.
-        val tailHasText = transformedTail.isNotEmpty()
-        val activeCursor = cursorText
-            ?.takeIf {
-                cursorAlpha > 0.001f &&
-                    (tailHasText || committedBlocksForRender.isNotEmpty())
-            }
-        if (tailHasText || activeCursor != null) {
-            val tailMarkdown = remember(
-                transformedTail,
-                activeCursor,
-            ) {
-                repairIncompleteMarkdownForStreaming(transformedTail) + (activeCursor ?: "")
-            }
-            key("active-tail") {
-                MarkdownText(
-                    text = tailMarkdown,
-                    textColor = textColor,
-                )
-            }
-        }
     }
 }
 
 private const val PAINT_INTERVAL_MS = 50L
 
 @Composable
-private fun CommittedMarkdownBlocks(
-    blocks: List<MarkdownBlock>,
+private fun StreamingMarkdownDocumentBlocks(
+    blocks: List<StreamingMarkdownDocumentBlock>,
     textColor: Color,
     stabilizeTables: Boolean,
+    tailTransform: (String) -> String,
+    cursorText: String?,
+    cursorAlpha: Float,
+    repairIncompleteMarkdown: Boolean,
 ) {
-    // Committed blocks: each rendered through MarkdownText, keyed by content hash. This composable
-    // is intentionally isolated from the active tail so plain-text tail ticks do not re-invoke the
-    // table MarkdownText subtree.
+    // Each block renders in its own key group. Unchanged blocks keep the same object and key, while
+    // the final active block alone receives tail transforms and cursor injection.
     blocks.forEachIndexed { index, block ->
-        val parsedTable = if (stabilizeTables && block.text.looksLikeMarkdownTable()) {
-            parseMarkdownTable(block.text)
+        val isActiveBlock = index == blocks.lastIndex
+        val renderSource = remember(block, isActiveBlock, tailTransform) {
+            if (isActiveBlock) tailTransform(block.source) else block.source
+        }
+        val activeCursor = cursorText
+            ?.takeIf {
+                isActiveBlock &&
+                    block.allowsInlineCursor &&
+                    cursorAlpha > 0.001f &&
+                    (renderSource.isNotEmpty() || blocks.isNotEmpty())
+            }
+        val repairedMarkdown = remember(renderSource, activeCursor, isActiveBlock, repairIncompleteMarkdown) {
+            val markdown = if (repairIncompleteMarkdown && isActiveBlock) {
+                block.renderMarkdownSource(renderSource)
+            } else {
+                renderSource
+            }
+            markdown + (activeCursor ?: "")
+        }
+        val parsedTable = if (
+            activeCursor == null &&
+            stabilizeTables &&
+            block.kind == StreamingMarkdownBlockKind.Table &&
+            renderSource.looksLikeMarkdownTable()
+        ) {
+            parseMarkdownTable(renderSource)
         } else {
             null
         }
 
         if (parsedTable != null) {
-            key("table-$index") {
+            key(block.key) {
                 StreamingMarkdownTable(
                     table = parsedTable,
                     textColor = textColor,
@@ -328,7 +305,7 @@ private fun CommittedMarkdownBlocks(
         } else {
             key(block.key) {
                 MarkdownText(
-                    text = block.text,
+                    text = repairedMarkdown,
                     textColor = textColor,
                 )
             }
