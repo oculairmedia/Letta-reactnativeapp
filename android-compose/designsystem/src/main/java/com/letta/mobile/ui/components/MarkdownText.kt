@@ -36,7 +36,7 @@ import com.mikepenz.markdown.compose.elements.MarkdownHighlightedCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownHighlightedCodeFence
 import com.mikepenz.markdown.compose.extendedspans.ExtendedSpans
 import com.mikepenz.markdown.compose.extendedspans.RoundedCornerSpanPainter
-import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.compose.Markdown as CoreMarkdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.markdownExtendedSpans
@@ -394,12 +394,13 @@ private fun MarkdownTextRaw(
     }
 
     CompositionLocalProvider(LocalDensity provides scaledDensity) {
-        Markdown(
+        CoreMarkdown(
             content = linkedText,
             modifier = modifier.fillMaxWidth(),
             components = components,
             extendedSpans = extendedSpans,
             imageTransformer = Coil3ImageTransformerImpl,
+            retainState = true,
             colors = markdownColor(
                 text = textColor,
                 codeBackground = MaterialTheme.colorScheme.surfaceVariant,

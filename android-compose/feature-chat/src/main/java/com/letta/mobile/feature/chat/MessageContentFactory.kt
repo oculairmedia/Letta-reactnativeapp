@@ -133,11 +133,9 @@ private fun AssistantResponseText(
     // letta-mobile-d9zy.5 (retry): cursor fade-out.
     // `showCursor` decides whether the cursor SHOULD be visible based on
     // whether content is still arriving (isStreaming) or the smoother is
-    // still catching up. `cursorAlpha` then tweens 1f → 0f over 500ms when
-    // showCursor flips false so the cursor fades out instead of hard-cutting.
-    // We keep the cursor character in the tree (cursorText non-null) until
-    // the alpha actually reaches zero, otherwise the span would disappear
-    // before the fade finishes.
+    // still catching up. `cursorAlpha` keeps the cursor character in the tree
+    // during the post-stream grace window so it does not hard-cut at the same
+    // moment the text catches up.
     val showCursor = isStreaming || smoothedText != text
     val cursorEligible = shouldShowStreamingCursor(smoothedText)
     val targetCursorVisible = showCursor && cursorEligible
@@ -168,7 +166,6 @@ private fun AssistantResponseText(
     StreamingMarkdownText(
         text = smoothedText,
         textColor = textColor,
-        tailStyle = MaterialTheme.chatTypography.messageBody,
         tailTransform = ::streamingDisplayText,
         cursorText = if (displayCursor) STREAMING_CURSOR else null,
         cursorAlpha = cursorAlpha,
@@ -205,7 +202,8 @@ private fun String.looksLikeMarkdownTableSeparator(): Boolean {
 }
 
 /**
- * letta-mobile-6p4o.1 — perceived garbling fix (A + C).
+ * letta-mobile-6p4o.1 — perceived garbling fix (A + C), with live
+ * markdown-tail repair layered on top.
  *
  * Background: lettabot (and Letta direct) emit assistant deltas at
  * arbitrary character boundaries — frequently mid-word. Wire-level
@@ -221,6 +219,9 @@ private fun String.looksLikeMarkdownTableSeparator(): Boolean {
  *    whitespace/punctuation — i.e. hold the trailing partial-word
  *    until the next chunk completes it. When `isStreaming = false`,
  *    render the full text.
+ *  - **Markdown repair**: when the tail is inside an incomplete markdown
+ *    construct, pass the raw tail through so the design-system renderer can
+ *    close it synthetically for display instead of hiding it.
  *  - **C**: append a thin vertical bar (`▎`) at the cursor position so
  *    partial text reads as "in progress" rather than "broken".
  *
@@ -237,7 +238,8 @@ private const val STREAMING_CURSOR = "\u258E" // ▎ LEFT VERTICAL BAR
 private const val MAX_HELD_TAIL_CHARS = 24
 
 internal fun streamingDisplayText(raw: String): String {
-    // letta-mobile-flk2 (revision 11): markdown-stability clamp.
+    // letta-mobile-flk2 (revision 11+): word-boundary clamp plus markdown-tail
+    // handoff.
     //
     // Background: mikepenz's renderer parses the full text on every
     // re-emission. While streaming, the latest tail almost always
@@ -251,15 +253,10 @@ internal fun streamingDisplayText(raw: String): String {
     // Emmanuel reported this as "flashing the content that streamed
     // in but hasn't been markdownified yet".
     //
-    // Mitigation: hold back the trailing region that LOOKS like it's
-    // mid-construct, render only the markdown-stable PREFIX. The held
-    // tail will be released on the next paint tick (≤50ms) once we can
-    // prove it's either complete or no longer dangling.
-    //
-    // We are intentionally CONSERVATIVE — we'd rather hold a
-    // few extra chars than display unconverted markup. The held
-    // region is small (typically <30 chars) so the visual lag is
-    // imperceptible.
+    // Current mitigation: let obvious markdown tails through unchanged. The
+    // design-system streaming renderer repairs that tail into syntactically
+    // valid markdown for display only, which preserves live formatting without
+    // leaking raw delimiters. Plain prose still uses the word-boundary clamp.
     //
     // Inside an open ``` fence we skip the clamp entirely (whitespace
     // is meaningful in code, and the parser already renders the
@@ -274,7 +271,15 @@ internal fun streamingDisplayText(raw: String): String {
     if (insideOpenCodeFence(raw)) {
         return raw
     }
-    return clampToWordBoundary(clampToStableMarkdown(raw))
+    if (hasOpenDisplayMathFence(raw)) {
+        return raw
+    }
+    val stableMarkdownPrefix = clampToStableMarkdown(raw)
+    return if (stableMarkdownPrefix.length < raw.length) {
+        raw
+    } else {
+        clampToWordBoundary(raw)
+    }
 }
 
 private fun clampToWordBoundary(raw: String): String {
@@ -329,6 +334,11 @@ private fun clampToStableMarkdown(raw: String): String {
     val line = raw.substring(lineStart)
     if (line.isEmpty()) return raw
 
+    val unmatchedMathOpenIdx = findUnmatchedMathOpenerInLine(line)
+    if (unmatchedMathOpenIdx >= 0) {
+        return raw.substring(0, lineStart + unmatchedMathOpenIdx)
+    }
+
     // Scan for unmatched span openers in this line. Track whether the
     // last unmatched opener exists; if so, return raw clipped to BEFORE
     // that opener.
@@ -337,6 +347,75 @@ private fun clampToStableMarkdown(raw: String): String {
         return raw.substring(0, lineStart + unmatchedOpenIdx)
     }
     return raw
+}
+
+private fun findUnmatchedMathOpenerInLine(line: String): Int {
+    val displayOpenIdx = findUnmatchedDisplayMathOpenerInLine(line)
+    val inlineOpenIdx = findUnmatchedInlineMathOpenerInLine(line)
+    return when {
+        displayOpenIdx < 0 -> inlineOpenIdx
+        inlineOpenIdx < 0 -> displayOpenIdx
+        else -> minOf(displayOpenIdx, inlineOpenIdx)
+    }
+}
+
+private fun findUnmatchedDisplayMathOpenerInLine(line: String): Int {
+    var openIdx = -1
+    var i = 0
+    while (i <= line.length - 2) {
+        if (line[i] == '\\') {
+            i += 2
+            continue
+        }
+        if (line[i] == '$' && line[i + 1] == '$') {
+            openIdx = if (openIdx >= 0) -1 else i
+            i += 2
+            continue
+        }
+        i++
+    }
+    return openIdx
+}
+
+private fun findUnmatchedInlineMathOpenerInLine(line: String): Int {
+    var opener = -1
+    var i = 0
+    while (i < line.length) {
+        if (line.isSingleDollarAt(i) && !line.isInsideInlineCodeAt(i)) {
+            when {
+                opener >= 0 && i > 0 && !line[i - 1].isWhitespace() -> opener = -1
+                canOpenInlineMathAt(line, i) -> opener = i
+            }
+        }
+        i++
+    }
+    if (opener < 0) return -1
+
+    val body = line.substring(opener + 1)
+    return if (isLikelyIncompleteInlineMathBody(body)) opener else -1
+}
+
+private fun canOpenInlineMathAt(line: String, index: Int): Boolean {
+    val next = index + 1
+    if (next >= line.length) return false
+    if (line[next].isWhitespace() || line[next].isDigit()) return false
+    if (index > 0 && line[index - 1].isWordChar()) return false
+    return true
+}
+
+private fun isLikelyIncompleteInlineMathBody(body: String): Boolean {
+    if (body.isBlank() || body.last().isWhitespace()) return false
+    if (body.any { it == '$' || it == '\n' }) return false
+
+    val hasMathSyntax = body.any { it in "\\^_{}=+-*/<>(),[]" }
+    if (hasMathSyntax) return true
+
+    val isShellLikeVariable = body.all { it.isUpperCase() || it.isDigit() || it == '_' }
+    if (isShellLikeVariable) return false
+
+    return body.length <= MAX_SIMPLE_INLINE_MATH_CHARS &&
+        body.all { it.isLetter() } &&
+        (body.length == 1 || body.any { it.isLowerCase() })
 }
 
 /**
@@ -449,6 +528,57 @@ private fun insideOpenCodeFence(text: String): Boolean {
     }
     return count % 2 == 1
 }
+
+private fun hasOpenDisplayMathFence(text: String): Boolean {
+    var open = false
+    var i = 0
+    while (i <= text.length - 2) {
+        if (text[i] == '\\') {
+            i += 2
+            continue
+        }
+        if (!text.isInsideInlineCodeAt(i) && text[i] == '$' && text[i + 1] == '$') {
+            open = !open
+            i += 2
+            continue
+        }
+        i++
+    }
+    return open
+}
+
+private fun String.isSingleDollarAt(index: Int): Boolean {
+    if (this[index] != '$' || isEscapedAt(index)) return false
+    if (index > 0 && this[index - 1] == '$') return false
+    if (index + 1 < length && this[index + 1] == '$') return false
+    return true
+}
+
+private fun String.isEscapedAt(index: Int): Boolean {
+    var slashCount = 0
+    var i = index - 1
+    while (i >= 0 && this[i] == '\\') {
+        slashCount++
+        i--
+    }
+    return slashCount % 2 == 1
+}
+
+private fun String.isInsideInlineCodeAt(index: Int): Boolean {
+    var open = false
+    var i = 0
+    while (i < index) {
+        if (this[i] == '`' && !isEscapedAt(i)) {
+            open = !open
+        }
+        i++
+    }
+    return open
+}
+
+private fun Char.isWordChar(): Boolean = isLetterOrDigit() || this == '_'
+
+private const val MAX_SIMPLE_INLINE_MATH_CHARS = 3
 
 internal object TextMessageRenderer : MessageContentRenderer {
     override fun canRender(message: UiMessage) =
