@@ -152,6 +152,7 @@ data class UserActionFrame(
     override val ts: String,
     val name: String,
     val context: JsonObject = JsonObject(emptyMap()),
+    @SerialName("conversation_id") val conversationId: String? = null,
     @SerialName("run_id") val runId: String? = null,
     @SerialName("turn_id") val turnId: String? = null,
     @SerialName("surface_id") val surfaceId: String? = null,
