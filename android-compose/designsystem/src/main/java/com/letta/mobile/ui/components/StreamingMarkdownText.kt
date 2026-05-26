@@ -26,10 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import com.letta.mobile.ui.theme.LocalChatIsPinching
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -58,8 +55,6 @@ import kotlinx.coroutines.delay
  *   every chunk.
  * @param modifier forwarded to the outer container.
  * @param textColor base text color.
- * @param tailStyle typography used only when the active tail is empty and we
- *   still need to show a standalone cursor after a committed prefix.
  * @param tailTransform optional decorator applied to the active tail only —
  *   e.g. word-boundary holdback + streaming cursor (`streamingDisplayText`
  *   from MessageContentFactory).
@@ -67,19 +62,16 @@ import kotlinx.coroutines.delay
  *   When false, animateContentSize is applied so the bubble smoothly reaches its
  *   final height in one animation rather than fighting ~50ms-increment jumps that
  *   FastOutSlowInEasing cannot catch.
- * @param cursorText optional cursor glyph appended after the active tail. Rendered
- *   in a separate AnnotatedString span so [cursorAlpha] can fade it independently
- *   of the surrounding text. Pass null to omit the cursor entirely.
- * @param cursorAlpha alpha applied to the [cursorText] span. Callers tween this from
- *   1f to 0f to smoothly hand off from streaming to settled rendering instead of a
- *   hard cut. Values ≤ 0.001f suppress the span (no glyph emitted).
+ * @param cursorText optional cursor glyph appended after the active tail. Pass null
+ *   to omit the cursor entirely.
+ * @param cursorAlpha caller-owned cursor visibility value. Values at or below
+ *   the threshold suppress the glyph.
  */
 @Composable
 fun StreamingMarkdownText(
     text: String,
     modifier: Modifier = Modifier,
     textColor: Color = MaterialTheme.colorScheme.onSurface,
-    tailStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
     tailTransform: (String) -> String = { it },
     cursorText: String? = null,
     cursorAlpha: Float = 1f,
@@ -166,14 +158,15 @@ fun StreamingMarkdownText(
         }
     }
 
-    // letta-mobile-flk2 (revision 15): split-render with plain-Text
+    // letta-mobile-flk2 (revision 15+): split-render with a repaired markdown
     // active tail.
     //
     // Architecture: committed blocks (append-only, partitioned at safe
     // markdown boundaries by `partitionStreamingMarkdown`) render
     // through MarkdownText with stable Compose keys. The active tail
-    // (in-progress paragraph past the last safe boundary) renders as
-    // PLAIN Text — mikepenz never sees the high-cadence string changes.
+    // (in-progress paragraph past the last safe boundary) is repaired into
+    // syntactically closed markdown before rendering, so inline emphasis,
+    // links, math, and fences can appear live without flashing raw delimiters.
     //
     // Why this is necessary: revision 14 instrumentation measured
     // ~17-18Hz (50ms coalesce) and ~10Hz (100ms coalesce) of
@@ -185,21 +178,16 @@ fun StreamingMarkdownText(
     // independent ("every message"), confirming subtree rebuild rather
     // than mid-construct parse churn.
     //
-    // Trade-off: while typing a paragraph, raw inline markdown like
-    // `**bold**` is shown as literal text until the paragraph
-    // completes (paragraph break commits the block to mikepenz). For
-    // prose this is mostly invisible — most paragraphs don't contain
-    // emphasis — and matches what every modern markdown chat app does
-    // (ChatGPT, Claude.ai, Gemini all hold off live emphasis until the
-    // line/paragraph completes). Block constructs (lists, code fences,
-    // tables) still render live because partitionStreamingMarkdown
-    // commits them as soon as they close.
+    // The repair pass is render-only: source text and partition boundaries stay
+    // untouched. When the real closer arrives, the synthetic closer disappears
+    // on the next paint tick and the same active-tail block re-renders with the
+    // real markdown.
     //
     // No swap-flash: when a paragraph break commits, the rendered
     // markdown prefix is unchanged (existing blocks keep their stable
     // keys, no recomposition); only a new MarkdownText block appears
-    // and the plain-Text tail string shrinks. Compose treats this as
-    // a layout step, not a render swap.
+    // and the active tail shrinks. Compose treats this as a layout step,
+    // not a render swap.
     val partition = remember(displayed) { partitionStreamingMarkdown(displayed) }
     val renderPartition = remember(partition, displayed, deferUnstableMarkdown) {
         if (deferUnstableMarkdown) {
@@ -286,13 +274,9 @@ fun StreamingMarkdownText(
             stabilizeTables = stabilizeTables,
         )
 
-        // Active tail: plain Text. mikepenz NEVER sees this string.
-        // The tailTransform handles only the markdown-stability clamp
-        // (clampToStableMarkdown) — cursor glyph injection happens here
-        // so we can fade it independently via cursorAlpha. The cursor
-        // lives in a separate AnnotatedString span on the same Text so
-        // it stays flush with the end of the last typed line and does
-        // not introduce a layout shift when alpha drops to zero.
+        // Active tail: repair incomplete markdown into a temporary valid
+        // document before handing it to the renderer. Cursor glyph injection
+        // happens here so callers can fade it independently via cursorAlpha.
         val tailHasText = transformedTail.isNotEmpty()
         val activeCursor = cursorText
             ?.takeIf {
@@ -300,26 +284,18 @@ fun StreamingMarkdownText(
                     (tailHasText || committedBlocksForRender.isNotEmpty())
             }
         if (tailHasText || activeCursor != null) {
-            val annotatedTail = remember(
+            val tailMarkdown = remember(
                 transformedTail,
                 activeCursor,
-                cursorAlpha,
-                textColor,
             ) {
-                buildAnnotatedString {
-                    append(transformedTail)
-                    if (activeCursor != null) {
-                        withStyle(SpanStyle(color = textColor.copy(alpha = cursorAlpha))) {
-                            append(activeCursor)
-                        }
-                    }
-                }
+                repairIncompleteMarkdownForStreaming(transformedTail) + (activeCursor ?: "")
             }
-            Text(
-                text = annotatedTail,
-                style = tailStyle,
-                color = textColor,
-            )
+            key("active-tail") {
+                MarkdownText(
+                    text = tailMarkdown,
+                    textColor = textColor,
+                )
+            }
         }
     }
 }

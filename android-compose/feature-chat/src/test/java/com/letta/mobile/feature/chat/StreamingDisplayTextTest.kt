@@ -65,6 +65,42 @@ class StreamingDisplayTextTest {
     }
 
     @Test
+    fun incompleteBold_returnsRawForMarkdownRepair() {
+        assertEquals("This is **bol", streamingDisplayText("This is **bol"))
+    }
+
+    @Test
+    fun incompleteLink_returnsRawForMarkdownRepair() {
+        assertEquals("See [doc", streamingDisplayText("See [doc"))
+    }
+
+    @Test
+    fun incompleteDisplayMath_returnsRawForMarkdownRepair() {
+        assertEquals("Let \$\$x^2", streamingDisplayText("Let \$\$x^2"))
+    }
+
+    @Test
+    fun multilineIncompleteDisplayMath_returnsRawForMarkdownRepair() {
+        val raw = "Let:\n\$\$\nx^2 + y^2"
+        assertEquals(raw, streamingDisplayText(raw))
+    }
+
+    @Test
+    fun incompleteInlineMath_returnsRawForMarkdownRepair() {
+        assertEquals("Let \$x_i", streamingDisplayText("Let \$x_i"))
+    }
+
+    @Test
+    fun mathLikeTextInsideIncompleteInlineCode_returnsRawForCodeRepair() {
+        assertEquals("Use `\$x", streamingDisplayText("Use `\$x"))
+    }
+
+    @Test
+    fun currency_stillUsesWordBoundaryClamp() {
+        assertEquals("Cost is ", streamingDisplayText("Cost is \$100"))
+    }
+
+    @Test
     fun newline_returnsAsIs() {
         assertEquals(
             "Line one\n",
