@@ -112,17 +112,9 @@ internal suspend fun applyReconcileAfterSendSnapshot(
         }
 
         // 2. Pull in any server messages we don't yet have (missed stream events)
-        serverMessages.forEach { msg ->
-            val pos = state.value.positionForServerMessageDate(msg)
-            val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
-            if (confirmed.messageType == TimelineMessageType.TOOL_RETURN) return@forEach
-            val byOtid = state.value.findByOtid(confirmed.otid)
-            val byServerId = state.value.findByServerId(msg.id, confirmed.messageType)
-            if (byOtid == null && byServerId == null) {
-                state.value = state.value.insertOrdered(confirmed)
-                appendedMissing++
-            }
-        }
+        val mergeResult = state.value.mergeServerMessages(serverMessages)
+        state.value = mergeResult.first
+        appendedMissing = mergeResult.second
 
         // 3. Advance liveCursor
         serverMessages.lastOrNull()?.id?.let {
@@ -136,6 +128,25 @@ internal suspend fun applyReconcileAfterSendSnapshot(
         confirmedServerId = confirmedServerId,
         shouldDeletePendingLocal = shouldDeletePendingLocal,
     )
+}
+
+internal fun Timeline.mergeServerMessages(
+    serverMessages: List<LettaMessage>,
+): Pair<Timeline, Int> {
+    var timeline = this
+    var merged = 0
+    serverMessages.forEach { msg ->
+        val pos = timeline.positionForServerMessageDate(msg)
+        val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
+        if (confirmed.messageType == TimelineMessageType.TOOL_RETURN) return@forEach
+        val byOtid = timeline.findByOtid(confirmed.otid)
+        val byServerId = timeline.findByServerId(msg.id, confirmed.messageType)
+        if (byOtid == null && byServerId == null) {
+            timeline = timeline.insertOrdered(confirmed)
+            merged++
+        }
+    }
+    return timeline to merged
 }
 
 internal fun Timeline.positionForServerMessageDate(message: LettaMessage): Double {
