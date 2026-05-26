@@ -34,11 +34,17 @@ class LettaCodeStreamJsonMapper @Inject constructor() {
         return when (root.string("type")) {
             "stream_event" -> {
                 val event = root["event"] as? JsonObject ?: return emptyList()
-                mapObject(event, command)
+                mapObject(root.withEventMetadata(event), command)
             }
             "message" -> root.messageDraft(command)?.let(::listOf).orEmpty()
             "control_request" -> root.approvalRequestDraft(command)?.let(::listOf).orEmpty()
-            "error" -> listOf(command.runStatus(RuntimeRunStatus.Failed, root.string("message") ?: "LettaCode runtime error."))
+            "error" -> listOf(
+                command.runStatus(
+                    status = RuntimeRunStatus.Failed,
+                    reason = root.string("message") ?: "LettaCode runtime error.",
+                    runId = root.runId(),
+                )
+            )
             "result" -> listOf(root.resultDraft(command))
             else -> emptyList()
         }
@@ -106,23 +112,35 @@ class LettaCodeStreamJsonMapper @Inject constructor() {
         } else {
             string("stop_reason") ?: string("result") ?: "LettaCode turn ended with $subtype."
         }
-        return command.runStatus(status, reason)
+        return command.runStatus(status, reason, runId())
     }
 
     private fun TurnCommand.runStatus(
         status: RuntimeRunStatus,
         reason: String? = null,
+        runId: RunId? = null,
     ): RuntimeEventDraft = RuntimeEventDraft(
         backendId = backendId,
         runtimeId = runtimeId,
         agentId = agentId,
         conversationId = conversationId,
+        runId = runId,
         source = RuntimeEventSource.LocalRuntime,
         payload = RuntimeEventPayload.RunLifecycleChanged(status = status, reason = reason),
     )
 
     private fun JsonObject.string(name: String): String? =
         (this[name] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonObject.runId(): RunId? =
+        string("run_id")?.let(::RunId)
+
+    private fun JsonObject.withEventMetadata(event: JsonObject): JsonObject =
+        JsonObject(
+            filterKeys { key -> key != "event" }
+                .toMutableMap()
+                .apply { putAll(event) }
+        )
 
     private fun textContent(element: JsonElement?): String? = when (element) {
         null -> null

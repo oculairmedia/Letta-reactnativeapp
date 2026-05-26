@@ -119,6 +119,13 @@ bool RedirectFd(int targetFd, int pipeFds[2], bool keepWriteEnd) {
     return true;
 }
 
+void CloseIfOpen(int& fd) {
+    if (fd >= 0) {
+        close(fd);
+        fd = -1;
+    }
+}
+
 }  // namespace
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
@@ -163,13 +170,28 @@ Java_com_letta_mobile_runtime_local_NativeLettaCodeNodeBridge_nativeStart(
         setenv(key.c_str(), value.c_str(), 1);
     }
 
-    int stdinPipe[2];
-    int stdoutPipe[2];
-    int stderrPipe[2];
-    if (!RedirectFd(STDIN_FILENO, stdinPipe, true)) return -1;
+    int stdinPipe[2] = {-1, -1};
+    int stdoutPipe[2] = {-1, -1};
+    int stderrPipe[2] = {-1, -1};
+    auto cleanupRedirects = [&]() {
+        CloseIfOpen(gStdinWriteFd);
+        CloseIfOpen(stdoutPipe[0]);
+        CloseIfOpen(stderrPipe[0]);
+    };
+
+    if (!RedirectFd(STDIN_FILENO, stdinPipe, true)) {
+        cleanupRedirects();
+        return -1;
+    }
     gStdinWriteFd = stdinPipe[1];
-    if (!RedirectFd(STDOUT_FILENO, stdoutPipe, false)) return -1;
-    if (!RedirectFd(STDERR_FILENO, stderrPipe, false)) return -1;
+    if (!RedirectFd(STDOUT_FILENO, stdoutPipe, false)) {
+        cleanupRedirects();
+        return -1;
+    }
+    if (!RedirectFd(STDERR_FILENO, stderrPipe, false)) {
+        cleanupRedirects();
+        return -1;
+    }
 
     gStopRequested.store(false);
     std::thread(PumpFdLines, stdoutPipe[0], gStdoutMethod).detach();

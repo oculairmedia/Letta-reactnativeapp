@@ -30,6 +30,31 @@ class LettaCodeStreamJsonMapperTest {
     }
 
     @Test
+    fun `preserves stream event wrapper metadata`() {
+        val drafts = mapper.mapLine(
+            """{"type":"stream_event","run_id":"run-wrapper","event":{"type":"message","id":"msg-1","message_type":"assistant_message","content":"hello"}}""",
+            command(),
+        )
+
+        val payload = drafts.single().payload as RuntimeEventPayload.RemoteStreamFrame
+        assertEquals("msg-1", payload.frameId)
+        assertEquals("hello", payload.body)
+        assertEquals("run-wrapper", drafts.single().runId?.value)
+    }
+
+    @Test
+    fun `preserves stream event wrapper metadata on lifecycle frames`() {
+        val drafts = mapper.mapLine(
+            """{"type":"stream_event","run_id":"run-wrapper","event":{"type":"result","subtype":"success","result":"done"}}""",
+            command(),
+        )
+
+        val payload = drafts.single().payload as RuntimeEventPayload.RunLifecycleChanged
+        assertEquals(RuntimeRunStatus.Completed, payload.status)
+        assertEquals("run-wrapper", drafts.single().runId?.value)
+    }
+
+    @Test
     fun `maps result frame to completed lifecycle`() {
         val drafts = mapper.mapLine(
             """{"type":"result","subtype":"success","result":"done"}""",

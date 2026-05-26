@@ -95,6 +95,8 @@ class LocalKoogRuntimeProvider @Inject constructor() : LocalRuntimeProvider {
 }
 
 private fun LettaConfig.localRuntimeScheme(): String =
-    serverUrl.trim().substringBefore("://", missingDelimiterValue = serverUrl).lowercase()
+    serverUrl.trim().let { trimmed ->
+        trimmed.substringBefore("://", missingDelimiterValue = trimmed).lowercase()
+    }
 
 private fun LettaConfig.backendKey(): String = id.takeIf { it.isNotBlank() } ?: "device"
