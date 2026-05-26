@@ -35,7 +35,8 @@ Most admin-shim commands accept:
 | env / flag | what |
 | --- | --- |
 | `LETTA_BASE_URL` / `--base-url` | Letta/admin-shim base URL, default `https://letta.oculair.ca` |
-| `LETTA_TOKEN` / `--token` | Bearer token |
+| `LETTA_TOKEN` / `--token` | Bearer token; falls back to the selected CLI profile |
+| `LETTA_PROFILE` / `--profile` | CLI profile name; defaults to the active profile |
 | `--device-id` | Device id advertised to the shim, default `letta-mobile-cli` |
 | `--client-version` | Client version advertised to the shim, default `letta-mobile-cli` |
 
@@ -45,6 +46,24 @@ Conversation and agent commands also use:
 | --- | --- |
 | `LETTA_AGENT_ID` / `--agent` | Agent id for send/record |
 | `LETTA_CONVERSATION_ID` / `--conversation` | Conversation id for send/dump/replay/record |
+
+## Profiles
+
+Profiles live in `%USERPROFILE%\.letta-mobile-cli\profiles.json` by default
+or under `LETTA_MOBILE_CLI_HOME` when set. They provide device-free backend
+configuration for CLI runs.
+
+```powershell
+.\gradlew.bat :cli:run -PcliArgs="profile set dev --base-url https://letta.oculair.ca --token $env:LETTA_TOKEN --agent agt_x --conversation conv_x --active"
+.\gradlew.bat :cli:run -PcliArgs="profile list"
+.\gradlew.bat :cli:run -PcliArgs="profile show dev --show-token"
+.\gradlew.bat :cli:run -PcliArgs="profile use dev"
+.\gradlew.bat :cli:run -PcliArgs="profile export --out cli-profiles.json"
+.\gradlew.bat :cli:run -PcliArgs="profile import --file cli-profiles.json"
+```
+
+Profile defaults are used by `send`, `dump-timeline`, `replay`, `record`,
+`reconnect`, `stream`, and `rest` when explicit flags/env vars are omitted.
 
 ## Commands
 

@@ -6,6 +6,14 @@ import com.github.ajalt.clikt.core.subcommands
 import com.letta.mobile.cli.commands.ConnectCommand
 import com.letta.mobile.cli.commands.DisconnectCommand
 import com.letta.mobile.cli.commands.DumpTimelineCommand
+import com.letta.mobile.cli.commands.ProfileCommand
+import com.letta.mobile.cli.commands.ProfileDeleteCommand
+import com.letta.mobile.cli.commands.ProfileExportCommand
+import com.letta.mobile.cli.commands.ProfileImportCommand
+import com.letta.mobile.cli.commands.ProfileListCommand
+import com.letta.mobile.cli.commands.ProfileSetCommand
+import com.letta.mobile.cli.commands.ProfileShowCommand
+import com.letta.mobile.cli.commands.ProfileUseCommand
 import com.letta.mobile.cli.commands.RecordCommand
 import com.letta.mobile.cli.commands.ReconnectCommand
 import com.letta.mobile.cli.commands.RestCommand
@@ -43,6 +51,15 @@ object Main {
                     RestPatchCommand(),
                     RestDeleteCommand(),
                 ),
+                ProfileCommand().subcommands(
+                    ProfileListCommand(),
+                    ProfileShowCommand(),
+                    ProfileSetCommand(),
+                    ProfileUseCommand(),
+                    ProfileDeleteCommand(),
+                    ProfileExportCommand(),
+                    ProfileImportCommand(),
+                ),
                 StreamCommand(),
             )
             .main(args)
@@ -63,6 +80,7 @@ object Main {
           disconnect     Open WS and close it cleanly.
           reconnect      Exercise disconnect/reconnect and optional run resume.
           rest           Call arbitrary authenticated Letta REST endpoints.
+          profile        Manage local CLI backend profiles and defaults.
           stream         Direct Letta REST/SSE path for low-level comparison.
 
         Run with --help on any subcommand for details.
