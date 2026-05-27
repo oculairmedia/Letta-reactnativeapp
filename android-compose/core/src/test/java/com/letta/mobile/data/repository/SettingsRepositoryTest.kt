@@ -3,6 +3,7 @@ package com.letta.mobile.data.repository
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.data.session.BackendSwitchClearResult
 import com.letta.mobile.testutil.InMemorySecureSettingsStore
 import com.letta.mobile.testutil.createTestPreferencesDataStore
 import kotlinx.coroutines.channels.Channel
@@ -116,6 +117,7 @@ class SettingsRepositoryTest {
             secureSettingsStore = InMemorySecureSettingsStore(),
             clearBackendScopedCaches = {
                 activeIdsAtClear += scopedRepository.activeConfig.value?.id
+                BackendSwitchClearResult(successes = 1, failures = emptyList())
             },
         )
 

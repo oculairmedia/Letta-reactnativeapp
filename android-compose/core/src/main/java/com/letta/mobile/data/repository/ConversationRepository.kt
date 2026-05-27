@@ -67,12 +67,10 @@ open class ConversationRepository(
         refreshMutex.withLock {
             _conversationsByAgent.value = emptyMap()
             lastRefreshAtMillisByAgent.clear()
-            runCatching {
-                conversationDao.deleteAll()
-                conversationDao.deleteAllRefreshStates()
-            }.onFailure { error ->
-                Log.w(TAG, "Failed to clear cached conversations for backend switch", error)
-            }
+            // Propagate DAO failure. See AgentRepository.clearForBackendSwitch
+            // for the rationale.
+            conversationDao.deleteAll()
+            conversationDao.deleteAllRefreshStates()
         }
     }
 

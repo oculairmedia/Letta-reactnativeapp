@@ -106,12 +106,12 @@ open class AllConversationsRepository(
             hasLoadedAtLeastOnce = false
             _conversations.value = emptyList()
             _hasMore.value = true
-            runCatching {
-                conversationDao?.deleteAll()
-                conversationDao?.deleteAllRefreshStates()
-            }.onFailure { error ->
-                Log.w(TAG, "Failed to clear cached all-conversations for backend switch", error)
-            }
+            // Propagate DAO failure. See AgentRepository.clearForBackendSwitch
+            // for the rationale; same invariant — stale cached conversations
+            // from the previous backend visible after switch is a cross-
+            // backend leak we'd rather surface than silently log.
+            conversationDao?.deleteAll()
+            conversationDao?.deleteAllRefreshStates()
         }
     }
 

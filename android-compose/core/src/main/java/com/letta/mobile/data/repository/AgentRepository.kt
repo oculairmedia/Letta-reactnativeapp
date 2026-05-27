@@ -85,11 +85,13 @@ open class AgentRepository(
             _agents.value = emptyList()
             _isRefreshing.value = false
             lastRefreshAtMillis = 0L
-            runCatching {
-                agentDao.deleteAll()
-            }.onFailure { error ->
-                Log.w("AgentRepository", "Failed to clear cached agents for backend switch", error)
-            }
+            // Propagate DAO failure to the caller. Swallowing here would leave
+            // stale agent rows from the previous backend visible after switch
+            // while the in-memory state has already been cleared, which is a
+            // hard-to-diagnose cross-backend leak. The orchestrator
+            // (BackendSwitchInvalidator) aggregates per-cache failures so the
+            // switch flow can decide what to do.
+            agentDao.deleteAll()
         }
     }
 

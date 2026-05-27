@@ -12,7 +12,9 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.data.session.BackendSwitchClearResult
 import com.letta.mobile.data.session.BackendSwitchInvalidator
+import com.letta.mobile.util.Telemetry
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.data.storage.SecureSettingsStore
 import kotlinx.coroutines.flow.Flow
@@ -39,7 +41,7 @@ private const val DEFAULT_CHAT_BACKGROUND_KEY = "default"
 class SettingsRepository internal constructor(
     private val dataStore: DataStore<Preferences>,
     private val secureSettingsStore: SecureSettingsStore,
-    private val clearBackendScopedCaches: suspend () -> Unit,
+    private val clearBackendScopedCaches: suspend () -> BackendSwitchClearResult,
 ) : ISettingsRepository {
     @Inject
     constructor(
@@ -58,7 +60,7 @@ class SettingsRepository internal constructor(
     ) : this(
         dataStore = dataStore,
         secureSettingsStore = secureSettingsStore,
-        clearBackendScopedCaches = {},
+        clearBackendScopedCaches = { BackendSwitchClearResult(successes = 0, failures = emptyList()) },
     )
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -621,7 +623,27 @@ class SettingsRepository internal constructor(
         val currentId = _activeConfig.value?.id
         val nextId = nextConfig?.id
         if (currentId != nextId) {
-            clearBackendScopedCaches()
+            val result = clearBackendScopedCaches()
+            if (!result.allSucceeded) {
+                // Surface partial-clear at the orchestration layer. The
+                // per-cache failure is already telemetered by
+                // BackendSwitchInvalidator; this is a higher-level signal that
+                // a config switch proceeded with potentially stale state.
+                // Stale rows from the prior backend may briefly be visible
+                // until the next refresh succeeds. We do NOT block the switch
+                // — that's a heavier change and should be a separate decision
+                // once we have observability on how often this fails in
+                // production.
+                Telemetry.event(
+                    "SettingsRepository",
+                    "backendSwitchCachePartialClear",
+                    "fromConfigId" to (currentId ?: "<none>"),
+                    "toConfigId" to (nextId ?: "<none>"),
+                    "successes" to result.successes,
+                    "failures" to result.failures.size,
+                    "failedCaches" to result.failures.joinToString(",") { it.cacheName },
+                )
+            }
         }
     }
 
