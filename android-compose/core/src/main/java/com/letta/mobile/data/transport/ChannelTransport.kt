@@ -42,7 +42,6 @@ import okhttp3.WebSocketListener
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -157,16 +156,7 @@ class ChannelTransport internal constructor(
     )
     override val events: SharedFlow<ServerFrame> = _events.asSharedFlow()
 
-    /** Per-conversation turn state. The WebSocket remains singleton, but run/cancel/A2UI routing must not. */
-    private data class PerConversationState(
-        val inFlight: AtomicBoolean = AtomicBoolean(false),
-        val currentRunId: AtomicReference<String?> = AtomicReference(null),
-        val currentTurnId: AtomicReference<String?> = AtomicReference(null),
-        val pendingA2uiActions: ArrayDeque<UserActionFrame> = ArrayDeque(),
-    )
-
-    private val conversationStates = ConcurrentHashMap<String, PerConversationState>()
-    private val runConversationIds = ConcurrentHashMap<String, String>()
+    private val conversationStateManager = PerConversationStateManager()
 
     private val socketRef = AtomicReference<WebSocket?>(null)
     private val socketMutex = Mutex()
@@ -197,29 +187,6 @@ class ChannelTransport internal constructor(
     private fun requireConversationKey(conversationId: String): String? =
         conversationId.trim().takeIf { it.isNotEmpty() }
 
-    private fun stateForConversation(conversationId: String): PerConversationState =
-        conversationStates.getOrPut(conversationId) { PerConversationState() }
-
-    private fun clearAllTurnState() {
-        conversationStates.values.forEach { perConv ->
-            perConv.inFlight.set(false)
-            perConv.currentRunId.set(null)
-            perConv.currentTurnId.set(null)
-        }
-        runConversationIds.clear()
-    }
-
-    private fun clearConversationTurnState(conversationId: String) {
-        conversationStates[conversationId]?.let { perConv ->
-            perConv.inFlight.set(false)
-            perConv.currentRunId.set(null)
-            perConv.currentTurnId.set(null)
-        }
-    }
-
-    private fun activeConversationForRun(runId: String?): String? =
-        runId?.let(runConversationIds::get)
-
     // letta-mobile-ns5l: tracks who triggered the close so onClosed can
     // log initiator alongside the wire code. Set true in disconnect()
     // and teardownLocked() before the close call; cleared in
@@ -249,7 +216,7 @@ class ChannelTransport internal constructor(
         // supersedes the prior one.
         teardownLocked(reason = "reconnect")
         _state.value = State.Connecting
-        clearAllTurnState()
+        conversationStateManager.clearAllTurnState()
         // letta-mobile-2rkdj: eagerly load persisted cursors so the
         // upcoming welcome handler can iterate them synchronously.
         cursorStore.ensureLoaded()
@@ -281,7 +248,7 @@ class ChannelTransport internal constructor(
                 Log.i(
                     TAG,
                     "WS closing (server-initiated) code=$code reason=${reason.ifEmpty { "<empty>" }} " +
-                        "activeConversations=${conversationStates.size}",
+                        "activeConversations=${conversationStateManager.activeConversationCount()}",
                 )
                 webSocket.close(code, reason)
             }
@@ -291,14 +258,14 @@ class ChannelTransport internal constructor(
                 Log.i(
                     TAG,
                     "WS closed code=$code reason=${reason.ifEmpty { "<empty>" }} initiator=$initiator " +
-                        "activeConversations=${conversationStates.size}",
+                        "activeConversations=${conversationStateManager.activeConversationCount()}",
                 )
                 if (!socketRef.compareAndSet(webSocket, null)) {
                     Log.i(TAG, "Ignoring close from superseded WS socket")
                     return
                 }
                 _state.value = State.Disconnected(code, reason)
-                clearAllTurnState()
+                conversationStateManager.clearAllTurnState()
                 clientInitiatedClose = false
                 cancelPendingCronRequests("WS closed: code=$code reason=$reason")
             }
@@ -316,7 +283,7 @@ class ChannelTransport internal constructor(
                     reason = t.message ?: t::class.java.simpleName,
                     isAuthFailure = isAuth,
                 )
-                clearAllTurnState()
+                conversationStateManager.clearAllTurnState()
                 clientInitiatedClose = false
                 cancelPendingCronRequests("WS failure: ${t.message ?: t::class.java.simpleName}")
             }
@@ -363,7 +330,7 @@ class ChannelTransport internal constructor(
         } else {
             requireConversationKey(normalizedConversationId) ?: return false
         }
-        val perConv = stateForConversation(conversationKey)
+        val perConv = conversationStateManager.stateForConversation(conversationKey)
         val socket = socketRef.get() ?: return false
         if (!perConv.inFlight.compareAndSet(false, true)) return false
         perConv.currentRunId.set(null)
@@ -381,7 +348,7 @@ class ChannelTransport internal constructor(
             )
         )
         if (!sent) {
-            clearConversationTurnState(conversationKey)
+            conversationStateManager.clearConversationTurnState(conversationKey)
         }
         return sent
     }
@@ -397,7 +364,7 @@ class ChannelTransport internal constructor(
         val conversationKey = requireConversationKey(conversationId) ?: return false
         clearPendingA2uiActions(conversationKey, reason = "user cancel")
         val socket = socketRef.get() ?: return false
-        val rid = conversationStates[conversationKey]?.currentRunId?.get() ?: return false
+        val rid = conversationStateManager.currentRunId(conversationKey) ?: return false
         return socket.sendFrame(
             CancelFrame(
                 id = UUID.randomUUID().toString(),
@@ -605,14 +572,18 @@ class ChannelTransport internal constructor(
 
     private fun teardownLocked(reason: String) {
         clientInitiatedClose = true
-        Log.i(TAG, "WS teardown (client-initiated) reason=$reason activeConversations=${conversationStates.size}")
+        Log.i(
+            TAG,
+            "WS teardown (client-initiated) reason=$reason " +
+                "activeConversations=${conversationStateManager.activeConversationCount()}",
+        )
         socketRef.getAndSet(null)?.close(NORMAL_CLOSE, reason)
         listenerJob?.cancel()
         listenerJob = null
         if (_state.value !is State.Disconnected) {
             _state.value = State.Disconnected(NORMAL_CLOSE, reason)
         }
-        clearAllTurnState()
+        conversationStateManager.clearAllTurnState()
         cancelPendingCronRequests("WS teardown: $reason")
     }
 
@@ -643,7 +614,7 @@ class ChannelTransport internal constructor(
                     a2uiCatalog = frame.a2ui?.catalogId,
                     canonicalLiveTransport = frame.canonicalLiveTransport,
                 )
-                conversationStates.keys.forEach(::drainPendingA2uiActions)
+                conversationStateManager.conversationIds().forEach(::drainPendingA2uiActions)
                 // letta-mobile-2rkdj: post-welcome resume scan. Iterate
                 // every non-terminal run we've recorded and issue
                 // subscribe(run_id, last_seq) so the shim replays
@@ -687,12 +658,12 @@ class ChannelTransport internal constructor(
                 // so cancel() works from the first frame the device sees,
                 // without the "between turn_started and first run-bearing
                 // frame" dead zone.
-                val perConv = stateForConversation(frame.conversationId)
+                val perConv = conversationStateManager.stateForConversation(frame.conversationId)
                 perConv.inFlight.set(true)
                 perConv.currentRunId.set(frame.runId)
                 perConv.currentTurnId.set(frame.turnId)
-                runConversationIds[frame.runId] = frame.conversationId
-                clearConversationTurnState(NEW_CONVERSATION_STATE_KEY)
+                conversationStateManager.recordRunConversation(frame.runId, frame.conversationId)
+                conversationStateManager.clearConversationTurnState(NEW_CONVERSATION_STATE_KEY)
                 drainPendingA2uiActions(frame.conversationId)
             }
 
@@ -702,12 +673,12 @@ class ChannelTransport internal constructor(
                 // status values are "completed" | "cancelled" | "failed"
                 // (spec §4.7) — all terminal. Use the in-flight
                 // conversation id we cached on send.
-                val convId = activeConversationForRun(frame.runId)
+                val convId = conversationStateManager.activeConversationForRun(frame.runId)
                     ?: resumedRunConversationIds[frame.runId]
                 if (convId != null) cursorStore.clear(convId, frame.runId)
                 resumedRunConversationIds.remove(frame.runId)
-                runConversationIds.remove(frame.runId)
-                convId?.let(::clearConversationTurnState)
+                conversationStateManager.clearRunConversation(frame.runId)
+                convId?.let(conversationStateManager::clearConversationTurnState)
             }
 
             is ServerFrame.Error -> {
@@ -791,10 +762,10 @@ class ChannelTransport internal constructor(
                 // Most server frames after turn_started carry it.
                 val rid = frame.runIdOrNull()
                 val tid = frame.turnIdOrNull()
-                val convId = frame.conversationIdOrNull() ?: activeConversationForRun(rid)
+                val convId = frame.conversationIdOrNull() ?: conversationStateManager.activeConversationForRun(rid)
                 if (rid != null && convId != null) {
-                    runConversationIds[rid] = convId
-                    val perConv = stateForConversation(convId)
+                    conversationStateManager.recordRunConversation(rid, convId)
+                    val perConv = conversationStateManager.stateForConversation(convId)
                     if (perConv.currentRunId.get() == null) {
                         perConv.currentRunId.set(rid)
                     }
@@ -843,7 +814,7 @@ class ChannelTransport internal constructor(
             ?: obj["seq_id"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
             ?: return
         val convId = obj["conversation_id"]?.jsonPrimitive?.contentOrNull
-            ?: activeConversationForRun(runId)
+            ?: conversationStateManager.activeConversationForRun(runId)
             ?: resumedRunConversationIds[runId]
             ?: return
         cursorStore.record(convId, runId, seq)
@@ -972,7 +943,7 @@ class ChannelTransport internal constructor(
 
     private fun enqueueA2uiAction(conversationId: String, frame: UserActionFrame): A2uiActionDispatchResult =
         synchronized(pendingA2uiActionLock) {
-            val pending = stateForConversation(conversationId).pendingA2uiActions
+            val pending = conversationStateManager.pendingA2uiActions(conversationId)
             if (pending.size >= MAX_PENDING_A2UI_ACTIONS) {
                 A2uiActionDispatchResult.Failed
             } else {
@@ -983,14 +954,14 @@ class ChannelTransport internal constructor(
 
     private fun requeueA2uiActionFirst(conversationId: String, frame: UserActionFrame) {
         synchronized(pendingA2uiActionLock) {
-            stateForConversation(conversationId).pendingA2uiActions.addFirst(frame)
+            conversationStateManager.pendingA2uiActions(conversationId).addFirst(frame)
         }
     }
 
     private fun clearPendingA2uiActions(reason: String) {
         val dropped = synchronized(pendingA2uiActionLock) {
-            val size = conversationStates.values.sumOf { it.pendingA2uiActions.size }
-            conversationStates.values.forEach { it.pendingA2uiActions.clear() }
+            val size = conversationStateManager.pendingA2uiActionCount()
+            conversationStateManager.clearPendingA2uiActions()
             size
         }
         if (dropped > 0) {
@@ -1000,10 +971,7 @@ class ChannelTransport internal constructor(
 
     private fun clearPendingA2uiActions(conversationId: String, reason: String) {
         val dropped = synchronized(pendingA2uiActionLock) {
-            val pending = conversationStates[conversationId]?.pendingA2uiActions ?: return@synchronized 0
-            val size = pending.size
-            pending.clear()
-            size
+            conversationStateManager.clearPendingA2uiActions(conversationId)
         }
         if (dropped > 0) {
             Log.i(TAG, "dropped $dropped queued user_action frame(s) for conversation=$conversationId: $reason")
@@ -1037,7 +1005,7 @@ class ChannelTransport internal constructor(
     private fun drainPendingA2uiActions(conversationId: String) {
         while (true) {
             val queuedFrame = synchronized(pendingA2uiActionLock) {
-                val pending = conversationStates[conversationId]?.pendingA2uiActions
+                val pending = conversationStateManager.existingPendingA2uiActions(conversationId)
                 if (pending == null || pending.isEmpty()) null else pending.removeFirst()
             } ?: return
             val frame = queuedFrame.withActiveRoutingFallback(conversationId)
@@ -1068,8 +1036,8 @@ class ChannelTransport internal constructor(
 
     private fun UserActionFrame.withActiveRoutingFallback(conversationId: String): UserActionFrame = copy(
         conversationId = this.conversationId ?: conversationId,
-        runId = runId ?: conversationStates[conversationId]?.currentRunId?.get(),
-        turnId = turnId ?: conversationStates[conversationId]?.currentTurnId?.get(),
+        runId = runId ?: conversationStateManager.currentRunId(conversationId),
+        turnId = turnId ?: conversationStateManager.currentTurnId(conversationId),
     )
 
     private data class ConnectionConfig(
