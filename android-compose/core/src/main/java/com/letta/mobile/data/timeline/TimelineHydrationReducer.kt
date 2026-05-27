@@ -160,6 +160,28 @@ internal fun TimelineEvent.identityKeys(): Set<String> {
     val keys = mutableSetOf("otid:$otid")
     if (this is TimelineEvent.Confirmed) {
         keys += "server:$serverId:$messageType"
+        semanticIdentityKeyOrNull()?.let { keys += it }
     }
     return keys
+}
+
+internal fun Timeline.containsIdentityFor(event: TimelineEvent): Boolean {
+    val incomingKeys = event.identityKeys()
+    return events.any { existing ->
+        existing.identityKeys().any { it in incomingKeys }
+    }
+}
+
+private fun TimelineEvent.Confirmed.semanticIdentityKeyOrNull(): String? {
+    val stableRunId = runId?.takeIf { it.isNotBlank() } ?: return null
+    return when (messageType) {
+        TimelineMessageType.ASSISTANT,
+        TimelineMessageType.REASONING,
+        TimelineMessageType.TOOL_CALL,
+        TimelineMessageType.ERROR -> "semantic:${messageType.name}:$stableRunId:${content.trim()}"
+        TimelineMessageType.USER,
+        TimelineMessageType.TOOL_RETURN,
+        TimelineMessageType.SYSTEM,
+        TimelineMessageType.OTHER -> null
+    }
 }

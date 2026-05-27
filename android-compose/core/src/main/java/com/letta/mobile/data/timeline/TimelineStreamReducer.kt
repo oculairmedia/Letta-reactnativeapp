@@ -195,6 +195,16 @@ internal fun reduceStreamFrame(input: TimelineReducerInput): TimelineReducerOutp
         )
         return output()
     }
+    if (timeline.containsIdentityFor(confirmed)) {
+        Telemetry.event(
+            "TimelineSync", "streamSubscriber.eventDeduped",
+            "reason" to "semanticIdentitySeen",
+            "serverId" to confirmed.serverId,
+            "messageType" to message.messageType,
+            "conversationId" to conversationId,
+        )
+        return output()
+    }
 
     timeline = timeline.append(applyPendingToolReturns(confirmed, pendingToolReturnsByCallId))
     timeline = timeline.copy(liveCursor = confirmed.serverId)

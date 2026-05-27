@@ -7,15 +7,20 @@ import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
 import com.letta.mobile.data.model.UserMessage
+import com.letta.mobile.util.Telemetry
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import java.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
+import org.junit.After
 import org.junit.Test
 import org.junit.jupiter.api.Tag
 
 @Tag("unit")
 class TimelineStreamReducerTest {
+    @After
+    fun tearDown() {
+        Telemetry.clear()
+    }
 
     @Test
     fun `approval response marks matching approval request decided`() {
@@ -203,6 +208,44 @@ class TimelineStreamReducerTest {
         (output.next.events.single() as TimelineEvent.Confirmed).serverId shouldBe "server-user-1"
         output.emittedEvents shouldBe emptyList()
         output.notification shouldBe null
+    }
+
+    @Test
+    fun `semantic match dedupes hydrate then ws assistant with different server id`() {
+        val hydrated = TimelineHydrationReducer.reduce(
+            conversationId = "conv-test",
+            serverMessagesChronological = listOf(
+                AssistantMessage(
+                    id = "rest-assistant",
+                    contentRaw = JsonPrimitive("Let me check the more recent one then."),
+                    runId = "run-reopen",
+                    seqId = 1,
+                )
+            ),
+            timelineBeforeFetch = Timeline("conv-test"),
+            currentTimeline = Timeline("conv-test"),
+            diskRecords = emptyList(),
+        ).timeline
+        Telemetry.clear()
+
+        val output = reduce(
+            prev = hydrated,
+            frame = AssistantMessage(
+                id = "ws-assistant",
+                contentRaw = JsonPrimitive("Let me check the more recent one then."),
+                runId = "run-reopen",
+                seqId = 2,
+            ),
+        )
+
+        output.next.events shouldHaveSize 1
+        (output.next.events.single() as TimelineEvent.Confirmed).serverId shouldBe "rest-assistant"
+        output.emittedEvents shouldBe emptyList()
+        Telemetry.snapshot().any {
+            it.tag == "TimelineSync" &&
+                it.name == "streamSubscriber.eventDeduped" &&
+                it.attrs["reason"] == "semanticIdentitySeen"
+        } shouldBe true
     }
 
     @Test

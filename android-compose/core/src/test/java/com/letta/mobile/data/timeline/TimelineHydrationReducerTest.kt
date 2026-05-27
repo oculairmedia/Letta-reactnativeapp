@@ -1,5 +1,6 @@
 package com.letta.mobile.data.timeline
 
+import com.letta.mobile.data.model.AssistantMessage
 import com.letta.mobile.data.model.ToolCall
 import com.letta.mobile.data.model.ToolCallMessage
 import com.letta.mobile.data.model.ToolReturnMessage
@@ -107,5 +108,37 @@ class TimelineHydrationReducerTest {
                 it.tag == "Timeline" && it.name == "hydrate.duplicateOtidDropped"
             },
         )
+    }
+
+    @Test
+    fun `reduce drops concurrent confirmed assistant with same run and content as server snapshot`() {
+        val currentAssistant = TimelineEvent.Confirmed(
+            position = 1.0,
+            otid = "server-ws-assistant-assistant",
+            content = "Let me check the more recent one then.",
+            serverId = "ws-assistant",
+            messageType = TimelineMessageType.ASSISTANT,
+            date = Instant.parse("2026-05-26T15:00:02Z"),
+            runId = "run-reopen",
+            stepId = null,
+        )
+        val result = TimelineHydrationReducer.reduce(
+            conversationId = "conversation-1",
+            serverMessagesChronological = listOf(
+                AssistantMessage(
+                    id = "rest-assistant",
+                    contentRaw = JsonPrimitive("Let me check the more recent one then."),
+                    date = "2026-05-26T15:00:01Z",
+                    runId = "run-reopen",
+                )
+            ),
+            timelineBeforeFetch = Timeline("conversation-1"),
+            currentTimeline = Timeline("conversation-1", events = listOf(currentAssistant)),
+            diskRecords = emptyList(),
+        )
+
+        val confirmed = result.timeline.events.filterIsInstance<TimelineEvent.Confirmed>()
+        assertEquals(1, confirmed.size)
+        assertEquals("rest-assistant", confirmed.single().serverId)
     }
 }
