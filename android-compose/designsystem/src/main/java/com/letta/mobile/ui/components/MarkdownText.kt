@@ -45,6 +45,11 @@ import dev.snipme.highlights.model.SyntaxThemes
 import org.intellij.markdown.ast.ASTNode
 import com.letta.mobile.ui.icons.LettaIcons
 import com.letta.mobile.ui.theme.LocalChatFontScale
+import com.letta.mobile.ui.theme.scaledBy
+import com.letta.mobile.ui.text.PreparedRichInlineItem
+import com.letta.mobile.ui.text.RichInlineAtomKind
+import com.letta.mobile.ui.text.RichInlineItem
+import com.letta.mobile.ui.text.prepareRichInlineItems
 
 @Composable
 fun MarkdownText(
@@ -104,21 +109,63 @@ fun MarkdownText(
  */
 @Composable
 private fun InlineMathParagraph(text: String, textColor: Color) {
-    val pieces = remember(text) { splitInlineMathSegments(text) }
+    val pieces = remember(text) {
+        prepareRichInlineItems(splitInlineMathSegments(text).toRichInlineItems())
+    }
     androidx.compose.foundation.layout.FlowRow(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
     ) {
         pieces.forEach { piece ->
             when (piece) {
-                is MathSegment.Text ->
-                    MarkdownTextRaw(text = piece.content, textColor = textColor)
-                is MathSegment.Math ->
-                    MathBlock(source = piece.content, displayMode = false)
+                is PreparedRichInlineItem.Text ->
+                    InlineRichTextChunk(text = piece.text, textColor = textColor)
+                is PreparedRichInlineItem.Atom ->
+                    when (piece.kind) {
+                        RichInlineAtomKind.Math ->
+                            MathBlock(source = piece.text, displayMode = false)
+                        RichInlineAtomKind.Mention,
+                        RichInlineAtomKind.Chip,
+                        RichInlineAtomKind.Code ->
+                            InlineRichTextChunk(text = piece.text, textColor = textColor)
+                    }
             }
         }
     }
 }
+
+@Composable
+private fun InlineRichTextChunk(text: String, textColor: Color) {
+    if (text.isEmpty()) return
+    if (text.hasInlineMarkdownSyntax()) {
+        MarkdownTextRaw(text = text, textColor = textColor)
+        return
+    }
+
+    val fontScale = LocalChatFontScale.current
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium.scaledBy(fontScale),
+        color = textColor,
+    )
+}
+
+private fun List<MathSegment>.toRichInlineItems(): List<RichInlineItem> =
+    mapIndexedNotNull { index, segment ->
+        when (segment) {
+            is MathSegment.Text -> RichInlineItem.Text(segment.content)
+            is MathSegment.Math -> RichInlineItem.Atom(
+                id = "math-$index-${segment.content.hashCode()}",
+                text = segment.content,
+                kind = RichInlineAtomKind.Math,
+            )
+        }
+    }
+
+private fun String.hasInlineMarkdownSyntax(): Boolean =
+    any { it in inlineMarkdownSyntaxChars }
+
+private val inlineMarkdownSyntaxChars = setOf('*', '_', '`', '[', ']', '~')
 
 /** Sealed segments produced by [splitDisplayMathSegments] and [splitInlineMathSegments]. */
 internal sealed class MathSegment {
