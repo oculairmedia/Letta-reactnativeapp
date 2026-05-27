@@ -1,17 +1,20 @@
 package com.letta.mobile.data.timeline.headless
 
+import com.letta.mobile.data.model.LettaMessage
 import com.letta.mobile.data.timeline.Timeline
 import com.letta.mobile.data.timeline.TimelineEvent
 import com.letta.mobile.data.timeline.TimelineMessageType
 import com.letta.mobile.data.transport.ServerFrame
 import com.letta.mobile.data.transport.ServerFrameSerializer
 import com.letta.mobile.data.transport.WsFrameMapper
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -84,6 +87,60 @@ class HeadlessTimelineReplayer(
             frameSnapshots = snapshots,
         )
     }
+
+    suspend fun bisectFailingJsonl(
+        conversationId: String,
+        lines: List<String>,
+        assertionOptions: TimelineAssertionOptions,
+    ): HeadlessReplayBisectResult {
+        val indexed = lines
+            .mapIndexed { index, line -> IndexedReplayLine(index = index, line = line) }
+            .filter { it.line.isNotBlank() }
+        val full = HeadlessTimelineReplayer().replayJsonl(
+            conversationId = conversationId,
+            lines = indexed.map { it.line }.asSequence(),
+            assertionOptions = assertionOptions,
+        )
+        if (full.assertionReport.passed) {
+            return HeadlessReplayBisectResult(
+                fullReplayPassed = true,
+                originalLineCount = indexed.size,
+                keptOriginalIndexes = indexed.map { it.index },
+                removedOriginalIndexes = emptyList(),
+                keptLines = indexed.map { it.line },
+                finalFailures = emptyList(),
+            )
+        }
+
+        val kept = indexed.toMutableList()
+        val removed = mutableListOf<Int>()
+        var position = 0
+        var lastFailing = full
+        while (position < kept.size) {
+            val candidate = kept.toMutableList().also { it.removeAt(position) }
+            val candidateResult = HeadlessTimelineReplayer().replayJsonl(
+                conversationId = conversationId,
+                lines = candidate.map { it.line }.asSequence(),
+                assertionOptions = assertionOptions,
+            )
+            if (!candidateResult.assertionReport.passed) {
+                removed += kept[position].index
+                kept.clear()
+                kept += candidate
+                lastFailing = candidateResult
+            } else {
+                position += 1
+            }
+        }
+        return HeadlessReplayBisectResult(
+            fullReplayPassed = false,
+            originalLineCount = indexed.size,
+            keptOriginalIndexes = kept.map { it.index },
+            removedOriginalIndexes = removed,
+            keptLines = kept.map { it.line },
+            finalFailures = lastFailing.assertionReport.failures,
+        )
+    }
 }
 
 class HeadlessTimelineReplaySession(
@@ -112,6 +169,48 @@ class HeadlessTimelineReplaySession(
         val rawLine = line.trim()
         if (rawLine.isEmpty()) return null
         val frameIndex = framesSeen++
+        val captureEvent = rawLine.toCaptureEventJsonOrNull()
+        if (captureEvent?.kindName() == "rest_messages") {
+            val messages = runCatching {
+                json.decodeFromJsonElement(
+                    ListSerializer(LettaMessage.serializer()),
+                    captureEvent["messages"] ?: JsonArray(emptyList()),
+                )
+            }.getOrElse {
+                ignoredTypes.increment("rest_messages")
+                return step(
+                    frameIndex = frameIndex,
+                    frameType = "rest_messages",
+                    frameId = null,
+                    ingested = false,
+                    ignoredReason = "decode-error",
+                    captureTimeline = captureTimeline,
+                )
+            }
+            val targetConversation = captureEvent["conversation_id"]?.jsonPrimitive?.contentOrNull ?: conversationId
+            store.hydrate(targetConversation, messages)
+            messagesIngested += messages.size
+            return step(
+                frameIndex = frameIndex,
+                frameType = "rest_messages",
+                frameId = null,
+                ingested = true,
+                ignoredReason = null,
+                captureTimeline = captureTimeline,
+            )
+        }
+        if (captureEvent != null && captureEvent.kindName() != "ws_frame") {
+            val kind = captureEvent.kindName()
+            ignoredTypes.increment(kind)
+            return step(
+                frameIndex = frameIndex,
+                frameType = kind,
+                frameId = null,
+                ingested = false,
+                ignoredReason = "metadata",
+                captureTimeline = captureTimeline,
+            )
+        }
         val frameJson = rawLine.toRecordedFrameJsonOrNull() ?: run {
             ignoredTypes.increment("<invalid>")
             return step(
@@ -448,6 +547,22 @@ data class HeadlessReplayResult(
     }
 }
 
+data class HeadlessReplayBisectResult(
+    val fullReplayPassed: Boolean,
+    val originalLineCount: Int,
+    val keptOriginalIndexes: List<Int>,
+    val removedOriginalIndexes: List<Int>,
+    val keptLines: List<String>,
+    val finalFailures: List<String>,
+) {
+    val keptLineCount: Int get() = keptLines.size
+}
+
+private data class IndexedReplayLine(
+    val index: Int,
+    val line: String,
+)
+
 private data class ObservedToolReturn(
     val runId: String?,
     val frameId: String,
@@ -467,6 +582,10 @@ private fun String.toRecordedFrameJsonOrNull(): JsonObject? {
     return element.takeIf { it["type"] != null }
 }
 
+private fun String.toCaptureEventJsonOrNull(): JsonObject? =
+    runCatching { replayJson.parseToJsonElement(this).jsonObject }.getOrNull()
+        ?.takeIf { it["kind"] != null }
+
 private fun MutableMap<String, Int>.increment(key: String) {
     this[key] = (this[key] ?: 0) + 1
 }
@@ -484,6 +603,9 @@ private fun JsonObject.typeName(): String =
 
 private fun JsonObject.frameId(): String? =
     this["id"]?.jsonPrimitive?.contentOrNull
+
+private fun JsonObject.kindName(): String =
+    this["kind"]?.jsonPrimitive?.contentOrNull ?: "<unknown>"
 
 private fun ServerFrame.conversationIdOrNull(): String? = when (this) {
     is ServerFrame.TurnStarted -> conversationId

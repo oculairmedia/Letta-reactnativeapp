@@ -5,7 +5,7 @@ using a device. It is tracked by `letta-mobile-q9t4t`.
 
 The CLI now has two useful modes:
 
-- `connect` / `send` / `record` / `replay` / `dump-timeline` exercise the
+- `connect` / `send` / `capture` / `record` / `replay` / `dump-timeline` exercise the
   admin-shim mobile WebSocket and the same reducer/writer paths used by the app.
 - `rest` exposes generic authenticated JSON access to any Letta REST endpoint,
   which is the foundation for the broader device-free admin/provisioning CLI.
@@ -67,8 +67,8 @@ configuration for CLI runs.
 .\gradlew.bat :cli:run -PcliArgs="profile import --file cli-profiles.json"
 ```
 
-Profile defaults are used by `send`, `dump-timeline`, `replay`, `record`,
-`reconnect`, `stream`, `rest`, and the typed resource command groups when
+Profile defaults are used by `send`, `dump-timeline`, `replay`, `capture`,
+`record`, `reconnect`, `stream`, `rest`, and the typed resource command groups when
 explicit flags/env vars are omitted.
 
 ## Commands
@@ -138,6 +138,24 @@ To record a send flow, include the message and required agent/conversation:
 `record --message` accepts the same repeatable `--image` / `-i` option as
 `send`, and records the outbound `content_parts` frame for replay.
 
+### `capture`
+
+Capture a replay fixture from the same admin-shim mobile WS path, with an
+initial REST hydrate snapshot and local cursor observations included as metadata
+events. WS entries remain replay-compatible; `replay` hydrates `rest_messages`
+entries and ignores cursor metadata unless an assertion consumes frame seq data.
+
+```powershell
+.\gradlew.bat :cli:run -PcliArgs="capture --shim https://letta.oculair.ca --conversation conv_x --output recordings\conv_x.jsonl --timeout-ms 30000"
+.\gradlew.bat :cli:run -PcliArgs="capture --conversation conv_x --agent agt_x --message `"repro prompt`" --output recordings\send.jsonl"
+.\gradlew.bat :cli:run -PcliArgs="capture --conversation conv_x --run-id run_x --cursor 42 --output recordings\resume.jsonl"
+```
+
+Use `--skip-rest-snapshot` for a WS-only fixture, and `--rest-limit` to cap the
+initial hydrate snapshot. `--from-phone` / `--adb` are reserved for a future
+device diagnostic channel; the current supported capture path is shim WS plus
+REST snapshot.
+
 ### `replay`
 
 Replay a JSONL recording through `ServerFrameSerializer`, `WsFrameMapper`, and
@@ -175,6 +193,14 @@ Supported assertions:
   be observed with multiple OTIDs across retry/replay boundaries.
 
 Use `--dump-timeline` to print the final folded timeline JSON.
+
+Use `--bisect-frame` with one or more assertions to greedily remove unnecessary
+recording lines while preserving the failure. Add `--bisect-out` to write the
+minimized fixture:
+
+```powershell
+.\gradlew.bat :cli:run -PcliArgs="replay --recording recordings\conv_x.jsonl --conversation conv_x --assert-no-dups --bisect-frame --bisect-out recordings\conv_x.min.jsonl"
+```
 
 For incremental inspection, use one of the frame dump selectors:
 
@@ -360,10 +386,12 @@ behavior stay aligned.
 
 ## Fixture workflow
 
-1. Capture a suspect mobile WS flow with `record`.
+1. Capture a suspect flow with `capture` (REST snapshot + WS) or `record`
+   (WS-only).
 2. Reproduce locally with `replay --dump-timeline`.
-3. Add the JSONL under `android-compose/core/src/test/resources/replay`.
-4. Add a focused replay test under
+3. Minimize noisy fixtures with `replay --bisect-frame --bisect-out`.
+4. Add the JSONL under `android-compose/core/src/test/resources/replay`.
+5. Add a focused replay test under
    `android-compose/core/src/test/java/com/letta/mobile/data/timeline/headless`.
 
 The current regression seed is

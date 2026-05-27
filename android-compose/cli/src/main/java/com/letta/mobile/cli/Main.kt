@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.subcommands
 import com.letta.mobile.cli.commands.ConnectCommand
+import com.letta.mobile.cli.commands.CaptureCommand
 import com.letta.mobile.cli.commands.DisconnectCommand
 import com.letta.mobile.cli.commands.DumpTimelineCommand
 import com.letta.mobile.cli.commands.ProfileCommand
@@ -44,6 +45,7 @@ object Main {
         LettaMobileCli()
             .subcommands(
                 ConnectCommand(),
+                CaptureCommand(),
                 SendCommand(),
                 DumpTimelineCommand(),
                 ReplayCommand(),
@@ -84,6 +86,7 @@ object Main {
 
         Commands:
           connect        Open admin-shim mobile WS and print welcome/session state.
+          capture        Capture REST hydrate snapshots and WS frames as replayable JSONL.
           send           Send through admin-shim WS and fold frames into a headless timeline.
           dump-timeline  Fetch conversation history and emit stable timeline JSON.
           replay         Replay a recorded WS JSONL fixture through the reducer.

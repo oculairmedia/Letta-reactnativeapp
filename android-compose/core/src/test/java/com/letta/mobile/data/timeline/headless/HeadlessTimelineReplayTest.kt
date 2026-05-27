@@ -73,6 +73,43 @@ class HeadlessTimelineReplayTest {
     }
 
     @Test
+    fun `replay hydrates captured rest snapshots and ignores cursor metadata`() = runTest {
+        val lines = sequenceOf(
+            """{"index":1,"kind":"rest_messages","conversation_id":"conv-1","messages":[{"id":"cm-rest","message_type":"assistant_message","date":"2026-05-26T00:00:00Z","content":"from rest"}]}""",
+            """{"index":2,"kind":"cursor","conversation_id":"conv-1","run_id":"run-1","seq":4}""",
+        )
+
+        val result = HeadlessTimelineReplayer().replayJsonl(
+            conversationId = "conv-1",
+            lines = lines,
+        )
+
+        result.messagesIngested shouldBe 1
+        result.ignoredFrameTypes["cursor"] shouldBe 1
+        result.timelineJson.contains("from rest") shouldBe true
+    }
+
+    @Test
+    fun `bisect minimizes failing replay fixture against assertions`() = runTest {
+        val lines = listOf(
+            recorded("""{"v":1,"type":"welcome","id":"w1","ts":"2026-05-26T00:00:00Z","server_id":"srv","session_id":"sess"}"""),
+            recorded("""{"v":1,"type":"assistant_message","id":"cm-a","ts":"2026-05-26T00:00:01Z","agent_id":"agent-1","conversation_id":"conv-1","turn_id":"turn-1","run_id":"run-1","content":"same","seq_id":1}"""),
+            recorded("""{"v":1,"type":"assistant_message","id":"cm-b","ts":"2026-05-26T00:00:02Z","agent_id":"agent-1","conversation_id":"conv-1","turn_id":"turn-1","run_id":"run-1","content":"same","seq_id":2}"""),
+        )
+
+        val result = HeadlessTimelineReplayer().bisectFailingJsonl(
+            conversationId = "conv-1",
+            lines = lines,
+            assertionOptions = TimelineAssertionOptions(assertNoDuplicateUiMessages = true),
+        )
+
+        result.fullReplayPassed shouldBe false
+        result.keptOriginalIndexes shouldBe listOf(1, 2)
+        result.removedOriginalIndexes shouldBe listOf(0)
+        result.finalFailures shouldContain "duplicate UiMessage semantic keys: ASSISTANT|run-1|same"
+    }
+
+    @Test
     fun `replay assertion catches non monotonic recorded seq ids`() = runTest {
         val lines = sequenceOf(
             recorded("""{"v":1,"type":"assistant_message","id":"cm-stream-2","ts":"2026-05-26T00:00:01Z","agent_id":"agent-1","conversation_id":"conv-1","turn_id":"turn-1","run_id":"run-1","content":"second","seq_id":2}"""),
