@@ -156,6 +156,65 @@ internal class SendCommand : AdminShimCommand(
     }
 }
 
+internal class CaptureCommand : AdminShimCommand(
+    name = "capture",
+    help = "Capture REST hydrate snapshots and admin-shim mobile WS frames as replayable JSONL.",
+) {
+    private val shimUrl by option("--shim", help = "Admin-shim base URL. Alias for --base-url on this command.")
+    private val out by option("--output", "--out").required()
+    private val conversation by option("--conversation", envvar = "LETTA_CONVERSATION_ID")
+    private val agentId by option("--agent", envvar = "LETTA_AGENT_ID")
+    private val message by option("--message", "-m")
+    private val runId by option("--run-id")
+    private val cursor by option("--cursor").long().default(0)
+    private val timeoutMs by option("--timeout-ms").long().default(120_000)
+    private val restLimit by option("--rest-limit").long().default(200)
+    private val skipRestSnapshot by option("--skip-rest-snapshot").flag(default = false)
+    private val fromPhone by option("--from-phone").flag(default = false)
+    private val adbSerial by option("--adb")
+
+    override fun run() = runBlocking {
+        if (fromPhone || adbSerial != null) {
+            throw UsageError(
+                "--from-phone/--adb capture requires a device-side diagnostic channel that is not " +
+                    "available yet. Use --shim capture against the admin-shim WS fixture path."
+            )
+        }
+        val captureBaseUrl = shimUrl ?: baseUrl
+        val conversationId = requireConversationId(conversation)
+        val resolvedAgentId = if (message != null) requireAgentId(agentId) else agentId ?: defaultAgentId()
+        val restMessages = if (skipRestSnapshot) {
+            null
+        } else {
+            val rest = CliRestClient(captureBaseUrl, token)
+            try {
+                rest.fetchMessages(conversationId, restLimit.validatedIntLimit())
+            } finally {
+                rest.close()
+            }
+        }
+        val count = AdminShimRecorder().record(
+            baseUrl = captureBaseUrl,
+            token = token,
+            agentId = resolvedAgentId,
+            conversationId = conversationId,
+            message = message,
+            runId = runId,
+            cursor = cursor,
+            out = Path.of(out),
+            timeoutMs = timeoutMs,
+            deviceId = deviceId,
+            clientVersion = clientVersion,
+            restSnapshot = restMessages,
+            recordCursorEvents = true,
+        )
+        println(
+            "[capture] wrote $count events to $out " +
+                "(restSnapshot=${restMessages?.size ?: 0} messages, conversation=$conversationId)"
+        )
+    }
+}
+
 internal class DumpTimelineCommand : AdminShimCommand(
     name = "dump-timeline",
     help = "Fetch conversation history and emit stable, diffable timeline JSON.",
@@ -202,6 +261,8 @@ internal class ReplayCommand : AdminShimCommand(
     private val dumpAfterFrame by option("--dump-after-frame").int()
     private val dumpFrames by option("--dump-frames")
     private val interactive by option("--interactive").flag(default = false)
+    private val bisectFrame by option("--bisect-frame").flag(default = false)
+    private val bisectOut by option("--bisect-out")
 
     override fun run() = runBlocking {
         val assertionOptions = TimelineAssertionOptions(
@@ -230,6 +291,33 @@ internal class ReplayCommand : AdminShimCommand(
             return@runBlocking
         }
         val conversationId = requireConversationId(conversation)
+        if (bisectFrame) {
+            if (!assertionOptions.hasAssertions()) {
+                throw UsageError("--bisect-frame requires at least one replay assertion flag")
+            }
+            val result = HeadlessTimelineReplayer().bisectFailingJsonl(
+                conversationId = conversationId,
+                lines = Files.readAllLines(Path.of(recording)),
+                assertionOptions = assertionOptions,
+            )
+            if (result.fullReplayPassed) {
+                println("[bisect] full replay passed; no failing frame set to minimize")
+                return@runBlocking
+            }
+            println(
+                "[bisect] original=${result.originalLineCount} kept=${result.keptLineCount} " +
+                    "removed=${result.removedOriginalIndexes.size}"
+            )
+            println("[bisect] kept original line indexes=${result.keptOriginalIndexes.joinToString(",")}")
+            println("[bisect] removed original line indexes=${result.removedOriginalIndexes.joinToString(",")}")
+            println("[bisect] failures:")
+            result.finalFailures.forEach { println("[bisect] FAIL $it") }
+            bisectOut?.let { path ->
+                Files.write(Path.of(path), result.keptLines)
+                println("[bisect] wrote minimized fixture to $path")
+            }
+            return@runBlocking
+        }
         val dumpOptions = HeadlessReplayDumpOptions(
             dumpAfterEachFrame = dumpAfterEachFrame,
             dumpAfterFrame = dumpAfterFrame.validatedNonNegativeOrNull("--dump-after-frame"),
@@ -420,3 +508,17 @@ private fun String?.parseFrameSet(): Set<Int> {
         value.validatedNonNegativeOrNull("--dump-frames") ?: value
     }.toSet()
 }
+
+private fun TimelineAssertionOptions.hasAssertions(): Boolean =
+    assertNoDuplicateUiMessages ||
+        assertOtidUnique ||
+        assertSeqMonotonic ||
+        assertNoEmptyBodies ||
+        assertNoPrefixOrphans ||
+        expectedUiMessageCountPerRun != null ||
+        expectedFinalStatus != null ||
+        assertNoOrphanToolReturns ||
+        assertRunCompletes ||
+        assertNoAbandonedToolCalls ||
+        assertApprovalToolReturnOnApprovalRun ||
+        assertOtidStableAcrossRetry
