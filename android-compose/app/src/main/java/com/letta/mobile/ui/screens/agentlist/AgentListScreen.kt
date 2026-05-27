@@ -119,13 +119,6 @@ fun AgentListScreen(
     viewModel: AgentListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var showImportDialog by remember { mutableStateOf(false) }
-    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
-    var showGrid by rememberSaveable { mutableStateOf(false) }
-    var pendingImportName by remember { mutableStateOf<String?>(null) }
-    var pendingImportOverrideTools by remember { mutableStateOf(true) }
-    var pendingImportStripMessages by remember { mutableStateOf(false) }
     val snackbar = LocalSnackbarDispatcher.current
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current

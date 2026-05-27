@@ -58,16 +58,25 @@ class AgentListViewModel @Inject constructor(
         private const val LIST_CACHE_TTL_MS = 30_000L
     }
 
-    private data class TransientState(
-        val searchQuery: String = "",
-        val selectedTags: Set<String> = emptySet(),
-        val isLoading: Boolean = true,
-        val isHydrating: Boolean = false,
-        val isRefreshing: Boolean = false,
-        val isCreating: Boolean = false,
-        val isImporting: Boolean = false,
-        val error: String? = null,
-    )
+        private data class TransientState(
+            val searchQuery: String = "",
+            val selectedTags: Set<String> = emptySet(),
+            val isLoading: Boolean = true,
+            val isHydrating: Boolean = false,
+            val isRefreshing: Boolean = false,
+            val isCreating: Boolean = false,
+            val isImporting: Boolean = false,
+            val error: String? = null,
+            // Dialog state (hoisted from composable)
+            val showCreateDialog: Boolean = false,
+            val showImportDialog: Boolean = false,
+            val isSearchExpanded: Boolean = false,
+            val showGrid: Boolean = false,
+            val pendingImportName: String? = null,
+            val pendingImportOverrideTools: Boolean = true,
+            val pendingImportStripMessages: Boolean = false,
+            val shareNavigationConsumed: Boolean = false,
+        )
 
     private val _transient = MutableStateFlow(
         TransientState(isLoading = agentRepository.agents.value.isEmpty())
@@ -325,5 +334,46 @@ class AgentListViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    // Dialog state management (hoisted from composable)
+    fun showCreateDialog() {
+        _transient.update { it.copy(showCreateDialog = true) }
+    }
+
+    fun hideCreateDialog() {
+        _transient.update { it.copy(showCreateDialog = false) }
+    }
+
+    fun showImportDialog() {
+        _transient.update { it.copy(showImportDialog = true) }
+    }
+
+    fun hideImportDialog() {
+        _transient.update { it.copy(showImportDialog = false) }
+    }
+
+    fun setSearchExpanded(expanded: Boolean) {
+        _transient.update { it.copy(isSearchExpanded = expanded) }
+    }
+
+    fun setShowGrid(show: Boolean) {
+        _transient.update { it.copy(showGrid = show) }
+    }
+
+    fun setPendingImportName(name: String?) {
+        _transient.update { it.copy(pendingImportName = name) }
+    }
+
+    fun setPendingImportOverrideTools(override: Boolean) {
+        _transient.update { it.copy(pendingImportOverrideTools = override) }
+    }
+
+    fun setPendingImportStripMessages(strip: Boolean) {
+        _transient.update { it.copy(pendingImportStripMessages = strip) }
+    }
+
+    fun setShareNavigationConsumed(consumed: Boolean) {
+        _transient.update { it.copy(shareNavigationConsumed = consumed) }
     }
 }
