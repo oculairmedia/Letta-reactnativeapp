@@ -233,6 +233,7 @@ internal class CaptureCommand : AdminShimCommand(
             agentId = resolvedAgentId,
             conversationId = conversationId,
             message = message,
+            attachments = emptyList(),
             runId = runId,
             cursor = cursor,
             out = Path.of(out),
