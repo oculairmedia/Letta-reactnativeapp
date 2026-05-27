@@ -1922,6 +1922,9 @@ private class RecordingConversationCursorStore : ConversationCursorStore {
 
     override suspend fun getCursor(conversationId: String): Long? =
         highestByConversation[conversationId]?.takeIf { it != Long.MIN_VALUE }
+
+    override suspend fun getAllCursors(): Map<String, Long> =
+        highestByConversation.filterValues { it != Long.MIN_VALUE }
 }
 
 private val kotlinx.serialization.json.JsonPrimitive.contentOrNull: String?
