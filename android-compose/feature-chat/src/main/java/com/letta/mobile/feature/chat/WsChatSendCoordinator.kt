@@ -460,11 +460,18 @@ internal class WsChatSendCoordinator(
                 // Error frame when status="failed"; fall back to a generic
                 // string if upstream skipped the error frame. Cancellation is
                 // user-initiated and explicitly never sets an error banner.
+                val stopReasonError = stopReasonForTurn.equals("error", ignoreCase = true)
                 val nextError = when (event.status) {
-                    "completed" -> uiState.value.error
+                    "completed" -> bufferedErrorMessage
+                        ?: if (stopReasonError) BARE_STOP_REASON_ERROR_MESSAGE else uiState.value.error
                     "cancelled" -> uiState.value.error
                     "failed" -> bufferedErrorMessage ?: "Turn failed"
-                    else -> bufferedErrorMessage ?: "Turn ended unexpectedly (${event.status})"
+                    else -> bufferedErrorMessage
+                        ?: if (stopReasonError) {
+                            BARE_STOP_REASON_ERROR_MESSAGE
+                        } else {
+                            "Turn ended unexpectedly (${event.status})"
+                        }
                 }
                 uiState.value = uiState.value.copy(
                     isStreaming = false,
@@ -560,6 +567,8 @@ internal class WsChatSendCoordinator(
         private const val MAX_PENDING_SENDS = 10
         private const val DEQUEUE_RETRY_DELAY_MS = 50L
         private const val NEW_CONVERSATION_PLACEHOLDER = ""
+        private const val BARE_STOP_REASON_ERROR_MESSAGE =
+            "Agent run failed after your message was sent. No error details were provided by the shim."
         private fun defaultShimConversationId(agentId: String): String = "conv-default-$agentId"
     }
 
