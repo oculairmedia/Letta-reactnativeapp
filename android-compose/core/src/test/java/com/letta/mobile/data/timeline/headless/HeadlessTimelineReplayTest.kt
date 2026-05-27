@@ -91,7 +91,7 @@ class HeadlessTimelineReplayTest {
     }
 
     @Test
-    fun `ka770 replay fixture detects duplicate assistant body in one run`() = runTest {
+    fun `ka770 replay fixture dedupes duplicate assistant body in one run`() = runTest {
         val lines = requireNotNull(
             javaClass.classLoader?.getResourceAsStream("replay/ka770-duplicate-assistant.jsonl")
         ).bufferedReader().use { it.lineSequence().toList() }
@@ -104,9 +104,9 @@ class HeadlessTimelineReplayTest {
             assertSeqMonotonic = true,
         )
 
-        result.assertionReport.passed shouldBe false
-        result.assertionReport.failures shouldContain
-            "duplicate UiMessage semantic keys: ASSISTANT|run-ka770|The final assistant body appears once."
+        result.messagesIngested shouldBe 2
+        result.assertionReport.passed shouldBe true
+        result.assertionReport.eventCount shouldBe 1
     }
 
     @Test

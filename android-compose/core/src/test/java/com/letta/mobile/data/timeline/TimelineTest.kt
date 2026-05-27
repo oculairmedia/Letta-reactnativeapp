@@ -44,14 +44,16 @@ class TimelineTest {
         type: TimelineMessageType = TimelineMessageType.ASSISTANT,
         serverId: String = "server-$otid",
         date: Instant = Instant.now(),
+        content: String = "confirmed",
+        runId: String? = null,
     ): TimelineEvent.Confirmed = TimelineEvent.Confirmed(
         position = pos,
         otid = otid,
-        content = "confirmed",
+        content = content,
         serverId = serverId,
         messageType = type,
         date = date,
-        runId = null,
+        runId = runId,
         stepId = null,
     )
 
@@ -204,6 +206,36 @@ class TimelineTest {
         assertTrue("fresh message should be positioned between existing dated events", confirmed[1].position in 1.0..4.0)
         assertEquals(3, confirmed.size)
         assertNull(merged.findByServerId("tool-return", TimelineMessageType.TOOL_RETURN))
+    }
+
+    @Test
+    fun `mergeServerMessages dedupes same run assistant content with different server id`() {
+        val timeline = Timeline("c1")
+            .append(
+                confirmed(
+                    otid = "live-otid",
+                    pos = 1.0,
+                    serverId = "ws-assistant",
+                    date = Instant.parse("2026-05-26T15:00:00Z"),
+                    content = "Let me check the more recent one then.",
+                    runId = "run-reopen",
+                )
+            )
+
+        val (merged, insertedCount) = timeline.mergeServerMessages(
+            listOf(
+                AssistantMessage(
+                    id = "rest-assistant",
+                    contentRaw = JsonPrimitive("Let me check the more recent one then."),
+                    date = "2026-05-26T15:00:01Z",
+                    runId = "run-reopen",
+                )
+            )
+        )
+
+        val confirmed = merged.events.filterIsInstance<TimelineEvent.Confirmed>()
+        assertEquals(0, insertedCount)
+        assertEquals(listOf("ws-assistant"), confirmed.map { it.serverId })
     }
 
     @Test

@@ -139,9 +139,7 @@ internal fun Timeline.mergeServerMessages(
         val pos = timeline.positionForServerMessageDate(msg)
         val confirmed = msg.toTimelineEvent(position = pos) ?: return@forEach
         if (confirmed.messageType == TimelineMessageType.TOOL_RETURN) return@forEach
-        val byOtid = timeline.findByOtid(confirmed.otid)
-        val byServerId = timeline.findByServerId(msg.id, confirmed.messageType)
-        if (byOtid == null && byServerId == null) {
+        if (!timeline.containsIdentityFor(confirmed)) {
             timeline = timeline.insertOrdered(confirmed)
             merged++
         }
