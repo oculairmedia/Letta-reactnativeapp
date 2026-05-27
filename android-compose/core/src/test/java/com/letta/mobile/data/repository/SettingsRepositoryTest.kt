@@ -3,6 +3,7 @@ package com.letta.mobile.data.repository
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.data.session.BackendSwitchClearResult
 import com.letta.mobile.testutil.InMemorySecureSettingsStore
 import com.letta.mobile.testutil.createTestPreferencesDataStore
 import kotlinx.coroutines.channels.Channel
@@ -105,6 +106,48 @@ class SettingsRepositoryTest {
 
         repository.saveConfig(c2)
         assertEquals("c2", emissions.receive().id)
+    }
+
+    @Test
+    fun `active backend change clears backend-scoped caches before active config update`() = runTest {
+        lateinit var scopedRepository: SettingsRepository
+        val activeIdsAtClear = mutableListOf<String?>()
+        scopedRepository = SettingsRepository(
+            dataStore = createTestPreferencesDataStore(),
+            secureSettingsStore = InMemorySecureSettingsStore(),
+            clearBackendScopedCaches = {
+                activeIdsAtClear += scopedRepository.activeConfig.value?.id
+                BackendSwitchClearResult(successes = 1, failures = emptyList())
+            },
+        )
+
+        val c1 = LettaConfig(id = "c1", mode = LettaConfig.Mode.CLOUD, serverUrl = "https://one.com")
+        val c2 = LettaConfig(id = "c2", mode = LettaConfig.Mode.SELF_HOSTED, serverUrl = "http://two.com")
+
+        scopedRepository.saveConfig(c1)
+        activeIdsAtClear.clear()
+
+        scopedRepository.saveConfig(c2)
+
+        assertEquals(listOf("c1"), activeIdsAtClear)
+        assertEquals("c2", scopedRepository.activeConfig.value?.id)
+
+        activeIdsAtClear.clear()
+        scopedRepository.setActiveConfigId("c1")
+
+        assertEquals(listOf("c2"), activeIdsAtClear)
+        assertEquals("c1", scopedRepository.activeConfig.value?.id)
+
+        activeIdsAtClear.clear()
+        scopedRepository.saveConfig(c2.copy(accessToken = "rotated-token"))
+
+        assertEquals(listOf("c1"), activeIdsAtClear)
+        assertEquals("c2", scopedRepository.activeConfig.value?.id)
+
+        activeIdsAtClear.clear()
+        scopedRepository.saveConfig(c2.copy(accessToken = "rotated-token-2"))
+
+        assertTrue(activeIdsAtClear.isEmpty())
     }
 
     @Test

@@ -12,6 +12,9 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.letta.mobile.data.model.AppTheme
 import com.letta.mobile.data.model.LettaConfig
 import com.letta.mobile.data.model.ThemePreset
+import com.letta.mobile.data.session.BackendSwitchClearResult
+import com.letta.mobile.data.session.BackendSwitchInvalidator
+import com.letta.mobile.util.Telemetry
 import com.letta.mobile.data.repository.api.ISettingsRepository
 import com.letta.mobile.data.storage.SecureSettingsStore
 import kotlinx.coroutines.flow.Flow
@@ -29,15 +32,37 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 private const val DEFAULT_CHAT_BACKGROUND_KEY = "default"
 
 @Singleton
-class SettingsRepository @Inject constructor(
+class SettingsRepository internal constructor(
     private val dataStore: DataStore<Preferences>,
     private val secureSettingsStore: SecureSettingsStore,
+    private val clearBackendScopedCaches: suspend () -> BackendSwitchClearResult,
 ) : ISettingsRepository {
+    @Inject
+    constructor(
+        dataStore: DataStore<Preferences>,
+        secureSettingsStore: SecureSettingsStore,
+        backendSwitchInvalidator: Provider<BackendSwitchInvalidator>,
+    ) : this(
+        dataStore = dataStore,
+        secureSettingsStore = secureSettingsStore,
+        clearBackendScopedCaches = { backendSwitchInvalidator.get().clearAll() },
+    )
+
+    constructor(
+        dataStore: DataStore<Preferences>,
+        secureSettingsStore: SecureSettingsStore,
+    ) : this(
+        dataStore = dataStore,
+        secureSettingsStore = secureSettingsStore,
+        clearBackendScopedCaches = { BackendSwitchClearResult(successes = 0, failures = emptyList()) },
+    )
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _configs = MutableStateFlow<List<LettaConfig>>(emptyList())
@@ -161,12 +186,14 @@ class SettingsRepository @Inject constructor(
             }
         }
         persistConfigs(_configs.value)
+        clearCachesBeforeActiveConfigChange(config)
         _activeConfig.update { config }
         secureSettingsStore.putString(Keys.ACTIVE_CONFIG_ID.name, config.id)
     }
 
     override suspend fun setActiveConfigId(id: String) = withContext(Dispatchers.IO) {
         val config = _configs.value.find { it.id == id } ?: return@withContext
+        clearCachesBeforeActiveConfigChange(config)
         _activeConfig.update { config }
         secureSettingsStore.putString(Keys.ACTIVE_CONFIG_ID.name, id)
     }
@@ -176,6 +203,7 @@ class SettingsRepository @Inject constructor(
         persistConfigs(_configs.value)
         if (_activeConfig.value?.id == id) {
             val fallback = _configs.value.firstOrNull()
+            clearCachesBeforeActiveConfigChange(fallback)
             _activeConfig.update { fallback }
             if (fallback != null) {
                 secureSettingsStore.putString(Keys.ACTIVE_CONFIG_ID.name, fallback.id)
@@ -272,6 +300,7 @@ class SettingsRepository @Inject constructor(
     }
 
     override suspend fun clearAllData() = withContext(Dispatchers.IO) {
+        clearCachesBeforeActiveConfigChange(null)
         secureSettingsStore.clear()
         dataStore.edit { it.clear() }
         _configs.update { emptyList() }
@@ -588,6 +617,34 @@ class SettingsRepository @Inject constructor(
         val configData = configs.map { LettaConfigData.fromLettaConfig(it) }
         val configsJson = json.encodeToString(configData)
         secureSettingsStore.putString(Keys.CONFIGS.name, configsJson)
+    }
+
+    private suspend fun clearCachesBeforeActiveConfigChange(nextConfig: LettaConfig?) {
+        val currentId = _activeConfig.value?.id
+        val nextId = nextConfig?.id
+        if (currentId != nextId) {
+            val result = clearBackendScopedCaches()
+            if (!result.allSucceeded) {
+                // Surface partial-clear at the orchestration layer. The
+                // per-cache failure is already telemetered by
+                // BackendSwitchInvalidator; this is a higher-level signal that
+                // a config switch proceeded with potentially stale state.
+                // Stale rows from the prior backend may briefly be visible
+                // until the next refresh succeeds. We do NOT block the switch
+                // — that's a heavier change and should be a separate decision
+                // once we have observability on how often this fails in
+                // production.
+                Telemetry.event(
+                    "SettingsRepository",
+                    "backendSwitchCachePartialClear",
+                    "fromConfigId" to (currentId ?: "<none>"),
+                    "toConfigId" to (nextId ?: "<none>"),
+                    "successes" to result.successes,
+                    "failures" to result.failures.size,
+                    "failedCaches" to result.failures.joinToString(",") { it.cacheName },
+                )
+            }
+        }
     }
 
     @kotlinx.serialization.Serializable

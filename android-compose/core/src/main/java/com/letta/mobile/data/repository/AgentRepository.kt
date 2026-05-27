@@ -13,6 +13,7 @@ import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.AgentUpdateParams
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.paging.AgentPagingSource
+import com.letta.mobile.data.session.BackendScopedCache
 import com.letta.mobile.data.repository.api.IAgentRepository
 import com.letta.mobile.util.Telemetry
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +37,7 @@ open class AgentRepository(
     private val agentApi: AgentApi,
     private val agentDao: AgentDao,
     private val repositoryScope: CoroutineScope = defaultAgentRepositoryScope(),
-) : IAgentRepository {
+) : IAgentRepository, BackendScopedCache {
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     override open val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
     private val _isRefreshing = MutableStateFlow(false)
@@ -76,6 +77,21 @@ open class AgentRepository(
             refreshAgentsLocked()
         } finally {
             _isRefreshing.value = false
+        }
+    }
+
+    override suspend fun clearForBackendSwitch() {
+        refreshMutex.withLock {
+            _agents.value = emptyList()
+            _isRefreshing.value = false
+            lastRefreshAtMillis = 0L
+            // Propagate DAO failure to the caller. Swallowing here would leave
+            // stale agent rows from the previous backend visible after switch
+            // while the in-memory state has already been cleared, which is a
+            // hard-to-diagnose cross-backend leak. The orchestrator
+            // (BackendSwitchInvalidator) aggregates per-cache failures so the
+            // switch flow can decide what to do.
+            agentDao.deleteAll()
         }
     }
 

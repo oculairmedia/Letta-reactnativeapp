@@ -11,6 +11,7 @@ import com.letta.mobile.data.model.Conversation
 import com.letta.mobile.data.model.ConversationCountEstimate
 import com.letta.mobile.data.paging.ConversationPagingSource
 import com.letta.mobile.data.repository.api.IAllConversationsRepository
+import com.letta.mobile.data.session.BackendScopedCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +32,7 @@ open class AllConversationsRepository(
     private val conversationApi: ConversationApi,
     private val conversationDao: ConversationDao? = null,
     private val repositoryScope: CoroutineScope,
-) : IAllConversationsRepository {
+) : IAllConversationsRepository, BackendScopedCache {
     /** Hilt-friendly constructor — uses [defaultAllConversationsScope]. */
     @Inject
     constructor(
@@ -96,6 +97,22 @@ open class AllConversationsRepository(
 
     override open suspend fun refresh() = refreshMutex.withLock {
         refreshLocked()
+    }
+
+    override suspend fun clearForBackendSwitch() {
+        refreshMutex.withLock {
+            currentCursor = null
+            lastRefreshAtMillis = 0L
+            hasLoadedAtLeastOnce = false
+            _conversations.value = emptyList()
+            _hasMore.value = true
+            // Propagate DAO failure. See AgentRepository.clearForBackendSwitch
+            // for the rationale; same invariant — stale cached conversations
+            // from the previous backend visible after switch is a cross-
+            // backend leak we'd rather surface than silently log.
+            conversationDao?.deleteAll()
+            conversationDao?.deleteAllRefreshStates()
+        }
     }
 
     private suspend fun refreshLocked() {
