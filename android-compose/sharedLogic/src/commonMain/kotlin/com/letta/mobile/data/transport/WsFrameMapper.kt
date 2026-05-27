@@ -38,7 +38,7 @@ object WsFrameMapper {
             date = frame.ts,
             runId = frame.runId,
             otid = frame.otid,
-            seqId = frame.seqId,
+            seqId = frame.seqId ?: frame.seq.toSeqId(),
         )
 
         is ServerFrame.ReasoningMessage -> ReasoningMessage(
@@ -47,7 +47,7 @@ object WsFrameMapper {
             date = frame.ts,
             runId = frame.runId,
             signature = frame.signature,
-            seqId = frame.seqId,
+            seqId = frame.seqId ?: frame.seq.toSeqId(),
         )
 
         is ServerFrame.ToolCallMessage -> ToolCallMessage(
@@ -56,6 +56,7 @@ object WsFrameMapper {
             toolCalls = frame.toolCalls?.map { it.toModel() },
             date = frame.ts,
             runId = frame.runId,
+            seqId = frame.seq.toSeqId(),
         )
 
         is ServerFrame.ToolReturnMessage -> ToolReturnMessage(
@@ -70,6 +71,7 @@ object WsFrameMapper {
             toolReturnRaw = frame.toolReturn?.let { JsonPrimitive(it) },
             date = frame.ts,
             runId = frame.runId,
+            seqId = frame.seq.toSeqId(),
         )
 
         is ServerFrame.Welcome,
@@ -104,4 +106,7 @@ object WsFrameMapper {
         name = name,
         arguments = arguments,
     )
+
+    private fun Long?.toSeqId(): Int? =
+        this?.takeIf { it in 0L..Int.MAX_VALUE.toLong() }?.toInt()
 }

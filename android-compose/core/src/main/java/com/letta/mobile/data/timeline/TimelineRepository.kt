@@ -34,13 +34,14 @@ import kotlinx.coroutines.withContext
 open class TimelineRepository @Inject constructor(
     private val messageApi: MessageApi,
     private val pendingLocalStore: PendingLocalStore,
+    private val conversationCursorStore: ConversationCursorStore,
     sessionManager: SessionManager?,
 ) : TimelineExternalTransportWriter {
     internal constructor(
         messageApi: MessageApi,
         pendingLocalStore: PendingLocalStore,
         maxCachedLoops: Int,
-    ) : this(messageApi, pendingLocalStore, sessionManager = null) {
+    ) : this(messageApi, pendingLocalStore, NoOpConversationCursorStore, sessionManager = null) {
         require(maxCachedLoops > 0) { "maxCachedLoops must be positive" }
         this.maxCachedLoops = maxCachedLoops
     }
@@ -101,6 +102,7 @@ open class TimelineRepository @Inject constructor(
                 scope = scope,
                 ingestedListenerProvider = { ingestedListener },
                 pendingLocalStore = pendingLocalStore,
+                conversationCursorStore = conversationCursorStore,
             )
             loops[conversationId] = created
             evictEldestLoopsIfNeededLocked()
