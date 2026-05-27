@@ -1,11 +1,11 @@
 package com.letta.mobile.testutil
 
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import com.letta.mobile.data.storage.SecureSettingsStore
-import java.io.File
-import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class InMemorySecureSettingsStore : SecureSettingsStore {
     private val values = mutableMapOf<String, String>()
@@ -25,11 +25,18 @@ class InMemorySecureSettingsStore : SecureSettingsStore {
     }
 }
 
-fun createTestPreferencesDataStore(): DataStore<Preferences> {
-    val file = File(
-        System.getProperty("java.io.tmpdir"),
-        "letta-mobile-settings-tests/${UUID.randomUUID()}.preferences_pb",
-    )
-    file.parentFile?.mkdirs()
-    return PreferenceDataStoreFactory.create(produceFile = { file })
+fun createTestPreferencesDataStore(): DataStore<Preferences> = InMemoryPreferencesDataStore()
+
+private class InMemoryPreferencesDataStore(
+    initialPreferences: Preferences = emptyPreferences(),
+) : DataStore<Preferences> {
+    private val state = MutableStateFlow(initialPreferences)
+
+    override val data: Flow<Preferences> = state
+
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+        val updated = transform(state.value)
+        state.value = updated
+        return updated
+    }
 }
