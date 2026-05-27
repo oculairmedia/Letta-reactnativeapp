@@ -187,6 +187,20 @@ Use these rules for all new UI work and UI refactors in this repo. The app alrea
 - `AllToolsScreen`, `AgentListScreen`, and `McpScreen` are the current reference implementations for this shell pattern.
 - The first dedicated reusable scaffold adopters should be `letta-mobile-bz40.2.2` (project grid home screen) and `letta-mobile-bz40.2.6` (active agents dashboard), then back-port the extracted scaffold to older admin/list screens as they are touched.
 
+#### Compose migration policy
+
+- Prefer Compose and in-repo design-system components for new UI and for old UI that is already being materially changed.
+- Do not rewrite stable screens solely because they are old or could be prettier in Compose.
+- Favor contained modernization targets first: dialogs, pickers, admin/detail surfaces, form sections, loading states, and contextual actions.
+- A migration is worthwhile when it reduces state/layout complexity, improves adaptive behavior, removes bespoke UI, or unlocks reusable design-system behavior.
+
+#### Adaptive layout policy
+
+- Dialogs, picker flows, detail surfaces, and tool/admin screens should reflow intentionally across compact, medium, expanded, landscape, and tablet-sized layouts.
+- Avoid layouts that merely stretch columns or clip dense content when more space is available.
+- Prefer adaptive structure with stable constraints, responsive grids, panes, or reordered sections before adding motion polish.
+- When touching complex UI, verify the result at phone portrait, phone landscape, and tablet/expanded widths when feasible.
+
 ### 4. Use Material components by interaction semantics
 
 - Use **segmented buttons** or another mutually-exclusive selector pattern for binary/mode switches when only one option can be active.
@@ -230,8 +244,10 @@ Use these rules for all new UI work and UI refactors in this repo. The app alrea
 
 - Use expressive motion for local content changes only after layout geometry is correct.
 - Preferred patterns are small, reusable helpers like `AnimatedVisibility`, `animateContentSize`, and icon rotation for expand/collapse, banners, and inline affordances.
+- Use local motion only when it communicates a concrete state change or preserves user context, such as expand/collapse, progressive loading or streaming, scroll-to-bottom or return-to-context affordances, attachment add/remove, contextual drawer/sheet open and close, or list/detail continuity.
 - Keep micro-motion close to the component that owns the state change; avoid animating entire screens for small local updates.
 - Avoid stacking multiple animations on the same interaction unless they clearly reinforce hierarchy.
+- Do not add motion only for decoration. If the layout jumps, text shifts unexpectedly, or anchors are unstable, fix layout/state first and simplify the animation.
 
 #### Lazy lists, loading, and progressive data
 
