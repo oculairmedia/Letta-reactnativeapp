@@ -153,7 +153,7 @@ class ChannelTransport internal constructor(
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
-            .pingInterval(45, TimeUnit.SECONDS) // TCP-level ping; defense-in-depth alongside server-side WS pings
+            .pingInterval(30, TimeUnit.SECONDS) // TCP-level ping; defense-in-depth alongside app-level ping/pong
             .build()
     }
 
@@ -644,6 +644,10 @@ class ChannelTransport internal constructor(
                 resumeActiveRuns()
             }
 
+            is ServerFrame.Ping -> {
+                acknowledgePing(frame)
+            }
+
             is ServerFrame.A2uiCapabilities -> {
                 // Fold the post-welcome capability advertisement into
                 // the existing Connected state so the renderer registry
@@ -800,6 +804,24 @@ class ChannelTransport internal constructor(
         }
 
         scope.launch { _events.emit(frame) }
+    }
+
+    private fun acknowledgePing(frame: ServerFrame.Ping) {
+        val socket = socketRef.get()
+        if (socket == null) {
+            Log.w(TAG, "Dropping pong for ping id=${frame.id}: no active WS")
+            return
+        }
+
+        val sent = socket.sendFrame(
+            PongFrame(
+                id = frame.id,
+                ts = nowIso(),
+            )
+        )
+        if (!sent) {
+            Log.w(TAG, "Failed to send pong for ping id=${frame.id}")
+        }
     }
 
     private fun WebSocket.sendFrame(frame: ClientFrame): Boolean {
