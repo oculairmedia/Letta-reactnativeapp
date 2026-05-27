@@ -8,6 +8,7 @@ import com.letta.mobile.data.model.toJsonArray
 import com.letta.mobile.data.transport.api.IChannelTransport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -47,6 +48,15 @@ class WsChatBridge @Inject constructor(
 ) {
     /** Re-export the connection state without forcing callers to know about ChannelTransport. */
     val state: StateFlow<ChannelTransport.State> = transport.state
+
+    val connection: Flow<WsConnectionState> = transport.state.map { it.toConnectionState() }
+
+    fun isConnected(): Boolean = transport.state.value is ChannelTransport.State.Connected
+
+    suspend fun awaitConnected(): WsConnectionState.Connected = transport.state
+        .filter { it is ChannelTransport.State.Connected }
+        .map { state -> (state as ChannelTransport.State.Connected).toConnectionState() }
+        .first()
 
     /** High-level event stream tailored for chat consumers. */
     val events: Flow<WsTimelineEvent> = merge(
@@ -113,6 +123,37 @@ class WsChatBridge @Inject constructor(
     fun sendA2uiAction(action: A2uiAction): A2uiActionDispatchResult = transport.sendA2uiAction(action)
     suspend fun disconnect(): Unit = transport.disconnect()
 }
+
+sealed interface WsConnectionState {
+    data object Idle : WsConnectionState
+    data object Connecting : WsConnectionState
+    data class Connected(
+        val a2uiEnabled: Boolean,
+        val catalog: String?,
+    ) : WsConnectionState
+    data class Disconnected(
+        val code: Int,
+        val reason: String,
+        val isAuthFailure: Boolean = false,
+    ) : WsConnectionState
+}
+
+private fun ChannelTransport.State.toConnectionState(): WsConnectionState = when (this) {
+    is ChannelTransport.State.Idle -> WsConnectionState.Idle
+    is ChannelTransport.State.Connecting -> WsConnectionState.Connecting
+    is ChannelTransport.State.Connected -> toConnectionState()
+    is ChannelTransport.State.Disconnected -> WsConnectionState.Disconnected(
+        code = code,
+        reason = reason,
+        isAuthFailure = isAuthFailure,
+    )
+}
+
+private fun ChannelTransport.State.Connected.toConnectionState(): WsConnectionState.Connected =
+    WsConnectionState.Connected(
+        a2uiEnabled = a2uiEnabled,
+        catalog = a2uiCatalog,
+    )
 
 /**
  * Higher-level event stream for chat ViewModels. Each entry maps
