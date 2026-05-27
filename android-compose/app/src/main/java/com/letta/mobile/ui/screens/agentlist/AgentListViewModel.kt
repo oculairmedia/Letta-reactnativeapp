@@ -45,6 +45,14 @@ data class AgentListUiState(
     val isRefreshing: Boolean = false,
     val isCreating: Boolean = false,
     val error: String? = null,
+    // Dialog state (hoisted from composable)
+    val showCreateDialog: Boolean = false,
+    val showImportDialog: Boolean = false,
+    val isSearchExpanded: Boolean = false,
+    val showGrid: Boolean = false,
+    val pendingImportName: String? = null,
+    val pendingImportOverrideTools: Boolean = true,
+    val pendingImportStripMessages: Boolean = false,
 )
 
 @HiltViewModel
@@ -117,6 +125,13 @@ class AgentListViewModel @Inject constructor(
             isCreating = overlay.transient.isCreating,
             isImporting = overlay.transient.isImporting,
             error = overlay.transient.error,
+            showCreateDialog = overlay.transient.showCreateDialog,
+            showImportDialog = overlay.transient.showImportDialog,
+            isSearchExpanded = overlay.transient.isSearchExpanded,
+            showGrid = overlay.transient.showGrid,
+            pendingImportName = overlay.transient.pendingImportName,
+            pendingImportOverrideTools = overlay.transient.pendingImportOverrideTools,
+            pendingImportStripMessages = overlay.transient.pendingImportStripMessages,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AgentListUiState())
 
