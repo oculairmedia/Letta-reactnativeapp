@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DrawerValue
@@ -211,65 +212,68 @@ fun HomeScreen(
         },
     ) {
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
-        topBar = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-            LargeFlexibleTopAppBar(
-                title = {
-                    ExpandableTitleSearch(
-                        query = uiState.searchQuery,
-                        onQueryChange = viewModel::updateSearchQuery,
-                        onClear = viewModel::clearSearch,
-                        expanded = isSearchExpanded,
-                        onExpandedChange = { isSearchExpanded = it },
-                        placeholder = stringResource(R.string.screen_home_search_placeholder),
-                        openSearchContentDescription = stringResource(R.string.action_search),
-                        closeSearchContentDescription = stringResource(R.string.action_close),
-                        titleContent = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(title)
-                                if (uiState.isConnected) {
-                                    Icon(
-                                        LettaIcons.Circle,
-                                        contentDescription = "Connected",
-                                        tint = MaterialTheme.customColors.onlineColor,
-                                        modifier = Modifier.size(8.dp),
-                                    )
+            modifier = Modifier
+                .systemBarsPadding()
+                .imePadding()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = com.letta.mobile.ui.theme.LettaTopBarDefaults.scaffoldContainerColor(),
+            topBar = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                LargeFlexibleTopAppBar(
+                    title = {
+                        ExpandableTitleSearch(
+                            query = uiState.searchQuery,
+                            onQueryChange = viewModel::updateSearchQuery,
+                            onClear = viewModel::clearSearch,
+                            expanded = isSearchExpanded,
+                            onExpandedChange = { isSearchExpanded = it },
+                            placeholder = stringResource(R.string.screen_home_search_placeholder),
+                            openSearchContentDescription = stringResource(R.string.action_search),
+                            closeSearchContentDescription = stringResource(R.string.action_close),
+                            titleContent = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(title)
+                                    if (uiState.isConnected) {
+                                        Icon(
+                                            LettaIcons.Circle,
+                                            contentDescription = "Connected",
+                                            tint = MaterialTheme.customColors.onlineColor,
+                                            modifier = Modifier.size(8.dp),
+                                        )
+                                    }
+                                    if (activeBackendLabel != null && onNavigateToBackendSwitcher != null) {
+                                        AssistChip(
+                                            onClick = onNavigateToBackendSwitcher,
+                                            label = { Text(activeBackendLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                        )
+                                    }
                                 }
-                                if (activeBackendLabel != null && onNavigateToBackendSwitcher != null) {
-                                    AssistChip(
-                                        onClick = onNavigateToBackendSwitcher,
-                                        label = { Text(activeBackendLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    )
-                                }
-                            }
-                        },
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(LettaIcons.Menu, contentDescription = "Menu")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(LettaIcons.Settings, contentDescription = "Settings")
-                    }
-                },
-                colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
-                scrollBehavior = scrollBehavior,
-            )
-            ExpandableSearchField(
-                query = uiState.searchQuery,
-                onQueryChange = viewModel::updateSearchQuery,
-                onClear = viewModel::clearSearch,
-                expanded = isSearchExpanded,
-                placeholder = stringResource(R.string.screen_home_search_placeholder),
-            )
-            }
-        },
-    ) { paddingValues ->
+                            },
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(LettaIcons.Menu, contentDescription = "Menu")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(LettaIcons.Settings, contentDescription = "Settings")
+                        }
+                    },
+                    colors = com.letta.mobile.ui.theme.LettaTopBarDefaults.largeTopAppBarColors(),
+                    scrollBehavior = scrollBehavior,
+                )
+                ExpandableSearchField(
+                    query = uiState.searchQuery,
+                    onQueryChange = viewModel::updateSearchQuery,
+                    onClear = viewModel::clearSearch,
+                    expanded = isSearchExpanded,
+                    placeholder = stringResource(R.string.screen_home_search_placeholder),
+                )
+                }
+            },
+        ) { paddingValues ->
         HomeContent(
             state = uiState,
             onNavigateToTools = onNavigateToTools,
