@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.emptyPreferences
 import com.letta.mobile.data.storage.SecureSettingsStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class InMemorySecureSettingsStore : SecureSettingsStore {
     private val values = mutableMapOf<String, String>()
@@ -31,12 +33,15 @@ private class InMemoryPreferencesDataStore(
     initialPreferences: Preferences = emptyPreferences(),
 ) : DataStore<Preferences> {
     private val state = MutableStateFlow(initialPreferences)
+    private val updateMutex = Mutex()
 
     override val data: Flow<Preferences> = state
 
     override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
-        val updated = transform(state.value)
-        state.value = updated
-        return updated
+        return updateMutex.withLock {
+            val updated = transform(state.value)
+            state.value = updated
+            updated
+        }
     }
 }
