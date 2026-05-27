@@ -2,6 +2,7 @@ package com.letta.mobile.feature.chat
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -24,7 +25,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +40,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.letta.mobile.feature.chat.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.letta.mobile.data.model.MessageContentPart
@@ -58,8 +63,12 @@ private val ChatComposerInputVerticalPadding = 6.dp
 private val ChatComposerInputItemSpacing = 6.dp
 
 internal object ChatComposerTestTags {
+    const val AttachmentThumbnail = "chat-composer-attachment-thumbnail"
     const val AttachmentThumbnailImage = "chat-composer-attachment-thumbnail-image"
     const val AttachmentThumbnailPlaceholder = "chat-composer-attachment-thumbnail-placeholder"
+    const val AttachmentThumbnailRemoveButton = "chat-composer-attachment-thumbnail-remove"
+    const val AttachmentPreviewDialog = "chat-composer-attachment-preview-dialog"
+    const val AttachmentPreviewImage = "chat-composer-attachment-preview-image"
 }
 
 /**
@@ -85,6 +94,7 @@ internal fun ChatComposer(
     val canSend = !isStreaming && canSendMessages && hasSendableContent
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
+    var previewAttachment by remember { mutableStateOf<MessageContentPart.Image?>(null) }
 
     // letta-mobile-xtwt: defer to the IME's own Send action while the soft
     // keyboard is open and there's nothing in flight. The composer's trailing
@@ -132,6 +142,7 @@ internal fun ChatComposer(
             AttachmentStrip(
                 attachments = pendingAttachments,
                 onRemove = onRemoveAttachment,
+                onPreview = { previewAttachment = it },
             )
         }
 
@@ -211,12 +222,20 @@ internal fun ChatComposer(
             },
         )
     }
+
+    previewAttachment?.let { image ->
+        AttachmentPreviewDialog(
+            image = image,
+            onDismiss = { previewAttachment = null },
+        )
+    }
 }
 
 @Composable
 private fun AttachmentStrip(
     attachments: ImmutableList<MessageContentPart.Image>,
     onRemove: (Int) -> Unit,
+    onPreview: (MessageContentPart.Image) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
@@ -226,13 +245,13 @@ private fun AttachmentStrip(
             .padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(
+        itemsIndexed(
             items = attachments,
-            key = { it.base64.hashCode() },
-        ) { img ->
-            val index = attachments.indexOf(img)
+            key = { index, img -> "$index-${img.base64.hashCode()}" },
+        ) { index, img ->
             AttachmentThumbnail(
                 image = img,
+                onPreview = { onPreview(img) },
                 onRemove = {
                     HapticEffects.segmentTick(haptic, view)
                     onRemove(index)
@@ -245,6 +264,7 @@ private fun AttachmentStrip(
 @Composable
 private fun AttachmentThumbnail(
     image: MessageContentPart.Image,
+    onPreview: () -> Unit,
     onRemove: () -> Unit,
 ) {
     // letta-mobile-v4f9: the axb2 ByteArray fix regressed under Coil 3.4 —
@@ -254,23 +274,21 @@ private fun AttachmentThumbnail(
     // Compose's native Image. No Coil round-trip, no async state to
     // mis-resolve, identical caching scope (the parent composition holds
     // the bitmap via remember keyed on the base64 string).
-    val imageBitmap = remember(image.base64) {
-        runCatching {
-            val bytes = android.util.Base64.decode(image.base64, android.util.Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-        }.getOrNull()
-    }
+    val imageBitmap = rememberAttachmentImageBitmap(image.base64)
 
     Box(modifier = Modifier.size(64.dp)) {
         Surface(
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier
+                .size(64.dp)
+                .testTag(ChatComposerTestTags.AttachmentThumbnail)
+                .clickable(onClick = onPreview),
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
             if (imageBitmap != null) {
                 Image(
                     bitmap = imageBitmap,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.action_preview_attachment),
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(ChatComposerTestTags.AttachmentThumbnailImage),
@@ -289,14 +307,15 @@ private fun AttachmentThumbnail(
             modifier = Modifier
                 .size(20.dp)
                 .align(Alignment.TopEnd)
-                .clip(CircleShape)
-                .clickable(onClick = onRemove),
+                .clip(CircleShape),
             color = MaterialTheme.colorScheme.errorContainer,
             shape = CircleShape,
         ) {
             IconButton(
                 onClick = onRemove,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier
+                    .size(20.dp)
+                    .testTag(ChatComposerTestTags.AttachmentThumbnailRemoveButton),
             ) {
                 Icon(
                     LettaIcons.Close,
@@ -306,4 +325,66 @@ private fun AttachmentThumbnail(
             }
         }
     }
+}
+
+@Composable
+private fun AttachmentPreviewDialog(
+    image: MessageContentPart.Image,
+    onDismiss: () -> Unit,
+) {
+    val imageBitmap = rememberAttachmentImageBitmap(image.base64)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.72f))
+                .padding(24.dp)
+                .testTag(ChatComposerTestTags.AttachmentPreviewDialog),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                if (imageBitmap != null) {
+                    Image(
+                        bitmap = imageBitmap,
+                        contentDescription = stringResource(R.string.action_preview_attachment),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag(ChatComposerTestTags.AttachmentPreviewImage),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    imageVector = LettaIcons.Close,
+                    contentDescription = stringResource(R.string.action_close),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberAttachmentImageBitmap(base64: String) = remember(base64) {
+    runCatching {
+        val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    }.getOrNull()
 }
