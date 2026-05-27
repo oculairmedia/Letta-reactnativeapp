@@ -25,7 +25,7 @@ data class ApiSession(val client: HttpClient, val baseUrl: String)
 
 @Singleton
 open class LettaApiClient @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val settingsRepository: ISettingsRepository
 ) {
     private val json = Json {
@@ -42,27 +42,29 @@ open class LettaApiClient @Inject constructor(
     private var cachedBaseUrl: String? = null
     private var cachedToken: String? = null
 
-    open suspend fun getClient(): HttpClient {
+    open suspend fun getClient(): HttpClient = session().client
+
+    open suspend fun session(): ApiSession {
         val config = settingsRepository.activeConfig.value
         val url = config?.serverUrl?.trim() ?: "https://api.letta.com"
         val token = config?.accessToken?.trim()
 
-        mutex.withLock {
+        return mutex.withLock {
             if (cachedClient != null && cachedBaseUrl == url && cachedToken == token) {
-                return cachedClient ?: error("cachedClient null after null check")
+                return@withLock ApiSession(
+                    client = cachedClient ?: error("cachedClient null after null check"),
+                    baseUrl = url.trimEnd('/'),
+                )
             }
             cachedClient?.close()
             cachedClient = createClient(token, if (url.endsWith("/")) url else "$url/")
             cachedBaseUrl = url
             cachedToken = token
-            return cachedClient ?: error("cachedClient null after initialization")
+            ApiSession(
+                client = cachedClient ?: error("cachedClient null after initialization"),
+                baseUrl = url.trimEnd('/'),
+            )
         }
-    }
-
-    open suspend fun session(): ApiSession {
-        val client = getClient()
-        val url = (cachedBaseUrl ?: "https://api.letta.com").trimEnd('/')
-        return ApiSession(client, url)
     }
 
     open fun getBaseUrl(): String {
