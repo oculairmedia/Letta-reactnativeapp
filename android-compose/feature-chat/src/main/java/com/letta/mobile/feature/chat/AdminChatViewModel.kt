@@ -36,8 +36,8 @@ import com.letta.mobile.feature.chat.route.ChatRouteArgs
 import com.letta.mobile.feature.chat.session.ChatSessionInitializer
 import com.letta.mobile.feature.chat.state.ChatBannerController
 import com.letta.mobile.data.transport.A2uiActionDispatchResult
-import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.WsChatBridge
+import com.letta.mobile.data.transport.WsConnectionState
 import com.letta.mobile.data.transport.WsTimelineEvent
 import com.letta.mobile.runtime.RuntimeEventOutbox
 import com.letta.mobile.util.Telemetry
@@ -511,16 +511,16 @@ internal class AdminChatViewModel @Inject constructor(
      */
     private fun observeTransportState() {
         viewModelScope.launch {
-            combine(isShimBackend, wsChatBridge.state) { isShim, wsState ->
+            combine(isShimBackend, wsChatBridge.connection) { isShim, wsState ->
                 if (!isShim) return@combine ChatTransport.Rest
                 when (wsState) {
-                    is ChannelTransport.State.Idle -> ChatTransport.WsIdle
-                    is ChannelTransport.State.Connecting -> ChatTransport.WsConnecting
-                    is ChannelTransport.State.Connected -> ChatTransport.WsConnected(
+                    is WsConnectionState.Idle -> ChatTransport.WsIdle
+                    is WsConnectionState.Connecting -> ChatTransport.WsConnecting
+                    is WsConnectionState.Connected -> ChatTransport.WsConnected(
                         a2uiEnabled = wsState.a2uiEnabled,
-                        catalog = wsState.a2uiCatalog,
+                        catalog = wsState.catalog,
                     )
-                    is ChannelTransport.State.Disconnected -> ChatTransport.WsDisconnected(
+                    is WsConnectionState.Disconnected -> ChatTransport.WsDisconnected(
                         code = wsState.code,
                         reason = wsState.reason,
                     )

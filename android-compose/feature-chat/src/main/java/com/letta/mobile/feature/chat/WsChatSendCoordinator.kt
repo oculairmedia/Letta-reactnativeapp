@@ -7,7 +7,6 @@ import com.letta.mobile.data.model.MessageContentPart
 import com.letta.mobile.data.repository.api.IConversationRepository
 import com.letta.mobile.data.runtime.toRuntimeEventDrafts
 import com.letta.mobile.data.timeline.api.TimelineExternalTransportWriter
-import com.letta.mobile.data.transport.ChannelTransport
 import com.letta.mobile.data.transport.WsChatBridge
 import com.letta.mobile.data.transport.WsTimelineEvent
 import com.letta.mobile.runtime.BackendDescriptor
@@ -17,8 +16,6 @@ import com.letta.mobile.util.Telemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,7 +92,7 @@ internal class WsChatSendCoordinator(
         val currentConversationId = activeConversationId()
         val startNewConversation = isFreshRoute &&
             currentConversationId == null &&
-            wsChatBridge.state.value is ChannelTransport.State.Connected
+            wsChatBridge.isConnected()
         val conversationId = when {
             currentConversationId != null -> currentConversationId
             startNewConversation -> NEW_CONVERSATION_PLACEHOLDER
@@ -326,7 +323,7 @@ internal class WsChatSendCoordinator(
     private fun pendingQueueDepth(): Int = synchronized(pendingSendLock) { pendingSends.size }
 
     private suspend fun ensureConnected(config: LettaConfig): Boolean {
-        if (wsChatBridge.state.value is ChannelTransport.State.Connected) return true
+        if (wsChatBridge.isConnected()) return true
         runCatching {
             wsChatBridge.connect(
                 baseShimUrl = config.serverUrl,
@@ -339,7 +336,7 @@ internal class WsChatSendCoordinator(
             return false
         }
         return withTimeoutOrNull(CONNECT_WAIT_MS) {
-            wsChatBridge.state.filter { it is ChannelTransport.State.Connected }.first()
+            wsChatBridge.awaitConnected()
             true
         } ?: false
     }
