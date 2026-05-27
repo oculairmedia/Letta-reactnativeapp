@@ -211,25 +211,33 @@ class TimelineSyncLoopTest {
         scope.coroutineContext.job.cancel()
     }
     @Test
-    fun `send then stream appends confirmed assistant event`() = runBlocking {
+    fun `send then stream appends confirmed assistant event`() = runTest {
         val api = FakeSyncApi()
         api.nextStreamMessages = listOf(
             AssistantMessage(id = "reply-1", contentRaw = JsonPrimitive("OK"), otid = "reply-otid")
         )
-        val scope = CoroutineScope(Dispatchers.IO)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
         val sync = TimelineSyncLoop(api, "conv1", scope)
 
-        val userOtid = sync.send("hello")
+        sync.state.test {
+            assertEquals(0, awaitItem().events.size)
 
-        // Wait until the reply lands
-        withTimeout(5_000) {
-            while (sync.state.value.findByOtid("reply-otid") == null) delay(10)
+            val userOtidDeferred = async { sync.send("hello") }
+            testScheduler.advanceUntilIdle()
+            val userOtid = userOtidDeferred.await()
+
+            var timeline = awaitItem()
+            while (timeline.findByOtid("reply-otid") == null) {
+                timeline = awaitItem()
+            }
+
+            val events = timeline.events
+            assertEquals(2, events.size)
+            assertTrue(events[0].otid == userOtid || events[0].otid.contains(userOtid))
+            assertEquals("OK", events[1].content)
+            cancelAndIgnoreRemainingEvents()
         }
-
-        val events = sync.state.value.events
-        assertEquals(2, events.size)
-        assertTrue(events[0].otid == userOtid || events[0].otid.contains(userOtid))
-        assertEquals("OK", events[1].content)
         scope.coroutineContext.job.cancel()
     }
 
