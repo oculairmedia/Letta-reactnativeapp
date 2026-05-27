@@ -622,6 +622,37 @@ class WsChatSendCoordinatorTest {
     }
 
     @Test
+    fun `bare stop reason error surfaces a send failure message`() = runTest {
+        val wsChatBridge = mockBridge(sendAccepted = true)
+        val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
+        val coordinator = WsChatSendCoordinator(
+            scope = backgroundScope,
+            agentId = "agent-1",
+            activeConfig = settingsRepository(),
+            wsChatBridge = wsChatBridge,
+            timelineRepository = FakeTimelineExternalTransportWriter(),
+            conversationRepository = stubConversationRepository(),
+            uiState = uiState,
+            clearComposerAfterSend = {},
+            activeConversationId = { null },
+            setActiveConversationId = {},
+            startTimelineObserver = {},
+            clientVersionProvider = clientVersionProvider,
+        )
+
+        coordinator.handleEvent(WsTimelineEvent.StopReason(turnId = "turn-1", runId = "run-1", stopReason = "error"))
+        coordinator.handleEvent(WsTimelineEvent.TurnDone(turnId = "turn-1", runId = "run-1", status = "completed"))
+        advanceUntilIdle()
+
+        assertEquals(
+            "Agent run failed after your message was sent. No error details were provided by the shim.",
+            uiState.value.error,
+        )
+        assertEquals(false, uiState.value.isStreaming)
+        assertEquals(false, uiState.value.isAgentTyping)
+    }
+
+    @Test
     fun `turn done cancelled does not set error banner`() = runTest {
         val wsChatBridge = mockBridge(sendAccepted = true)
         val uiState = MutableStateFlow(ChatUiState(agentName = "Agent", isStreaming = true, isAgentTyping = true))
