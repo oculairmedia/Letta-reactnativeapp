@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
@@ -1057,6 +1058,61 @@ class TimelineSyncLoopTest {
     }
 
     @Test
+    fun `recent reconcile skips REST snapshot while stream subscriber is active`() = runTest {
+        val api = FakeSyncApi()
+        api.streamConversationReturnsOpenChannel = true
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-live-skip", scope)
+
+        runCurrent()
+        assertTrue("stream subscriber should be active before reconcile", sync.streamSubscriberActive.value)
+
+        api.addStoredMessage(
+            UserMessage(
+                id = "fresh-user-no-otid",
+                contentRaw = JsonPrimitive("fresh server prompt"),
+                date = "2026-05-19T06:25:00Z",
+            )
+        )
+
+        sync.reconcileRecentMessages("open")
+        runCurrent()
+
+        assertEquals("active stream should remain the only live writer", 0, api.listMessagesCalls)
+        assertTrue(sync.state.value.events.isEmpty())
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
+    fun `forced recent reconcile fetches exactly once while stream subscriber is active`() = runTest {
+        val api = FakeSyncApi()
+        api.streamConversationReturnsOpenChannel = true
+        api.addStoredMessage(
+            UserMessage(
+                id = "fresh-user-no-otid",
+                contentRaw = JsonPrimitive("fresh server prompt"),
+                date = "2026-05-19T06:25:00Z",
+            )
+        )
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val sync = TimelineSyncLoop(api, "conv-live-refresh", scope)
+
+        runCurrent()
+        assertTrue("stream subscriber should be active before forced reconcile", sync.streamSubscriberActive.value)
+
+        val reconcile = async { sync.reconcileRecentMessages("pull-to-refresh", forceRefresh = true) }
+        runCurrent()
+        reconcile.await()
+
+        assertEquals("pull-to-refresh should perform one REST snapshot", 1, api.listMessagesCalls)
+        val confirmed = sync.state.value.events.filterIsInstance<TimelineEvent.Confirmed>()
+        assertEquals(listOf("fresh-user-no-otid"), confirmed.map { it.serverId })
+        scope.coroutineContext.job.cancel()
+    }
+
+    @Test
     fun `reconcile does not retry on 4xx permanent errors`() = runBlocking {
         // letta-mobile-j44j: 4xx responses (auth, validation) won't become
         // true on retry, so we fail fast to avoid wasting up to 1.4s of
@@ -1860,6 +1916,7 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
     var lastConversationLimit: Int? = null
     val conversationLimits = mutableListOf<Int?>()
     val conversationOrders = mutableListOf<String?>()
+    var streamConversationReturnsOpenChannel: Boolean = false
 
     fun addStoredMessage(msg: LettaMessage) {
         stored.add(msg)
@@ -1872,6 +1929,9 @@ private class FakeSyncApi : MessageApi(mockk(relaxed = true)) {
     // that never exercises the subscriber). Idle here instead so the loop
     // suspends until the test's scope is cancelled. letta-mobile-o8pr.
     override suspend fun streamConversation(conversationId: String): ByteReadChannel {
+        if (streamConversationReturnsOpenChannel) {
+            return ByteChannel()
+        }
         kotlinx.coroutines.awaitCancellation()
     }
 
