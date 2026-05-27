@@ -2,6 +2,7 @@ package com.letta.mobile.cli.runtime
 
 import com.github.ajalt.clikt.core.UsageError
 import com.letta.mobile.data.model.MessageContentPart
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
@@ -48,7 +49,13 @@ private fun readImageFile(path: Path): MessageContentPart.Image {
         throw UsageError("Image attachment not found: $path")
     }
     val mediaType = detectImageMediaType(normalized)
-    val bytes = Files.readAllBytes(normalized)
+    val bytes = try {
+        Files.readAllBytes(normalized)
+    } catch (e: IOException) {
+        throw UsageError("Unable to read image attachment: $path (${e.message})")
+    } catch (e: SecurityException) {
+        throw UsageError("Unable to read image attachment: $path (${e.message})")
+    }
     if (bytes.isEmpty()) {
         throw UsageError("Image attachment is empty: $path")
     }

@@ -287,7 +287,7 @@ internal class RecordCommand : AdminShimCommand(
     private val images by option(
         "--image",
         "-i",
-        help = "Image file path or data:image/*;base64,... URL to send with --message. Repeatable.",
+        help = "Image file path or data:image/*;base64,... URL. Repeatable; can be used with or without --message.",
     ).multiple()
     private val runId by option("--run-id")
     private val cursor by option("--cursor").long().default(0)
