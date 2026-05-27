@@ -261,6 +261,32 @@ class ConfigViewModelTest {
     }
 
     @Test
+    fun saveConfig_withBlankCloudToken_keepsImmediatePreferenceChanges() = runTest {
+        fakeRepository.activeConfigState.value = null
+        viewModel.loadConfig()
+
+        viewModel.updateTheme(AppTheme.DARK)
+        viewModel.updateThemePreset(ThemePreset.SAKURA)
+        viewModel.updateDynamicColor(false)
+        viewModel.updateEnableProjects(false)
+        viewModel.updateMode(ServerMode.CLOUD)
+        viewModel.updateApiToken("")
+
+        var errorMessage: String? = null
+        viewModel.saveConfig(onSuccess = {}, onError = { errorMessage = it })
+
+        assertEquals(null, fakeRepository.activeConfig.value)
+        assertEquals(
+            "Letta Cloud API key is required. Paste a key from app.letta.com before saving.",
+            errorMessage,
+        )
+        assertEquals(AppTheme.DARK, fakeRepository.getTheme().first())
+        assertEquals(ThemePreset.SAKURA, fakeRepository.getThemePreset().first())
+        assertEquals(false, fakeRepository.getDynamicColor().first())
+        assertEquals(false, fakeRepository.getEnableProjects().first())
+    }
+
+    @Test
     fun saveConfig_withRejectedCloudToken_reportsErrorAndDoesNotSave() = runTest {
         fakeRepository.activeConfigState.value = null
         fakeValidator.result = CloudConnectionValidationResult.Failed("bad key")

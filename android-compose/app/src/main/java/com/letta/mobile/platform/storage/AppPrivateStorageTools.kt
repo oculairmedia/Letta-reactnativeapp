@@ -5,6 +5,9 @@ import com.letta.mobile.platform.systemaccess.SystemAccessCapabilityRegistry
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -155,12 +158,23 @@ class AppPrivateStorageTools @Inject constructor(
             throw InvalidStoragePathException("Absolute paths are not allowed")
         }
 
-        val canonicalRoot = rootProvider.rootDirectory(root).canonicalFile
-        val candidate = File(canonicalRoot, path).canonicalFile
-        if (candidate != canonicalRoot && !candidate.path.startsWith(canonicalRoot.path + File.separator)) {
+        val rootPath = rootProvider.rootDirectory(root).toPath().toRealPath()
+        val candidatePath = rootPath.resolve(path).normalize()
+        if (!candidatePath.isContainedIn(rootPath)) {
             throw InvalidStoragePathException("Path escapes the approved app-private root")
         }
-        candidate
+        val existingAncestor = candidatePath.nearestExistingAncestor()
+        val realAncestor = existingAncestor.toRealPath()
+        if (!realAncestor.isContainedIn(rootPath)) {
+            throw InvalidStoragePathException("Path escapes the approved app-private root")
+        }
+        if (existingAncestor != candidatePath) {
+            val resolvedCandidate = realAncestor.resolve(existingAncestor.relativize(candidatePath)).normalize()
+            if (!resolvedCandidate.isContainedIn(rootPath)) {
+                throw InvalidStoragePathException("Path escapes the approved app-private root")
+            }
+        }
+        candidatePath.toFile()
     }
 
     private fun File.toEntry(root: AppPrivateStorageRoot): StorageFileEntry {
@@ -186,3 +200,13 @@ private fun normalizeDisplayPath(path: String): String = path
     .ifBlank { "." }
 
 private class InvalidStoragePathException(message: String) : Exception(message)
+
+private fun Path.isContainedIn(root: Path): Boolean = this == root || startsWith(root)
+
+private fun Path.nearestExistingAncestor(): Path {
+    var current: Path? = this
+    while (current != null && !Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+        current = current.parent
+    }
+    return current ?: throw InvalidStoragePathException("Path has no existing root")
+}

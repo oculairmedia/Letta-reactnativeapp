@@ -17,9 +17,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Tag("unit")
@@ -27,7 +27,7 @@ class SettingsRepositoryTest {
 
     private lateinit var repository: SettingsRepository
 
-    @Before
+    @BeforeEach
     fun setup() {
         repository = SettingsRepository(
             dataStore = createTestPreferencesDataStore(),
