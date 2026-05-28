@@ -5,9 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +14,16 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -37,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +46,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,6 +76,7 @@ import com.letta.mobile.ui.theme.ChatBackground
 import com.letta.mobile.ui.theme.LettaChatTheme
 import com.letta.mobile.ui.theme.LocalWindowSizeClass
 import com.letta.mobile.ui.theme.isExpandedWidth
+import kotlinx.collections.immutable.ImmutableMap
 import kotlin.math.max
 
 /**
@@ -279,6 +281,7 @@ internal fun ChatScreen(
                                 onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                                 onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
                                 onA2uiAction = viewModel::submitA2uiAction,
+                                onDismissA2uiSurface = viewModel::dismissA2uiSurface,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -299,6 +302,7 @@ internal fun ChatScreen(
                                 onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                                 onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
                                 onA2uiAction = viewModel::submitA2uiAction,
+                                onDismissA2uiSurface = viewModel::dismissA2uiSurface,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -450,6 +454,7 @@ internal fun NoConversationChatContent(
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
     onA2uiAction: (A2uiAction) -> Unit = {},
+    onDismissA2uiSurface: (String) -> Unit = {},
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -478,6 +483,7 @@ internal fun NoConversationChatContent(
             onToggleRunCollapsed = onToggleRunCollapsed,
             onToggleReasoningExpanded = onToggleReasoningExpanded,
             onA2uiAction = onA2uiAction,
+            onDismissA2uiSurface = onDismissA2uiSurface,
             activeFontScale = activeFontScale,
             onActiveFontScaleChange = onActiveFontScaleChange,
             onFontScaleChange = onFontScaleChange,
@@ -498,6 +504,7 @@ private fun ChatContent(
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
     onA2uiAction: (A2uiAction) -> Unit = {},
+    onDismissA2uiSurface: (String) -> Unit = {},
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -541,9 +548,10 @@ private fun ChatContent(
                 )
             }
             A2uiSurfaceStack(
-                surfaces = state.a2uiSurfaces.values,
+                surfaces = state.a2uiSurfaces,
                 resolvedActionCounters = state.a2uiResolvedActionCounters,
                 onAction = onA2uiAction,
+                onDismissSurface = onDismissA2uiSurface,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -555,53 +563,71 @@ private fun ChatContent(
 
 @Composable
 private fun A2uiSurfaceStack(
-    surfaces: Collection<A2uiSurfaceState>,
+    surfaces: ImmutableMap<String, A2uiSurfaceState>,
     resolvedActionCounters: Map<String, Int>,
     onAction: (A2uiAction) -> Unit,
+    onDismissSurface: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (surfaces.isEmpty()) return
-    val orderedSurfaces = remember(surfaces) { surfaces.sortedBy(A2uiSurfaceState::surfaceId) }
+    val orderedSurfaces = surfaces.values.sortedBy(A2uiSurfaceState::surfaceId)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         orderedSurfaces.forEach { surface ->
             key(surface.surfaceId) {
-                val scrollState = rememberScrollState()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = A2uiSurfaceMaxHeight),
+                DismissibleA2uiSurface(
+                    surfaceId = surface.surfaceId,
+                    onDismissSurface = onDismissSurface,
                 ) {
                     A2uiSurfaceRenderer(
                         surface = surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                            .padding(end = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         onAction = onAction,
                         actionResolutionToken = resolvedActionCounters[surface.surfaceId] ?: 0,
                     )
-                    if (scrollState.maxValue > 0) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .width(3.dp)
-                                .height(48.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f),
-                                    shape = RoundedCornerShape(2.dp),
-                                ),
-                        )
-                    }
                 }
             }
         }
     }
 }
 
-private val A2uiSurfaceMaxHeight = 420.dp
+@Composable
+private fun DismissibleA2uiSurface(
+    surfaceId: String,
+    onDismissSurface: (String) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var menuExpanded by remember(surfaceId) { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Dismiss A2UI surface") {
+                        onDismissSurface(surfaceId)
+                        true
+                    }
+                )
+            }
+            .longPressPassthrough { menuExpanded = true },
+    ) {
+        content()
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Dismiss") },
+                onClick = {
+                    menuExpanded = false
+                    onDismissSurface(surfaceId)
+                },
+            )
+        }
+    }
+}
 
 @Composable
 private fun ErrorContent(

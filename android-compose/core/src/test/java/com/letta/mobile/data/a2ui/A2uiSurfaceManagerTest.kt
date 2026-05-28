@@ -57,6 +57,82 @@ class A2uiSurfaceManagerTest : WordSpec({
             manager.surface("s1").shouldBeNull()
         }
 
+        "drop a surface when create and delete arrive in the same batch" {
+            val manager = A2uiSurfaceManager()
+
+            manager.applyMessages(
+                decodeA2uiMessages(
+                    json,
+                    json.parseToJsonElement(
+                        """
+                        [
+                          {"version":"v0.9","createSurface":{"surfaceId":"s1","catalogId":"basic"}},
+                          {"version":"v0.9","updateComponents":{"surfaceId":"s1","root":"body","components":[
+                            {"id":"body","component":"Text","text":{"literalString":"Transient"}}
+                          ]}},
+                          {"version":"v0.9","deleteSurface":{"surfaceId":"s1"}}
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            )
+
+            manager.surface("s1").shouldBeNull()
+            manager.surfaces.value shouldBe emptyMap()
+        }
+
+        "ignore delete for a missing surface" {
+            val manager = A2uiSurfaceManager()
+            manager.applyMessages(
+                decodeA2uiMessages(
+                    json,
+                    json.parseToJsonElement(
+                        """
+                        [
+                          {"version":"v0.9","createSurface":{"surfaceId":"s1","catalogId":"basic"}},
+                          {"version":"v0.9","updateComponents":{"surfaceId":"s1","root":"body","components":[
+                            {"id":"body","component":"Text","text":{"literalString":"Still here"}}
+                          ]}}
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            )
+
+            manager.applyMessage(
+                A2uiMessage.DeleteSurface(
+                    deleteSurface = A2uiDeleteSurfacePayload(surfaceId = "missing"),
+                )
+            )
+
+            manager.surface("s1")!!.rootComponentId shouldBe "body"
+            manager.surface("missing").shouldBeNull()
+        }
+
+        "dismiss a live surface locally" {
+            val manager = A2uiSurfaceManager()
+            manager.applyMessages(
+                decodeA2uiMessages(
+                    json,
+                    json.parseToJsonElement(
+                        """
+                        [
+                          {"version":"v0.9","createSurface":{"surfaceId":"s1","catalogId":"basic"}},
+                          {"version":"v0.9","updateComponents":{"surfaceId":"s1","root":"body","components":[
+                            {"id":"body","component":"Text","text":{"literalString":"Dismiss me"}}
+                          ]}}
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            )
+
+            manager.dismissSurface("s1")
+
+            manager.surface("s1").shouldBeNull()
+            manager.surfaces.value shouldBe emptyMap()
+        }
+
         "merge partial component updates without losing previous nodes" {
             val manager = A2uiSurfaceManager()
             manager.applyMessages(
