@@ -25,6 +25,7 @@ detekt {
 }
 
 sentry {
+    telemetry.set(false)
     autoInstallation.enabled.set(true)
 
     // Gate ProGuard mapping + source-context upload on the auth token being

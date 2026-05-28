@@ -19,6 +19,7 @@ internal class ChatApprovalController(
         toolCallIds: List<String>,
         approve: Boolean,
         reason: String?,
+        activeConversationIdOverride: String? = null,
     ) {
         scope.launch {
             markApprovalInFlight(requestId)
@@ -26,7 +27,7 @@ internal class ChatApprovalController(
             try {
                 when (val result = coordinator.submitApproval(
                     agentId = agentId,
-                    activeConversationId = activeConversationId(),
+                    activeConversationId = activeConversationIdOverride ?: activeConversationId(),
                     requestId = requestId,
                     toolCallIds = toolCallIds,
                     approve = approve,

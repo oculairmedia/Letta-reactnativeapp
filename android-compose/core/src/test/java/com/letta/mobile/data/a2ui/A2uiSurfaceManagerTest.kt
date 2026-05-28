@@ -112,7 +112,7 @@ class A2uiSurfaceManagerTest : WordSpec({
                     conversationId = "conv-1",
                     turnId = "turn-1",
                     runId = "run-1",
-                    requestId = null,
+                    requestId = "approval-1",
                     messages = decodeA2uiMessages(
                         json,
                         json.parseToJsonElement(
@@ -132,6 +132,7 @@ class A2uiSurfaceManagerTest : WordSpec({
             surface.conversationId shouldBe "conv-1"
             surface.turnId shouldBe "turn-1"
             surface.runId shouldBe "run-1"
+            surface.approvalRequestId shouldBe "approval-1"
         }
     }
 
