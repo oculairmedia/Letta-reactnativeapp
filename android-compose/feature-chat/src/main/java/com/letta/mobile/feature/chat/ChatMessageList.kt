@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -302,6 +303,19 @@ internal fun ChatMessageList(
                     vertical = LettaSpacing.cardGap,
                 ),
                 reverseLayout = true,
+                // letta-mobile-erhjl: keep an identity graphicsLayer so the
+                // LazyColumn rasterizes its visible items into an offscreen
+                // GPU layer once and moves the LAYER during scroll instead
+                // of re-rasterizing every frame. The original modifier here
+                // was doing this incidentally via scaleX/scaleY = visualScale;
+                // PR #280 removed it to enable live LocalChatFontScale reflow,
+                // but the rasterization barrier was load-bearing for scroll
+                // performance. The actual scale now comes from the surrounding
+                // CompositionLocalProvider(LocalChatFontScale provides ...),
+                // which drives real text re-layout; this graphicsLayer block
+                // is intentionally empty (identity transform) and exists only
+                // for the offscreen-layer optimization.
+                modifier = Modifier.graphicsLayer { },
             ) {
                 // letta-mobile-vcky.b2: the thinking glow moved out of the
                 // list and into a Box overlay above the ChatComposer (see
