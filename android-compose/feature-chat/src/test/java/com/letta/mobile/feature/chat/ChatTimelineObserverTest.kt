@@ -186,6 +186,7 @@ class ChatTimelineObserverTest {
             isFollowingDuplicateInitialMessageInFlight = isFollowingDuplicateInitialMessageInFlight,
             clearFollowingDuplicateInitialMessageInFlight = clearFollowingDuplicateInitialMessageInFlight,
             collapseCompletedRunsIfStreamingFinished = { _, next -> next },
+            replayA2uiHistory = { emptyMap() },
             projectionDispatcher = scope.coroutineContext[ContinuationInterceptor] as? CoroutineDispatcher
                 ?: Dispatchers.Default,
         )

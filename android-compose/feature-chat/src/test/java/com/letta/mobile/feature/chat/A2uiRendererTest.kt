@@ -141,6 +141,188 @@ class A2uiRendererTest {
     }
 
     @Test
+    fun functionBoundTextRendersComputedValue() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"title","components":[
+                {"id":"title","component":"Text","text":{"call":"formatString","args":{"template":"Hello ${'$'}{/userName}: ${'$'}{/done}/${'$'}{/total}"},"returnType":"string"}}
+              ]}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/userName","value":"Emmanuel"}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/done","value":5}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/total","value":10}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("Hello Emmanuel: 5/10").assertIsDisplayed()
+    }
+
+    @Test
+    fun textFieldChecksShowValidationError() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"email","components":[
+                {"id":"email","component":"TextField","label":{"literalString":"Email"},"value":{"path":"/email"},"checks":[
+                  {"call":"email","args":{},"message":{"literalString":"Enter a valid email"}}
+                ]}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.TextField).performTextInput("not-email")
+        composeRule.onNodeWithText("Enter a valid email").assertIsDisplayed()
+    }
+
+    @Test
+    fun checkBoxAliasRendersGlyphLabelAndUpdatesValue() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"accept","components":[
+                {"id":"accept","component":"CheckBox","label":{"literalString":"Accept terms"},"value":{"path":"/accepted"}}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithText("Accept terms").assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.Checkbox).assertIsOff().performClick()
+        composeRule.runOnIdle {
+            assertEquals("true", manager.surface(SurfaceId)!!.dataModel.resolve("/accepted")!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun listAliasRendersChildrenInline() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"items","components":[
+                {"id":"items","component":"List","children":["card1","card2"],"spacing":"sm"},
+                {"id":"card1","component":"Card","child":"title1"},
+                {"id":"title1","component":"Text","text":{"literalString":"First card"}},
+                {"id":"card2","component":"Card","child":"title2"},
+                {"id":"title2","component":"Text","text":{"literalString":"Second card"}}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.ListView).assertIsDisplayed()
+        composeRule.onNodeWithText("First card").assertIsDisplayed()
+        composeRule.onNodeWithText("Second card").assertIsDisplayed()
+    }
+
+    @Test
+    fun modalOnlyRendersWhenVisible() {
+        val hidden = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"modal","components":[
+                {"id":"modal","component":"Modal","visible":false,"title":{"literalString":"Details"},"child":"body"},
+                {"id":"body","component":"Text","text":{"literalString":"Modal body"}}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = hidden)
+        }
+        composeRule.onNodeWithText("Modal body").assertDoesNotExist()
+        composeRule.runOnIdle {
+            hidden.applyMessages(
+                decodeA2uiMessages(
+                    A2uiProtocolJson.Default,
+                    A2uiProtocolJson.Default.parseToJsonElement(
+                        """
+                        [
+                          {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"modal","components":[
+                            {"id":"modal","component":"Modal","visible":true,"title":{"literalString":"Details"},"child":"body"},
+                            {"id":"body","component":"Text","text":{"literalString":"Modal body"}}
+                          ]}}
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            )
+        }
+        composeRule.onNodeWithTag(A2uiTestTags.Modal).assertIsDisplayed()
+        composeRule.onNodeWithText("Modal body").assertIsDisplayed()
+    }
+
+    @Test
+    fun mediaWidgetsRenderVisibleControls() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"media","components":[
+                {"id":"media","component":"Column","children":["video","audio"],"spacing":"sm"},
+                {"id":"video","component":"Video","url":{"literalString":"https://example.com/demo.mp4"}},
+                {"id":"audio","component":"AudioPlayer","url":{"literalString":"https://example.com/demo.mp3"},"title":{"literalString":"Audio sample"}}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onNodeWithTag(A2uiTestTags.Video).assertIsDisplayed()
+        composeRule.onNodeWithTag(A2uiTestTags.AudioPlayer).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(A2uiTestTags.MediaPlayPause).assertCountEquals(2)
+    }
+
+    @Test
+    fun openUrlFunctionCallDoesNotDispatchServerAction() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"open","components":[
+                {"id":"open","component":"Button","label":{"literalString":"Open docs"},"action":{"functionCall":{"call":"openUrl","args":{"url":"https://example.com"}}}}
+              ]}}
+            ]
+            """.trimIndent(),
+        )
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager, onAction = actions::add)
+        }
+
+        composeRule.onNodeWithText("Open docs").assertIsEnabled().performClick()
+        composeRule.runOnIdle {
+            assertTrue(actions.isEmpty())
+        }
+    }
+
+    @Test
     fun dataModelUpdatesChangedPointerWithoutChangingOtherPointerValue() {
         val model = A2uiDataModel()
         model.applyPatch("/title", JsonPrimitive("Pending"))
@@ -600,6 +782,62 @@ class A2uiRendererTest {
                 "glitchy",
                 manager.surface(SurfaceId)!!.dataModel.resolve("/feel")!!.jsonPrimitive.content,
             )
+        }
+    }
+
+    @Test
+    fun choicePickerDisplayModeAndSelectionModeAreIndependentAcrossAllCombinations() {
+        val manager = surfaceManagerFromJson(
+            """
+            [
+              {"version":"v0.9","createSurface":{"surfaceId":"$SurfaceId","catalogId":"basic"}},
+              {"version":"v0.9","updateComponents":{"surfaceId":"$SurfaceId","root":"pickers","components":[
+                {"id":"pickers","component":"Column","children":["single-list","multi-list","single-chips","multi-chips"],"spacing":"sm"},
+                {"id":"single-list","component":"ChoicePicker","label":"Provider","value":{"path":"/provider"},"selectionMode":"single","displayMode":"checkbox","options":[
+                  {"label":"Anthropic","value":"anthropic"},
+                  {"label":"OpenAI","value":"openai"}
+                ]},
+                {"id":"multi-list","component":"ChoicePicker","label":"Capabilities","value":{"path":"/capabilities"},"selectionMode":"multi","displayMode":"checkbox","options":[
+                  {"label":"Vision","value":"vision"},
+                  {"label":"Code","value":"code"}
+                ]},
+                {"id":"single-chips","component":"ChoicePicker","label":"Tone","value":{"path":"/tone"},"selectionMode":"single","displayMode":"chips","options":[
+                  {"label":"Calm","value":"calm"},
+                  {"label":"Direct","value":"direct"}
+                ]},
+                {"id":"multi-chips","component":"ChoicePicker","label":"Features","value":{"path":"/features"},"selectionMode":"multi","displayMode":"chips","options":[
+                  {"label":"Stream","value":"stream"},
+                  {"label":"Tools","value":"tools"}
+                ]}
+              ]}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/provider","value":"anthropic"}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/capabilities","value":["vision"]}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/tone","value":"calm"}},
+              {"version":"v0.9","updateDataModel":{"surfaceId":"$SurfaceId","path":"/features","value":["stream"]}}
+            ]
+            """.trimIndent(),
+        )
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(surfaceId = SurfaceId, surfaceManager = manager)
+        }
+
+        composeRule.onAllNodesWithTag(A2uiTestTags.ChoicePickerListOption).assertCountEquals(4)
+        composeRule.onAllNodesWithTag(A2uiTestTags.ChoicePickerChipOption).assertCountEquals(4)
+        composeRule.onNodeWithText("OpenAI").performClick()
+        composeRule.onNodeWithText("Code").performClick()
+        composeRule.onNodeWithText("Direct").performClick()
+        composeRule.onNodeWithText("Tools").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("openai", manager.surface(SurfaceId)!!.dataModel.resolve("/provider")!!.jsonPrimitive.content)
+            val capabilities = manager.surface(SurfaceId)!!.dataModel.resolve("/capabilities").toString()
+            assertTrue(capabilities.contains("vision"))
+            assertTrue(capabilities.contains("code"))
+            assertEquals("direct", manager.surface(SurfaceId)!!.dataModel.resolve("/tone")!!.jsonPrimitive.content)
+            val features = manager.surface(SurfaceId)!!.dataModel.resolve("/features").toString()
+            assertTrue(features.contains("stream"))
+            assertTrue(features.contains("tools"))
         }
     }
 
@@ -1599,6 +1837,17 @@ private fun ObservedPointerText(
 }
 
 internal const val SurfaceId = "confirmation-surface"
+
+private fun surfaceManagerFromJson(raw: String): A2uiSurfaceManager {
+    val manager = A2uiSurfaceManager()
+    manager.applyMessages(
+        decodeA2uiMessages(
+            A2uiProtocolJson.Default,
+            A2uiProtocolJson.Default.parseToJsonElement(raw),
+        )
+    )
+    return manager
+}
 
 private fun List<A2uiAction>.assertToolApprovalAction(
     callId: String,

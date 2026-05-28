@@ -10,7 +10,19 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.put
+import java.text.NumberFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Currency
+import java.util.Locale
 
 @Stable
 data class A2uiSurfaceState(
@@ -51,6 +63,10 @@ class A2uiSurfaceManager(
 
     fun applyMessage(message: A2uiMessage) {
         applyMessages(listOf(message))
+    }
+
+    fun clear() {
+        _surfaces.value = emptyMap()
     }
 
     fun surface(surfaceId: String): A2uiSurfaceState? = surfaces.value[surfaceId]
@@ -104,6 +120,9 @@ object A2uiBindingResolver {
             return dataModel.resolve(path)?.let(A2uiResolvedBinding::Value)
                 ?: A2uiResolvedBinding.Missing
         }
+        binding["call"]?.jsonPrimitiveOrNull?.contentOrNull?.let {
+            return A2uiResolvedBinding.Value(A2uiFunctionEvaluator.evaluate(binding, dataModel))
+        }
         binding["literalString"]?.let { return A2uiResolvedBinding.Value(it) }
         binding["literal"]?.let { return A2uiResolvedBinding.Value(it) }
         binding["value"]?.let { return A2uiResolvedBinding.Value(it) }
@@ -118,6 +137,9 @@ object A2uiBindingResolver {
             return resolvePath(dataModel, path)?.let(A2uiResolvedBinding::Value)
                 ?: A2uiResolvedBinding.Missing
         }
+        binding["call"]?.jsonPrimitiveOrNull?.contentOrNull?.let {
+            return A2uiResolvedBinding.Value(A2uiFunctionEvaluator.evaluate(binding, dataModel))
+        }
         binding["literalString"]?.let { return A2uiResolvedBinding.Value(it) }
         binding["literal"]?.let { return A2uiResolvedBinding.Value(it) }
         binding["value"]?.let { return A2uiResolvedBinding.Value(it) }
@@ -128,6 +150,209 @@ object A2uiBindingResolver {
 sealed interface A2uiResolvedBinding {
     data object Missing : A2uiResolvedBinding
     data class Value(val value: JsonElement) : A2uiResolvedBinding
+}
+
+private object A2uiFunctionEvaluator {
+    fun evaluate(binding: JsonObject, dataModel: A2uiDataModel): JsonElement =
+        evaluate(binding, dataModel.root)
+
+    fun evaluate(binding: JsonObject, dataModel: JsonElement): JsonElement {
+        val call = binding.stringValue("call") ?: return JsonPrimitive("<unknown function>")
+        val args = binding["args"] as? JsonObject ?: JsonObject(emptyMap())
+        return runCatching { evaluateFunction(call, args, dataModel) }
+            .getOrElse { JsonPrimitive("<function error: $call>") }
+    }
+
+    private fun evaluateFunction(
+        call: String,
+        args: JsonObject,
+        dataModel: JsonElement,
+    ): JsonElement = when (call) {
+        "required" -> JsonPrimitive(required(argument(args, "value", dataModel)))
+        "regex" -> JsonPrimitive(
+            argumentText(args, "value", dataModel).orEmpty().matchesRegex(argumentText(args, "pattern", dataModel).orEmpty())
+        )
+        "length" -> evaluateLength(args, dataModel)
+        "numeric" -> JsonPrimitive(argumentNumber(args, "value", dataModel) != null)
+        "email" -> JsonPrimitive(EmailRegex.matches(argumentText(args, "value", dataModel).orEmpty()))
+        "formatString" -> JsonPrimitive(formatString(args, dataModel))
+        "formatNumber" -> JsonPrimitive(formatNumber(args, dataModel))
+        "formatCurrency" -> JsonPrimitive(formatCurrency(args, dataModel))
+        "formatDate" -> JsonPrimitive(formatDate(args, dataModel))
+        "pluralize" -> JsonPrimitive(pluralize(args, dataModel))
+        "openUrl" -> JsonPrimitive(argumentText(args, "url", dataModel) ?: argumentText(args, "href", dataModel).orEmpty())
+        "and" -> JsonPrimitive(booleanArguments(args, dataModel).all { it })
+        "or" -> JsonPrimitive(booleanArguments(args, dataModel).any { it })
+        "not" -> JsonPrimitive(!argumentBoolean(args, "value", dataModel))
+        else -> JsonPrimitive("<unknown function: $call>")
+    }
+
+    private fun evaluateLength(args: JsonObject, dataModel: JsonElement): JsonElement {
+        val length = argumentText(args, "value", dataModel).orEmpty().length
+        val min = argumentNumber(args, "min", dataModel)
+        val max = argumentNumber(args, "max", dataModel)
+        return if (min != null || max != null) {
+            JsonPrimitive((min == null || length >= min) && (max == null || length <= max))
+        } else {
+            JsonPrimitive(length)
+        }
+    }
+
+    private fun formatString(args: JsonObject, dataModel: JsonElement): String {
+        val template = argumentText(args, "template", dataModel)
+            ?: argumentText(args, "format", dataModel)
+            ?: argumentText(args, "value", dataModel)
+            ?: return ""
+        return InterpolationRegex.replace(template) { match ->
+            interpolate(match.groupValues[1].trim(), dataModel)
+        }
+    }
+
+    private fun interpolate(token: String, dataModel: JsonElement): String {
+        if (token.startsWith("/")) {
+            return A2uiJsonPointer.resolve(dataModel, token)?.let(A2uiBindingResolver::displayText).orEmpty()
+        }
+        val expression = FunctionExpressionRegex.matchEntire(token)
+        if (expression != null) {
+            val call = expression.groupValues[1]
+            val args = parseExpressionArgs(expression.groupValues[2])
+            return A2uiBindingResolver.displayText(evaluate(buildJsonObject {
+                put("call", call)
+                put("args", args)
+            }, dataModel))
+        }
+        return A2uiJsonPointer.resolve(dataModel, token)?.let(A2uiBindingResolver::displayText).orEmpty()
+    }
+
+    private fun formatNumber(args: JsonObject, dataModel: JsonElement): String {
+        val value = argumentNumber(args, "value", dataModel) ?: return ""
+        val formatter = NumberFormat.getNumberInstance(Locale.US)
+        argumentNumber(args, "minimumFractionDigits", dataModel)?.toInt()?.let {
+            formatter.minimumFractionDigits = it
+        }
+        argumentNumber(args, "maximumFractionDigits", dataModel)?.toInt()?.let {
+            formatter.maximumFractionDigits = it
+        }
+        argumentNumber(args, "fractionDigits", dataModel)?.toInt()?.let {
+            formatter.minimumFractionDigits = it
+            formatter.maximumFractionDigits = it
+        }
+        return formatter.format(value)
+    }
+
+    private fun formatCurrency(args: JsonObject, dataModel: JsonElement): String {
+        val value = argumentNumber(args, "value", dataModel) ?: return ""
+        val formatter = NumberFormat.getCurrencyInstance(Locale.US)
+        val currencyCode = argumentText(args, "currency", dataModel)
+            ?: argumentText(args, "currencyCode", dataModel)
+        currencyCode?.let { code ->
+            runCatching { Currency.getInstance(code) }.getOrNull()?.let { formatter.currency = it }
+        }
+        return formatter.format(value)
+    }
+
+    private fun formatDate(args: JsonObject, dataModel: JsonElement): String {
+        val value = argumentText(args, "value", dataModel) ?: return ""
+        val pattern = argumentText(args, "pattern", dataModel)
+            ?: argumentText(args, "format", dataModel)
+            ?: "yyyy-MM-dd"
+        val formatter = runCatching { DateTimeFormatter.ofPattern(pattern) }.getOrElse { DateTimeFormatter.ISO_LOCAL_DATE }
+        val temporal = parseDateTime(value) ?: return value
+        return formatter.format(temporal)
+    }
+
+    private fun pluralize(args: JsonObject, dataModel: JsonElement): String {
+        val count = argumentNumber(args, "count", dataModel) ?: 0.0
+        val countText = if (count % 1.0 == 0.0) count.toLong().toString() else count.toString()
+        val singular = argumentText(args, "singular", dataModel) ?: ""
+        val plural = argumentText(args, "plural", dataModel) ?: "${singular}s"
+        val word = if (count == 1.0) singular else plural
+        return "$countText $word"
+    }
+
+    private fun argument(args: JsonObject, key: String, dataModel: JsonElement): JsonElement? =
+        args[key]?.let { evaluateElement(it, dataModel) }
+
+    private fun argumentText(args: JsonObject, key: String, dataModel: JsonElement): String? =
+        argument(args, key, dataModel)?.let(A2uiBindingResolver::displayText)
+
+    private fun argumentNumber(args: JsonObject, key: String, dataModel: JsonElement): Double? =
+        argument(args, key, dataModel)?.numberValue()
+
+    private fun argumentBoolean(args: JsonObject, key: String, dataModel: JsonElement): Boolean =
+        argument(args, key, dataModel).booleanValue()
+
+    private fun booleanArguments(args: JsonObject, dataModel: JsonElement): List<Boolean> {
+        val values = args["values"] as? JsonArray
+        if (values != null) return values.map { evaluateElement(it, dataModel).booleanValue() }
+        return args.values.map { evaluateElement(it, dataModel).booleanValue() }
+    }
+
+    private fun evaluateElement(element: JsonElement, dataModel: JsonElement): JsonElement = when (element) {
+        is JsonObject -> when (val resolved = A2uiBindingResolver.resolve(element, dataModel)) {
+            A2uiResolvedBinding.Missing -> element
+            is A2uiResolvedBinding.Value -> resolved.value
+        }
+        else -> element
+    }
+
+    private fun required(value: JsonElement?): Boolean = when (value) {
+        null, JsonNull -> false
+        is JsonPrimitive -> value.contentOrNull?.isNotBlank() ?: true
+        is JsonArray -> value.isNotEmpty()
+        is JsonObject -> value.isNotEmpty()
+    }
+
+    private fun JsonElement?.numberValue(): Double? = when (this) {
+        is JsonPrimitive -> doubleOrNull ?: contentOrNull?.toDoubleOrNull()
+        else -> null
+    }
+
+    private fun JsonElement?.booleanValue(): Boolean = when (this) {
+        is JsonPrimitive -> booleanOrNull
+            ?: contentOrNull?.toBooleanStrictOrNull()
+            ?: (numberValue()?.let { it != 0.0 } ?: false)
+        is JsonArray -> isNotEmpty()
+        is JsonObject -> isNotEmpty()
+        else -> false
+    }
+
+    private fun String.matchesRegex(pattern: String): Boolean =
+        runCatching { Regex(pattern).matches(this) }.getOrDefault(false)
+
+    private fun parseDateTime(value: String): java.time.temporal.TemporalAccessor? =
+        runCatching { Instant.parse(value).atZone(ZoneOffset.UTC) }.getOrNull()
+            ?: runCatching { LocalDateTime.parse(value, DateTimeFormatter.ISO_DATE_TIME) }.getOrNull()
+            ?: runCatching { LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE) }.getOrNull()
+
+    private fun parseExpressionArgs(raw: String): JsonObject = buildJsonObject {
+        raw.split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .forEach { part ->
+                val key = part.substringBefore(':').trim()
+                val value = part.substringAfter(':', missingDelimiterValue = "").trim()
+                if (key.isNotBlank()) put(key, parseExpressionValue(value))
+            }
+    }
+
+    private fun parseExpressionValue(value: String): JsonElement = when {
+        value.startsWith("/") -> buildJsonObject { put("path", value) }
+        value.equals("true", ignoreCase = true) -> JsonPrimitive(true)
+        value.equals("false", ignoreCase = true) -> JsonPrimitive(false)
+        value.toLongOrNull() != null -> JsonPrimitive(value.toLong())
+        value.toDoubleOrNull() != null -> JsonPrimitive(value.toDouble())
+        value.length >= 2 && value.first() == '"' && value.last() == '"' -> JsonPrimitive(value.drop(1).dropLast(1))
+        value.length >= 2 && value.first() == '\'' && value.last() == '\'' -> JsonPrimitive(value.drop(1).dropLast(1))
+        else -> JsonPrimitive(value)
+    }
+
+    private fun JsonObject.stringValue(vararg keys: String): String? =
+        keys.firstNotNullOfOrNull { key -> (this[key] as? JsonPrimitive)?.contentOrNull }
+
+    private val EmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
+    private val InterpolationRegex = Regex("""\$\{([^}]+)}""")
+    private val FunctionExpressionRegex = Regex("""^([A-Za-z_][\w.-]*)\((.*)\)$""")
 }
 
 private fun Map<String, A2uiSurfaceState>.applyMessage(message: A2uiMessage): Map<String, A2uiSurfaceState> =

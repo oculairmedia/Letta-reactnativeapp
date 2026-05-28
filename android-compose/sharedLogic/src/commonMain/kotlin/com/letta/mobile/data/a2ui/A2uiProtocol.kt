@@ -60,9 +60,11 @@ val A2UI_DEFAULT_SUPPORTED_WIDGETS: List<String> = listOf(
     "Divider",
     "TextField",
     "DateTimeInput",
+    "CheckBox",
     "Checkbox",
     "Switch",
     "Radio",
+    "ChoicePicker",
     "Slider",
     "Stepper",
     "LinearProgress",
@@ -75,7 +77,11 @@ val A2UI_DEFAULT_SUPPORTED_WIDGETS: List<String> = listOf(
     "Tabs",
     "Accordion",
     "Image",
+    "List",
     A2UI_LIST_VIEW_WIDGET_ID,
+    "Modal",
+    "Video",
+    "AudioPlayer",
     LETTA_TOOL_APPROVAL_WIDGET_ID,
     LETTA_SCHEDULE_CARD_WIDGET_ID,
     LETTA_SCHEDULE_SELECTOR_WIDGET_ID,
@@ -205,7 +211,7 @@ data class A2uiComponent(
      * needs without making ListView a separate envelope format.
      */
     val listTemplate: A2uiListTemplatePayload?
-        get() = A2uiListTemplatePayload.from(raw).takeIf { component == A2UI_LIST_VIEW_WIDGET_ID }
+        get() = A2uiListTemplatePayload.from(raw).takeIf { component == A2UI_LIST_VIEW_WIDGET_ID || component == "List" }
 }
 
 /**
@@ -224,11 +230,15 @@ data class A2uiListTemplatePayload(
 ) {
     companion object {
         fun from(raw: JsonObject): A2uiListTemplatePayload? {
+            val childrenObject = raw["children"] as? JsonObject
             val itemTemplate = raw.stringValue("itemTemplate", "itemTemplateId", "templateComponentId")
                 ?.takeIf { it.isNotBlank() }
+                ?: childrenObject?.stringValue("componentId", "itemTemplate", "itemTemplateId", "templateComponentId")
+                    ?.takeIf { it.isNotBlank() }
                 ?: return null
             val itemsPath = raw.bindingPath("items")
                 ?.takeIf { it.isNotBlank() }
+                ?: childrenObject?.bindingPath("path")?.takeIf { it.isNotBlank() }
                 ?: return null
             val itemKey = raw.stringValue("itemKey", "itemKeyPath")?.takeIf { it.isNotBlank() } ?: "id"
             return A2uiListTemplatePayload(

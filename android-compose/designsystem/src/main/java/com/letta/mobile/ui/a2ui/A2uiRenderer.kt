@@ -1,11 +1,15 @@
 package com.letta.mobile.ui.a2ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +51,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -189,6 +194,8 @@ object A2uiTestTags {
     const val Switch = "a2ui_switch"
     const val Radio = "a2ui_radio"
     const val ChoicePicker = "a2ui_choice_picker"
+    const val ChoicePickerChipOption = "a2ui_choice_picker_chip_option"
+    const val ChoicePickerListOption = "a2ui_choice_picker_list_option"
     const val Slider = "a2ui_slider"
     const val Stepper = "a2ui_stepper"
     const val StepperDecrement = "a2ui_stepper_decrement"
@@ -209,6 +216,10 @@ object A2uiTestTags {
     const val LinearProgress = "a2ui_linear_progress"
     const val CircularProgress = "a2ui_circular_progress"
     const val ListView = "a2ui_list_view"
+    const val Modal = "a2ui_modal"
+    const val Video = "a2ui_video"
+    const val AudioPlayer = "a2ui_audio_player"
+    const val MediaPlayPause = "a2ui_media_play_pause"
 }
 
 /**
@@ -333,6 +344,14 @@ private fun A2uiComponentNodeContent(
     renderScope: A2uiRenderScope,
 ) {
     val nextVisited = visited + component.id
+    androidx.compose.runtime.SideEffect {
+        if (android.util.Log.isLoggable("A2UI", android.util.Log.DEBUG)) {
+            android.util.Log.d(
+                "A2UI",
+                "Render component surfaceId=${surface.surfaceId} componentId=${component.id} type=${component.component}",
+            )
+        }
+    }
     when (component.component) {
         "Text" -> A2uiText(component = component, surface = surface, modifier = modifier, renderScope = renderScope)
         "TextField" -> A2uiTextField(
@@ -348,7 +367,7 @@ private fun A2uiComponentNodeContent(
             modifier = modifier,
             renderScope = renderScope,
         )
-        "Checkbox" -> A2uiBooleanInput(
+        "Checkbox", "CheckBox" -> A2uiBooleanInput(
             component = component,
             surface = surface,
             modifier = modifier,
@@ -471,7 +490,31 @@ private fun A2uiComponentNodeContent(
         )
         "Image" -> A2uiImage(component = component, surface = surface, modifier = modifier, renderScope = renderScope)
         "Divider" -> A2uiDivider(component = component, modifier = modifier)
-        A2UI_LIST_VIEW_WIDGET_ID -> A2uiListView(
+        "Video" -> A2uiMedia(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            renderScope = renderScope,
+            kind = A2uiMediaKind.Video,
+        )
+        "AudioPlayer" -> A2uiMedia(
+            component = component,
+            surface = surface,
+            modifier = modifier,
+            renderScope = renderScope,
+            kind = A2uiMediaKind.Audio,
+        )
+        "Modal" -> A2uiModal(
+            component = component,
+            surface = surface,
+            visited = nextVisited,
+            onAction = onAction,
+            surfaceSubmitting = surfaceSubmitting,
+            onPendingActionDelta = onPendingActionDelta,
+            actionResolutionToken = actionResolutionToken,
+            renderScope = renderScope,
+        )
+        A2UI_LIST_VIEW_WIDGET_ID, "List" -> A2uiListView(
             component = component,
             surface = surface,
             modifier = modifier,
@@ -879,7 +922,13 @@ private fun A2uiTextField(
         // binding (if any) is the initial default until the user types.
         observedAtPath?.let(A2uiBindingResolver::displayText) ?: literalDefault
     }
-    val isError = validation != null && value.isNotBlank() && !value.matchesValidation(validation)
+    val validationError = component.validationError(
+        value = value,
+        surface = surface,
+        renderScope = renderScope,
+        legacyValidation = validation,
+    )
+    val isError = validationError != null
 
     OutlinedTextField(
         value = value,
@@ -898,7 +947,7 @@ private fun A2uiTextField(
         readOnly = surfaceSubmitting,
         supportingText = when {
             surfaceSubmitting -> ({ Text("submitting...") })
-            isError -> ({ Text("Invalid value") })
+            isError -> ({ Text(validationError.orEmpty()) })
             else -> null
         },
         singleLine = fieldType != "longText",
@@ -1066,13 +1115,22 @@ private fun A2uiChoicePicker(
     val binding = component.raw["value"] ?: component.raw["selected"]
     val explicitPath = binding.bindingPath()?.let(renderScope::resolvePath)
     val effectivePath = explicitPath ?: "/_inputs/${component.id}"
-    val literalDefault = component.resolveInputValue(surface, binding, renderScope)
+    val literalDefault = resolveBindingElement(binding, surface, renderScope)
     val observedAtPath by surface.dataModel.observe(effectivePath)
-    var localValue by remember(component.id) { mutableStateOf(literalDefault) }
-    val value = observedAtPath?.let(A2uiBindingResolver::displayText)
-        ?: if (explicitPath != null) literalDefault else localValue
+    var localSelection by remember(component.id) { mutableStateOf(literalDefault.choiceSelection()) }
+    val selected = observedAtPath.choiceSelection().ifEmpty {
+        if (explicitPath != null) literalDefault.choiceSelection() else localSelection
+    }
     val label = component.resolveControlLabel(surface, renderScope)
     val options = component.resolveRadioOptions(surface, renderScope)
+    val selectionMode = component.raw.stringValue("selectionMode", "selection").orEmpty().lowercase()
+    val multiSelect = selectionMode == "multi" || selectionMode == "multiple"
+    val displayMode = component.raw.stringValue("displayMode", "mode").orEmpty().lowercase()
+    val useChips = when (displayMode) {
+        "chips", "chip" -> true
+        "checkbox", "radio", "list" -> false
+        else -> options.size <= ChoicePickerSegmentedOptionLimit
+    }
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
 
@@ -1082,10 +1140,20 @@ private fun A2uiChoicePicker(
     }
 
     fun update(next: String) {
-        if (next != value) HapticEffects.segmentTick(haptic, view)
-        surface.dataModel.applyPatch(path = effectivePath, value = JsonPrimitive(next))
+        val nextSelection = if (multiSelect) {
+            if (next in selected) selected - next else selected + next
+        } else {
+            linkedSetOf(next)
+        }
+        if (nextSelection != selected) HapticEffects.segmentTick(haptic, view)
+        val nextValue = if (multiSelect) {
+            JsonArray(nextSelection.map(::JsonPrimitive))
+        } else {
+            JsonPrimitive(nextSelection.firstOrNull().orEmpty())
+        }
+        surface.dataModel.applyPatch(path = effectivePath, value = nextValue)
         if (explicitPath == null) {
-            localValue = next
+            localSelection = nextSelection
         }
     }
 
@@ -1104,17 +1172,19 @@ private fun A2uiChoicePicker(
             )
         }
 
-        if (options.size <= ChoicePickerSegmentedOptionLimit) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, option ->
-                    SegmentedButton(
-                        selected = value == option.key,
+        if (useChips) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                options.forEach { option ->
+                    FilterChip(
+                        selected = option.key in selected,
                         onClick = { update(option.key) },
                         enabled = !surfaceSubmitting,
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = options.size,
-                        ),
+                        modifier = Modifier.testTag(A2uiTestTags.ChoicePickerChipOption),
                         label = {
                             Text(
                                 text = option.label,
@@ -1130,15 +1200,24 @@ private fun A2uiChoicePicker(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .testTag(A2uiTestTags.ChoicePickerListOption)
                         .clickable(enabled = !surfaceSubmitting) { update(option.key) },
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(
-                        selected = value == option.key,
-                        onClick = { update(option.key) },
-                        enabled = !surfaceSubmitting,
-                    )
+                    if (multiSelect) {
+                        Checkbox(
+                            checked = option.key in selected,
+                            onCheckedChange = { update(option.key) },
+                            enabled = !surfaceSubmitting,
+                        )
+                    } else {
+                        RadioButton(
+                            selected = option.key in selected,
+                            onClick = { update(option.key) },
+                            enabled = !surfaceSubmitting,
+                        )
+                    }
                     Text(
                         text = option.label,
                         style = MaterialTheme.typography.bodyMedium,
@@ -1441,7 +1520,35 @@ private fun A2uiListView(
 ) {
     val template = component.listTemplate
     if (template == null) {
-        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
+        val children = component.children
+        if (children.isEmpty()) {
+            A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
+            return
+        }
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .testTag(A2uiTestTags.ListView),
+            verticalArrangement = Arrangement.spacedBy(component.spacing()),
+        ) {
+            children.forEach { childId ->
+                val child = surface.components[childId]
+                if (child == null) {
+                    A2uiSkeletonLine(modifier = Modifier.testTag(A2uiTestTags.MissingComponent))
+                } else {
+                    A2uiComponentNode(
+                        component = child,
+                        surface = surface,
+                        visited = visited,
+                        onAction = onAction,
+                        surfaceSubmitting = surfaceSubmitting,
+                        onPendingActionDelta = onPendingActionDelta,
+                        actionResolutionToken = actionResolutionToken,
+                        renderScope = renderScope,
+                    )
+                }
+            }
+        }
         return
     }
 
@@ -1475,6 +1582,155 @@ private fun A2uiListView(
                     renderScope = itemScope,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun A2uiModal(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    visited: Set<String>,
+    onAction: (A2uiAction) -> Unit,
+    surfaceSubmitting: Boolean,
+    onPendingActionDelta: (Int) -> Unit,
+    actionResolutionToken: Int,
+    renderScope: A2uiRenderScope,
+) {
+    val visibleText = resolveBindingText(
+        component.raw["visible"] ?: component.raw["isVisible"] ?: component.raw["open"],
+        surface,
+        renderScope,
+    )
+    val visible = visibleText?.toBooleanStrictOrNull()
+        ?: component.raw.booleanValue("visible", "isVisible", "open")
+        ?: false
+    var dismissed by remember(component.id) { mutableStateOf(false) }
+    if (!visible || dismissed) return
+
+    val child = component.child ?: component.children.firstOrNull()
+    AlertDialog(
+        onDismissRequest = { dismissed = true },
+        modifier = Modifier.testTag(A2uiTestTags.Modal),
+        title = resolveBindingText(component.raw["title"], surface, renderScope)?.let { title ->
+            { Text(title) }
+        },
+        text = {
+            if (child == null) {
+                A2uiSkeletonLine(modifier = Modifier.testTag(A2uiTestTags.MissingComponent))
+            } else {
+                val childComponent = surface.components[child]
+                if (childComponent == null) {
+                    A2uiSkeletonLine(modifier = Modifier.testTag(A2uiTestTags.MissingComponent))
+                } else {
+                    A2uiComponentNode(
+                        component = childComponent,
+                        surface = surface,
+                        visited = visited,
+                        onAction = onAction,
+                        surfaceSubmitting = surfaceSubmitting,
+                        onPendingActionDelta = onPendingActionDelta,
+                        actionResolutionToken = actionResolutionToken,
+                        renderScope = renderScope,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { dismissed = true }) {
+                Text("Close")
+            }
+        },
+    )
+}
+
+@Composable
+private fun A2uiMedia(
+    component: A2uiComponent,
+    surface: A2uiSurfaceState,
+    modifier: Modifier = Modifier,
+    renderScope: A2uiRenderScope,
+    kind: A2uiMediaKind,
+) {
+    val source = resolveBindingText(
+        component.raw["url"] ?: component.raw["src"] ?: component.raw["source"],
+        surface,
+        renderScope,
+    )?.takeIf { it.isNotBlank() }
+
+    if (source == null) {
+        A2uiSkeletonLine(modifier = modifier.testTag(A2uiTestTags.MissingComponent))
+        return
+    }
+
+    var playing by remember(component.id, source) { mutableStateOf(false) }
+    val title = resolveBindingText(component.raw["title"] ?: component.raw["label"], surface, renderScope)
+        ?: if (kind == A2uiMediaKind.Video) "Video" else "Audio"
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(kind.testTag),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (kind == A2uiMediaKind.Video) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (playing) "Playing" else "Paused",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = { playing = !playing },
+                    modifier = Modifier.testTag(A2uiTestTags.MediaPlayPause),
+                ) {
+                    Text(if (playing) "Pause" else "Play")
+                }
+                Slider(
+                    value = if (playing) 0.12f else 0f,
+                    onValueChange = {},
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "0:00",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = source,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -1536,6 +1792,8 @@ private fun A2uiButton(
 ) {
     val label = component.resolveButtonLabel(surface, renderScope)
     val action = component.action(surface, renderScope)
+    val localOpenUrl = component.localOpenUrl(surface, renderScope)
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
     var inFlight by remember(surface.surfaceId, component.id) { mutableStateOf(false) }
@@ -1557,6 +1815,23 @@ private fun A2uiButton(
     Button(
         onClick = {
             if (inFlight) return@Button
+            if (localOpenUrl != null) {
+                android.util.Log.i(
+                    "A2UI",
+                    "Button onClick: opening URL surfaceId=${surface.surfaceId} " +
+                        "componentId=${component.id} url=$localOpenUrl",
+                )
+                HapticEffects.confirm(haptic, view)
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(localOpenUrl))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }.onFailure { error ->
+                    android.util.Log.w("A2UI", "Failed to open URL for A2UI Button", error)
+                }
+                return@Button
+            }
             // letta-mobile-ykkl diagnostic: log the dispatch hop so the
             // chain "Compose onClick → onAction → WsChatBridge → wire"
             // is traceable in adb logcat without a debugger attached.
@@ -1579,7 +1854,7 @@ private fun A2uiButton(
                 onAction(resolved)
             }
         },
-        enabled = label != null && action != null && !inFlight,
+        enabled = label != null && (action != null || localOpenUrl != null) && !inFlight,
         modifier = modifier,
     ) {
         if (label == null) {
@@ -2379,6 +2654,13 @@ private fun A2uiSlider(
             enabled = !surfaceSubmitting,
             valueRange = range.min.toFloat()..range.max.toFloat(),
             steps = range.sliderSteps,
+            track = { sliderState ->
+                SliderDefaults.Track(
+                    sliderState = sliderState,
+                    thumbTrackGapSize = 0.dp,
+                    trackInsideCornerSize = 0.dp,
+                )
+            },
         )
     }
 }
@@ -2694,6 +2976,23 @@ private fun resolveBindingText(
     }
 
 @Composable
+private fun resolveBindingElement(
+    binding: JsonElement?,
+    surface: A2uiSurfaceState,
+    renderScope: A2uiRenderScope,
+): JsonElement? =
+    when {
+        binding is JsonObject && binding.stringValue("path") != null -> {
+            val value by surface.dataModel.observe(renderScope.resolvePath(binding.stringValue("path").orEmpty()))
+            value
+        }
+        else -> when (val resolved = A2uiBindingResolver.resolve(binding?.withScopedPaths(renderScope), surface.dataModel)) {
+            A2uiResolvedBinding.Missing -> null
+            is A2uiResolvedBinding.Value -> resolved.value
+        }
+    }
+
+@Composable
 private fun A2uiComponent.resolveInputValue(
     surface: A2uiSurfaceState,
     binding: JsonElement?,
@@ -2761,6 +3060,20 @@ private fun A2uiComponent.action(surface: A2uiSurfaceState, renderScope: A2uiRen
         actionId = actionId,
         raw = raw,
     )
+}
+
+private fun A2uiComponent.localOpenUrl(surface: A2uiSurfaceState, renderScope: A2uiRenderScope): String? {
+    val action = (raw["action"] ?: raw["onClick"]) as? JsonObject ?: return null
+    val functionCall = (action["functionCall"] as? JsonObject)
+        ?: action.takeIf { it.stringValue("call") == "openUrl" }
+        ?: return null
+    if (functionCall.stringValue("call") != "openUrl") return null
+    val resolved = A2uiBindingResolver.resolve(functionCall.withScopedPaths(renderScope), surface.dataModel)
+        as? A2uiResolvedBinding.Value
+        ?: return null
+    return A2uiBindingResolver.displayText(resolved.value)
+        .trim()
+        .takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
 }
 
 private fun A2uiComponent.spacing(): Dp =
@@ -3195,6 +3508,11 @@ private enum class A2uiBooleanInputKind(val testTag: String) {
     Switch(A2uiTestTags.Switch),
 }
 
+private enum class A2uiMediaKind(val testTag: String) {
+    Video(A2uiTestTags.Video),
+    Audio(A2uiTestTags.AudioPlayer),
+}
+
 private data class A2uiRadioOption(
     val key: String,
     val label: String,
@@ -3395,6 +3713,51 @@ private fun JsonElement.resolveItemKey(path: String): String? =
     A2uiJsonPointer.resolve(this, path)
         ?.let(A2uiBindingResolver::displayText)
         ?.takeIf { it.isNotBlank() }
+
+@Composable
+private fun A2uiComponent.validationError(
+    value: String,
+    surface: A2uiSurfaceState,
+    renderScope: A2uiRenderScope,
+    legacyValidation: String?,
+): String? {
+    if (legacyValidation != null && value.isNotBlank() && !value.matchesValidation(legacyValidation)) {
+        return "Invalid value"
+    }
+    val checks = raw["checks"] as? JsonArray ?: return null
+    checks.forEach { check ->
+        val checkObject = check as? JsonObject ?: return@forEach
+        val functionCall = ((checkObject["functionCall"] as? JsonObject) ?: checkObject)
+            .withValidationValue(value)
+            .withScopedPaths(renderScope)
+        val result = A2uiBindingResolver.resolve(functionCall, surface.dataModel)
+        val passes = (result as? A2uiResolvedBinding.Value)?.value?.validationBoolean() ?: true
+        if (!passes) {
+            return resolveBindingText(checkObject["message"] ?: checkObject["error"], surface, renderScope)
+                ?: "Invalid value"
+        }
+    }
+    return null
+}
+
+private fun JsonObject.withValidationValue(value: String): JsonObject {
+    val args = this["args"] as? JsonObject ?: JsonObject(emptyMap())
+    if ("value" in args) return this
+    return JsonObject(this + ("args" to JsonObject(args + ("value" to JsonPrimitive(value)))))
+}
+
+private fun JsonElement.validationBoolean(): Boolean = when (this) {
+    is JsonPrimitive -> contentOrNull?.toBooleanStrictOrNull() ?: contentOrNull?.isNotBlank() == true
+    is JsonArray -> isNotEmpty()
+    is JsonObject -> isNotEmpty()
+    else -> false
+}
+
+private fun JsonElement?.choiceSelection(): Set<String> = when (this) {
+    is JsonArray -> mapNotNullTo(linkedSetOf()) { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
+    is JsonPrimitive -> contentOrNull?.takeIf(String::isNotBlank)?.let { linkedSetOf(it) }.orEmpty()
+    else -> emptySet()
+}
 
 private fun String.matchesValidation(pattern: String): Boolean =
     runCatching { Regex(pattern).matches(this) }.getOrDefault(true)
