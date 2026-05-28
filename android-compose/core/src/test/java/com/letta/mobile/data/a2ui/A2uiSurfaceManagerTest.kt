@@ -1,12 +1,15 @@
 package com.letta.mobile.data.a2ui
 
+import app.cash.turbine.test
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -98,6 +101,39 @@ class A2uiSurfaceManagerTest : WordSpec({
             val dataModel = manager.surface("s1")!!.dataModel
             A2uiBindingResolver.resolvePath(dataModel, "/approval/status").shouldBeNull()
             A2uiBindingResolver.resolvePath(dataModel, "/approval/reason") shouldBe JsonNull
+        }
+
+        "emit surface state when only the data model changes" {
+            runTest {
+                val manager = A2uiSurfaceManager()
+                manager.applyMessage(
+                    A2uiMessage.CreateSurface(
+                        createSurface = A2uiCreateSurfacePayload(
+                            surfaceId = "s1",
+                            catalogId = A2UI_BASIC_CATALOG_ID,
+                        ),
+                    )
+                )
+
+                manager.surfaces.test {
+                    awaitItem()["s1"]!!.dataModelRevision shouldBe 0L
+
+                    manager.applyMessage(
+                        A2uiMessage.UpdateDataModel(
+                            updateDataModel = A2uiUpdateDataModelPayload(
+                                surfaceId = "s1",
+                                path = "/message",
+                                value = JsonPrimitive("Ready"),
+                            ),
+                        )
+                    )
+
+                    val updated = awaitItem()["s1"]!!
+                    updated.dataModelRevision shouldBe 1L
+                    updated.dataModel.resolve("/message")!!.jsonPrimitive.content shouldBe "Ready"
+                    cancelAndIgnoreRemainingEvents()
+                }
+            }
         }
 
         "attach envelope routing metadata to touched surfaces" {

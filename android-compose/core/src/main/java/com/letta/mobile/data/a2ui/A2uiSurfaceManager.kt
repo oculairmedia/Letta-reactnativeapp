@@ -37,6 +37,7 @@ data class A2uiSurfaceState(
     val rootComponentId: String? = null,
     val components: Map<String, A2uiComponent> = emptyMap(),
     val dataModel: A2uiDataModel = A2uiDataModel(),
+    val dataModelRevision: Long = 0L,
 ) {
     val rootComponent: A2uiComponent?
         get() = rootComponentId?.let(components::get)
@@ -424,7 +425,11 @@ private fun Map<String, A2uiSurfaceState>.updateDataModel(
         path = payload.path,
         value = payload.value,
     )
-    return plus(payload.surfaceId to existing)
+    return plus(
+        payload.surfaceId to existing.copy(
+            dataModelRevision = existing.dataModelRevision + 1,
+        )
+    )
 }
 
 private val JsonElement.jsonPrimitiveOrNull: JsonPrimitive?

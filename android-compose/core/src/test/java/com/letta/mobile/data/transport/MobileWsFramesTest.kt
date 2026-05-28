@@ -1,5 +1,7 @@
 package com.letta.mobile.data.transport
 
+import com.letta.mobile.data.a2ui.A2UI_DEFAULT_SUPPORTED_CATALOGS
+import com.letta.mobile.data.a2ui.A2UI_DEFAULT_SUPPORTED_WIDGETS
 import com.letta.mobile.data.model.toJsonArray
 import com.letta.mobile.data.a2ui.A2uiMessage
 import com.letta.mobile.data.a2ui.LETTA_TOOL_APPROVAL_WIDGET_ID
@@ -9,6 +11,8 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Tag
@@ -50,6 +54,11 @@ class MobileWsFramesTest : WordSpec({
             out shouldContain "\"supported_widgets\""
             out shouldContain "\"theme_hints\""
             out shouldContain LETTA_TOOL_APPROVAL_WIDGET_ID
+            val hello = json.parseToJsonElement(out).jsonObject
+            hello["supported_catalogs"]!!.jsonArray.map { it.jsonPrimitive.content } shouldBe
+                A2UI_DEFAULT_SUPPORTED_CATALOGS
+            hello["supported_widgets"]!!.jsonArray.map { it.jsonPrimitive.content } shouldBe
+                A2UI_DEFAULT_SUPPORTED_WIDGETS
             (out.contains("\"a2ui_capability\"")) shouldBe false
             (out.contains("\"resume\"")) shouldBe false
         }

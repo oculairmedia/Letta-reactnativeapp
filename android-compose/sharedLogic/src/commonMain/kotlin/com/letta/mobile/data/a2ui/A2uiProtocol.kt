@@ -348,9 +348,15 @@ object A2uiComponentSerializer : KSerializer<A2uiComponent> {
         val jsonDecoder = decoder as? JsonDecoder
             ?: error("A2uiComponentSerializer requires a JsonDecoder")
         val obj = jsonDecoder.decodeJsonElement().jsonObject
+        val id = obj["id"]?.jsonPrimitiveOrNull?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?: throw SerializationException("A2uiComponent.id is required")
+        val component = obj["component"]?.jsonPrimitiveOrNull?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?: throw SerializationException("A2uiComponent.component is required")
         return A2uiComponent(
-            id = obj["id"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty(),
-            component = obj["component"]?.jsonPrimitiveOrNull?.contentOrNull ?: "Unknown",
+            id = id,
+            component = component,
             raw = obj,
         )
     }

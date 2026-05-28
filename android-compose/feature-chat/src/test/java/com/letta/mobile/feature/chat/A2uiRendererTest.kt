@@ -718,7 +718,7 @@ class A2uiRendererTest {
     }
 
     @Test
-    fun switchUsesLocalStateWhenUnbound() {
+    fun switchWritesSyntheticDataModelPathWhenUnbound() {
         val manager = formWidgetSurfaceManager(root = "notifications")
 
         composeRule.setLettaTestContent(useChatTheme = false) {
@@ -728,7 +728,10 @@ class A2uiRendererTest {
         composeRule.onNodeWithTag(A2uiTestTags.Switch).assertIsOn().performClick()
         composeRule.onNodeWithTag(A2uiTestTags.Switch).assertIsOff()
         composeRule.runOnIdle {
-            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/notifications"))
+            assertEquals(
+                "false",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/notifications")!!.jsonPrimitive.content,
+            )
         }
     }
 
@@ -751,7 +754,7 @@ class A2uiRendererTest {
     }
 
     @Test
-    fun radioRendersItemsPathOptionsAndKeepsUnboundSelectionLocal() {
+    fun radioRendersItemsPathOptionsAndWritesSyntheticDataModelPathWhenUnbound() {
         val manager = formWidgetSurfaceManager(root = "mealChoice")
 
         composeRule.setLettaTestContent(useChatTheme = false) {
@@ -761,7 +764,10 @@ class A2uiRendererTest {
         composeRule.onNodeWithText("Pasta").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Pasta").assertIsDisplayed()
         composeRule.runOnIdle {
-            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/meal"))
+            assertEquals(
+                "pasta",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/mealChoice")!!.jsonPrimitive.content,
+            )
         }
     }
 
@@ -979,7 +985,7 @@ class A2uiRendererTest {
     }
 
     @Test
-    fun stepperUsesLocalStateWhenUnbound() {
+    fun stepperWritesSyntheticDataModelPathWhenUnbound() {
         val manager = numericWidgetSurfaceManager(root = "localStepper")
 
         composeRule.setLettaTestContent(useChatTheme = false) {
@@ -990,7 +996,10 @@ class A2uiRendererTest {
         composeRule.onNodeWithTag(A2uiTestTags.StepperIncrement).performClick()
         composeRule.onNodeWithText("2").assertIsDisplayed()
         composeRule.runOnIdle {
-            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/localCount"))
+            assertEquals(
+                "2",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/localStepper")!!.jsonPrimitive.content,
+            )
         }
     }
 
@@ -1120,7 +1129,7 @@ class A2uiRendererTest {
     }
 
     @Test
-    fun dropdownUsesLocalStateWhenUnbound() {
+    fun dropdownWritesSyntheticDataModelPathWhenUnbound() {
         val manager = dropdownSurfaceManager(root = "localDropdown")
 
         composeRule.setLettaTestContent(useChatTheme = false) {
@@ -1132,7 +1141,10 @@ class A2uiRendererTest {
         composeRule.onNodeWithText("High").performClick()
         composeRule.onNodeWithText("High").assertIsDisplayed()
         composeRule.runOnIdle {
-            assertEquals(null, manager.surface(SurfaceId)!!.dataModel.resolve("/priority"))
+            assertEquals(
+                "high",
+                manager.surface(SurfaceId)!!.dataModel.resolve("/_inputs/localDropdown")!!.jsonPrimitive.content,
+            )
         }
     }
 
@@ -1792,6 +1804,12 @@ class A2uiRendererTest {
 
         composeRule.onNodeWithTag(A2uiTestTags.DateTimeInput).performClick()
         composeRule.onAllNodesWithText("Select date").assertCountEquals(2)
+        composeRule.onAllNodesWithText("OK")[0].performClick()
+
+        composeRule.runOnIdle {
+            val value = manager.surface(SurfaceId)!!.dataModel.resolve("/reservationTime")!!.jsonPrimitive.content
+            assertTrue(Regex("""\d{4}-\d{2}-\d{2}""").matches(value))
+        }
     }
 
     private fun assertToolApprovalAffordance(
