@@ -130,6 +130,47 @@ class A2uiToolApprovalRoundTripTest {
     }
 
     @Test
+    fun toolApprovalRequestIdPropagatesFromA2uiFrameForRestRouting() = runTest {
+        val server = openServer()
+        val transport = openTransport()
+        val bridge = WsChatBridge(transport)
+        val manager = A2uiSurfaceManager()
+        connect(transport, bridge, server)
+
+        val surfaceArrived = async(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+            bridge.a2uiEvents.first { event ->
+                event.requestId == "approval-rest-1" &&
+                    event.messages.any { it.surfaceId == SurfaceId }
+            }
+        }
+        server.sendToolApprovalSurface(
+            surfaceId = SurfaceId,
+            callId = "call-rest",
+            affordances = listOf("once"),
+            requestId = "approval-rest-1",
+        )
+        manager.apply(withRealTimeout { surfaceArrived.await() })
+
+        val actions = mutableListOf<com.letta.mobile.ui.a2ui.A2uiAction>()
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiSurfaceRenderer(
+                surface = manager.surface(SurfaceId),
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithText("Once").performClick()
+
+        composeRule.runOnIdle {
+            val action = actions.single()
+            assertEquals("approval-rest-1", action.context.stringValue("approvalRequestId"))
+            assertEquals("approval-rest-1", action.raw.stringValue("approvalRequestId"))
+            assertEquals("call-rest", action.context.stringValue("callId"))
+        }
+        assertNull(server.actions.receiveOrNullWithin())
+    }
+
+    @Test
     fun channelTransportTracksInFlightAndCancelPerConversation() = runTest {
         val server = openServer()
         val transport = openTransport()
@@ -714,6 +755,7 @@ private class A2uiShimServer {
         affordances: List<String>,
         timeoutSeconds: Int = 30,
         includeRouting: Boolean = true,
+        requestId: String? = null,
     ) {
         (activeSocket ?: firstSocket.await()).send(
             toolApprovalFrame(
@@ -722,6 +764,7 @@ private class A2uiShimServer {
                 affordances = affordances,
                 timeoutSeconds = timeoutSeconds,
                 includeRouting = includeRouting,
+                requestId = requestId,
             )
         )
     }
@@ -776,6 +819,7 @@ private class A2uiShimServer {
         affordances: List<String>,
         timeoutSeconds: Int,
         includeRouting: Boolean,
+        requestId: String?,
     ): String {
         val affordancesJson = affordances.joinToString(prefix = "[", postfix = "]") { """"$it"""" }
         val routingFields = if (includeRouting) {
@@ -783,9 +827,11 @@ private class A2uiShimServer {
         } else {
             "\"agent_id\":\"agent-e2e\",\"conversation_id\":\"conv-e2e\","
         }
+        val requestField = requestId?.let { "\"request_id\":\"$it\"," }.orEmpty()
         return """
             {"v":1,"type":"a2ui_frame","id":"a2ui-$surfaceId","ts":"2026-05-17T00:00:01Z",
              $routingFields
+             $requestField
              "ok":true,
              "a2ui":[
                {"version":"v0.9","createSurface":{

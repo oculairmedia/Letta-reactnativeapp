@@ -34,6 +34,7 @@ data class A2uiSurfaceState(
     val conversationId: String? = null,
     val turnId: String? = null,
     val runId: String? = null,
+    val approvalRequestId: String? = null,
     val rootComponentId: String? = null,
     val components: Map<String, A2uiComponent> = emptyMap(),
     val dataModel: A2uiDataModel = A2uiDataModel(),
@@ -378,6 +379,7 @@ private fun Map<String, A2uiSurfaceState>.withEnvelopeMetadata(
                 conversationId = event.conversationId ?: surface.conversationId,
                 turnId = event.turnId ?: surface.turnId,
                 runId = event.runId ?: surface.runId,
+                approvalRequestId = event.requestId ?: surface.approvalRequestId,
             )
         }
     }

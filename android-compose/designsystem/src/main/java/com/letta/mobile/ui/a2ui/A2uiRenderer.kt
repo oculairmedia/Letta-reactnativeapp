@@ -3402,6 +3402,7 @@ private fun toolApprovalAction(
         put("callId", callId)
         put("decision", result.decision)
         put("scope", result.scope)
+        surface.approvalRequestId?.let { put("approvalRequestId", it) }
     }
     val raw = buildJsonObject {
         put("actionName", ToolApprovalResponseAction)
@@ -3411,6 +3412,7 @@ private fun toolApprovalAction(
         surface.conversationId?.let { put("conversationId", it) }
         surface.runId?.let { put("runId", it) }
         surface.turnId?.let { put("turnId", it) }
+        surface.approvalRequestId?.let { put("approvalRequestId", it) }
         put("actionId", callId)
     }
     return A2uiAction(

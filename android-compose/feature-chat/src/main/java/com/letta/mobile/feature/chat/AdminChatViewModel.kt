@@ -678,6 +678,8 @@ internal class AdminChatViewModel @Inject constructor(
         } else {
             action
         }
+        if (submitA2uiToolApprovalViaRest(resolvedAction)) return
+
         val result = wsChatBridge.sendA2uiAction(resolvedAction)
         // letta-mobile-ykkl: log the dispatch outcome so a missing
         // user_action on the wire is diagnosable from adb logcat
@@ -699,6 +701,18 @@ internal class AdminChatViewModel @Inject constructor(
                 chatBannerController.showComposerError("Couldn't send action. Check the chat connection and try again.")
             }
         }
+    }
+
+    private fun submitA2uiToolApprovalViaRest(action: A2uiAction): Boolean {
+        val submission = action.toToolApprovalSubmission() ?: return false
+        chatApprovalController.submitApproval(
+            requestId = submission.approvalRequestId,
+            toolCallIds = listOf(submission.callId),
+            approve = submission.approve,
+            reason = submission.reason,
+            activeConversationIdOverride = action.conversationId,
+        )
+        return true
     }
 
     fun tryHandleSlashCommand(text: String): Boolean =

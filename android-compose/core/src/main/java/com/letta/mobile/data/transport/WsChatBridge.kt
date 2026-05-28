@@ -322,6 +322,6 @@ private fun ServerFrame.A2ui.toA2uiEvent(): A2uiFrameEvent = A2uiFrameEvent(
     conversationId = conversationId,
     turnId = turnId,
     runId = runId,
-    requestId = null,
+    requestId = requestId,
     messages = messages,
 )

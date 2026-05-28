@@ -38,6 +38,7 @@ import com.letta.mobile.ui.a2ui.A2uiSurfaceRenderer
 import com.letta.mobile.ui.a2ui.A2uiTestTags
 import com.letta.mobile.ui.test.setLettaTestContent
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
@@ -564,6 +565,38 @@ class A2uiRendererTest {
             decision = "deny",
             scope = "deny",
         )
+    }
+
+    @Test
+    fun toolApprovalAffordanceIncludesApprovalRequestIdWhenSurfaceHasOne() {
+        val baseSurface = toolApprovalSurfaceManager(
+            affordances = listOf("once"),
+            callId = "call-rest",
+            riskLevel = "medium",
+        ).surface(SurfaceId)!!
+        val manager = A2uiSurfaceManager(
+            mapOf(SurfaceId to baseSurface.copy(approvalRequestId = "approval-rest-1"))
+        )
+        val actions = mutableListOf<A2uiAction>()
+
+        composeRule.setLettaTestContent(useChatTheme = false) {
+            A2uiRenderer(
+                surfaceId = SurfaceId,
+                surfaceManager = manager,
+                onAction = actions::add,
+            )
+        }
+
+        composeRule.onNodeWithText("Once").performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, actions.size)
+            actions.assertToolApprovalAction(
+                callId = "call-rest",
+                decision = "approve",
+                scope = "once",
+                approvalRequestId = "approval-rest-1",
+            )
+        }
     }
 
     @Test
@@ -1853,6 +1886,7 @@ private fun List<A2uiAction>.assertToolApprovalAction(
     callId: String,
     decision: String,
     scope: String,
+    approvalRequestId: String? = null,
 ) {
     val action = single { it.context["callId"]!!.jsonPrimitive.content == callId }
     assertEquals("tool_approval_response", action.name)
@@ -1860,6 +1894,8 @@ private fun List<A2uiAction>.assertToolApprovalAction(
     assertEquals(SurfaceId, action.raw["surfaceId"]!!.jsonPrimitive.content)
     assertEquals(decision, action.context["decision"]!!.jsonPrimitive.content)
     assertEquals(scope, action.context["scope"]!!.jsonPrimitive.content)
+    assertEquals(approvalRequestId, action.context["approvalRequestId"]?.jsonPrimitive?.contentOrNull)
+    assertEquals(approvalRequestId, action.raw["approvalRequestId"]?.jsonPrimitive?.contentOrNull)
 }
 
 internal fun confirmationSurfaceManager(): A2uiSurfaceManager {
