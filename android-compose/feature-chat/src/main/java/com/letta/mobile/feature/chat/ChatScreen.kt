@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -44,6 +46,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -276,6 +281,7 @@ internal fun ChatScreen(
                                 onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                                 onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
                                 onA2uiAction = viewModel::submitA2uiAction,
+                                onDismissA2uiSurface = viewModel::dismissA2uiSurface,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -296,6 +302,7 @@ internal fun ChatScreen(
                                 onToggleRunCollapsed = viewModel::toggleRunCollapsed,
                                 onToggleReasoningExpanded = viewModel::toggleReasoningExpanded,
                                 onA2uiAction = viewModel::submitA2uiAction,
+                                onDismissA2uiSurface = viewModel::dismissA2uiSurface,
                                 activeFontScale = activeFontScale,
                                 onActiveFontScaleChange = { activeFontScale = it },
                                 onFontScaleChange = { viewModel.setChatFontScale(it) },
@@ -447,6 +454,7 @@ internal fun NoConversationChatContent(
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
     onA2uiAction: (A2uiAction) -> Unit = {},
+    onDismissA2uiSurface: (String) -> Unit = {},
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -475,6 +483,7 @@ internal fun NoConversationChatContent(
             onToggleRunCollapsed = onToggleRunCollapsed,
             onToggleReasoningExpanded = onToggleReasoningExpanded,
             onA2uiAction = onA2uiAction,
+            onDismissA2uiSurface = onDismissA2uiSurface,
             activeFontScale = activeFontScale,
             onActiveFontScaleChange = onActiveFontScaleChange,
             onFontScaleChange = onFontScaleChange,
@@ -495,6 +504,7 @@ private fun ChatContent(
     onToggleRunCollapsed: (String) -> Unit,
     onToggleReasoningExpanded: (String) -> Unit,
     onA2uiAction: (A2uiAction) -> Unit = {},
+    onDismissA2uiSurface: (String) -> Unit = {},
     activeFontScale: Float = 1f,
     onActiveFontScaleChange: (Float) -> Unit = {},
     onFontScaleChange: (Float) -> Unit = {},
@@ -541,6 +551,7 @@ private fun ChatContent(
                 surfaces = state.a2uiSurfaces,
                 resolvedActionCounters = state.a2uiResolvedActionCounters,
                 onAction = onA2uiAction,
+                onDismissSurface = onDismissA2uiSurface,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -555,6 +566,7 @@ private fun A2uiSurfaceStack(
     surfaces: ImmutableMap<String, A2uiSurfaceState>,
     resolvedActionCounters: Map<String, Int>,
     onAction: (A2uiAction) -> Unit,
+    onDismissSurface: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (surfaces.isEmpty()) return
@@ -565,13 +577,54 @@ private fun A2uiSurfaceStack(
     ) {
         orderedSurfaces.forEach { surface ->
             key(surface.surfaceId) {
-                A2uiSurfaceRenderer(
-                    surface = surface,
-                    modifier = Modifier.fillMaxWidth(),
-                    onAction = onAction,
-                    actionResolutionToken = resolvedActionCounters[surface.surfaceId] ?: 0,
+                DismissibleA2uiSurface(
+                    surfaceId = surface.surfaceId,
+                    onDismissSurface = onDismissSurface,
+                ) {
+                    A2uiSurfaceRenderer(
+                        surface = surface,
+                        modifier = Modifier.fillMaxWidth(),
+                        onAction = onAction,
+                        actionResolutionToken = resolvedActionCounters[surface.surfaceId] ?: 0,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DismissibleA2uiSurface(
+    surfaceId: String,
+    onDismissSurface: (String) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var menuExpanded by remember(surfaceId) { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Dismiss A2UI surface") {
+                        onDismissSurface(surfaceId)
+                        true
+                    }
                 )
             }
+            .longPressPassthrough { menuExpanded = true },
+    ) {
+        content()
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Dismiss") },
+                onClick = {
+                    menuExpanded = false
+                    onDismissSurface(surfaceId)
+                },
+            )
         }
     }
 }

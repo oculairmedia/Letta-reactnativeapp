@@ -109,6 +109,30 @@ class A2uiSurfaceManagerTest : WordSpec({
             manager.surface("missing").shouldBeNull()
         }
 
+        "dismiss a live surface locally" {
+            val manager = A2uiSurfaceManager()
+            manager.applyMessages(
+                decodeA2uiMessages(
+                    json,
+                    json.parseToJsonElement(
+                        """
+                        [
+                          {"version":"v0.9","createSurface":{"surfaceId":"s1","catalogId":"basic"}},
+                          {"version":"v0.9","updateComponents":{"surfaceId":"s1","root":"body","components":[
+                            {"id":"body","component":"Text","text":{"literalString":"Dismiss me"}}
+                          ]}}
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            )
+
+            manager.dismissSurface("s1")
+
+            manager.surface("s1").shouldBeNull()
+            manager.surfaces.value shouldBe emptyMap()
+        }
+
         "merge partial component updates without losing previous nodes" {
             val manager = A2uiSurfaceManager()
             manager.applyMessages(

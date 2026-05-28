@@ -75,6 +75,11 @@ class A2uiSurfaceManager(
         _surfaces.value = emptyMap()
     }
 
+    fun dismissSurface(surfaceId: String) {
+        if (surfaceId.isBlank()) return
+        _surfaces.update { current -> current - surfaceId }
+    }
+
     fun surface(surfaceId: String): A2uiSurfaceState? = surfaces.value[surfaceId]
 }
 

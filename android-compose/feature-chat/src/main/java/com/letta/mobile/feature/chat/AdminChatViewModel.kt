@@ -713,6 +713,11 @@ internal class AdminChatViewModel @Inject constructor(
         }
     }
 
+    fun dismissA2uiSurface(surfaceId: String) {
+        a2uiSurfaceManager.dismissSurface(surfaceId)
+        publishA2uiSurfaces(a2uiSurfaceManager.surfaces.value)
+    }
+
     fun submitA2uiAction(action: A2uiAction) {
         val resolvedAction = if (action.conversationId.isNullOrBlank()) {
             val currentConversationId = chatConversationCoordinator.activeConversationId ?: conversationId
