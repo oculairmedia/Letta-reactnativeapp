@@ -6,11 +6,13 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertThrows
 import org.junit.jupiter.api.Tag
 
 @Tag("unit")
@@ -75,6 +77,19 @@ class A2uiProtocolTest : WordSpec({
             val approval = parsed.updateComponents.components[1]
             approval.component shouldBe LETTA_TOOL_APPROVAL_WIDGET_ID
             approval.raw["requestId"]!!.jsonPrimitive.content shouldBe "req-1"
+        }
+
+        "reject component payloads without a stable identity" {
+            assertThrows(SerializationException::class.java) {
+                decodeA2uiMessages(
+                    json,
+                    json.parseToJsonElement(
+                        """
+                        {"version":"v0.9","updateComponents":{"surfaceId":"s1","components":[{"component":"Text","text":"Missing id"}]}}
+                        """.trimIndent(),
+                    ),
+                )
+            }
         }
 
         "round-trip ListView item template metadata" {

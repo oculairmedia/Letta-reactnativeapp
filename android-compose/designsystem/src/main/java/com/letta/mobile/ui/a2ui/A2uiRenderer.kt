@@ -977,10 +977,10 @@ private fun A2uiBooleanInput(
     kind: A2uiBooleanInputKind,
 ) {
     val binding = component.raw["value"] ?: component.raw["checked"] ?: component.raw["selected"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val boundChecked = component.resolveInputValue(surface, binding, renderScope).toBooleanStrictOrNull() ?: false
-    val localChecked = rememberA2uiLocalBooleanState("value", boundChecked)
-    val checked = if (path != null) boundChecked else localChecked.value
+    val effectivePath = component.inputPath(binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultChecked = component.resolveInputValue(surface, binding, renderScope).toBooleanStrictOrNull() ?: false
+    val checked = observedAtPath?.let(A2uiBindingResolver::displayText)?.toBooleanStrictOrNull() ?: defaultChecked
     val label = component.resolveControlLabel(surface, renderScope)
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
@@ -989,11 +989,7 @@ private fun A2uiBooleanInput(
         if (next != checked) {
             if (next) HapticEffects.toggleOn(haptic, view) else HapticEffects.toggleOff(haptic, view)
         }
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
-        } else {
-            localChecked.value = next
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = JsonPrimitive(next))
     }
 
     Row(
@@ -1040,10 +1036,10 @@ private fun A2uiRadio(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"] ?: component.raw["selected"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val boundValue = component.resolveInputValue(surface, binding, renderScope)
-    var localValue by remember(component.id) { mutableStateOf(boundValue) }
-    val value = if (path != null) boundValue else localValue
+    val effectivePath = component.inputPath(binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultValue = component.resolveInputValue(surface, binding, renderScope)
+    val value = observedAtPath?.let(A2uiBindingResolver::displayText) ?: defaultValue
     val label = component.resolveControlLabel(surface, renderScope)
     val options = component.resolveRadioOptions(surface, renderScope)
     val haptic = LocalHapticFeedback.current
@@ -1056,11 +1052,7 @@ private fun A2uiRadio(
 
     fun update(next: String) {
         if (next != value) HapticEffects.segmentTick(haptic, view)
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
-        } else {
-            localValue = next
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = JsonPrimitive(next))
     }
 
     Column(
@@ -1241,8 +1233,10 @@ private fun A2uiDateTimeInput(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"] ?: component.raw["text"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val value = component.resolveInputValue(surface, binding, renderScope)
+    val effectivePath = component.inputPath(binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val value = observedAtPath?.let(A2uiBindingResolver::displayText)
+        ?: component.resolveInputValue(surface, binding, renderScope)
     val label = resolveBindingText(component.raw["label"], surface, renderScope) ?: "Date and time"
     val enableDate = component.raw.booleanValue("enableDate") ?: true
     val enableTime = component.raw.booleanValue("enableTime") ?: false
@@ -1304,12 +1298,10 @@ private fun A2uiDateTimeInput(
                             HapticEffects.contextClick(haptic, view)
                             showTimePicker = true
                         } else {
-                            path?.let {
-                                surface.dataModel.applyPatch(
-                                    path = it,
-                                    value = JsonPrimitive(formatDateTime(pendingDateMillis, null, enableDate, false)),
-                                )
-                            }
+                            surface.dataModel.applyPatch(
+                                path = effectivePath,
+                                value = JsonPrimitive(formatDateTime(pendingDateMillis, null, enableDate, false)),
+                            )
                             HapticEffects.confirm(haptic, view)
                         }
                     },
@@ -1334,19 +1326,17 @@ private fun A2uiDateTimeInput(
                 TextButton(
                     onClick = {
                         showTimePicker = false
-                        path?.let {
-                            surface.dataModel.applyPatch(
-                                path = it,
-                                value = JsonPrimitive(
-                                    formatDateTime(
-                                        dateMillis = pendingDateMillis,
-                                        time = LocalTime.of(timePickerState.hour, timePickerState.minute),
-                                        enableDate = enableDate,
-                                        enableTime = enableTime,
-                                    ),
+                        surface.dataModel.applyPatch(
+                            path = effectivePath,
+                            value = JsonPrimitive(
+                                formatDateTime(
+                                    dateMillis = pendingDateMillis,
+                                    time = LocalTime.of(timePickerState.hour, timePickerState.minute),
+                                    enableDate = enableDate,
+                                    enableTime = enableTime,
                                 ),
-                            )
-                        }
+                            ),
+                        )
                         HapticEffects.confirm(haptic, view)
                     },
                 ) {
@@ -2291,10 +2281,10 @@ private fun A2uiFilterChip(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"] ?: component.raw["checked"] ?: component.raw["selected"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val boundSelected = component.resolveInputValue(surface, binding, renderScope).toBooleanStrictOrNull() ?: false
-    val localSelected = rememberA2uiLocalBooleanState("value", boundSelected)
-    val selected = if (path != null) boundSelected else localSelected.value
+    val effectivePath = component.inputPath(binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultSelected = component.resolveInputValue(surface, binding, renderScope).toBooleanStrictOrNull() ?: false
+    val selected = observedAtPath?.let(A2uiBindingResolver::displayText)?.toBooleanStrictOrNull() ?: defaultSelected
     val label = component.resolveControlLabel(surface, renderScope)
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
@@ -2307,11 +2297,7 @@ private fun A2uiFilterChip(
         if (next != selected) {
             if (next) HapticEffects.toggleOn(haptic, view) else HapticEffects.toggleOff(haptic, view)
         }
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
-        } else {
-            localSelected.value = next
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = JsonPrimitive(next))
     }
 
     FilterChip(
@@ -2500,10 +2486,10 @@ private fun A2uiDropdown(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"] ?: component.raw["selected"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
-    val boundValue = component.resolveInputValue(surface, binding, renderScope)
-    var localValue by remember(component.id) { mutableStateOf(boundValue) }
-    val value = if (path != null) boundValue else localValue
+    val effectivePath = component.inputPath(binding, renderScope)
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultValue = component.resolveInputValue(surface, binding, renderScope)
+    val value = observedAtPath?.let(A2uiBindingResolver::displayText) ?: defaultValue
     val label = component.resolveControlLabel(surface, renderScope)
     val placeholder = resolveBindingText(component.raw["placeholder"], surface, renderScope)
     val validation = component.raw.stringValue("validationRegexp")
@@ -2516,11 +2502,7 @@ private fun A2uiDropdown(
 
     fun update(next: String) {
         if (next != value) HapticEffects.segmentTick(haptic, view)
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = JsonPrimitive(next))
-        } else {
-            localValue = next
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = JsonPrimitive(next))
         expanded = false
     }
 
@@ -2586,11 +2568,14 @@ private fun A2uiSlider(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val effectivePath = component.inputPath(binding, renderScope)
     val range = component.numericRange()
-    val boundValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
-    var localValue by remember(component.id) { mutableStateOf(boundValue) }
-    val value = if (path != null) boundValue else localValue
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
+    val value = observedAtPath
+        ?.let(A2uiBindingResolver::displayText)
+        ?.toDoubleOrNull()
+        ?: defaultValue
     val label = component.resolveControlLabel(surface, renderScope)
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
@@ -2603,11 +2588,7 @@ private fun A2uiSlider(
             HapticEffects.segmentTick(haptic, view)
             lastTickValue = stepped
         }
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = stepped.numericJsonPrimitive(range.integralStep))
-        } else {
-            localValue = stepped
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = stepped.numericJsonPrimitive(range.integralStep))
     }
 
     Column(
@@ -2674,20 +2655,19 @@ private fun A2uiStepper(
     renderScope: A2uiRenderScope,
 ) {
     val binding = component.raw["value"]
-    val path = binding.bindingPath()?.let(renderScope::resolvePath)
+    val effectivePath = component.inputPath(binding, renderScope)
     val range = component.numericRange()
-    val boundValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
-    var localValue by remember(component.id) { mutableStateOf(boundValue) }
-    val value = if (path != null) boundValue else localValue
+    val observedAtPath by surface.dataModel.observe(effectivePath)
+    val defaultValue = component.resolveNumericInputValue(surface, binding, renderScope, range.min)
+    val value = observedAtPath
+        ?.let(A2uiBindingResolver::displayText)
+        ?.toDoubleOrNull()
+        ?: defaultValue
     val label = component.resolveControlLabel(surface, renderScope)
 
     fun update(next: Double) {
         val stepped = range.coerce(next)
-        if (path != null) {
-            surface.dataModel.applyPatch(path = path, value = stepped.numericJsonPrimitive(range.integralStep))
-        } else {
-            localValue = stepped
-        }
+        surface.dataModel.applyPatch(path = effectivePath, value = stepped.numericJsonPrimitive(range.integralStep))
     }
 
     Row(
@@ -3651,6 +3631,14 @@ private fun JsonObject.booleanValue(vararg keys: String): Boolean? =
 private fun JsonElement?.bindingPath(): String? =
     (this as? JsonObject)?.stringValue("path")
 
+private fun A2uiComponent.inputPath(
+    binding: JsonElement?,
+    renderScope: A2uiRenderScope,
+): String =
+    binding.bindingPath()?.let(renderScope::resolvePath) ?: syntheticInputPath()
+
+private fun A2uiComponent.syntheticInputPath(): String = "/_inputs/${id}"
+
 @Composable
 private fun rememberA2uiLocalIntState(
     key: String,
@@ -3678,7 +3666,7 @@ private data class A2uiRenderScope(
     fun resolvePath(path: String): String {
         val normalized = A2uiJsonPointer.normalize(path)
         val base = basePath ?: return normalized
-        return if (path.trim().startsWith("/")) {
+        return if (path.startsWith("/")) {
             normalized
         } else {
             base.appendJsonPointerSegment(path)

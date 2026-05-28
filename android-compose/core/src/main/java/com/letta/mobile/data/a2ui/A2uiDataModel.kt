@@ -55,11 +55,10 @@ class A2uiDataModel(
 
 object A2uiJsonPointer {
     fun normalize(path: String): String {
-        val trimmed = path.trim()
         return when {
-            trimmed.isBlank() || trimmed == "/" -> "/"
-            trimmed.startsWith("/") -> trimmed
-            else -> "/$trimmed"
+            path.isEmpty() || path == "/" -> "/"
+            path.startsWith("/") -> path
+            else -> "/$path"
         }
     }
 
@@ -94,10 +93,13 @@ object A2uiJsonPointer {
     }
 
     private fun segments(path: String): List<JsonPointerSegment> =
-        path.removePrefix("/")
-            .split("/")
-            .filter { it.isNotEmpty() }
-            .map { JsonPointerSegment(it.replace("~1", "/").replace("~0", "~")) }
+        if (path == "/") {
+            emptyList()
+        } else {
+            path.removePrefix("/")
+                .split("/")
+                .map { JsonPointerSegment(it.replace("~1", "/").replace("~0", "~")) }
+        }
 
     private fun setAtPath(
         current: JsonElement,

@@ -28,6 +28,9 @@ Payload:
     "Card",
     "Button",
     "Divider",
+    "TextField",
+    "DateTimeInput",
+    "Image",
     "ToolApprovalCard"
   ],
   "theme_hints": {

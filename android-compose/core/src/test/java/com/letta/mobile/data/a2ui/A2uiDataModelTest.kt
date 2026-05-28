@@ -39,6 +39,21 @@ class A2uiDataModelTest : WordSpec({
             A2uiJsonPointer.resolve(dataModel, "/rooms/-").shouldBeNull()
         }
 
+        "preserve empty and whitespace-sensitive path tokens" {
+            val dataModel = json.parseToJsonElement(
+                """
+                {
+                  "foo": {"": "empty child"},
+                  "title ": "space suffix"
+                }
+                """.trimIndent(),
+            )
+
+            A2uiJsonPointer.resolve(dataModel, "/foo/")!!.jsonPrimitive.content shouldBe "empty child"
+            A2uiJsonPointer.resolve(dataModel, "/title ")!!.jsonPrimitive.content shouldBe "space suffix"
+            A2uiJsonPointer.resolve(dataModel, "/title").shouldBeNull()
+        }
+
         "merge object patches without dropping existing fields" {
             val model = A2uiDataModel(
                 buildJsonObject {

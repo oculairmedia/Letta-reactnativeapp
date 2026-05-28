@@ -149,6 +149,7 @@ internal class AdminChatViewModel @Inject constructor(
     private val pendingA2uiActions = mutableMapOf<String, PendingA2uiAction>()
     private var a2uiThinkingTimeoutJob: Job? = null
     private var a2uiThinkingStartMessageCount: Int? = null
+    private var nextA2uiDebugFrameId = 0L
     private var nextA2uiSnackbarId = 0L
     val uiState: StateFlow<ChatUiState> by lazy(LazyThreadSafetyMode.NONE) {
         viewModelScope.launchMolecule(mode = Immediate) {
@@ -550,7 +551,14 @@ internal class AdminChatViewModel @Inject constructor(
 
     private fun A2uiFrameEvent.toDebugFrames(): List<A2uiDebugFrameUi> = messages.mapIndexed { index, message ->
         A2uiDebugFrameUi(
-            id = listOfNotNull(frameId, requestId, message.surfaceId, index.toString()).joinToString(":"),
+            id = listOf(
+                frameId.orEmpty().ifBlank { "frame" },
+                requestId.orEmpty().ifBlank { "request" },
+                message.surfaceId.ifBlank { "surface" },
+                message.messageType,
+                index.toString(),
+                (++nextA2uiDebugFrameId).toString(),
+            ).joinToString(":"),
             transport = transport,
             messageType = message.messageType,
             surfaceId = message.surfaceId.takeIf { it.isNotBlank() },
