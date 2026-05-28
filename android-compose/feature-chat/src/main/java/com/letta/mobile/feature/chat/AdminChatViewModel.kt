@@ -11,7 +11,9 @@ import app.cash.molecule.RecompositionMode.Immediate
 import app.cash.molecule.launchMolecule
 import com.letta.mobile.data.a2ui.A2uiAction
 import com.letta.mobile.data.a2ui.A2uiFrameEvent
+import com.letta.mobile.data.a2ui.A2uiMessage
 import com.letta.mobile.data.a2ui.A2uiSurfaceManager
+import com.letta.mobile.data.a2ui.A2uiSurfaceState
 import com.letta.mobile.data.channel.NotificationDelivery
 import com.letta.mobile.data.health.ShimBackendDetector
 import com.letta.mobile.data.model.Agent
@@ -43,6 +45,7 @@ import com.letta.mobile.runtime.RuntimeEventOutbox
 import com.letta.mobile.util.Telemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,6 +144,8 @@ internal class AdminChatViewModel @Inject constructor(
         ChatUiState(agentName = initialAgentName.orEmpty())
     )
     private val a2uiSurfaceManager = A2uiSurfaceManager()
+    private var a2uiHistoryConversationId: String? = null
+    private var a2uiHistorySurfaces: Map<String, A2uiSurfaceState> = emptyMap()
     private val pendingA2uiActions = mutableMapOf<String, PendingA2uiAction>()
     private var a2uiThinkingTimeoutJob: Job? = null
     private var a2uiThinkingStartMessageCount: Int? = null
@@ -262,6 +267,7 @@ internal class AdminChatViewModel @Inject constructor(
         isFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight },
         clearFollowingDuplicateInitialMessageInFlight = { followingDuplicateInitialMessageInFlight = false },
         collapseCompletedRunsIfStreamingFinished = ::collapseCompletedRunsIfStreamingFinished,
+        replayA2uiHistory = ::replayA2uiHistory,
     )
     private val chatConversationCoordinator = ChatConversationCoordinator(
         scope = viewModelScope,
@@ -485,7 +491,7 @@ internal class AdminChatViewModel @Inject constructor(
                 val frames = event.toDebugFrames()
                 _uiState.update { current ->
                     current.copy(
-                        a2uiSurfaces = a2uiSurfaceManager.surfaces.value.toPersistentMap(),
+                        a2uiSurfaces = mergedA2uiSurfaces().toPersistentMap(),
                         a2uiDebugFrames = if (frames.isEmpty()) {
                             current.a2uiDebugFrames
                         } else {
@@ -499,6 +505,16 @@ internal class AdminChatViewModel @Inject constructor(
             }
         }
     }
+
+    private fun replayA2uiHistory(messages: List<A2uiMessage>): Map<String, A2uiSurfaceState> {
+        val historyManager = A2uiSurfaceManager()
+        historyManager.applyMessages(messages)
+        a2uiHistorySurfaces = historyManager.surfaces.value
+        return mergedA2uiSurfaces()
+    }
+
+    private fun mergedA2uiSurfaces(): Map<String, A2uiSurfaceState> =
+        a2uiHistorySurfaces + a2uiSurfaceManager.surfaces.value
 
     /**
      * Derives the [ChatTransport] surfaced in the top-bar chip from the
@@ -840,6 +856,14 @@ internal class AdminChatViewModel @Inject constructor(
      * left the UI locked onto the first-selected conversation's timeline.
      */
     private fun startTimelineObserver(conversationId: String) {
+        if (a2uiHistoryConversationId != conversationId) {
+            a2uiHistoryConversationId = conversationId
+            a2uiHistorySurfaces = emptyMap()
+            a2uiSurfaceManager.clear()
+            _uiState.update { current ->
+                current.copy(a2uiSurfaces = persistentMapOf())
+            }
+        }
         chatTimelineObserver.start(conversationId)
     }
 

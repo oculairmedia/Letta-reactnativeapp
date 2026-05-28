@@ -1,5 +1,7 @@
 package com.letta.mobile.feature.chat
 
+import com.letta.mobile.data.a2ui.A2uiMessage
+import com.letta.mobile.data.a2ui.A2uiSurfaceState
 import com.letta.mobile.data.channel.CurrentConversationTracker
 import com.letta.mobile.data.model.UiMessage
 import com.letta.mobile.data.timeline.DeliveryState
@@ -11,6 +13,7 @@ import com.letta.mobile.data.timeline.TimelineRepository
 import com.letta.mobile.data.timeline.TimelineSyncEvent
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +42,7 @@ internal class ChatTimelineObserver(
     private val isFollowingDuplicateInitialMessageInFlight: () -> Boolean,
     private val clearFollowingDuplicateInitialMessageInFlight: () -> Unit,
     private val collapseCompletedRunsIfStreamingFinished: (previous: ChatUiState, next: ChatUiState) -> ChatUiState,
+    private val replayA2uiHistory: (List<A2uiMessage>) -> Map<String, A2uiSurfaceState>,
     private val projectionDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private var observerJob: Job? = null
@@ -123,7 +127,11 @@ internal class ChatTimelineObserver(
                             prefix = prefix,
                         )
                     }
-                    val ui = projection.ui
+                    val extraction = A2uiHistoryExtractor.extract(projection.ui)
+                    val ui = extraction.messages
+                    val replayedA2uiSurfaces = extraction.a2uiMessages
+                        .takeIf { it.isNotEmpty() }
+                        ?.let(replayA2uiHistory)
                     val tailIsAssistant = projection.tailIsAssistant
                     val anyLettaServerLocalPending = projection.anyLettaServerLocalPending
                     val clearLoading = ui.isNotEmpty()
@@ -158,7 +166,8 @@ internal class ChatTimelineObserver(
                     uiState.value = collapseCompletedRunsIfStreamingFinished(
                         prev,
                         prev.copy(
-                            messages = ui,
+                            messages = ui.toImmutableList(),
+                            a2uiSurfaces = replayedA2uiSurfaces?.toPersistentMap() ?: prev.a2uiSurfaces,
                             isLoadingMessages = if (clearLoading) false else prev.isLoadingMessages,
                             isStreaming = nextIsStreaming,
                             isAgentTyping = nextIsAgentTyping,

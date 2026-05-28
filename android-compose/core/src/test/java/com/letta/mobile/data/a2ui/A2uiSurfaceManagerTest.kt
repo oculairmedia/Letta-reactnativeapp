@@ -169,5 +169,41 @@ class A2uiSurfaceManagerTest : WordSpec({
             A2uiBindingResolver.displayText((path as A2uiResolvedBinding.Value).value) shouldBe "3"
             A2uiBindingResolver.displayText((literal as A2uiResolvedBinding.Value).value) shouldBe "Approve"
         }
+
+        "evaluate catalog function calls" {
+            val dataModel = json.parseToJsonElement(
+                """
+                {
+                  "userName": "Emmanuel",
+                  "done": 5,
+                  "total": 10,
+                  "price": 1234.5,
+                  "createdAt": "2026-05-28T12:00:00Z",
+                  "email": "emmanuel@example.com",
+                  "enabled": true
+                }
+                """.trimIndent(),
+            )
+
+            fun resolved(raw: String): String {
+                val result = A2uiBindingResolver.resolve(json.parseToJsonElement(raw), dataModel)
+                return A2uiBindingResolver.displayText((result as A2uiResolvedBinding.Value).value)
+            }
+
+            resolved("""{"call":"formatString","args":{"template":"Hello ${'$'}{/userName}: ${'$'}{/done}/${'$'}{/total}"}}""") shouldBe
+                "Hello Emmanuel: 5/10"
+            resolved("""{"call":"formatNumber","args":{"value":{"path":"/price"},"maximumFractionDigits":1}}""") shouldBe
+                "1,234.5"
+            resolved("""{"call":"formatCurrency","args":{"value":{"path":"/price"},"currency":"USD"}}""") shouldBe
+                "${'$'}1,234.50"
+            resolved("""{"call":"formatDate","args":{"value":{"path":"/createdAt"},"pattern":"yyyy-MM-dd"}}""") shouldBe
+                "2026-05-28"
+            resolved("""{"call":"pluralize","args":{"count":{"path":"/done"},"singular":"task","plural":"tasks"}}""") shouldBe
+                "5 tasks"
+            resolved("""{"call":"email","args":{"value":{"path":"/email"}}}""") shouldBe "true"
+            resolved("""{"call":"and","args":{"values":[{"call":"numeric","args":{"value":{"path":"/total"}}},{"path":"/enabled"}]}}""") shouldBe
+                "true"
+            resolved("""{"call":"missingFunction","args":{}}""") shouldBe "<unknown function: missingFunction>"
+        }
     }
 })
