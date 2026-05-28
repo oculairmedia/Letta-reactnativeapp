@@ -362,7 +362,7 @@ private object A2uiFunctionEvaluator {
         keys.firstNotNullOfOrNull { key -> (this[key] as? JsonPrimitive)?.contentOrNull }
 
     private val EmailRegex = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
-    private val InterpolationRegex = Regex("""\$\{([^}]+)}""")
+    private val InterpolationRegex = Regex("""\$\{([^}]+)\}""")
     private val FunctionExpressionRegex = Regex("""^([A-Za-z_][\w.-]*)\((.*)\)$""")
 }
 
