@@ -66,6 +66,7 @@ class LettaApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        com.letta.mobile.util.Telemetry.delegate = com.letta.mobile.util.AndroidTelemetryDelegate()
         // CrashReporter and global exception handler must run on main thread
         // before anything else so uncaught exceptions are captured from the start.
         crashReporter.install()

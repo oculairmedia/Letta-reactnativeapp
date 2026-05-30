@@ -342,7 +342,6 @@ android {
     sourceSets {
         getByName("test") {
             kotlin.directories += "src/test/java"
-            kotlin.directories += "${project(":core").projectDir}/src/testFixtures/java"
         }
         if (embeddedLettaCodeAssetsEnabled.get()) {
             getByName("main") {
@@ -411,7 +410,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":core:data"))
+    testImplementation(project(":core:testutil"))
     implementation(project(":designsystem"))
     implementation(project(":feature-chat"))
     implementation(project(":feature-editagent"))

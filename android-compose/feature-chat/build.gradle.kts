@@ -61,7 +61,6 @@ android {
         }
         getByName("test") {
             kotlin.directories += "src/test/java"
-            kotlin.directories += "${project(":core").projectDir}/src/testFixtures/java"
         }
     }
 }
@@ -84,7 +83,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":core:data"))
+    testImplementation(project(":core:testutil"))
     implementation(project(":designsystem"))
     val composeBom = platform("androidx.compose:compose-bom:2026.03.01")
     implementation(composeBom)
