@@ -28,7 +28,9 @@ internal class WebSocketConnection(
     }
 
     private val socketRef = AtomicReference<WebSocket?>(null)
+    @Volatile
     private var reconnectJob: Job? = null
+    @Volatile
     private var lastConnectionConfig: ConnectionConfig? = null
 
     @Volatile

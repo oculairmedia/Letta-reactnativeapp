@@ -189,7 +189,6 @@ class ChannelTransport internal constructor(
                 }
                 _state.value = State.Disconnected(code, reason)
                 conversationStateManager.clearAllTurnState()
-                connection.clearClientInitiatedClose()
                 cronCorrelator.cancelPendingRequests("WS closed: code=$code reason=$reason")
                 if (!wasClientInitiatedClose && code == KEEPALIVE_PONG_TIMEOUT_CLOSE_CODE) {
                     Telemetry.event(
@@ -215,7 +214,6 @@ class ChannelTransport internal constructor(
                     isAuthFailure = isAuth,
                 )
                 conversationStateManager.clearAllTurnState()
-                connection.clearClientInitiatedClose()
                 cronCorrelator.cancelPendingRequests("WS failure: ${t.message ?: t::class.java.simpleName}")
             }
         }
