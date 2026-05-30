@@ -175,7 +175,8 @@
       "Bash(bd --help)",
       "Bash(cp /opt/stacks/letta-mobile/android-compose/local.properties /tmp/a2ui-handshake/android-compose/local.properties)",
       "Read(//tmp/a2ui-handshake/android-compose/**)",
-      "Bash(perl -i -pe 's/\\\\bhuly-vibe-sync-\\([a-z0-9]{2,}\\)\\\\b/vibesync-$1/g' .beads/interactions.jsonl)"
+      "Bash(perl -i -pe 's/\\\\bhuly-vibe-sync-\\([a-z0-9]{2,}\\)\\\\b/vibesync-$1/g' .beads/interactions.jsonl)",
+      "Bash(export JAVA_HOME=/usr/lib/jvm/jdk-26)"
     ]
   }
 }

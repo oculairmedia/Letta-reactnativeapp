@@ -80,7 +80,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.03.01")
     implementation(composeBom)
 
-    implementation(project(":core"))
+    implementation(project(":core:data"))
 
     implementation("io.coil-kt.coil3:coil-compose:3.5.0-beta01")
     implementation("io.coil-kt.coil3:coil-svg:3.5.0-beta01")

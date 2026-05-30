@@ -89,7 +89,8 @@ subprojects {
 // ---------------------------------------------------------------------------
 dependencies {
     kover(project(":app"))
-    kover(project(":core"))
+    kover(project(":core:domain"))
+    kover(project(":core:data"))
     kover(project(":sharedLogic"))
     kover(project(":designsystem"))
     kover(project(":feature-chat"))

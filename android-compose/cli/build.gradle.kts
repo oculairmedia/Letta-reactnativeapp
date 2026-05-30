@@ -48,7 +48,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":core:data"))
 
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")

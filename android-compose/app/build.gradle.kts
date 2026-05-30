@@ -411,7 +411,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":core:data"))
+    testImplementation(project(":core:testutil"))
     implementation(project(":designsystem"))
     implementation(project(":feature-chat"))
     implementation(project(":feature-editagent"))
