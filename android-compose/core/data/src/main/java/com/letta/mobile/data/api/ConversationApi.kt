@@ -13,7 +13,7 @@ open class ConversationApi @Inject constructor(
     private val apiClient: LettaApiClient
 ) {
     open suspend fun listConversations(
-        agentId: String? = null,
+        agentId: AgentId? = null,
         limit: Int? = null,
         after: String? = null,
         archiveStatus: String? = null,
@@ -24,7 +24,7 @@ open class ConversationApi @Inject constructor(
         val (client, baseUrl) = apiClient.session()
 
         val response = client.get("$baseUrl/v1/conversations") {
-            parameter("agent_id", agentId)
+            parameter("agent_id", agentId?.value)
             parameter("limit", limit)
             parameter("after", after)
             parameter("archive_status", archiveStatus)
@@ -38,10 +38,10 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    open suspend fun getConversation(conversationId: String): Conversation {
+    open suspend fun getConversation(conversationId: ConversationId): Conversation {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.get("$baseUrl/v1/conversations/$conversationId")
+        val response = client.get("$baseUrl/v1/conversations/${conversationId.value}")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
@@ -53,7 +53,7 @@ open class ConversationApi @Inject constructor(
 
         val response = client.post("$baseUrl/v1/conversations") {
             contentType(ContentType.Application.Json)
-            parameter("agent_id", params.agentId)
+            parameter("agent_id", params.agentId.value)
             setBody(params)
         }
         if (response.status.value !in 200..299) {
@@ -62,10 +62,10 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    open suspend fun updateConversation(conversationId: String, params: ConversationUpdateParams): Conversation {
+    open suspend fun updateConversation(conversationId: ConversationId, params: ConversationUpdateParams): Conversation {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.patch("$baseUrl/v1/conversations/$conversationId") {
+        val response = client.patch("$baseUrl/v1/conversations/${conversationId.value}") {
             contentType(ContentType.Application.Json)
             setBody(params)
         }
@@ -75,21 +75,21 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    open suspend fun deleteConversation(conversationId: String) {
+    open suspend fun deleteConversation(conversationId: ConversationId) {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.delete("$baseUrl/v1/conversations/$conversationId")
+        val response = client.delete("$baseUrl/v1/conversations/${conversationId.value}")
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
 
-    open suspend fun forkConversation(conversationId: String, agentId: String? = null): Conversation {
+    open suspend fun forkConversation(conversationId: ConversationId, agentId: AgentId? = null): Conversation {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.post("$baseUrl/v1/conversations/$conversationId/fork") {
+        val response = client.post("$baseUrl/v1/conversations/${conversationId.value}/fork") {
             contentType(ContentType.Application.Json)
-            agentId?.let { parameter("agent_id", it) }
+            agentId?.let { parameter("agent_id", it.value) }
         }
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
@@ -97,12 +97,12 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
-    open suspend fun cancelConversation(conversationId: String, agentId: String? = null) {
+    open suspend fun cancelConversation(conversationId: ConversationId, agentId: AgentId? = null) {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.post("$baseUrl/v1/conversations/$conversationId/cancel") {
+        val response = client.post("$baseUrl/v1/conversations/${conversationId.value}/cancel") {
             contentType(ContentType.Application.Json)
-            agentId?.let { parameter("agent_id", it) }
+            agentId?.let { parameter("agent_id", it.value) }
         }
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, response.bodyAsText())
@@ -110,18 +110,18 @@ open class ConversationApi @Inject constructor(
     }
 
     open suspend fun recompileConversation(
-        conversationId: String,
+        conversationId: ConversationId,
         dryRun: Boolean = false,
-        agentId: String? = null,
+        agentId: AgentId? = null,
     ): String {
         val (client, baseUrl) = apiClient.session()
 
-        val response = client.post("$baseUrl/v1/conversations/$conversationId/recompile") {
+        val response = client.post("$baseUrl/v1/conversations/${conversationId.value}/recompile") {
             contentType(ContentType.Application.Json)
             parameter("dry_run", dryRun)
             setBody(
                 buildMap<String, String?> {
-                    put("agent_id", agentId)
+                    put("agent_id", agentId?.value)
                 }.filterValues { it != null }
             )
         }

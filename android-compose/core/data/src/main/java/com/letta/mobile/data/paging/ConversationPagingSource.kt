@@ -3,11 +3,12 @@ package com.letta.mobile.data.paging
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.letta.mobile.data.api.ConversationApi
+import com.letta.mobile.data.model.AgentId
 import com.letta.mobile.data.model.Conversation
 
 class ConversationPagingSource(
     private val conversationApi: ConversationApi,
-    private val agentId: String? = null,
+    private val agentId: AgentId? = null,
     private val archiveStatus: String? = null,
     private val summarySearch: String? = null,
     private val order: String? = null,
