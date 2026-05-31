@@ -7,6 +7,7 @@ import com.letta.mobile.data.model.AgentCreateParams
 import com.letta.mobile.data.model.EmbeddingModel
 import com.letta.mobile.data.model.ImportedAgentsResponse
 import com.letta.mobile.data.model.LlmModel
+import com.letta.mobile.data.model.ProjectId
 import com.letta.mobile.data.model.Tool
 import com.letta.mobile.data.repository.AgentRepository
 import com.letta.mobile.data.repository.ModelRepository
@@ -125,7 +126,7 @@ class AgentListViewModelTest {
                 fileBytes = any(),
                 overrideName = "Cloned Agent",
                 overrideExistingTools = false,
-                projectId = null,
+                projectId = null as ProjectId?,
                 stripMessages = true,
             )
         } returns ImportedAgentsResponse(agentIds = listOf("a2"))
@@ -146,7 +147,7 @@ class AgentListViewModelTest {
                 fileBytes = any(),
                 overrideName = "Cloned Agent",
                 overrideExistingTools = false,
-                projectId = null,
+                projectId = null as ProjectId?,
                 stripMessages = true,
             )
         }
