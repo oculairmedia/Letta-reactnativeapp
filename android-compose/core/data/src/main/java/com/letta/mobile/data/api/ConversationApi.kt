@@ -38,6 +38,16 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun listConversations(
+        agentId: String?,
+        limit: Int? = null,
+        after: String? = null,
+        archiveStatus: String? = null,
+        summarySearch: String? = null,
+        order: String? = null,
+        orderBy: String? = null,
+    ): List<Conversation> = listConversations(agentId?.let(::AgentId), limit, after, archiveStatus, summarySearch, order, orderBy)
+
     open suspend fun getConversation(conversationId: ConversationId): Conversation {
         val (client, baseUrl) = apiClient.session()
 
@@ -47,6 +57,8 @@ open class ConversationApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun getConversation(conversationId: String): Conversation = getConversation(ConversationId(conversationId))
 
     open suspend fun createConversation(params: ConversationCreateParams): Conversation {
         val (client, baseUrl) = apiClient.session()
@@ -75,6 +87,9 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun updateConversation(conversationId: String, params: ConversationUpdateParams): Conversation =
+        updateConversation(ConversationId(conversationId), params)
+
     open suspend fun deleteConversation(conversationId: ConversationId) {
         val (client, baseUrl) = apiClient.session()
 
@@ -83,6 +98,8 @@ open class ConversationApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun deleteConversation(conversationId: String) = deleteConversation(ConversationId(conversationId))
 
     open suspend fun forkConversation(conversationId: ConversationId, agentId: AgentId? = null): Conversation {
         val (client, baseUrl) = apiClient.session()
@@ -97,6 +114,9 @@ open class ConversationApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun forkConversation(conversationId: String, agentId: String? = null): Conversation =
+        forkConversation(ConversationId(conversationId), agentId?.let(::AgentId))
+
     open suspend fun cancelConversation(conversationId: ConversationId, agentId: AgentId? = null) {
         val (client, baseUrl) = apiClient.session()
 
@@ -108,6 +128,9 @@ open class ConversationApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun cancelConversation(conversationId: String, agentId: String? = null) =
+        cancelConversation(ConversationId(conversationId), agentId?.let(::AgentId))
 
     open suspend fun recompileConversation(
         conversationId: ConversationId,
@@ -130,4 +153,7 @@ open class ConversationApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun recompileConversation(conversationId: String, dryRun: Boolean = false, agentId: String? = null): String =
+        recompileConversation(ConversationId(conversationId), dryRun, agentId?.let(::AgentId))
 }

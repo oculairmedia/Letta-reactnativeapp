@@ -33,13 +33,22 @@ interface IAgentRepository {
     suspend fun refreshAgents()
     suspend fun refreshAgentsIfStale(maxAgeMs: Long): Boolean
     fun getCachedAgent(id: AgentId): Agent?
+    fun getCachedAgent(id: String): Agent? = getCachedAgent(AgentId(id))
     fun getAgent(id: AgentId): Flow<Agent>
+    fun getAgent(id: String): Flow<Agent> = getAgent(AgentId(id))
     suspend fun getContextWindow(agentId: AgentId, conversationId: ConversationId? = null): ContextWindowOverview
+    suspend fun getContextWindow(agentId: String, conversationId: String? = null): ContextWindowOverview =
+        getContextWindow(AgentId(agentId), conversationId?.let(::ConversationId))
     suspend fun checkpointAndRestoreConfig(agentId: AgentId, operation: suspend () -> Unit)
+    suspend fun checkpointAndRestoreConfig(agentId: String, operation: suspend () -> Unit) =
+        checkpointAndRestoreConfig(AgentId(agentId), operation)
     suspend fun createAgent(params: AgentCreateParams): Agent
     suspend fun updateAgent(id: AgentId, params: AgentUpdateParams): Agent
+    suspend fun updateAgent(id: String, params: AgentUpdateParams): Agent = updateAgent(AgentId(id), params)
     suspend fun deleteAgent(id: AgentId)
+    suspend fun deleteAgent(id: String) = deleteAgent(AgentId(id))
     suspend fun exportAgent(id: AgentId): String
+    suspend fun exportAgent(id: String): String = exportAgent(AgentId(id))
     suspend fun importAgent(
         fileName: String,
         fileBytes: ByteArray,
@@ -48,6 +57,16 @@ interface IAgentRepository {
         projectId: ProjectId? = null,
         stripMessages: Boolean? = null,
     ): ImportedAgentsResponse
+    suspend fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String? = null,
+        overrideExistingTools: Boolean? = null,
+        projectId: String?,
+        stripMessages: Boolean? = null,
+    ): ImportedAgentsResponse = importAgent(fileName, fileBytes, overrideName, overrideExistingTools, projectId?.let(::ProjectId), stripMessages)
     suspend fun attachArchive(agentId: AgentId, archiveId: String)
+    suspend fun attachArchive(agentId: String, archiveId: String) = attachArchive(AgentId(agentId), archiveId)
     suspend fun detachArchive(agentId: AgentId, archiveId: String)
+    suspend fun detachArchive(agentId: String, archiveId: String) = detachArchive(AgentId(agentId), archiveId)
 }

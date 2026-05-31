@@ -193,7 +193,7 @@ open class MessageRepository @Inject constructor(
     }
 
     override suspend fun listBatchMessages(batchId: String, agentId: AgentId?): BatchMessagesResponse {
-        return messageApi.listBatchMessages(batchId = batchId, limit = 1000, agentId = agentId)
+        return messageApi.listBatchMessages(batchId = batchId, limit = 1000, agentId = agentId?.value)
     }
 
     override suspend fun cancelBatch(batchId: String) {
@@ -395,7 +395,6 @@ open class MessageRepository @Inject constructor(
                 )
             }
             is StopReason -> {
-                val stopReason = this as StopReason
                 ConversationInspectorMessage(
                     id = id,
                     messageType = messageType,
@@ -403,12 +402,11 @@ open class MessageRepository @Inject constructor(
                     runId = runId,
                     stepId = stepId,
                     otid = otid,
-                    summary = "Stop: ${stopReason.reason}",
-                    detailLines = baseDetails + listOf("Reason" to stopReason.reason),
+                    summary = "Stop: $reason",
+                    detailLines = baseDetails + listOf("Reason" to reason),
                 )
             }
             is UsageStatistics -> {
-                val usage = this as UsageStatistics
                 ConversationInspectorMessage(
                     id = id,
                     messageType = messageType,
@@ -416,12 +414,12 @@ open class MessageRepository @Inject constructor(
                     runId = runId,
                     stepId = stepId,
                     otid = otid,
-                    summary = "Usage: ${usage.totalTokens ?: 0} tokens",
+                    summary = "Usage: ${totalTokens ?: 0} tokens",
                     detailLines = baseDetails + buildList {
-                        usage.promptTokens?.let { add("Prompt Tokens" to it.toString()) }
-                        usage.completionTokens?.let { add("Completion Tokens" to it.toString()) }
-                        usage.totalTokens?.let { add("Total Tokens" to it.toString()) }
-                        usage.stepCount?.let { add("Step Count" to it.toString()) }
+                        promptTokens?.let { add("Prompt Tokens" to it.toString()) }
+                        completionTokens?.let { add("Completion Tokens" to it.toString()) }
+                        totalTokens?.let { add("Total Tokens" to it.toString()) }
+                        stepCount?.let { add("Step Count" to it.toString()) }
                     },
                 )
             }

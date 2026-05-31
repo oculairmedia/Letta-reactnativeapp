@@ -434,7 +434,7 @@ internal class AdminChatViewModel @Inject constructor(
     }
 
     private fun seedAgentNameFromMemoryCache() {
-        val cachedName = chatSessionResolver.cachedAgentName(agentId) ?: return
+        val cachedName = chatSessionResolver.cachedAgentName(agentId.value) ?: return
         _uiState.update { current ->
             if (current.agentName.isBlank()) current.copy(agentName = cachedName) else current
         }
@@ -442,7 +442,7 @@ internal class AdminChatViewModel @Inject constructor(
 
     private fun observeAgentNameCache() {
         viewModelScope.launch {
-            chatSessionResolver.observeCachedAgentName(agentId)
+            chatSessionResolver.observeCachedAgentName(agentId.value)
                 .collect { cachedName ->
                     if (cachedName.isBlank()) return@collect
                     _uiState.update { current ->

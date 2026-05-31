@@ -86,6 +86,12 @@ open class MessageApi @Inject constructor(
         )
     }
 
+    open suspend fun fetchRecentMessages(
+        conversationId: String,
+        messageLimit: Int = 20,
+        beforeMessageId: String? = null,
+    ): List<LettaMessage> = fetchRecentMessages(ConversationId(conversationId), messageLimit, beforeMessageId)
+
     /**
      * Fetch messages after a specific message ID (for incremental sync).
      *
@@ -125,6 +131,12 @@ open class MessageApi @Inject constructor(
         )
     }
 
+    open suspend fun fetchMessagesAfter(
+        conversationId: String,
+        afterMessageId: String?,
+        messageLimit: Int = 50,
+    ): List<LettaMessage> = fetchMessagesAfter(ConversationId(conversationId), afterMessageId, messageLimit)
+
     open suspend fun sendMessage(agentId: AgentId, request: MessageCreateRequest): LettaResponse {
         val (client, baseUrl) = apiClient.session()
 
@@ -137,6 +149,8 @@ open class MessageApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun sendMessage(agentId: String, request: MessageCreateRequest): LettaResponse = sendMessage(AgentId(agentId), request)
 
     open suspend fun sendConversationMessage(
         conversationId: ConversationId,
@@ -161,6 +175,9 @@ open class MessageApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun sendConversationMessage(conversationId: String, request: MessageCreateRequest): ByteReadChannel =
+        sendConversationMessage(ConversationId(conversationId), request)
+
     open suspend fun sendConversationMessageNoStream(
         conversationId: ConversationId,
         request: MessageCreateRequest,
@@ -176,6 +193,9 @@ open class MessageApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun sendConversationMessageNoStream(conversationId: String, request: MessageCreateRequest): LettaResponse =
+        sendConversationMessageNoStream(ConversationId(conversationId), request)
 
 
     /**
@@ -240,6 +260,9 @@ open class MessageApi @Inject constructor(
         }
         return response.body()
     }
+
+
+    open suspend fun streamConversation(conversationId: String): ByteReadChannel = streamConversation(ConversationId(conversationId))
     open suspend fun listMessages(
         agentId: AgentId,
         limit: Int? = null,
@@ -263,6 +286,15 @@ open class MessageApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun listMessages(
+        agentId: String,
+        limit: Int? = null,
+        before: String? = null,
+        after: String? = null,
+        order: String? = null,
+        conversationId: String? = null,
+    ): List<LettaMessage> = listMessages(AgentId(agentId), limit, before, after, order, conversationId?.let(::ConversationId))
+
     open suspend fun listConversationMessages(
         conversationId: ConversationId,
         limit: Int? = null,
@@ -282,6 +314,13 @@ open class MessageApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun listConversationMessages(
+        conversationId: String,
+        limit: Int? = null,
+        after: String? = null,
+        order: String? = null,
+    ): List<LettaMessage> = listConversationMessages(ConversationId(conversationId), limit, after, order)
+
     open suspend fun resetMessages(agentId: AgentId) {
         val (client, baseUrl) = apiClient.session()
 
@@ -292,6 +331,8 @@ open class MessageApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun resetMessages(agentId: String) = resetMessages(AgentId(agentId))
 
     open suspend fun cancelMessage(agentId: AgentId, runIds: List<String>? = null): Map<String, String> {
         val (client, baseUrl) = apiClient.session()
@@ -305,6 +346,9 @@ open class MessageApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun cancelMessage(agentId: String, runIds: List<String>? = null): Map<String, String> =
+        cancelMessage(AgentId(agentId), runIds)
 
     open suspend fun searchMessages(request: MessageSearchRequest): List<MessageSearchResult> {
         val (client, baseUrl) = apiClient.session()

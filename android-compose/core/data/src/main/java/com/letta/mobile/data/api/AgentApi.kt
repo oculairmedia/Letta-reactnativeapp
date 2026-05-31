@@ -41,6 +41,8 @@ open class AgentApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun getAgent(agentId: String): Agent = getAgent(AgentId(agentId))
+
     open suspend fun getContextWindow(agentId: AgentId, conversationId: ConversationId? = null): ContextWindowOverview {
         val (client, baseUrl) = apiClient.session()
 
@@ -52,6 +54,9 @@ open class AgentApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun getContextWindow(agentId: String, conversationId: String? = null): ContextWindowOverview =
+        getContextWindow(AgentId(agentId), conversationId?.let(::ConversationId))
 
     open suspend fun countAgents(): Int {
         val (client, baseUrl) = apiClient.session()
@@ -89,6 +94,8 @@ open class AgentApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun updateAgent(agentId: String, params: AgentUpdateParams): Agent = updateAgent(AgentId(agentId), params)
+
     open suspend fun deleteAgent(agentId: AgentId) {
         val (client, baseUrl) = apiClient.session()
 
@@ -97,6 +104,8 @@ open class AgentApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun deleteAgent(agentId: String) = deleteAgent(AgentId(agentId))
 
     open suspend fun exportAgent(agentId: AgentId): String {
         val (client, baseUrl) = apiClient.session()
@@ -107,6 +116,8 @@ open class AgentApi @Inject constructor(
         }
         return response.body()
     }
+
+    open suspend fun exportAgent(agentId: String): String = exportAgent(AgentId(agentId))
 
     open suspend fun importAgent(
         fileName: String,
@@ -137,6 +148,22 @@ open class AgentApi @Inject constructor(
         return response.body()
     }
 
+    open suspend fun importAgent(
+        fileName: String,
+        fileBytes: ByteArray,
+        overrideName: String? = null,
+        overrideExistingTools: Boolean? = null,
+        projectId: String?,
+        stripMessages: Boolean? = null,
+    ): ImportedAgentsResponse = importAgent(
+        fileName = fileName,
+        fileBytes = fileBytes,
+        overrideName = overrideName,
+        overrideExistingTools = overrideExistingTools,
+        projectId = projectId?.let(::ProjectId),
+        stripMessages = stripMessages,
+    )
+
     open suspend fun attachArchive(agentId: AgentId, archiveId: String) {
         val (client, baseUrl) = apiClient.session()
 
@@ -146,6 +173,8 @@ open class AgentApi @Inject constructor(
         }
     }
 
+    open suspend fun attachArchive(agentId: String, archiveId: String) = attachArchive(AgentId(agentId), archiveId)
+
     open suspend fun detachArchive(agentId: AgentId, archiveId: String) {
         val (client, baseUrl) = apiClient.session()
 
@@ -154,4 +183,6 @@ open class AgentApi @Inject constructor(
             throw ApiException(response.status.value, response.bodyAsText())
         }
     }
+
+    open suspend fun detachArchive(agentId: String, archiveId: String) = detachArchive(AgentId(agentId), archiveId)
 }

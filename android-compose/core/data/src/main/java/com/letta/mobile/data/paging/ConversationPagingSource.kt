@@ -29,7 +29,7 @@ class ConversationPagingSource(
             LoadResult.Page(
                 data = conversations,
                 prevKey = null,
-                nextKey = conversations.lastOrNull()?.id?.takeIf { conversations.size >= params.loadSize },
+                nextKey = conversations.lastOrNull()?.id?.value?.takeIf { conversations.size >= params.loadSize },
             )
         } catch (e: Exception) {
             LoadResult.Error(e)

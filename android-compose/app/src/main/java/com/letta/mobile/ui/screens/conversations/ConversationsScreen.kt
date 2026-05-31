@@ -329,7 +329,7 @@ fun ConversationsScreen(
 }
 
 private fun ConversationDisplay.routeAgentName(): String? =
-    agentName.takeIf { it.isNotBlank() && it != conversation.agentId.take(8) }
+    agentName.takeIf { it.isNotBlank() && it != conversation.agentId.value.take(8) }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -641,7 +641,7 @@ private fun ConversationAdminDialog(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                conversation.id,
+                conversation.id.value,
                 style = MaterialTheme.typography.listItemMetadataMonospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
