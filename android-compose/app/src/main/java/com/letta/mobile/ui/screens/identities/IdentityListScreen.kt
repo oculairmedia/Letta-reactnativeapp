@@ -235,7 +235,7 @@ fun IdentityListScreen(
 
     attachTarget?.let { identity ->
         val attachableAgents = remember(uiState, identity.agentIds) {
-            val attached = identity.agentIds.mapTo(HashSet()) { AgentId(it) }
+            val attached = identity.agentIds.toSet()
             (uiState as? UiState.Success)?.data?.knownAgents.orEmpty()
                 .filter { it.id !in attached }
         }
@@ -243,7 +243,7 @@ fun IdentityListScreen(
             agents = attachableAgents,
             onDismiss = { attachTarget = null },
             onAttach = { agentId ->
-                viewModel.attachIdentity(agentId = agentId, identityId = identity.id) {
+                viewModel.attachIdentity(agentId = AgentId(agentId), identityId = identity.id) {
                     attachTarget = null
                 }
             },
@@ -358,7 +358,7 @@ private fun IdentityDetailDialog(
     onDetachAgent: (String) -> Unit,
 ) {
     val attachedAgentsById = remember(identity.id, knownAgents) {
-        knownAgents.associateBy { it.id.value }
+        knownAgents.associateBy { it.id }
     }
     val attachedAgents = remember(identity.id, identity.agentIds, knownAgents) {
         identity.agentIds.mapNotNull { attachedAgentsById[it] }
@@ -388,7 +388,7 @@ private fun IdentityDetailDialog(
                 identity.projectId?.let { projectId ->
                     item(
                         headlineContent = { Text(stringResource(R.string.screen_identities_project_label, "")) },
-                        supportingContent = { Text(projectId, style = MaterialTheme.typography.listItemSupporting) },
+                        supportingContent = { Text(projectId.value, style = MaterialTheme.typography.listItemSupporting) },
                     )
                 }
                 identity.organizationId?.let { orgId ->
@@ -431,9 +431,9 @@ private fun IdentityDetailDialog(
                     }
                     unresolvedAgentIds.forEach { agentId ->
                         item(
-                            headlineContent = { Text(agentId, style = MaterialTheme.typography.listItemMetadataMonospace) },
+                            headlineContent = { Text(agentId.value, style = MaterialTheme.typography.listItemMetadataMonospace) },
                             trailingContent = {
-                                TextButton(onClick = { onDetachAgent(agentId) }) {
+                                TextButton(onClick = { onDetachAgent(agentId.value) }) {
                                     Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error)
                                 }
                             },
@@ -458,7 +458,7 @@ private fun IdentityDetailDialog(
                         item(
                             headlineContent = {
                                 Text(
-                                    text = blockId,
+                                    text = blockId.value,
                                     style = MaterialTheme.typography.listItemMetadataMonospace,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
